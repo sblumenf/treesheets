@@ -81,5 +81,29 @@ mergeInto(LibraryManager.library, {
     },
     JS_SetBrush: function(brushType) {
         // Mock
+    },
+
+    JS_DownloadFile: function(filenamePtr, dataPtr, size) {
+        var filename = UTF8ToString(filenamePtr);
+        var data = new Uint8Array(Module.HEAPU8.buffer, dataPtr, size);
+        var blob = new Blob([data], { type: 'application/octet-stream' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    },
+    JS_LaunchBrowser: function(urlPtr) {
+        var url = UTF8ToString(urlPtr);
+        window.open(url, '_blank');
+    },
+    JS_SetClipboardText: function(textPtr) {
+        var text = UTF8ToString(textPtr);
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+        }
     }
 });

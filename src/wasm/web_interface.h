@@ -31,4 +31,9 @@ extern "C" {
     // Standard Pens/Brushes (enums)
     void JS_SetPen(int penType);
     void JS_SetBrush(int brushType);
+
+    // OS/Filesystem
+    void JS_DownloadFile(const char* filename, const uint8_t* data, int size);
+    void JS_LaunchBrowser(const char* url);
+    void JS_SetClipboardText(const char* text);
 }
