@@ -223,7 +223,7 @@ struct Document {
         return _(L"");
     }
 
-    void DrawSelect(wxDC &dc, Selection &s) {
+    void DrawSelect(TSGraphics &dc, Selection &s) {
         if (!s.grid) return;
         ResetFont();
         s.grid->DrawSelect(this, dc, s);
@@ -234,7 +234,7 @@ struct Document {
         canvas->Refresh();
     }
 
-    void UpdateHover(wxDC &dc) {
+    void UpdateHover(TSGraphics &dc) {
         int x, y;
         canvas->CalcUnscrolledPosition(mx, my, &x, &y);
         Selection prev = hover;
@@ -305,7 +305,7 @@ struct Document {
         begindrag = sel;
     }
 
-    void SelectUp(wxDC &dc) {
+    void SelectUp(TSGraphics &dc) {
         if (!isctrlshiftdrag || isctrlshiftdrag == 3 || begindrag.EqLoc(selected)) return;
         auto cell = selected.GetCell();
         if (!cell) return;
@@ -472,9 +472,9 @@ struct Document {
         }
     }
 
-    void Layout(wxDC &dc) {
+    void Layout(TSGraphics &dc) {
         ResetFont();
-        dc.SetUserScale(1, 1);
+        // dc.SetUserScale(1, 1); // Not available in TSGraphics, assume handled by caller or default
         currentdrawroot = WalkPath(drawpath);
         int psb = currentdrawroot == root ? 0 : currentdrawroot->MinRelsize();
         if (psb < 0 || psb == INT_MAX) psb = 0;
@@ -498,10 +498,10 @@ struct Document {
         dc.SetUserScale(currentviewscale, currentviewscale);
     }
 
-    void Render(wxDC &dc) {
+    void Render(TSGraphics &dc) {
         ResetFont();
         PickFont(dc, 0, 0, 0);
-        dc.SetTextForeground(*wxLIGHT_GREY);
+        dc.SetTextForeground(0xC0C0C0); // *wxLIGHT_GREY
         int i = 0;
         for (auto p = currentdrawroot->parent; p; p = p->parent)
             if (p->text.t.Len()) {
@@ -514,17 +514,19 @@ struct Document {
                 }
                 dc.DrawText(s, off, off);
             }
-        dc.SetTextForeground(sys->darkmode ? *wxWHITE : *wxBLACK);
+        dc.SetTextForeground(sys->darkmode ? 0xFFFFFF : 0x000000); // *wxWHITE : *wxBLACK
         currentdrawroot->Render(this, hierarchysize, hierarchysize, dc, 0, 0, 0, 0, 0,
                                 currentdrawroot->ColWidth(), 0);
     }
 
     void Draw(wxDC &dc) {
+        TSWxGraphics g(dc);
         dc.SetBackground(wxBrush(wxColor(LightColor(Background()))));
         dc.Clear();
         if (!root) return;
         canvas->GetClientSize(&maxx, &maxy);
-        Layout(dc);
+        g.GetDC().SetUserScale(1, 1);
+        Layout(g);
         double xscale = maxx / static_cast<double>(layoutxs);
         double yscale = maxy / static_cast<double>(layoutys);
         currentviewscale = min(xscale, yscale);
@@ -553,7 +555,7 @@ struct Document {
                       ? (maxy - layoutys) / 2 * currentviewscale
                       : 0;
         ShiftToCenter(dc);
-        UpdateHover(dc);
+        UpdateHover(g);
         if (paintselectclick) {
             begindrag = Selection();
             if (!(paintclickright && hover.IsInside(selected))) {
@@ -592,7 +594,7 @@ struct Document {
             paintdrag = false;
         }
         if (paintselectup) {
-            SelectUp(dc);
+            SelectUp(g);
             paintselectup = false;
         }
         if (paintdrop) {
@@ -603,11 +605,11 @@ struct Document {
                 case wxDF_UNICODETEXT: PasteOrDrop(*dndobjt);
                 default:;
             }
-            Layout(dc);
+            Layout(g);
             paintdrop = false;
         }
-        Render(dc);
-        DrawSelect(dc, selected);
+        Render(g);
+        DrawSelect(g, selected);
         wxQueueEvent(canvas->frame, new wxCommandEvent(UPDATE_STATUSBAR_REQUEST));
         if (paintscrolltoselection) {
             wxQueueEvent(canvas, new wxCommandEvent(SCROLLTOSELECTION_REQUEST));
@@ -617,7 +619,9 @@ struct Document {
     }
 
     void Print(wxDC &dc, wxPrintout &po) {
-        Layout(dc);
+        TSWxGraphics g(dc);
+        g.GetDC().SetUserScale(1, 1);
+        Layout(g);
         maxx = layoutxs;
         maxy = layoutys;
         scrollx = scrolly = 0;
@@ -627,7 +631,7 @@ struct Document {
         wxCoord yoff = (fitRect.height - maxy) / 2;
         po.OffsetLogicalOrigin(xoff, yoff);
         while_printing = true;
-        Render(dc);
+        Render(g);
         while_printing = false;
     }
 
@@ -637,17 +641,11 @@ struct Document {
 
     bool FontIsMini(int textsize) { return textsize == g_mintextsize(); }
 
-    bool PickFont(wxDC &dc, int depth, int relsize, int stylebits) {
+    bool PickFont(TSGraphics &dc, int depth, int relsize, int stylebits) {
         int textsize = TextSize(depth, relsize);
         if (textsize != lasttextsize || stylebits != laststylebits) {
-            wxFont font(textsize - (while_printing || scaledviewingmode),
-                        stylebits & STYLE_FIXED ? wxFONTFAMILY_TELETYPE : wxFONTFAMILY_DEFAULT,
-                        stylebits & STYLE_ITALIC ? wxFONTSTYLE_ITALIC : wxFONTSTYLE_NORMAL,
-                        stylebits & STYLE_BOLD ? wxFONTWEIGHT_BOLD : wxFONTWEIGHT_NORMAL,
-                        (stylebits & STYLE_UNDERLINE) != 0,
-                        stylebits & STYLE_FIXED ? sys->defaultfixedfont : sys->defaultfont);
-            if (stylebits & STYLE_STRIKETHRU) font.SetStrikethrough(true);
-            dc.SetFont(font);
+            int finalsize = textsize - (while_printing || scaledviewingmode);
+            dc.SetFont(finalsize, stylebits);
             lasttextsize = textsize;
             laststylebits = stylebits;
         }
@@ -714,9 +712,11 @@ struct Document {
         scrollx = scrolly = 0;
         wxBitmap bm(maxx, maxy, 24);
         wxMemoryDC mdc(bm);
-        DrawRectangle(mdc, Background(), 0, 0, maxx, maxy);
-        Layout(mdc);
-        Render(mdc);
+        TSWxGraphics g(mdc);
+        g.GetDC().SetUserScale(1, 1);
+        DrawRectangle(g, Background(), 0, 0, maxx, maxy);
+        Layout(g);
+        Render(g);
         return bm;
     }
 
