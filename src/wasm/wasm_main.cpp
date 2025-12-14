@@ -2,6 +2,7 @@
 #include "../tools.h"
 #include "../ts_graphics.h"
 #include "ts_graphics_wasm.h"
+#include "ts_graphics_web.h"
 
 #include <map>
 #include <vector>
@@ -159,7 +160,8 @@ wasm_treesheets::System* wasm_treesheets::sys = nullptr;
 
 int main() {
     wasm_treesheets::sys = new wasm_treesheets::System(false);
-    TSWasmGraphics g;
+    // TSWasmGraphics g;
+    TSWebGraphics g;
 
     auto c = new wasm_treesheets::Cell();
     c->text.t = "WASM Ready";

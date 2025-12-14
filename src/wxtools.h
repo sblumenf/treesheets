@@ -8,6 +8,16 @@ static void DrawRectangle(wxDC &dc, uint color, int x, int y, int xs, int ys,
     dc.DrawRectangle(x, y, xs, ys);
 }
 
+static void DrawRectangle(TSGraphics &dc, uint color, int x, int y, int xs, int ys,
+                          bool outline = false) {
+    if (outline)
+        dc.SetBrush(TSGraphics::BRUSH_TRANSPARENT);
+    else
+        dc.SetBrushColor(LightColor(color));
+    dc.SetPenColor(LightColor(color));
+    dc.DrawRectangle(x, y, xs, ys);
+}
+
 struct DropTarget : wxDropTarget {
     DropTarget(wxDataObject *data) : wxDropTarget(data) {};
 

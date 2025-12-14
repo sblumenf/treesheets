@@ -1,0 +1,20 @@
+#include "web_interface.h"
+#include <iostream>
+
+extern "C" {
+    void JS_DrawRectangle(int x, int y, int w, int h) { std::cout << "DrawRect " << x << "," << y << "\n"; }
+    void JS_DrawRoundedRectangle(int x, int y, int w, int h, int radius) {}
+    void JS_DrawLine(int x1, int y1, int x2, int y2) {}
+    void JS_DrawText(const char* str, int x, int y) {}
+    void JS_DrawBitmap(int imageIndex, int x, int y) {}
+    int JS_GetCharHeight() { return 10; }
+    int JS_GetTextWidth(const char* str) { return 0; }
+    int JS_GetTextHeight(const char* str) { return 10; }
+    void JS_SetBrushColor(unsigned int color) {}
+    void JS_SetPenColor(unsigned int color) {}
+    void JS_SetTextForeground(unsigned int color) {}
+    void JS_SetTextBackground(unsigned int color) {}
+    void JS_SetFont(int size, int stylebits) {}
+    void JS_SetPen(int penType) {}
+    void JS_SetBrush(int brushType) {}
+}
