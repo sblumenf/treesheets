@@ -85,7 +85,7 @@ struct Cell {
         return sizeof(Cell) + text.EstimatedMemoryUse() + (grid ? grid->EstimatedMemoryUse() : 0);
     }
 
-    void Layout(Document *doc, wxDC &dc, int depth, int maxcolwidth, bool forcetiny) {
+    void Layout(Document *doc, TSGraphics &dc, int depth, int maxcolwidth, bool forcetiny) {
         tiny = text.filtered && !grid || forcetiny ||
                doc->PickFont(dc, depth, text.relsize, text.stylebits);
         int ixs = 0, iys = 0;
@@ -130,7 +130,7 @@ struct Cell {
         }
     }
 
-    void Render(Document *doc, int bx, int by, wxDC &dc, int depth, int ml, int mr, int mt, int mb,
+    void Render(Document *doc, int bx, int by, TSGraphics &dc, int depth, int ml, int mr, int mt, int mb,
                 int maxcolwidth, int cell_margin) {
         // Choose color from celltype (program operations)
         switch (celltype) {
@@ -162,8 +162,8 @@ struct Cell {
                 auto cp = (uchar *)&actualcellcolor;
                 loop(i, 4) cp[i] = cp[i] * 850 / 1000;
             }
-            dc.SetBrush(wxBrush(LightColor(actualcellcolor)));
-            dc.SetPen(wxPen(LightColor(actualcellcolor)));
+            dc.SetBrushColor(LightColor(actualcellcolor));
+            dc.SetPenColor(LightColor(actualcellcolor));
 
             if (drawstyle == DS_BLOBSHIER)
                 dc.DrawRoundedRectangle(bx - cell_margin, by - cell_margin, minx + cell_margin * 2,
@@ -175,7 +175,7 @@ struct Cell {
                                         tys + cell_margin * 2 + g_margin_extra, sys->roundness);
             // FIXME: this half a g_margin_extra is a bit of hack
         }
-        dc.SetTextBackground(wxColour(LightColor(actualcellcolor)));
+        dc.SetTextBackground(LightColor(actualcellcolor));
         int xoff = verticaltextandgrid ? 0 : text.extent - depth * dc.GetCharHeight();
         int yoff = text.Render(doc, bx, by + ycenteroff, depth, dc, xoff, maxcolwidth);
         yoff = verticaltextandgrid ? yoff : 0;
@@ -321,7 +321,7 @@ struct Cell {
         if (parent) parent->ResetLayout();
     }
 
-    void LazyLayout(Document *doc, wxDC &dc, int depth, int maxcolwidth, bool forcetiny) {
+    void LazyLayout(Document *doc, TSGraphics &dc, int depth, int maxcolwidth, bool forcetiny) {
         if (sx == 0) {
             Layout(doc, dc, depth, maxcolwidth, forcetiny);
             minx = sx;

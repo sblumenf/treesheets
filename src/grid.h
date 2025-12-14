@@ -109,7 +109,7 @@ struct Grid {
         if (ys > xs) horiz = false;
     }
 
-    bool Layout(Document *doc, wxDC &dc, int depth, int &sx, int &sy, int startx, int starty,
+    bool Layout(Document *doc, TSGraphics &dc, int depth, int &sx, int &sy, int startx, int starty,
                 bool forcetiny) {
         auto xa = new int[xs];
         auto ya = new int[ys];
@@ -159,7 +159,7 @@ struct Grid {
         return tinyborder;
     }
 
-    void Render(Document *doc, int bx, int by, wxDC &dc, int depth, int sx, int sy, int xoff,
+    void Render(Document *doc, int bx, int by, TSGraphics &dc, int depth, int sx, int sy, int xoff,
                 int yoff) {
         xoff = C(0, 0)->ox - view_margin - view_grid_outer_spacing - 1;
         yoff = C(0, 0)->oy - view_margin - view_grid_outer_spacing - 1;
@@ -187,12 +187,12 @@ struct Grid {
                 }
             };
             if (!sys->fastrender && view_grid_outer_spacing && cell->cellcolor != 0xFFFFFF) {
-                dc.SetPen(sys->darkmode ? *wxBLACK_PEN : *wxWHITE_PEN);
+                dc.SetPen(sys->darkmode ? TSGraphics::PEN_BLACK : TSGraphics::PEN_WHITE);
                 drawlines();
             }
             // dotted lines result in very expensive drawline calls
-            dc.SetPen(view_grid_outer_spacing && !sys->fastrender ? sys->pen_gridlines
-                                                                  : sys->pen_tinygridlines);
+            dc.SetPen(view_grid_outer_spacing && !sys->fastrender ? TSGraphics::PEN_GRIDLINES
+                                                                  : TSGraphics::PEN_TINYGRIDLINES);
             drawlines();
         }
 
@@ -214,7 +214,7 @@ struct Grid {
             // fixme: the 8 is chosen to fit the smallest text size, not very portable
             int srcx = bx + (cell->verticaltextandgrid ? 8 : cell->txs + 4) + g_margin_extra;
             int destyfirst = -1, destylast = -1;
-            dc.SetPen(*wxGREY_PEN);
+            dc.SetPen(TSGraphics::PEN_GREY);
             foreachcelly(c) if (c->HasContent() && !c->tiny) {
                 int desty = c->ycenteroff + by + c->oy + c->tys / 2 + g_margin_extra;
                 int destx = bx + c->ox - 2 + g_margin_extra;
@@ -228,11 +228,11 @@ struct Grid {
                     if (desty < srcy) {
                         if (destyfirst < 0) destyfirst = desty + arcsize;
                         destylast = desty + arcsize;
-                        if (visible) dc.DrawBitmap(sys->frame->line_nw, srcx, desty, true);
+                        if (visible) dc.DrawBitmap(sys->frame->line_nw, srcx, desty);
                     } else {
                         destylast = desty - arcsize;
                         if (visible)
-                            dc.DrawBitmap(sys->frame->line_sw, srcx, desty - arcsize, true);
+                            dc.DrawBitmap(sys->frame->line_sw, srcx, desty - arcsize);
                         desty--;
                     }
                     if (visible) dc.DrawLine(srcx + arcsize, desty, destx, desty);
@@ -249,8 +249,8 @@ struct Grid {
             }
         }
         if (view_grid_outer_spacing && cell->drawstyle == DS_GRID) {
-            dc.SetBrush(*wxTRANSPARENT_BRUSH);
-            dc.SetPen(wxPen(wxColour(LightColor(bordercolor))));
+            dc.SetBrush(TSGraphics::BRUSH_TRANSPARENT);
+            dc.SetPenColor(LightColor(bordercolor));
             loop(i, view_grid_outer_spacing - 1) {
                 dc.DrawRoundedRectangle(
                     bx + xoff + view_grid_outer_spacing - i,
@@ -262,7 +262,7 @@ struct Grid {
         }
     }
 
-    void FindXY(Document *doc, int px, int py, wxDC &dc) {
+    void FindXY(Document *doc, int px, int py, TSGraphics &dc) {
         foreachcell(c) {
             int bx = px - c->ox;
             int by = py - c->oy;
@@ -340,13 +340,13 @@ struct Grid {
         if (includefolded || !folded) foreachcell(c) c->ImageRefCount(includefolded);
     }
 
-    void DrawCursor(Document *doc, wxDC &dc, Selection &sel, bool full, uint color) {
+    void DrawCursor(Document *doc, TSGraphics &dc, Selection &sel, bool full, uint color) {
         if (auto c = sel.GetCell(); c && !c->tiny && (c->HasText() || !c->grid))
             c->text.DrawCursor(doc, dc, sel, full, color, colwidths[sel.x]);
     }
 
-    void DrawInsert(Document *doc, wxDC &dc, Selection &sel, uint colour) {
-        dc.SetPen(sys->pen_thinselect);
+    void DrawInsert(Document *doc, TSGraphics &dc, Selection &sel, uint colour) {
+        dc.SetPen(TSGraphics::PEN_THINSELECT);
         if (!sel.xs) {
             auto c = C(sel.x - (sel.x == xs), sel.y);
             int x = c->GetX(doc) + (c->sx + g_line_width + cell_margin) * (sel.x == xs) -
@@ -396,12 +396,12 @@ struct Grid {
         }
     }
 
-    void DrawSelect(Document *doc, wxDC &dc, Selection &sel) {
+    void DrawSelect(Document *doc, TSGraphics &dc, Selection &sel) {
         if (sel.Thin()) {
             DrawInsert(doc, dc, sel, 0);
         } else {
-            dc.SetBrush(sys->darkmode ? *wxWHITE_BRUSH : *wxBLACK_BRUSH);
-            dc.SetPen(sys->darkmode ? *wxWHITE_PEN : *wxBLACK_PEN);
+            dc.SetBrush(sys->darkmode ? TSGraphics::BRUSH_WHITE : TSGraphics::BRUSH_BLACK);
+            dc.SetPen(sys->darkmode ? TSGraphics::PEN_WHITE : TSGraphics::PEN_BLACK);
             wxRect g = GetRect(doc, sel);
             int lw = g_line_width;
             int te = sel.TextEdit();
