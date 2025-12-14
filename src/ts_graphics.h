@@ -15,7 +15,7 @@ public:
 
     // Measurement operations
     virtual int GetCharHeight() = 0;
-    virtual void GetTextExtent(const wxString& str, int& w, int& h) = 0;
+    virtual void GetTextExtent(const wxString& str, int* w, int* h) = 0;
 
     // Styling operations
     virtual void SetBrushColor(uint color) = 0;

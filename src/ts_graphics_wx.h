@@ -32,8 +32,8 @@ struct TSWxGraphics : public TSGraphics {
         return dc.GetCharHeight();
     }
 
-    void GetTextExtent(const wxString& str, int& w, int& h) override {
-        dc.GetTextExtent(str, &w, &h);
+    void GetTextExtent(const wxString& str, int* w, int* h) override {
+        dc.GetTextExtent(str, w, h);
     }
 
     void SetBrushColor(uint color) override {

@@ -150,7 +150,7 @@ struct Text {
         // return GetLinePart(i, l, l);     // big word was the last one
     }
 
-    void TextSize(wxDC &dc, int &sx, int &sy, int tiny, int &leftoffset, int maxcolwidth) {
+    void TextSize(TSGraphics &dc, int &sx, int &sy, int tiny, int &leftoffset, int maxcolwidth) {
         sx = sy = 0;
         auto i = 0;
         for (;;) {
@@ -175,13 +175,13 @@ struct Text {
                                          : t.Lower().Find(sys->searchstring)) >= 0;
     }
 
-    int Render(Document *doc, int bx, int by, int depth, wxDC &dc, int &leftoffset,
+    int Render(Document *doc, int bx, int by, int depth, TSGraphics &dc, int &leftoffset,
                int maxcolwidth) {
         auto ixs = 0, iys = 0;
         if (!cell->tiny) sys->ImageSize(DisplayImage(), ixs, iys);
 
         if (ixs && iys) {
-            sys->ImageDraw(DisplayImage(), dc, bx + 1 + g_margin_extra,
+            dc.DrawBitmap(*DisplayImage(), bx + 1 + g_margin_extra,
                            by + (cell->tys - iys) / 2 + g_margin_extra);
             ixs += 2;
             iys += 2;
@@ -199,13 +199,13 @@ struct Text {
         auto istag = cell->IsTag(doc);
         if (cell->tiny) {
             if (searchfound)
-                dc.SetPen(*wxRED_PEN);
+                dc.SetPen(TSGraphics::PEN_RED);
             else if (filtered)
-                dc.SetPen(*wxLIGHT_GREY_PEN);
+                dc.SetPen(TSGraphics::PEN_LIGHT_GREY);
             else if (istag)
-                dc.SetPen(wxColour(LightColor(doc->tags[t])));
+                dc.SetPenColor(LightColor(doc->tags[t]));
             else
-                dc.SetPen(sys->pen_tinytext);
+                dc.SetPen(TSGraphics::PEN_TINYTEXT);
         }
         for (;;) {
             auto curl = GetLine(i, maxcolwidth);
@@ -232,18 +232,18 @@ struct Text {
                 }
             } else {
                 if (searchfound)
-                    dc.SetTextForeground(*wxRED);
+                    dc.SetTextForeground(0xFF0000);
                 else if (filtered)
-                    dc.SetTextForeground(*wxLIGHT_GREY);
+                    dc.SetTextForeground(0xC0C0C0);
                 else if (istag)
-                    dc.SetTextForeground(wxColour(LightColor(doc->tags[t])));
+                    dc.SetTextForeground(LightColor(doc->tags[t]));
                 else if (cell->textcolor)
                     dc.SetTextForeground(LightColor(cell->textcolor));  // FIXME: clean up
                 auto tx = bx + 2 + ixs;
                 auto ty = by + lines * h;
                 dc.DrawText(curl, tx + g_margin_extra, ty + g_margin_extra);
                 if (searchfound || filtered || istag || cell->textcolor)
-                    dc.SetTextForeground(sys->darkmode ? *wxWHITE : *wxBLACK);
+                    dc.SetTextForeground(sys->darkmode ? 0xFFFFFF : 0x000000);
             }
             lines++;
         }
@@ -251,7 +251,7 @@ struct Text {
         return max(lines * h, iys);
     }
 
-    void FindCursor(Document *doc, int bx, int by, wxDC &dc, Selection &s, int maxcolwidth) {
+    void FindCursor(Document *doc, int bx, int by, TSGraphics &dc, Selection &s, int maxcolwidth) {
         bx -= g_margin_extra;
         by -= g_margin_extra;
 
@@ -281,7 +281,7 @@ struct Text {
         ASSERT(s.cursor >= 0 && s.cursor <= static_cast<int>(t.Len()));
     }
 
-    void DrawCursor(Document *doc, wxDC &dc, Selection &s, bool full, uint color, int maxcolwidth) {
+    void DrawCursor(Document *doc, TSGraphics &dc, Selection &s, bool full, uint color, int maxcolwidth) {
         auto ixs = 0, iys = 0;
         if (!cell->tiny) sys->ImageSize(DisplayImage(), ixs, iys);
         if (ixs) ixs += 2;
