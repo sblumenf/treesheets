@@ -41,6 +41,7 @@ public:
     }
 
     size_t Len() const { return length(); }
+    size_t Length() const { return length(); }
     bool IsEmpty() const { return empty(); }
     void Clear() { std::string::clear(); }
 
@@ -114,6 +115,23 @@ public:
 
     using std::string::operator+=;
 
+    wxString& operator=(const std::wstring& s) {
+        clear();
+        for(auto c : s) push_back((char)c);
+        return *this;
+    }
+
+    wxString& operator=(const wchar_t* s) {
+        clear();
+        if(s) while(*s) push_back((char)*s++);
+        return *this;
+    }
+
+    wxString& operator=(const char* s) {
+        assign(s);
+        return *this;
+    }
+
     int CmpNoCase(const wxString& s) const {
         std::string s1 = Lower();
         std::string s2 = s.Lower();
@@ -155,6 +173,14 @@ public:
         s += rhs;
         return s;
     }
+
+    friend wxString operator+(const wxString& lhs, const wxString& rhs) { return std::string(lhs) + std::string(rhs); }
+    friend wxString operator+(wxString&& lhs, const wxString& rhs) { return std::string(lhs) + std::string(rhs); }
+    friend wxString operator+(const wxString& lhs, wxString&& rhs) { return std::string(lhs) + std::string(rhs); }
+    friend wxString operator+(wxString&& lhs, wxString&& rhs) { return std::string(lhs) + std::string(rhs); }
+
+    friend wxString operator+(wxString&& lhs, const char* rhs) { return std::string(lhs) + rhs; }
+    friend wxString operator+(const char* lhs, wxString&& rhs) { return lhs + std::string(rhs); }
 };
 
 // Global empty string
@@ -294,7 +320,10 @@ public:
 };
 
 // Graphics types used in core
-struct wxPoint { int x, y; };
+struct wxPoint { int x, y; wxPoint(int _x=0, int _y=0) : x(_x), y(_y) {} };
+struct wxSize { int x, y; wxSize(int w=0, int h=0) : x(w), y(h) {} };
+const wxPoint wxDefaultPosition = wxPoint(-1, -1);
+const wxSize wxDefaultSize = wxSize(-1, -1);
 struct wxRect {
     int x, y, width, height;
     wxRect(int _x=0, int _y=0, int _w=0, int _h=0) : x(_x), y(_y), width(_w), height(_h) {}
@@ -312,7 +341,8 @@ struct wxColour {
 inline bool wxIsalnum(char c) { return isalnum(c); }
 inline bool wxIsspace(char c) { return isspace(c); }
 inline bool wxIspunct(char c) { return ispunct(c); }
-inline const char* _(const wchar_t* s) { return "translated"; }
+inline wxString _(const wchar_t* s) { return wxString(s); }
+inline wxString _(const char* s) { return wxString(s); }
 inline const wchar_t* wxStrchr(const wchar_t* s, wchar_t c) {
     while(s && *s) { if(*s == c) return s; s++; }
     return c == 0 ? s : nullptr;
@@ -325,4 +355,23 @@ public:
     wxBitmap(int w, int h, int d=0) {}
     int GetWidth() const { return 0; }
     int GetHeight() const { return 0; }
+};
+
+enum {
+    wxID_ANY = -1,
+    wxID_NEW = 5000, wxID_OPEN, wxID_CLOSE, wxID_SAVE, wxID_SAVEAS,
+    wxID_PREVIEW, wxID_PRINT, wxID_EXIT, wxID_SELECTALL,
+    wxID_BOLD, wxID_ITALIC, wxID_UNDERLINE, wxID_STRIKETHROUGH,
+    wxID_CUT, wxID_COPY, wxID_PASTE, wxID_UNDO, wxID_REDO,
+    wxID_FIND, wxID_REPLACE, wxID_SELECT_FONT, wxID_EXECUTE,
+    wxID_ABOUT, wxID_HELP
+};
+
+inline wxString wxFindFirstFile(const wxString& s, int f = 0) { return ""; }
+inline wxString wxFindNextFile() { return ""; }
+class wxFileName {
+public:
+    wxFileName(const wxString& s) {}
+    static wxFileName FileName(const wxString& s) { return wxFileName(s); }
+    wxString GetFullName() { return ""; }
 };

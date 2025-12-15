@@ -55,7 +55,7 @@ struct Text {
     wxString htmlify(wxString &str) {
         wxString r;
         for (auto cref : str) {
-            switch (wxChar c = cref.GetValue()) {
+            switch (wxChar c = (wxChar)cref) {
                 case '&': r += L"&amp;"; break;
                 case '<': r += L"&lt;"; break;
                 case '>': r += L"&gt;"; break;

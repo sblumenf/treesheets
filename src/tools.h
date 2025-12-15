@@ -1,3 +1,6 @@
+#pragma once
+#include <algorithm>
+
 typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;
@@ -13,8 +16,11 @@ typedef unsigned int uint;
 #define loopv(i, v) for (int i = 0; i < (v).size(); i++)
 #define loopvrev(i, v) for (int i = (v).size() - 1; i >= 0; i--)
 
-#define max(a, b) ((a) < (b) ? (b) : (a))
-#define min(a, b) ((a) > (b) ? (b) : (a))
+#undef max
+#undef min
+// Use std::max/min via <algorithm> and using namespace std (usually active)
+// #define max(a, b) ((a) < (b) ? (b) : (a))
+// #define min(a, b) ((a) > (b) ? (b) : (a))
 #define sign(x) ((x) < 0 ? -1 : 1)
 
 #define varargs(v, fmt, body) \
