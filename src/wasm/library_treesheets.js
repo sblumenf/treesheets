@@ -105,5 +105,35 @@ mergeInto(LibraryManager.library, {
         if (navigator.clipboard) {
             navigator.clipboard.writeText(text);
         }
+    },
+
+    JS_TriggerUpload: function() {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.cts';
+        input.onchange = function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(evt) {
+                var arrayBuffer = evt.target.result;
+                var uint8Array = new Uint8Array(arrayBuffer);
+                var ptr = Module._malloc(uint8Array.length);
+                Module.HEAPU8.set(uint8Array, ptr);
+
+                // Filename
+                var nameLen = lengthBytesUTF8(file.name) + 1;
+                var namePtr = Module._malloc(nameLen);
+                stringToUTF8(file.name, namePtr, nameLen);
+
+                // Call C++
+                Module._WASM_FileLoaded(namePtr, ptr, uint8Array.length);
+
+                Module._free(ptr);
+                Module._free(namePtr);
+            };
+            reader.readAsArrayBuffer(file);
+        };
+        input.click();
     }
 });

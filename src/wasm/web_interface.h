@@ -36,4 +36,10 @@ extern "C" {
     void JS_DownloadFile(const char* filename, const uint8_t* data, int size);
     void JS_LaunchBrowser(const char* url);
     void JS_SetClipboardText(const char* text);
+    void JS_TriggerUpload(); // Opens file picker
+}
+
+// C++ exports for JS
+extern "C" {
+    void WASM_FileLoaded(const char* filename, const uint8_t* data, int size);
 }

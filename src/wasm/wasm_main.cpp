@@ -5,12 +5,15 @@
 #include "ts_graphics_web.h"
 #include "../ts_platform_os.h"
 #include "ts_platform_os_web.h"
+#include "emscripten.h"
 
 #include <map>
 #include <vector>
 #include <memory>
 #include <climits>
 #include <cassert>
+#include <cstring>
+#include <iostream>
 
 using namespace std;
 
@@ -161,22 +164,33 @@ struct wasm_treesheets {
 
 wasm_treesheets::System* wasm_treesheets::sys = nullptr;
 
+void Iterate() {
+    // std::cout << "Loop Frame" << std::endl;
+}
+
+extern "C" {
+    void WASM_FileLoaded(const char* filename, const uint8_t* data, int size) {
+        std::cout << "File Loaded Callback: " << filename << " (" << size << " bytes)" << std::endl;
+        wxMemoryInputStream mis(data, size);
+        // In real impl: sys->LoadDBFromStream(mis, ...);
+    }
+}
+
 int main() {
     wasm_treesheets::sys = new wasm_treesheets::System(false);
     wasm_treesheets::sys->os.reset(new TSWebOS());
-    // TSWasmGraphics g;
-    TSWebGraphics g;
 
+    // Test Layout
+    TSWebGraphics g;
     auto c = new wasm_treesheets::Cell();
     c->text.t = "WASM Ready";
-
     wasm_treesheets::Document doc;
     doc.currentdrawroot = c;
-
-    // Layout
     c->Layout(&doc, g, 0, 80, false);
-
     std::cout << "Cell calculated width: " << c->sx << std::endl;
+
+    // Start Loop
+    emscripten_set_main_loop(Iterate, 0, 1);
 
     return 0;
 }

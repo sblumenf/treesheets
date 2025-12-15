@@ -197,11 +197,11 @@ public:
 };
 
 class wxStreamBuffer {
-    std::vector<uint8_t>& buf;
+    std::vector<uint8_t>* buf;
 public:
-    wxStreamBuffer(std::vector<uint8_t>& b) : buf(b) {}
-    void* GetBufferStart() { return buf.data(); }
-    void* GetBufferEnd() { return buf.data() + buf.size(); }
+    wxStreamBuffer(std::vector<uint8_t>& b) : buf(&b) {}
+    void* GetBufferStart() { return buf->data(); }
+    void* GetBufferEnd() { return buf->data() + buf->size(); }
 };
 
 class wxMemoryOutputStream : public wxOutputStream {
@@ -213,7 +213,7 @@ public:
         buffer.insert(buffer.end(), up, up + size);
     }
     wxStreamBuffer* GetOutputStreamBuffer() {
-        streamBuf = wxStreamBuffer(buffer); // Update ref
+        streamBuf = wxStreamBuffer(buffer); // Update pointer
         return &streamBuf;
     }
 };
