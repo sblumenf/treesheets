@@ -3,6 +3,8 @@
 #include "../ts_graphics.h"
 #include "ts_graphics_wasm.h"
 #include "ts_graphics_web.h"
+#include "../ts_platform_os.h"
+#include "ts_platform_os_web.h"
 
 #include <map>
 #include <vector>
@@ -122,6 +124,7 @@ struct wasm_treesheets {
 
     // System definition
     struct System {
+        std::unique_ptr<TSPlatformOS> os;
         int defaultmaxcolwidth = 80;
         int roundness = 3;
         bool casesensitivesearch = true;
@@ -160,6 +163,7 @@ wasm_treesheets::System* wasm_treesheets::sys = nullptr;
 
 int main() {
     wasm_treesheets::sys = new wasm_treesheets::System(false);
+    wasm_treesheets::sys->os.reset(new TSWebOS());
     // TSWasmGraphics g;
     TSWebGraphics g;
 

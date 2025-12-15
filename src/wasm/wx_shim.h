@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <sstream>
 #include <cstdarg>
+#include <cstring> // memcpy
 
 // Basic Types
 using wxUint8 = uint8_t;
@@ -188,10 +189,88 @@ public:
     bool IsBetween(const wxDateTime& t1, const wxDateTime& t2) const { return ticks >= t1.ticks && ticks <= t2.ticks; }
 };
 
+class wxOutputStream {
+public:
+    virtual ~wxOutputStream() {}
+    virtual void Write(const void *buffer, size_t size) = 0;
+    void PutC(char c) { Write(&c, 1); }
+};
+
+class wxStreamBuffer {
+    std::vector<uint8_t>& buf;
+public:
+    wxStreamBuffer(std::vector<uint8_t>& b) : buf(b) {}
+    void* GetBufferStart() { return buf.data(); }
+    void* GetBufferEnd() { return buf.data() + buf.size(); }
+};
+
+class wxMemoryOutputStream : public wxOutputStream {
+    std::vector<uint8_t> buffer;
+    wxStreamBuffer streamBuf{buffer};
+public:
+    void Write(const void *p, size_t size) override {
+        const uint8_t* up = (const uint8_t*)p;
+        buffer.insert(buffer.end(), up, up + size);
+    }
+    wxStreamBuffer* GetOutputStreamBuffer() {
+        streamBuf = wxStreamBuffer(buffer); // Update ref
+        return &streamBuf;
+    }
+};
+
+class wxZlibOutputStream : public wxOutputStream {
+    wxOutputStream& parent;
+public:
+    wxZlibOutputStream(wxOutputStream& os, int level=9) : parent(os) {}
+    bool IsOk() { return true; }
+    void Write(const void *buffer, size_t size) override {
+        parent.Write(buffer, size); // No actual compression in shim
+    }
+};
+
+class wxInputStream {
+public:
+    virtual ~wxInputStream() {}
+    virtual bool IsOk() { return true; }
+    virtual size_t Read(void *buffer, size_t size) = 0;
+    virtual char GetC() { char c; Read(&c, 1); return c; }
+    virtual off_t TellI() { return 0; }
+    virtual void SeekI(off_t pos, int mode = 0) {}
+};
+// wxFromCurrent
+const int wxFromCurrent = 1;
+
+class wxMemoryInputStream : public wxInputStream {
+    std::vector<uint8_t> internal_buf;
+    size_t pos = 0;
+public:
+    wxMemoryInputStream(const void* data, size_t len) {
+        const uint8_t* up = (const uint8_t*)data;
+        internal_buf.assign(up, up+len);
+    }
+    size_t Read(void *buffer, size_t size) override {
+        size_t copy = std::min(size, internal_buf.size() - pos);
+        memcpy(buffer, internal_buf.data() + pos, copy);
+        pos += copy;
+        return copy;
+    }
+};
+
+class wxZlibInputStream : public wxInputStream {
+    wxInputStream& parent;
+public:
+    wxZlibInputStream(wxInputStream& is) : parent(is) {}
+    bool IsOk() { return true; }
+    size_t Read(void *buffer, size_t size) override {
+        return parent.Read(buffer, size);
+    }
+};
+
 // Streams
 class wxDataOutputStream {
 public:
     wxDataOutputStream(std::ostream& s) {}
+    wxDataOutputStream(wxOutputStream& s) {}
     void Write8(wxUint8 val) {}
     void Write32(uint32_t val) {}
     void Write64(const wxLongLong& val) {}
@@ -204,6 +283,8 @@ public:
 class wxDataInputStream {
 public:
     wxDataInputStream(std::istream& s) {}
+    wxDataInputStream(wxInputStream& s) {}
+    void BigEndianOrdered(bool be) {}
     wxUint8 Read8() { return 0; }
     uint32_t Read32() { return 0; }
     wxInt64 Read64() { return 0; }

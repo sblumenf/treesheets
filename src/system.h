@@ -60,6 +60,8 @@ struct System {
     int customcolor {0xFFFFFF};
     int cursorcolor {0x00FF00};
 
+    unique_ptr<TSPlatformOS> os;
+
     System(bool portable)
         : cfg(portable ? (wxConfigBase *)new wxFileConfig(
                              L"", wxT(""), wxGetCwd() + wxT("/TreeSheets.ini"), wxT(""), 0)

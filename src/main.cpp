@@ -314,6 +314,9 @@ struct treesheets {
     #include "ts_graphics.h"
     #include "ts_graphics_wx.h"
 
+    #include "ts_platform_os.h"
+    #include "ts_platform_os_wx.h"
+
     #include "image.h"
     #include "text.h"
     #include "cell.h"

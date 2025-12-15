@@ -143,6 +143,40 @@ struct Document {
         UpdateFileName();
     }
 
+    const wxChar *SaveToStream(wxOutputStream &os, Cell *ocs) {
+        wxDataOutputStream sos(os);
+        os.Write("TSFF", 4);
+        char vers = TS_VERSION;
+        os.Write(&vers, 1);
+        sos.Write8(selected.xs);
+        sos.Write8(selected.ys);
+        sos.Write8(ocs ? drawpath.size() : 0);  // zoom level
+        RefreshImageRefCount(true);
+        int realindex = 0;
+        loopv(i, sys->imagelist) {
+            if (auto &image = *sys->imagelist[i]; image.trefc) {
+                os.PutC(image.type);
+                sos.WriteDouble(image.display_scale);
+                wxInt64 imagelen(image.data.size());
+                sos.Write64(imagelen);
+                os.Write(image.data.data(), imagelen);
+                image.savedindex = realindex++;
+            }
+        }
+
+        os.Write("D", 1);
+        wxZlibOutputStream zos(os, 9);
+        if (!zos.IsOk()) return _(L"Zlib error while writing file.");
+        wxDataOutputStream dos(zos);
+        root->Save(dos, ocs);
+        for (auto &[tag, color] : tags) {
+            dos.WriteString(tag);
+            dos.Write32(color);
+        }
+        dos.WriteString(wxEmptyString);
+        return nullptr;
+    }
+
     const wxChar *SaveDB(bool *success, bool istempfile = false, int page = -1) {
         if (filename.empty()) return _(L"Save cancelled.");
         auto ocs = selected.GetFirst();
@@ -154,45 +188,21 @@ struct Document {
                 ::wxRenameFile(filename, sys->BakName(filename));
             }
             auto savefilename = istempfile ? sys->TmpName(filename) : filename;
-            wxFFileOutputStream fos(savefilename);
-            if (!fos.IsOk()) {
+
+            wxMemoryOutputStream mos;
+            auto err = SaveToStream(mos, ocs);
+            if (err) return err;
+
+            auto& buf = *mos.GetOutputStreamBuffer();
+            std::vector<uint8_t> data((uint8_t*)buf.GetBufferStart(), (uint8_t*)buf.GetBufferEnd());
+
+            if (!sys->os->WriteFile(savefilename, data)) {
                 if (!istempfile)
                     wxMessageBox(
                         _(L"Error writing TreeSheets file! (try saving under new filename)."),
                         savefilename.wx_str(), wxOK, sys->frame);
                 return _(L"Error writing to file.");
             }
-
-            wxDataOutputStream sos(fos);
-            fos.Write("TSFF", 4);
-            char vers = TS_VERSION;
-            fos.Write(&vers, 1);
-            sos.Write8(selected.xs);
-            sos.Write8(selected.ys);
-            sos.Write8(ocs ? drawpath.size() : 0);  // zoom level
-            RefreshImageRefCount(true);
-            int realindex = 0;
-            loopv(i, sys->imagelist) {
-                if (auto &image = *sys->imagelist[i]; image.trefc) {
-                    fos.PutC(image.type);
-                    sos.WriteDouble(image.display_scale);
-                    wxInt64 imagelen(image.data.size());
-                    sos.Write64(imagelen);
-                    fos.Write(image.data.data(), imagelen);
-                    image.savedindex = realindex++;
-                }
-            }
-
-            fos.Write("D", 1);
-            wxZlibOutputStream zos(fos, 9);
-            if (!zos.IsOk()) return _(L"Zlib error while writing file.");
-            wxDataOutputStream dos(zos);
-            root->Save(dos, ocs);
-            for (auto &[tag, color] : tags) {
-                dos.WriteString(tag);
-                dos.Write32(color);
-            }
-            dos.WriteString(wxEmptyString);
         }
         lastmodsinceautosave = 0;
         lastsave = wxGetLocalTime();
