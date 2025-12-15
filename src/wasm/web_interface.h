@@ -37,9 +37,13 @@ extern "C" {
     void JS_LaunchBrowser(const char* url);
     void JS_SetClipboardText(const char* text);
     void JS_TriggerUpload(); // Opens file picker
+    void JS_InitInput(); // Set up event listeners
 }
 
 // C++ exports for JS
 extern "C" {
     void WASM_FileLoaded(const char* filename, const uint8_t* data, int size);
+    void WASM_Mouse(int type, int x, int y, int modifiers);
+    void WASM_Key(int type, int key, int modifiers);
+    void WASM_Resize(int w, int h);
 }

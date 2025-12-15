@@ -17,4 +17,9 @@ extern "C" {
     void JS_SetFont(int size, int stylebits) {}
     void JS_SetPen(int penType) {}
     void JS_SetBrush(int brushType) {}
+    void JS_InitInput() {}
+    void JS_TriggerUpload() {}
+    void JS_DownloadFile(const char* filename, const uint8_t* data, int size) {}
+    void JS_LaunchBrowser(const char* url) {}
+    void JS_SetClipboardText(const char* text) {}
 }

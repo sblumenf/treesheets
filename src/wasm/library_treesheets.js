@@ -135,5 +135,41 @@ mergeInto(LibraryManager.library, {
             reader.readAsArrayBuffer(file);
         };
         input.click();
+    },
+
+    JS_InitInput: function() {
+        var canvas = Module.canvas;
+
+        // Mouse: 0=Move, 1=Down, 2=Up
+        canvas.addEventListener('mousedown', function(e) {
+            Module._WASM_Mouse(1, e.offsetX, e.offsetY, 0);
+        });
+        canvas.addEventListener('mouseup', function(e) {
+            Module._WASM_Mouse(2, e.offsetX, e.offsetY, 0);
+        });
+        canvas.addEventListener('mousemove', function(e) {
+            Module._WASM_Mouse(0, e.offsetX, e.offsetY, 0);
+        });
+
+        // Key: 0=Down, 1=Up, 2=Char
+        window.addEventListener('keydown', function(e) {
+            Module._WASM_Key(0, e.keyCode, 0);
+        });
+        window.addEventListener('keyup', function(e) {
+            Module._WASM_Key(1, e.keyCode, 0);
+        });
+
+        // Resize
+        var onResize = function() {
+            var w = canvas.clientWidth;
+            var h = canvas.clientHeight;
+            if (canvas.width != w || canvas.height != h) {
+                canvas.width = w;
+                canvas.height = h;
+                Module._WASM_Resize(w, h);
+            }
+        };
+        window.addEventListener('resize', onResize);
+        onResize();
     }
 });

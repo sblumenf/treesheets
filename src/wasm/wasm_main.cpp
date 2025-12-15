@@ -174,6 +174,18 @@ extern "C" {
         wxMemoryInputStream mis(data, size);
         // In real impl: sys->LoadDBFromStream(mis, ...);
     }
+
+    void WASM_Mouse(int type, int x, int y, int modifiers) {
+        std::cout << "Mouse: " << type << " at " << x << "," << y << std::endl;
+    }
+
+    void WASM_Key(int type, int key, int modifiers) {
+        std::cout << "Key: " << type << " " << key << std::endl;
+    }
+
+    void WASM_Resize(int w, int h) {
+        std::cout << "Resize: " << w << "x" << h << std::endl;
+    }
 }
 
 int main() {
@@ -188,6 +200,9 @@ int main() {
     doc.currentdrawroot = c;
     c->Layout(&doc, g, 0, 80, false);
     std::cout << "Cell calculated width: " << c->sx << std::endl;
+
+    // Init JS hooks
+    JS_InitInput();
 
     // Start Loop
     emscripten_set_main_loop(Iterate, 0, 1);
