@@ -198,9 +198,9 @@ struct Document {
 
             if (!sys->os->WriteFile(savefilename, data)) {
                 if (!istempfile)
-                    wxMessageBox(
+                    sys->dialogs->ShowMessage(
                         _(L"Error writing TreeSheets file! (try saving under new filename)."),
-                        savefilename.wx_str(), wxOK, sys->frame);
+                        savefilename);
                 return _(L"Error writing to file.");
             }
         }
@@ -675,10 +675,9 @@ struct Document {
 
     bool CheckForChanges() {
         if (modified) {
-            ThreeChoiceDialog tcd(sys->frame, filename,
+            switch (sys->dialogs->ThreeChoice(filename,
                                   _(L"Changes have been made, are you sure you wish to continue?"),
-                                  _(L"Save and Close"), _(L"Discard Changes"), _(L"Cancel"));
-            switch (tcd.Run()) {
+                                  _(L"Save and Close"), _(L"Discard Changes"), _(L"Cancel"))) {
                 case 0: {
                     bool success = false;
                     Save(false, &success);
@@ -705,7 +704,7 @@ struct Document {
 
     const wxChar *Export(const wxChar *fmt, const wxChar *pat, const wxChar *message, int action) {
         wxFileName tsfn(filename);
-        auto exportfilename = ::wxFileSelector(message, tsfn.GetPath(), tsfn.GetName(), fmt, pat,
+        auto exportfilename = sys->dialogs->FileSelector(message, tsfn.GetPath(), tsfn.GetName(), fmt, pat,
                                                wxFD_SAVE | wxFD_OVERWRITE_PROMPT | wxFD_CHANGE_DIR);
         if (exportfilename.empty()) return _(L"Export cancelled.");
         wxFileName expfn(exportfilename);
@@ -749,7 +748,7 @@ struct Document {
         } else {
             wxFFileOutputStream fos(filename, L"w+b");
             if (!fos.IsOk()) {
-                wxMessageBox(_(L"Error exporting file!"), filename.wx_str(), wxOK, sys->frame);
+                sys->dialogs->ShowMessage(_(L"Error exporting file!"), filename);
                 return _(L"Error writing to file!");
             }
             wxTextOutputStream dos(fos);
@@ -795,7 +794,7 @@ struct Document {
 
     const wxChar *Save(bool saveas, bool *success = nullptr) {
         if (!saveas && !filename.empty()) { return SaveDB(success); }
-        auto filename = ::wxFileSelector(_(L"Choose TreeSheets file to save:"), L"", L"", L"cts",
+        auto filename = sys->dialogs->FileSelector(_(L"Choose TreeSheets file to save:"), L"", L"", L"cts",
                                          _(L"TreeSheets Files (*.cts)|*.cts|All Files (*.*)|*.*"),
                                          wxFD_SAVE | wxFD_OVERWRITE_PROMPT | wxFD_CHANGE_DIR);
         if (filename.empty()) return _(L"Save cancelled.");  // avoid name being set to ""
@@ -951,7 +950,7 @@ struct Document {
             case A_IMPTXTS:
             case A_IMPTXTT: {
                 wxArrayString filenames;
-                GetFilesFromUser(filenames, sys->frame, _(L"Please select file(s) to import:"),
+                sys->dialogs->GetFilesFromUser(filenames, _(L"Please select file(s) to import:"),
                                  _(L"*.*"));
                 const wxChar *message = nullptr;
                 for (auto &filename : filenames) message = sys->Import(filename, action);
@@ -960,7 +959,7 @@ struct Document {
 
             case wxID_OPEN: {
                 wxArrayString filenames;
-                GetFilesFromUser(filenames, sys->frame,
+                sys->dialogs->GetFilesFromUser(filenames,
                                  _(L"Please select TreeSheets file(s) to load:"),
                                  _(L"TreeSheets Files (*.cts)|*.cts|All Files (*.*)|*.*"));
                 const wxChar *message = nullptr;
@@ -984,9 +983,8 @@ struct Document {
             }
 
             case wxID_NEW: {
-                int size = static_cast<int>(
-                    ::wxGetNumberFromUser(_(L"What size grid would you like to start with?"),
-                                          _(L"size:"), _(L"New Sheet"), 10, 1, 25, sys->frame));
+                int size = static_cast<int>(sys->dialogs->AskNumber(_(L"What size grid would you like to start with?"),
+                                                                    _(L"New Sheet"), 10, 1, 25));
                 if (size < 0) return _(L"New file cancelled.");
                 sys->InitDB(size);
                 sys->frame->GetCurrentTab()->Refresh();
@@ -994,15 +992,10 @@ struct Document {
             }
 
             case wxID_ABOUT: {
-                wxAboutDialogInfo info;
-                info.SetName(L"TreeSheets");
-                info.SetVersion(wxT(PACKAGE_VERSION));
-                info.SetCopyright(L"(C) 2025 Wouter van Oortmerssen and Tobias Predel");
                 auto desc = wxString::Format(L"%s\n\n%s " wxVERSION_STRING,
                                              _(L"The Free Form Hierarchical Information Organizer"),
                                              _(L"Uses"));
-                info.SetDescription(desc);
-                wxAboutBox(info);
+                sys->dialogs->ShowAbout(L"TreeSheets", wxT(PACKAGE_VERSION), desc);
                 return nullptr;
             }
 
@@ -1043,23 +1036,18 @@ struct Document {
 
             case wxID_SELECT_FONT:
             case A_SET_FIXED_FONT: {
-                wxFontData fdat;
-                fdat.SetInitialFont(wxFont(
-                    g_deftextsize,
-                    action == wxID_SELECT_FONT ? wxFONTFAMILY_DEFAULT : wxFONTFAMILY_TELETYPE,
-                    wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false,
-                    action == wxID_SELECT_FONT ? sys->defaultfont : sys->defaultfixedfont));
-                if (wxFontDialog fd(sys->frame, fdat); fd.ShowModal() == wxID_OK) {
-                    wxFont font = fd.GetFontData().GetChosenFont();
-                    g_deftextsize = min(20, max(10, font.GetPointSize()));
+                wxString fontName = action == wxID_SELECT_FONT ? sys->defaultfont : sys->defaultfixedfont;
+                int fontSize = g_deftextsize;
+                if (sys->dialogs->SelectFont(fontName, fontSize)) {
+                    g_deftextsize = min(20, max(10, fontSize));
                     sys->cfg->Write(L"defaultfontsize", g_deftextsize);
                     switch (action) {
                         case wxID_SELECT_FONT:
-                            sys->defaultfont = font.GetFaceName();
+                            sys->defaultfont = fontName;
                             sys->cfg->Write(L"defaultfont", sys->defaultfont);
                             break;
                         case A_SET_FIXED_FONT:
-                            sys->defaultfixedfont = font.GetFaceName();
+                            sys->defaultfixedfont = fontName;
                             sys->cfg->Write(L"defaultfixedfont", sys->defaultfixedfont);
                             break;
                     }
@@ -1071,40 +1059,24 @@ struct Document {
             }
 
             case wxID_PRINT: {
-                wxPrintDialogData printDialogData(printData);
-                wxPrinter printer(&printDialogData);
-                Printout printout(this);
-                if (printer.Print(sys->frame, &printout, true)) {
-                    printData = printer.GetPrintDialogData().GetPrintData();
-                }
+                sys->dialogs->Print(this);
                 return nullptr;
             }
 
             case A_PRINTSCALE: {
-                printscale = (uint)::wxGetNumberFromUser(
-                    _(L"How many pixels wide should a page be? (0 for auto fit)"), _(L"scale:"),
-                    _(L"Set Print Scale"), 0, 0, 5000, sys->frame);
+                printscale = (uint)sys->dialogs->AskNumber(
+                    _(L"How many pixels wide should a page be? (0 for auto fit)"),
+                    _(L"Set Print Scale"), 0, 0, 5000);
                 return nullptr;
             }
 
             case wxID_PREVIEW: {
-                wxPrintDialogData printDialogData(printData);
-                auto preview =
-                    new wxPrintPreview(new Printout(this), new Printout(this), &printDialogData);
-                auto pframe = new wxPreviewFrame(preview, sys->frame, _(L"Print Preview"),
-                                                 wxPoint(100, 100), wxSize(600, 650));
-                pframe->Centre(wxBOTH);
-                pframe->Initialize();
-                pframe->Show(true);
+                sys->dialogs->PrintPreview(this);
                 return nullptr;
             }
 
             case A_PAGESETUP: {
-                pageSetupData = printData;
-                wxPageSetupDialog pageSetupDialog(sys->frame, &pageSetupData);
-                pageSetupDialog.ShowModal();
-                printData = pageSetupDialog.GetPageSetupDialogData().GetPrintData();
-                pageSetupData = pageSetupDialog.GetPageSetupDialogData();
+                sys->dialogs->PageSetup(this);
                 return nullptr;
             }
 
@@ -1113,7 +1085,7 @@ struct Document {
 
             case A_DEFBGCOL: {
                 auto oldbg = Background();
-                if (auto color = PickColor(sys->frame, oldbg); color != (uint)-1) {
+                if (auto color = sys->dialogs->PickColor(oldbg); color != (uint)-1) {
                     root->AddUndo(this);
                     loopallcells(c) {
                         if (c->cellcolor == oldbg && (!c->parent || c->parent->cellcolor == color))
@@ -1125,7 +1097,7 @@ struct Document {
             }
 
             case A_DEFCURCOL: {
-                if (auto color = PickColor(sys->frame, sys->cursorcolor); color != (uint)-1) {
+                if (auto color = sys->dialogs->PickColor(sys->cursorcolor); color != (uint)-1) {
                     sys->cfg->Write(L"cursorcolor", sys->cursorcolor = color);
                     canvas->Refresh();
                 }
@@ -1221,8 +1193,8 @@ struct Document {
                                          : _(L"1:1 scale restored.");
 
             case A_FILTERRANGE: {
-                DateTimeRangeDialog rd(sys->frame);
-                if (rd.Run() == wxID_OK) ApplyEditRangeFilter(rd.begin, rd.end);
+                wxDateTime begin, end;
+                if (sys->dialogs->DateTimeRange(begin, end)) ApplyEditRangeFilter(begin, end);
                 return nullptr;
             }
 
@@ -1259,18 +1231,13 @@ struct Document {
                     strs.push_back(s);
                     keys.push_back(k);
                 }
-                wxSingleChoiceDialog choice(
-                    sys->frame, _(L"Please pick a menu item to change the key binding for"),
-                    _(L"Key binding"), strs);
-                choice.SetSize(wxSize(500, 700));
-                choice.Centre();
-                if (choice.ShowModal() == wxID_OK) {
-                    int sel = choice.GetSelection();
-                    wxTextEntryDialog textentry(sys->frame,
-                                                _(L"Please enter the new key binding string"),
-                                                _(L"Key binding"), keys[sel]);
-                    if (textentry.ShowModal() == wxID_OK) {
-                        auto key = textentry.GetValue();
+                int sel = sys->dialogs->SingleChoice(_(L"Key binding"),
+                                     _(L"Please pick a menu item to change the key binding for"),
+                                     strs);
+                if (sel >= 0) {
+                    wxString key = sys->dialogs->AskText(_(L"Please enter the new key binding string"),
+                                                         _(L"Key binding"), keys[sel]);
+                    if (!key.IsEmpty()) { // Assuming empty/default means cancel/no change for now
                         sys->frame->menustrings[strs[sel]] = key;
                         sys->cfg->Write(strs[sel], key);
                         return _(L"NOTE: key binding will take effect next run of TreeSheets.");
@@ -1284,11 +1251,11 @@ struct Document {
                 if (!trans) return _(L"Failed to get translation.");
                 wxArrayString langs = trans->GetAvailableTranslations(L"ts");
                 langs.Insert(wxEmptyString, 0);
-                wxSingleChoiceDialog choice(
-                    sys->frame, _(L"Please select the language for the interface (requires restart). Please select the empty row if you want to use the default language."),
-                    _(L"Available languages"), langs);
-                if (choice.ShowModal() == wxID_OK) {
-                    sys->cfg->Write(L"defaultlang", choice.GetStringSelection());
+                int sel = sys->dialogs->SingleChoice(_(L"Available languages"),
+                    _(L"Please select the language for the interface (requires restart). Please select the empty row if you want to use the default language."),
+                    langs);
+                if (sel >= 0) {
+                    sys->cfg->Write(L"defaultlang", langs[sel]);
                 }
                 return nullptr;
             }
@@ -1564,8 +1531,7 @@ struct Document {
 
             case A_IMAGE: {
                 if (!(cell = selected.ThinExpand(this))) return OneCell();
-                auto filename =
-                    ::wxFileSelector(_(L"Please select an image file:"), L"", L"", L"", L"*.*",
+                auto filename = sys->dialogs->FileSelector(_(L"Please select an image file:"), L"", L"", L"", L"*.*",
                                      wxFD_OPEN | wxFD_FILE_MUST_EXIST | wxFD_CHANGE_DIR);
                 cell->AddUndo(this);
                 LoadImageIntoCell(filename, cell, sys->frame->FromDIP(1.0));
@@ -1709,12 +1675,9 @@ struct Document {
                 }
                 if (imagestomanipulate.empty()) return nullptr;
                 if (action == A_IMAGESCW) {
-                    v = wxGetNumberFromUser(_(L"Please enter the new image width:"), _(L"Width"),
-                                            _(L"Image Resize"), 500, 10, 4000, sys->frame);
+                    v = (long)sys->dialogs->AskNumber(_(L"Please enter the new image width:"), _(L"Width"), 500, 10, 4000);
                 } else {
-                    v = wxGetNumberFromUser(
-                        _(L"Please enter the percentage you want the image scaled by:"), L"%",
-                        _(L"Image Resize"), 50, 5, 400, sys->frame);
+                    v = (long)sys->dialogs->AskNumber(_(L"Please enter the percentage you want the image scaled by:"), L"%", 50, 5, 400);
                 }
                 if (v < 0) return nullptr;
                 for (auto image : imagestomanipulate) {
@@ -1749,7 +1712,7 @@ struct Document {
                 loopallcellssel(c, true) if (auto image = c->text.image)
                     imagestosave.insert(image);
                 if (imagestosave.empty()) return _(L"There are no images in the selection.");
-                wxString filename = ::wxFileSelector(
+                wxString filename = sys->dialogs->FileSelector(
                     _(L"Choose image file to save:"), L"", L"", L"",
                     _(L"PNG file (*.png)|*.png|JPEG file (*.jpg)|*.jpg|All Files (*.*)|*.*"),
                     wxFD_SAVE | wxFD_OVERWRITE_PROMPT | wxFD_CHANGE_DIR);
@@ -1762,9 +1725,9 @@ struct Document {
                                              image->GetFileExtension();
                     wxFFileOutputStream os(finalfilename, L"w+b");
                     if (!os.IsOk()) {
-                        wxMessageBox(
+                        sys->dialogs->ShowMessage(
                             _(L"Error writing image file! (try saving under new filename)."),
-                            finalfilename.wx_str(), wxOK, sys->frame);
+                            finalfilename);
                         return _(L"Error writing to file.");
                     }
                     os.Write(image->data.data(), image->data.size());
@@ -2045,12 +2008,10 @@ struct Document {
             char buffer[4];
             fileinputstream.Read(buffer, 4);
             if (!strncmp(buffer, "TSFF", 4)) {
-                ThreeChoiceDialog askuser(
-                    sys->frame, filename,
+                switch (sys->dialogs->ThreeChoice(filename,
                     _(L"It seems that you are about to paste or drop a TreeSheets file. "
                       L"What would you like to do?"),
-                    _(L"Open TreeSheets file"), _(L"Paste file path"), _(L"Cancel"));
-                switch (askuser.Run()) {
+                    _(L"Open TreeSheets file"), _(L"Paste file path"), _(L"Cancel"))) {
                     case 0: sys->frame->SetStatus(sys->LoadDB(filename));
                     case 2: return;
                     default:

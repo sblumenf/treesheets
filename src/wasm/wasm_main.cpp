@@ -7,6 +7,7 @@
 #include "ts_platform_os_web.h"
 #include "../ts_constants.h"
 #include "ts_menu_web.h"
+#include "../ts_dialog_web.h" // Added
 #include "emscripten.h"
 
 #include <map>
@@ -103,8 +104,12 @@ struct wxAuiManager {
 
 struct wxToolBar {
     void SetOwnBackgroundColour(const wxColour&) {}
-    void AddTool(int id, const wxString& name, const wxBitmap&, const wxString&, int) {}
-    void AddControl(void*) {}
+    void AddTool(int id, const wxString& name, const wxBitmap&, const wxString&, int) {
+        std::cout << "Toolbar AddTool: " << name << std::endl;
+    }
+    void AddControl(void*) {
+        std::cout << "Toolbar AddControl" << std::endl;
+    }
     void AddSeparator() {}
     void Realize() {}
     void Show(bool) {}
@@ -335,6 +340,7 @@ struct wasm_treesheets {
     struct System {
         std::unique_ptr<TSPlatformOS> os;
         std::unique_ptr<MockConfig> cfg = std::make_unique<MockConfig>(); // Mock Config
+        std::unique_ptr<TSDialogs> dialogs; // Added
 
         int defaultmaxcolwidth = 80;
         int roundness = 3;
@@ -438,6 +444,7 @@ extern "C" {
 int main() {
     wasm_treesheets::sys = new wasm_treesheets::System(false);
     wasm_treesheets::sys->os.reset(new TSWebOS());
+    wasm_treesheets::sys->dialogs.reset(new TSDialogsWeb());
 
     // Create Menus
     wasm_treesheets::sys->frame->CreateMenus(false);

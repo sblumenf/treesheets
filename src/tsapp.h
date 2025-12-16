@@ -67,6 +67,7 @@ struct TSApp : wxApp {
         wxStandardPaths::Get().SetFileLayout(wxStandardPathsBase::FileLayout_XDG);
         sys = new System(portable);
         sys->os.reset(new TSDesktopOS());
+        sys->dialogs.reset(new TSDialogsWx());
         SetupInternationalization();
         frame = new TSFrame(this);
 

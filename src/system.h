@@ -1,3 +1,5 @@
+#include "ts_dialog_interface.h"
+
 struct System {
     TSFrame *frame;
     wxString defaultfont {
@@ -61,6 +63,7 @@ struct System {
     int cursorcolor {0x00FF00};
 
     unique_ptr<TSPlatformOS> os;
+    unique_ptr<TSDialogs> dialogs;
 
     System(bool portable)
         : cfg(portable ? (wxConfigBase *)new wxFileConfig(
@@ -285,9 +288,10 @@ struct System {
             if (frame->GetTabByFileName(filename)) return L"";  //"this file is already loaded";
 
             if (::wxFileExists(TmpName(filename))) {
-                if (::wxMessageBox(
+                if (sys->dialogs->ThreeChoice(
+                        _(L"Autosave load"),
                         _(L"A temporary autosave file exists, would you like to load it instead?"),
-                        _(L"Autosave load"), wxYES_NO, frame) == wxYES) {
+                        _(L"Yes"), _(L"No"), _(L"Cancel")) == 0) { // Mapping wxYES to 0
                     fn = TmpName(filename);
                     loadedfromtmp = true;
                 }
@@ -327,8 +331,8 @@ struct System {
         FileUsed(filename, doc);
         doc->Zoom(zoomlevel, true);
         if (anyimagesfailed)
-            wxMessageBox(_(L"PNG decode failed on some images in this document\nThey have been replaced by red squares."),
-                         _(L"PNG decoder failure"), wxOK, frame);
+            dialogs->ShowMessage(_(L"PNG decode failed on some images in this document\nThey have been replaced by red squares."),
+                         _(L"PNG decoder failure"));
 
         return L"";
     }
@@ -348,7 +352,7 @@ struct System {
         if (!filename.empty()) {
             auto msg = LoadDB(filename);
             assert(msg);
-            if (*msg) wxMessageBox(msg, filename.wx_str(), wxOK, frame);
+            if (*msg) dialogs->ShowMessage(msg, filename);
             return msg;
         }
         return _(L"Open file cancelled.");
@@ -439,7 +443,7 @@ struct System {
         }
         return nullptr;
     problem:
-        wxMessageBox(_(L"couldn't import file!"), filename, wxOK, frame);
+        dialogs->ShowMessage(_(L"couldn't import file!"), filename);
         return _(L"File load error.");
     }
 

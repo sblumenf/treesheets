@@ -88,6 +88,7 @@ struct treesheets {
     #include "wxtools.h"
     #include "tscanvas.h"
     #include "tsframe.h"
+    #include "ts_dialog_wx.h"
     #include "tsapp.h"
 };
 
