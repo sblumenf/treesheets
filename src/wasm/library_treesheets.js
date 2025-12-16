@@ -121,12 +121,10 @@ mergeInto(LibraryManager.library, {
                 var ptr = Module._malloc(uint8Array.length);
                 Module.HEAPU8.set(uint8Array, ptr);
 
-                // Filename
                 var nameLen = lengthBytesUTF8(file.name) + 1;
                 var namePtr = Module._malloc(nameLen);
                 stringToUTF8(file.name, namePtr, nameLen);
 
-                // Call C++
                 Module._WASM_FileLoaded(namePtr, ptr, uint8Array.length);
 
                 Module._free(ptr);
@@ -139,27 +137,12 @@ mergeInto(LibraryManager.library, {
 
     JS_InitInput: function() {
         var canvas = Module.canvas;
+        canvas.addEventListener('mousedown', function(e) { Module._WASM_Mouse(1, e.offsetX, e.offsetY, 0); });
+        canvas.addEventListener('mouseup', function(e) { Module._WASM_Mouse(2, e.offsetX, e.offsetY, 0); });
+        canvas.addEventListener('mousemove', function(e) { Module._WASM_Mouse(0, e.offsetX, e.offsetY, 0); });
+        window.addEventListener('keydown', function(e) { Module._WASM_Key(0, e.keyCode, 0); });
+        window.addEventListener('keyup', function(e) { Module._WASM_Key(1, e.keyCode, 0); });
 
-        // Mouse: 0=Move, 1=Down, 2=Up
-        canvas.addEventListener('mousedown', function(e) {
-            Module._WASM_Mouse(1, e.offsetX, e.offsetY, 0);
-        });
-        canvas.addEventListener('mouseup', function(e) {
-            Module._WASM_Mouse(2, e.offsetX, e.offsetY, 0);
-        });
-        canvas.addEventListener('mousemove', function(e) {
-            Module._WASM_Mouse(0, e.offsetX, e.offsetY, 0);
-        });
-
-        // Key: 0=Down, 1=Up, 2=Char
-        window.addEventListener('keydown', function(e) {
-            Module._WASM_Key(0, e.keyCode, 0);
-        });
-        window.addEventListener('keyup', function(e) {
-            Module._WASM_Key(1, e.keyCode, 0);
-        });
-
-        // Resize
         var onResize = function() {
             var w = canvas.clientWidth;
             var h = canvas.clientHeight;
@@ -171,5 +154,115 @@ mergeInto(LibraryManager.library, {
         };
         window.addEventListener('resize', onResize);
         onResize();
+    },
+
+    // Menus
+    JS_Menu_Create: function(id, titlePtr) {
+        var title = UTF8ToString(titlePtr);
+        if (!Module.menus) Module.menus = {};
+        Module.menus[id] = { title: title, items: [] };
+    },
+    JS_Menu_Append: function(parentId, id, textPtr, helpPtr, type, checked) {
+        var text = UTF8ToString(textPtr);
+        if (Module.menus[parentId]) {
+            Module.menus[parentId].items.push({id: id, text: text, type: type, checked: checked});
+        }
+    },
+    JS_MenuBar_Append: function(menuId, titlePtr) {
+        var title = UTF8ToString(titlePtr);
+        var menu = Module.menus[menuId];
+        var menubar = document.getElementById('menubar');
+        if (!menubar) {
+            menubar = document.createElement('div');
+            menubar.id = 'menubar';
+            menubar.style.backgroundColor = '#e0e0e0';
+            menubar.style.padding = '5px';
+            menubar.style.display = 'flex';
+            menubar.style.gap = '10px';
+            // Insert before canvas. Assuming canvas has id 'canvas' or is Module.canvas
+            if (Module.canvas && Module.canvas.parentNode) {
+                Module.canvas.parentNode.insertBefore(menubar, Module.canvas);
+            } else {
+                document.body.prepend(menubar);
+            }
+        }
+
+        var btn = document.createElement('button');
+        btn.innerText = title.replace('&', '');
+        btn.style.border = 'none';
+        btn.style.background = 'none';
+        btn.style.cursor = 'pointer';
+        btn.style.fontSize = '14px';
+        btn.onclick = function(e) {
+            // Very simple popup logic: create a div with items
+            var oldPopup = document.getElementById('menu-popup');
+            if (oldPopup) oldPopup.remove();
+
+            var popup = document.createElement('div');
+            popup.id = 'menu-popup';
+            popup.style.position = 'absolute';
+            popup.style.left = e.pageX + 'px';
+            popup.style.top = (e.pageY + 20) + 'px';
+            popup.style.backgroundColor = 'white';
+            popup.style.border = '1px solid #ccc';
+            popup.style.boxShadow = '2px 2px 5px rgba(0,0,0,0.2)';
+            popup.style.zIndex = 1000;
+
+            menu.items.forEach(function(item) {
+                if (item.type == 3) { // Separator
+                    var sep = document.createElement('hr');
+                    sep.style.margin = '2px 0';
+                    popup.appendChild(sep);
+                    return;
+                }
+                var itemDiv = document.createElement('div');
+                itemDiv.innerText = item.text.replace(/&/g, '').split('\t')[0]; // Strip accel and shortcut
+                itemDiv.style.padding = '5px 15px';
+                itemDiv.style.cursor = 'pointer';
+                itemDiv.onmouseover = function() { itemDiv.style.backgroundColor = '#eee'; };
+                itemDiv.onmouseout = function() { itemDiv.style.backgroundColor = 'white'; };
+                itemDiv.onclick = function() {
+                    Module._WASM_Action(item.id);
+                    popup.remove();
+                };
+                popup.appendChild(itemDiv);
+            });
+
+            document.body.appendChild(popup);
+
+            // Close on click outside
+            var closeHandler = function(ev) {
+                if (ev.target != btn && !popup.contains(ev.target)) {
+                    popup.remove();
+                    window.removeEventListener('mousedown', closeHandler);
+                }
+            };
+            setTimeout(function() { window.addEventListener('mousedown', closeHandler); }, 0);
+        };
+        menubar.appendChild(btn);
+    },
+
+    // Dialogs
+    JS_ShowMessage: function(titlePtr, msgPtr) {
+        alert(UTF8ToString(titlePtr) + "\n\n" + UTF8ToString(msgPtr));
+    },
+    JS_AskText: function(titlePtr, msgPtr, defPtr) {
+        var res = prompt(UTF8ToString(titlePtr) + "\n" + UTF8ToString(msgPtr), UTF8ToString(defPtr));
+        if (res === null) res = "";
+        var len = lengthBytesUTF8(res) + 1;
+        var ptr = _malloc(len);
+        stringToUTF8(res, ptr, len);
+        return ptr;
+    },
+    JS_AskNumber: function(titlePtr, msgPtr, def, min, max) {
+        var res = prompt(UTF8ToString(titlePtr) + "\n" + UTF8ToString(msgPtr), def);
+        return parseFloat(res) || def;
+    },
+    JS_SingleChoice: function(titlePtr, msgPtr, choicesJsonPtr) {
+        var choices = JSON.parse(UTF8ToString(choicesJsonPtr));
+        var txt = UTF8ToString(titlePtr) + "\n" + UTF8ToString(msgPtr) + "\n";
+        choices.forEach(function(c, i) { txt += i + ": " + c + "\n"; });
+        var res = prompt(txt, "0");
+        return parseInt(res) || 0; // -1 for cancel not easy with prompt
     }
 });

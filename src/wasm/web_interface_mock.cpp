@@ -1,5 +1,7 @@
 #include "web_interface.h"
 #include <iostream>
+#include <cstring>
+#include <cstdlib>
 
 extern "C" {
     void JS_DrawRectangle(int x, int y, int w, int h) { std::cout << "DrawRect " << x << "," << y << "\n"; }
@@ -22,4 +24,19 @@ extern "C" {
     void JS_DownloadFile(const char* filename, const uint8_t* data, int size) {}
     void JS_LaunchBrowser(const char* url) {}
     void JS_SetClipboardText(const char* text) {}
+
+    // Menus
+    void JS_Menu_Create(int id, const char* title) { std::cout << "JS_Menu_Create " << id << " " << title << "\n"; }
+    void JS_Menu_Append(int parentId, int id, const char* text, const char* help, int type, bool checked) {
+        std::cout << "JS_Menu_Append " << parentId << " " << text << "\n";
+    }
+    void JS_MenuBar_Append(int menuId, const char* title) { std::cout << "JS_MenuBar_Append " << menuId << " " << title << "\n"; }
+
+    // Dialogs
+    void JS_ShowMessage(const char* title, const char* msg) {}
+    char* JS_AskText(const char* title, const char* msg, const char* def) {
+        return strdup(def);
+    }
+    double JS_AskNumber(const char* title, const char* msg, double def, double min, double max) { return def; }
+    int JS_SingleChoice(const char* title, const char* msg, const char* choices_json) { return 0; }
 }

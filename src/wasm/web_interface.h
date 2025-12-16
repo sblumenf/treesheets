@@ -38,6 +38,17 @@ extern "C" {
     void JS_SetClipboardText(const char* text);
     void JS_TriggerUpload(); // Opens file picker
     void JS_InitInput(); // Set up event listeners
+
+    // Menus
+    void JS_Menu_Create(int id, const char* title);
+    void JS_Menu_Append(int parentId, int id, const char* text, const char* help, int type, bool checked);
+    void JS_MenuBar_Append(int menuId, const char* title);
+
+    // Dialogs
+    void JS_ShowMessage(const char* title, const char* msg);
+    char* JS_AskText(const char* title, const char* msg, const char* def);
+    double JS_AskNumber(const char* title, const char* msg, double def, double min, double max);
+    int JS_SingleChoice(const char* title, const char* msg, const char* choices_json);
 }
 
 // C++ exports for JS
@@ -46,4 +57,5 @@ extern "C" {
     void WASM_Mouse(int type, int x, int y, int modifiers);
     void WASM_Key(int type, int key, int modifiers);
     void WASM_Resize(int w, int h);
+    void WASM_Action(int id);
 }
