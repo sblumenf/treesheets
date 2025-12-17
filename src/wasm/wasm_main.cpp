@@ -7,7 +7,7 @@
 #include "ts_platform_os_web.h"
 #include "../ts_constants.h"
 #include "ts_menu_web.h"
-#include "../ts_dialog_web.h" // Added
+#include "../ts_dialog_web.h"
 #include "emscripten.h"
 
 #include <map>
@@ -102,26 +102,10 @@ struct wxAuiManager {
     void ClearEventHashTable() {}
 };
 
-struct wxToolBar {
-    void SetOwnBackgroundColour(const wxColour&) {}
-    void AddTool(int id, const wxString& name, const wxBitmap&, const wxString&, int) {
-        std::cout << "Toolbar AddTool: " << name << std::endl;
-    }
-    void AddControl(void*) {
-        std::cout << "Toolbar AddControl" << std::endl;
-    }
-    void AddSeparator() {}
-    void Realize() {}
-    void Show(bool) {}
-};
-const int wxBORDER_NONE = 0;
-const int wxTB_HORIZONTAL = 0;
-const int wxTB_FLAT = 0;
-const int wxTB_NODIVIDER = 0;
-const int wxITEM_NORMAL = 0;
-
 struct wxTextCtrl {
-    wxTextCtrl(void* p, int id, const wxString& s, const wxPoint& pos, const wxSize& sz, int style = 0) {}
+    int id; wxString value; int width;
+    wxTextCtrl(void* p, int _id, const wxString& s, const wxPoint& pos, const wxSize& sz, int style = 0)
+        : id(_id), value(s), width(sz.x) {}
     void SetFocus() {}
     void SetSelection(long, long) {}
     void GetSelection(long*, long*) {}
@@ -136,21 +120,44 @@ const int wxWANTS_CHARS = 0;
 const int wxTE_PROCESS_ENTER = 0;
 
 struct ColorDropdown {
-    ColorDropdown(void* p, int id, int val) {}
+    int id;
+    ColorDropdown(void* p, int _id, int val) : id(_id) {}
     void ShowPopup() {}
 };
 struct ImageDropdown {
-    ImageDropdown(void* p, const wxString& path) {}
+    int id;
+    ImageDropdown(void* p, const wxString& path) : id(A_DDIMAGE) {}
     std::vector<wxString> filenames;
     void ShowPopup() {}
 };
 struct wxStaticText {
-    wxStaticText(void* p, int id, const wxString& label) {}
+    wxString label;
+    wxStaticText(void* p, int id, const wxString& _label) : label(_label) {}
 };
 
 struct wxBitmapBundle {
     static wxBitmap FromSVGFile(const wxString& f, const wxSize& s) { return wxBitmap(); }
 };
+
+struct wxToolBar {
+    wxToolBar() { JS_Toolbar_Create(); }
+    void SetOwnBackgroundColour(const wxColour&) {}
+    void AddTool(int id, const wxString& name, const wxBitmap&, const wxString&, int) {
+        JS_Toolbar_AddTool(id, name.c_str(), "");
+    }
+    void AddControl(wxStaticText* c) { JS_Toolbar_AddLabel(c->label.c_str()); }
+    void AddControl(wxTextCtrl* c) { JS_Toolbar_AddInput(c->id, c->width, c->value.c_str()); }
+    void AddControl(ColorDropdown* c) { JS_Toolbar_AddDropdown(c->id, 44, "[\"Colors\"]"); }
+    void AddControl(ImageDropdown* c) { JS_Toolbar_AddDropdown(c->id, 44, "[\"Images\"]"); }
+    void AddSeparator() { JS_Toolbar_AddSeparator(); }
+    void Realize() {}
+    void Show(bool) {}
+};
+const int wxBORDER_NONE = 0;
+const int wxTB_HORIZONTAL = 0;
+const int wxTB_FLAT = 0;
+const int wxTB_NODIVIDER = 0;
+const int wxITEM_NORMAL = 0;
 
 struct wxAcceleratorEntry {
     void Set(int, int, int) {}

@@ -179,7 +179,6 @@ mergeInto(LibraryManager.library, {
             menubar.style.padding = '5px';
             menubar.style.display = 'flex';
             menubar.style.gap = '10px';
-            // Insert before canvas. Assuming canvas has id 'canvas' or is Module.canvas
             if (Module.canvas && Module.canvas.parentNode) {
                 Module.canvas.parentNode.insertBefore(menubar, Module.canvas);
             } else {
@@ -194,7 +193,6 @@ mergeInto(LibraryManager.library, {
         btn.style.cursor = 'pointer';
         btn.style.fontSize = '14px';
         btn.onclick = function(e) {
-            // Very simple popup logic: create a div with items
             var oldPopup = document.getElementById('menu-popup');
             if (oldPopup) oldPopup.remove();
 
@@ -216,7 +214,7 @@ mergeInto(LibraryManager.library, {
                     return;
                 }
                 var itemDiv = document.createElement('div');
-                itemDiv.innerText = item.text.replace(/&/g, '').split('\t')[0]; // Strip accel and shortcut
+                itemDiv.innerText = item.text.replace(/&/g, '').split('\t')[0];
                 itemDiv.style.padding = '5px 15px';
                 itemDiv.style.cursor = 'pointer';
                 itemDiv.onmouseover = function() { itemDiv.style.backgroundColor = '#eee'; };
@@ -230,7 +228,6 @@ mergeInto(LibraryManager.library, {
 
             document.body.appendChild(popup);
 
-            // Close on click outside
             var closeHandler = function(ev) {
                 if (ev.target != btn && !popup.contains(ev.target)) {
                     popup.remove();
@@ -263,6 +260,89 @@ mergeInto(LibraryManager.library, {
         var txt = UTF8ToString(titlePtr) + "\n" + UTF8ToString(msgPtr) + "\n";
         choices.forEach(function(c, i) { txt += i + ": " + c + "\n"; });
         var res = prompt(txt, "0");
-        return parseInt(res) || 0; // -1 for cancel not easy with prompt
+        return parseInt(res) || 0;
+    },
+
+    // Toolbar
+    JS_Toolbar_Create: function() {
+        var toolbar = document.getElementById('toolbar');
+        if (!toolbar) {
+            toolbar = document.createElement('div');
+            toolbar.id = 'toolbar';
+            toolbar.style.backgroundColor = '#f0f0f0';
+            toolbar.style.padding = '5px';
+            toolbar.style.display = 'flex';
+            toolbar.style.flexWrap = 'wrap';
+            toolbar.style.gap = '5px';
+            toolbar.style.alignItems = 'center';
+            toolbar.style.borderBottom = '1px solid #ccc';
+            var menubar = document.getElementById('menubar');
+            if (menubar && menubar.parentNode) {
+                menubar.parentNode.insertBefore(toolbar, menubar.nextSibling);
+            } else if (Module.canvas && Module.canvas.parentNode) {
+                Module.canvas.parentNode.insertBefore(toolbar, Module.canvas);
+            } else {
+                document.body.prepend(toolbar);
+            }
+        }
+    },
+    JS_Toolbar_AddTool: function(id, labelPtr, iconPtr) {
+        var toolbar = document.getElementById('toolbar');
+        if(!toolbar) return;
+        var label = UTF8ToString(labelPtr);
+        var btn = document.createElement('button');
+        btn.innerText = label.split(' (')[0];
+        btn.title = label;
+        btn.onclick = function() { Module._WASM_Action(id); };
+        toolbar.appendChild(btn);
+    },
+    JS_Toolbar_AddSeparator: function() {
+        var toolbar = document.getElementById('toolbar');
+        if(!toolbar) return;
+        var sep = document.createElement('div');
+        sep.style.width = '1px';
+        sep.style.height = '20px';
+        sep.style.backgroundColor = '#999';
+        sep.style.margin = '0 5px';
+        toolbar.appendChild(sep);
+    },
+    JS_Toolbar_AddLabel: function(labelPtr) {
+        var toolbar = document.getElementById('toolbar');
+        if(!toolbar) return;
+        var span = document.createElement('span');
+        span.innerText = UTF8ToString(labelPtr);
+        span.style.fontSize = '12px';
+        toolbar.appendChild(span);
+    },
+    JS_Toolbar_AddInput: function(id, width, defPtr) {
+        var toolbar = document.getElementById('toolbar');
+        if(!toolbar) return;
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = UTF8ToString(defPtr);
+        inp.style.width = width + 'px';
+        inp.onkeydown = function(e) {
+            if(e.key === 'Enter') {
+                 Module._WASM_Action(id);
+            }
+        };
+        toolbar.appendChild(inp);
+    },
+    JS_Toolbar_AddDropdown: function(id, width, choicesJsonPtr) {
+        var toolbar = document.getElementById('toolbar');
+        if(!toolbar) return;
+        var sel = document.createElement('select');
+        sel.style.width = width + 'px';
+        var choices = JSON.parse(UTF8ToString(choicesJsonPtr));
+        choices.forEach(function(c, i) {
+            var opt = document.createElement('option');
+            opt.value = i;
+            opt.text = c.toString();
+            sel.appendChild(opt);
+        });
+        sel.onchange = function() {
+             Module._WASM_Action(id);
+        };
+        toolbar.appendChild(sel);
     }
 });

@@ -49,6 +49,14 @@ extern "C" {
     char* JS_AskText(const char* title, const char* msg, const char* def);
     double JS_AskNumber(const char* title, const char* msg, double def, double min, double max);
     int JS_SingleChoice(const char* title, const char* msg, const char* choices_json);
+
+    // Toolbar
+    void JS_Toolbar_Create();
+    void JS_Toolbar_AddTool(int id, const char* label, const char* iconpath);
+    void JS_Toolbar_AddSeparator();
+    void JS_Toolbar_AddInput(int id, int width, const char* defaultVal);
+    void JS_Toolbar_AddLabel(const char* label);
+    void JS_Toolbar_AddDropdown(int id, int width, const char* choices_json);
 }
 
 // C++ exports for JS

@@ -39,4 +39,12 @@ extern "C" {
     }
     double JS_AskNumber(const char* title, const char* msg, double def, double min, double max) { return def; }
     int JS_SingleChoice(const char* title, const char* msg, const char* choices_json) { return 0; }
+
+    // Toolbar
+    void JS_Toolbar_Create() { std::cout << "JS_Toolbar_Create\n"; }
+    void JS_Toolbar_AddTool(int id, const char* label, const char* iconpath) { std::cout << "JS_Toolbar_AddTool " << label << "\n"; }
+    void JS_Toolbar_AddSeparator() { std::cout << "JS_Toolbar_AddSeparator\n"; }
+    void JS_Toolbar_AddInput(int id, int width, const char* defaultVal) { std::cout << "JS_Toolbar_AddInput " << id << "\n"; }
+    void JS_Toolbar_AddLabel(const char* label) { std::cout << "JS_Toolbar_AddLabel " << label << "\n"; }
+    void JS_Toolbar_AddDropdown(int id, int width, const char* choices_json) { std::cout << "JS_Toolbar_AddDropdown " << id << "\n"; }
 }
