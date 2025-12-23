@@ -25,7 +25,11 @@ mergeInto(LibraryManager.library, {
     JS_DrawText: function(str, x, y) {
         var ctx = Module.canvas.getContext('2d');
         var s = UTF8ToString(str);
-        ctx.fillText(s, x, y);
+        // Canvas fillText uses baseline, so we need to adjust y position
+        // TreeSheets expects top-left origin for text
+        var metrics = ctx.measureText(s);
+        var ascent = metrics.actualBoundingBoxAscent || metrics.fontBoundingBoxAscent || 10;
+        ctx.fillText(s, x, y + ascent);
     },
     JS_DrawBitmap: function(idx, x, y) {
         var ctx = Module.canvas.getContext('2d');
@@ -33,15 +37,34 @@ mergeInto(LibraryManager.library, {
         ctx.fillRect(x, y, 16, 16);
     },
     JS_GetCharHeight: function() {
-        return 12;
+        var ctx = Module.canvas.getContext('2d');
+        // Use font metrics if available, otherwise estimate from font size
+        var metrics = ctx.measureText('M');
+        if (metrics.fontBoundingBoxAscent !== undefined && metrics.fontBoundingBoxDescent !== undefined) {
+            return Math.ceil(metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent);
+        }
+        if (metrics.actualBoundingBoxAscent !== undefined && metrics.actualBoundingBoxDescent !== undefined) {
+            return Math.ceil(metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent);
+        }
+        // Fallback: parse font size from context
+        var fontMatch = ctx.font.match(/(\d+)px/);
+        return fontMatch ? parseInt(fontMatch[1]) : 12;
     },
     JS_GetTextWidth: function(str) {
         var ctx = Module.canvas.getContext('2d');
         var s = UTF8ToString(str);
-        return ctx.measureText(s).width;
+        return Math.ceil(ctx.measureText(s).width);
     },
     JS_GetTextHeight: function(str) {
-        return 12;
+        var ctx = Module.canvas.getContext('2d');
+        var s = UTF8ToString(str);
+        var metrics = ctx.measureText(s);
+        if (metrics.actualBoundingBoxAscent !== undefined && metrics.actualBoundingBoxDescent !== undefined) {
+            return Math.ceil(metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent);
+        }
+        // Fallback: use char height
+        var fontMatch = ctx.font.match(/(\d+)px/);
+        return fontMatch ? parseInt(fontMatch[1]) : 12;
     },
     JS_SetBrushColor: function(c) {
         var ctx = Module.canvas.getContext('2d');
@@ -137,11 +160,56 @@ mergeInto(LibraryManager.library, {
 
     JS_InitInput: function() {
         var canvas = Module.canvas;
-        canvas.addEventListener('mousedown', function(e) { Module._WASM_Mouse(1, e.offsetX, e.offsetY, 0); });
-        canvas.addEventListener('mouseup', function(e) { Module._WASM_Mouse(2, e.offsetX, e.offsetY, 0); });
-        canvas.addEventListener('mousemove', function(e) { Module._WASM_Mouse(0, e.offsetX, e.offsetY, 0); });
-        window.addEventListener('keydown', function(e) { Module._WASM_Key(0, e.keyCode, 0); });
-        window.addEventListener('keyup', function(e) { Module._WASM_Key(1, e.keyCode, 0); });
+
+        // Mouse modifiers: bit 0 = left button, bit 1 = right button, bit 2 = middle button
+        // bit 4 = ctrl, bit 5 = shift, bit 6 = alt
+        var getMouseModifiers = function(e) {
+            var mods = 0;
+            if (e.ctrlKey || e.metaKey) mods |= 0x10;
+            if (e.shiftKey) mods |= 0x20;
+            if (e.altKey) mods |= 0x40;
+            return mods;
+        };
+
+        canvas.addEventListener('mousedown', function(e) {
+            Module._WASM_Mouse(1, e.offsetX, e.offsetY, getMouseModifiers(e) | (1 << e.button));
+        });
+        canvas.addEventListener('mouseup', function(e) {
+            Module._WASM_Mouse(2, e.offsetX, e.offsetY, getMouseModifiers(e) | (1 << e.button));
+        });
+        canvas.addEventListener('mousemove', function(e) {
+            Module._WASM_Mouse(0, e.offsetX, e.offsetY, getMouseModifiers(e));
+        });
+        canvas.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            // type 3 = wheel, pack delta in modifiers field (simplified)
+            var delta = e.deltaY > 0 ? 1 : -1;
+            Module._WASM_Mouse(3, e.offsetX, e.offsetY, getMouseModifiers(e) | (delta << 8));
+        }, { passive: false });
+        canvas.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
+
+        // Key modifiers: bit 0 = ctrl, bit 1 = shift, bit 2 = alt
+        var getKeyModifiers = function(e) {
+            var mods = 0;
+            if (e.ctrlKey || e.metaKey) mods |= 0x01;
+            if (e.shiftKey) mods |= 0x02;
+            if (e.altKey) mods |= 0x04;
+            return mods;
+        };
+
+        window.addEventListener('keydown', function(e) {
+            var mods = getKeyModifiers(e);
+            // Prevent browser default for common shortcuts
+            if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'o' || e.key === 'n' || e.key === 'p' || e.key === 'z' || e.key === 'y')) {
+                e.preventDefault();
+            }
+            Module._WASM_Key(0, e.keyCode, mods);
+        });
+        window.addEventListener('keyup', function(e) {
+            Module._WASM_Key(1, e.keyCode, getKeyModifiers(e));
+        });
 
         var onResize = function() {
             var w = canvas.clientWidth;
@@ -165,7 +233,22 @@ mergeInto(LibraryManager.library, {
     JS_Menu_Append: function(parentId, id, textPtr, helpPtr, type, checked) {
         var text = UTF8ToString(textPtr);
         if (Module.menus[parentId]) {
-            Module.menus[parentId].items.push({id: id, text: text, type: type, checked: checked});
+            Module.menus[parentId].items.push({id: id, text: text, type: type, checked: checked, isSubmenu: false});
+        }
+    },
+    JS_Menu_AppendSubMenu: function(parentId, submenuId, textPtr, helpPtr) {
+        var text = UTF8ToString(textPtr);
+        if (Module.menus[parentId]) {
+            Module.menus[parentId].items.push({id: submenuId, text: text, type: 4, isSubmenu: true, submenuId: submenuId});
+        }
+    },
+    JS_Menu_Check: function(menuId, itemId, checked) {
+        if (Module.menus[menuId]) {
+            Module.menus[menuId].items.forEach(function(item) {
+                if (item.id === itemId) {
+                    item.checked = checked;
+                }
+            });
         }
     },
     JS_MenuBar_Append: function(menuId, titlePtr) {
@@ -193,44 +276,87 @@ mergeInto(LibraryManager.library, {
         btn.style.cursor = 'pointer';
         btn.style.fontSize = '14px';
         btn.onclick = function(e) {
-            var oldPopup = document.getElementById('menu-popup');
-            if (oldPopup) oldPopup.remove();
+            // Helper function to create menu popup
+            var createMenuPopup = function(menuData, x, y, parentPopup) {
+                var popup = document.createElement('div');
+                popup.className = 'menu-popup';
+                popup.style.position = 'absolute';
+                popup.style.left = x + 'px';
+                popup.style.top = y + 'px';
+                popup.style.backgroundColor = 'white';
+                popup.style.border = '1px solid #ccc';
+                popup.style.boxShadow = '2px 2px 5px rgba(0,0,0,0.2)';
+                popup.style.zIndex = 1000 + (parentPopup ? 1 : 0);
+                popup.style.minWidth = '150px';
 
-            var popup = document.createElement('div');
+                menuData.items.forEach(function(item) {
+                    if (item.type == 3) { // Separator
+                        var sep = document.createElement('hr');
+                        sep.style.margin = '2px 0';
+                        popup.appendChild(sep);
+                        return;
+                    }
+                    var itemDiv = document.createElement('div');
+                    var displayText = item.text.replace(/&/g, '').split('\t')[0];
+
+                    // Handle checkbox/radio items
+                    if (item.type == 1 || item.type == 2) {
+                        displayText = (item.checked ? '✓ ' : '   ') + displayText;
+                    }
+
+                    // Handle submenu indicator
+                    if (item.isSubmenu) {
+                        displayText = displayText + ' ▶';
+                    }
+
+                    itemDiv.innerText = displayText;
+                    itemDiv.style.padding = '5px 15px';
+                    itemDiv.style.cursor = 'pointer';
+                    itemDiv.style.whiteSpace = 'nowrap';
+                    itemDiv.onmouseover = function() {
+                        itemDiv.style.backgroundColor = '#eee';
+                        // Show submenu on hover
+                        if (item.isSubmenu && Module.menus[item.submenuId]) {
+                            // Remove any existing submenus at this level
+                            var existingSub = popup.querySelector('.menu-popup');
+                            if (existingSub) existingSub.remove();
+
+                            var rect = itemDiv.getBoundingClientRect();
+                            var subPopup = createMenuPopup(Module.menus[item.submenuId], rect.right, rect.top, popup);
+                            popup.appendChild(subPopup);
+                        }
+                    };
+                    itemDiv.onmouseout = function() {
+                        itemDiv.style.backgroundColor = 'white';
+                    };
+                    itemDiv.onclick = function(ev) {
+                        if (!item.isSubmenu) {
+                            Module._WASM_Action(item.id);
+                            // Close all menus
+                            document.querySelectorAll('.menu-popup').forEach(function(p) { p.remove(); });
+                        }
+                        ev.stopPropagation();
+                    };
+                    popup.appendChild(itemDiv);
+                });
+
+                return popup;
+            };
+
+            // Remove existing popups
+            document.querySelectorAll('.menu-popup').forEach(function(p) { p.remove(); });
+
+            var popup = createMenuPopup(menu, e.pageX, e.pageY + 20, null);
             popup.id = 'menu-popup';
-            popup.style.position = 'absolute';
-            popup.style.left = e.pageX + 'px';
-            popup.style.top = (e.pageY + 20) + 'px';
-            popup.style.backgroundColor = 'white';
-            popup.style.border = '1px solid #ccc';
-            popup.style.boxShadow = '2px 2px 5px rgba(0,0,0,0.2)';
-            popup.style.zIndex = 1000;
-
-            menu.items.forEach(function(item) {
-                if (item.type == 3) { // Separator
-                    var sep = document.createElement('hr');
-                    sep.style.margin = '2px 0';
-                    popup.appendChild(sep);
-                    return;
-                }
-                var itemDiv = document.createElement('div');
-                itemDiv.innerText = item.text.replace(/&/g, '').split('\t')[0];
-                itemDiv.style.padding = '5px 15px';
-                itemDiv.style.cursor = 'pointer';
-                itemDiv.onmouseover = function() { itemDiv.style.backgroundColor = '#eee'; };
-                itemDiv.onmouseout = function() { itemDiv.style.backgroundColor = 'white'; };
-                itemDiv.onclick = function() {
-                    Module._WASM_Action(item.id);
-                    popup.remove();
-                };
-                popup.appendChild(itemDiv);
-            });
-
             document.body.appendChild(popup);
 
             var closeHandler = function(ev) {
-                if (ev.target != btn && !popup.contains(ev.target)) {
-                    popup.remove();
+                var isMenuClick = false;
+                document.querySelectorAll('.menu-popup').forEach(function(p) {
+                    if (p.contains(ev.target)) isMenuClick = true;
+                });
+                if (ev.target != btn && !isMenuClick) {
+                    document.querySelectorAll('.menu-popup').forEach(function(p) { p.remove(); });
                     window.removeEventListener('mousedown', closeHandler);
                 }
             };
@@ -261,6 +387,41 @@ mergeInto(LibraryManager.library, {
         choices.forEach(function(c, i) { txt += i + ": " + c + "\n"; });
         var res = prompt(txt, "0");
         return parseInt(res) || 0;
+    },
+    JS_PickColor: function(defaultColor) {
+        // Convert 0xBBGGRR to #RRGGBB for HTML color input
+        var r = defaultColor & 0xFF;
+        var g = (defaultColor >> 8) & 0xFF;
+        var b = (defaultColor >> 16) & 0xFF;
+        var hexColor = '#' + ('0' + r.toString(16)).slice(-2) +
+                             ('0' + g.toString(16)).slice(-2) +
+                             ('0' + b.toString(16)).slice(-2);
+
+        // Create a temporary color input
+        var input = document.createElement('input');
+        input.type = 'color';
+        input.value = hexColor;
+        input.style.position = 'fixed';
+        input.style.top = '50%';
+        input.style.left = '50%';
+        input.style.opacity = '0';
+
+        // Use a promise-like approach with synchronous return (simplified)
+        // For a proper implementation, this would need async handling
+        // For now, prompt for hex color as fallback
+        var result = prompt('Enter color (hex format #RRGGBB or RRGGBB):', hexColor);
+        if (result === null) return -1; // Cancelled
+
+        // Parse the result
+        result = result.replace('#', '');
+        if (result.length === 6) {
+            var rr = parseInt(result.substring(0, 2), 16);
+            var gg = parseInt(result.substring(2, 4), 16);
+            var bb = parseInt(result.substring(4, 6), 16);
+            // Return as 0xBBGGRR (TreeSheets format)
+            return (bb << 16) | (gg << 8) | rr;
+        }
+        return defaultColor;
     },
 
     // Toolbar

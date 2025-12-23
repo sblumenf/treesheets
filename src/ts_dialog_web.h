@@ -36,13 +36,9 @@ struct TSDialogsWeb : public TSDialogs {
         return false;
     }
     uint PickColor(uint defaultColor) override {
-        // JS prompt for hex?
-        char* res = JS_AskText("Pick Color", "Enter Hex Color (RRGGBB):", "FFFFFF");
-        wxString s(res);
-        free(res);
-        // Parse hex
-        // ... simple parser
-        return defaultColor; // Mock
+        int result = JS_PickColor(defaultColor);
+        if (result == -1) return (uint)-1;  // Cancelled
+        return (uint)result;
     }
     wxString FileSelector(const wxString& message, const wxString& default_path, const wxString& default_filename, const wxString& default_extension, const wxString& wildcard, int flags) override {
         // For Save: return a filename to trigger browser download?

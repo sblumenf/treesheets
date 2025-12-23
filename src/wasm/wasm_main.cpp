@@ -1,7 +1,6 @@
 #include "wx_shim.h"
 #include "../tools.h"
 #include "../ts_graphics.h"
-#include "ts_graphics_wasm.h"
 #include "ts_graphics_web.h"
 #include "../ts_platform_os.h"
 #include "ts_platform_os_web.h"
