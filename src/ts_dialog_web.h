@@ -33,6 +33,15 @@ struct TSDialogsWeb : public TSDialogs {
         // Return immediately. File loaded callback will handle it later.
     }
     bool SelectFont(wxString& fontName, int& fontSize) override {
+        if (JS_SelectFont(fontName.c_str(), fontSize)) {
+            char* font = JS_GetSelectedFont();
+            if (font) {
+                fontName = wxString(font);
+                free(font);
+            }
+            fontSize = JS_GetSelectedFontSize();
+            return true;
+        }
         return false;
     }
     uint PickColor(uint defaultColor) override {
