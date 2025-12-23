@@ -56,6 +56,12 @@ extern "C" {
     int JS_SingleChoice(const char* title, const char* msg, const char* choices_json);
     int JS_PickColor(unsigned int defaultColor);
 
+    // System
+    int JS_IsDarkMode();
+    int JS_SelectFont(const char* defaultFont, int defaultSize);
+    char* JS_GetSelectedFont();
+    int JS_GetSelectedFontSize();
+
     // Toolbar
     void JS_Toolbar_Create();
     void JS_Toolbar_AddTool(int id, const char* label, const char* iconpath);

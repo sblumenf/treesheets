@@ -1773,6 +1773,45 @@ mergeInto(LibraryManager.library, {
             setTimeout(function() { select.focus(); }, 100);
         });
     },
+    JS_IsDarkMode: function() {
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 1 : 0;
+    },
+    JS_SelectFont: function(defaultFontPtr, defaultSize) {
+        var fonts = [
+            'Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana',
+            'Courier New', 'Consolas', 'Monaco', 'Lucida Console',
+            'Trebuchet MS', 'Tahoma', 'Impact', 'Comic Sans MS'
+        ];
+        var defaultFont = UTF8ToString(defaultFontPtr);
+
+        // Build font list string
+        var txt = "Select Font:\n";
+        fonts.forEach(function(f, i) { txt += i + ": " + f + "\n"; });
+        txt += "\nEnter font number (or -1 to cancel):";
+
+        var fontIdx = parseInt(prompt(txt, "0"));
+        if (isNaN(fontIdx) || fontIdx < 0 || fontIdx >= fonts.length) return 0; // Cancelled
+
+        var sizeStr = prompt("Enter font size (8-72):", defaultSize.toString());
+        var size = parseInt(sizeStr);
+        if (isNaN(size) || size < 8 || size > 72) return 0; // Cancelled
+
+        // Store selected font name and size in Module for retrieval
+        var selectedFont = fonts[fontIdx];
+        var len = lengthBytesUTF8(selectedFont) + 1;
+        var ptr = _malloc(len);
+        stringToUTF8(selectedFont, ptr, len);
+        Module._lastSelectedFont = ptr;
+        Module._lastSelectedFontSize = size;
+
+        return 1; // Success
+    },
+    JS_GetSelectedFont: function() {
+        return Module._lastSelectedFont || 0;
+    },
+    JS_GetSelectedFontSize: function() {
+        return Module._lastSelectedFontSize || 12;
+    },
     JS_PickColor: function(defaultColor) {
         // Use color utility for hex conversion
         var hexColor = Module._colorUtils.toHex(defaultColor);

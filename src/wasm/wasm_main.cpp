@@ -7,6 +7,7 @@
 #include "../ts_constants.h"
 #include "ts_menu_web.h"
 #include "../ts_dialog_web.h"
+#include "web_interface.h"
 #include "emscripten.h"
 
 #include <map>
@@ -25,14 +26,21 @@ int g_deftextsize = g_deftextsize_default;
 static const std::map<char, pair<wxBitmapType, wxString>> imagetypes = {
     {'I', {wxBITMAP_TYPE_PNG, "image/png"}}, {'J', {wxBITMAP_TYPE_JPEG, "image/jpeg"}}};
 
-// Mocks
+// Mocks and implementations
 wxString wxBase64Encode(const void* data, size_t len) { return ""; }
 inline uint LightColor(uint c) { return c; }
 inline void DrawRectangle(TSGraphics &dc, uint color, int x, int y, int xs, int ys, bool outline = false) {
     dc.DrawRectangle(x,y,xs,ys);
 }
-inline bool wxLaunchDefaultBrowser(const wxString& url) { return false; }
-inline bool wxLaunchDefaultApplication(const wxString& url) { return false; }
+inline bool wxLaunchDefaultBrowser(const wxString& url) {
+    JS_LaunchBrowser(url.c_str());
+    return true;
+}
+inline bool wxLaunchDefaultApplication(const wxString& url) {
+    // For web, treat as browser launch
+    JS_LaunchBrowser(url.c_str());
+    return true;
+}
 
 // Stubs for TSFrame members
 struct TSApp {
@@ -168,7 +176,7 @@ const int wxACCEL_SHIFT = 0;
 const int wxACCEL_CTRL = 0;
 
 struct wxSystemSettings {
-    struct Appearance { bool IsDark() { return false; } };
+    struct Appearance { bool IsDark() { return JS_IsDarkMode() != 0; } };
     static Appearance GetAppearance() { return Appearance(); }
 };
 

@@ -97,7 +97,27 @@ public:
         return substr(start, count);
     }
     void Truncate(size_t len) { if(len < length()) resize(len); }
-    wxString Trim(bool fromRight = true) { return *this; } // Mock
+    wxString Trim(bool fromRight = true) {
+        wxString result = *this;
+        if (fromRight) {
+            // Trim from right
+            size_t end = result.find_last_not_of(" \t\n\r\f\v");
+            if (end != std::string::npos) {
+                result.erase(end + 1);
+            } else {
+                result.clear();
+            }
+        } else {
+            // Trim from left
+            size_t start = result.find_first_not_of(" \t\n\r\f\v");
+            if (start != std::string::npos) {
+                result.erase(0, start);
+            } else {
+                result.clear();
+            }
+        }
+        return result;
+    }
 
     int Find(const wxString& sub) const { return (int)find(sub); }
     int Find(char c) const { return (int)find(c); }
@@ -341,31 +361,122 @@ public:
     }
 };
 
-// Streams
+// Streams - actual implementations for file I/O
 class wxDataOutputStream {
+    wxOutputStream* os = nullptr;
 public:
-    wxDataOutputStream(std::ostream& s) {}
-    wxDataOutputStream(wxOutputStream& s) {}
-    void Write8(wxUint8 val) {}
-    void Write32(uint32_t val) {}
-    void Write64(const wxLongLong& val) {}
-    void Write64(wxInt64 val) {}
-    void Write64(const wxLongLong* val, size_t count) {}
-    void WriteString(const wxString& s) {}
-    void WriteDouble(double d) {}
+    wxDataOutputStream(wxOutputStream& s) : os(&s) {}
+
+    void Write8(wxUint8 val) {
+        if (os) os->Write(&val, 1);
+    }
+
+    void Write32(uint32_t val) {
+        // Big-endian (network byte order) for cross-platform compatibility
+        wxUint8 buf[4];
+        buf[0] = (val >> 24) & 0xFF;
+        buf[1] = (val >> 16) & 0xFF;
+        buf[2] = (val >> 8) & 0xFF;
+        buf[3] = val & 0xFF;
+        if (os) os->Write(buf, 4);
+    }
+
+    void Write64(wxInt64 val) {
+        wxUint8 buf[8];
+        buf[0] = (val >> 56) & 0xFF;
+        buf[1] = (val >> 48) & 0xFF;
+        buf[2] = (val >> 40) & 0xFF;
+        buf[3] = (val >> 32) & 0xFF;
+        buf[4] = (val >> 24) & 0xFF;
+        buf[5] = (val >> 16) & 0xFF;
+        buf[6] = (val >> 8) & 0xFF;
+        buf[7] = val & 0xFF;
+        if (os) os->Write(buf, 8);
+    }
+
+    void Write64(const wxLongLong& val) {
+        Write64(val.GetValue());
+    }
+
+    void Write64(const wxLongLong* val, size_t count) {
+        for (size_t i = 0; i < count; i++) {
+            Write64(val[i]);
+        }
+    }
+
+    void WriteString(const wxString& s) {
+        // Write length as 32-bit, then string data (no null terminator)
+        Write32((uint32_t)s.length());
+        if (os && !s.empty()) os->Write(s.c_str(), s.length());
+    }
+
+    void WriteDouble(double d) {
+        // Write as 64-bit IEEE 754 (just copy bytes, assuming same endianness)
+        if (os) os->Write(&d, sizeof(double));
+    }
 };
 
 class wxDataInputStream {
+    wxInputStream* is = nullptr;
+    bool bigEndian = true;
 public:
-    wxDataInputStream(std::istream& s) {}
-    wxDataInputStream(wxInputStream& s) {}
-    void BigEndianOrdered(bool be) {}
-    wxUint8 Read8() { return 0; }
-    uint32_t Read32() { return 0; }
-    wxInt64 Read64() { return 0; }
-    void Read64(wxLongLong* val, size_t count) {}
-    wxString ReadString() { return ""; }
-    double ReadDouble() { return 0.0; }
+    wxDataInputStream(wxInputStream& s) : is(&s) {}
+
+    void BigEndianOrdered(bool be) { bigEndian = be; }
+
+    wxUint8 Read8() {
+        wxUint8 val = 0;
+        if (is) is->Read(&val, 1);
+        return val;
+    }
+
+    uint32_t Read32() {
+        wxUint8 buf[4] = {0};
+        if (is) is->Read(buf, 4);
+        if (bigEndian) {
+            return ((uint32_t)buf[0] << 24) | ((uint32_t)buf[1] << 16) |
+                   ((uint32_t)buf[2] << 8) | (uint32_t)buf[3];
+        } else {
+            return ((uint32_t)buf[3] << 24) | ((uint32_t)buf[2] << 16) |
+                   ((uint32_t)buf[1] << 8) | (uint32_t)buf[0];
+        }
+    }
+
+    wxInt64 Read64() {
+        wxUint8 buf[8] = {0};
+        if (is) is->Read(buf, 8);
+        if (bigEndian) {
+            return ((wxInt64)buf[0] << 56) | ((wxInt64)buf[1] << 48) |
+                   ((wxInt64)buf[2] << 40) | ((wxInt64)buf[3] << 32) |
+                   ((wxInt64)buf[4] << 24) | ((wxInt64)buf[5] << 16) |
+                   ((wxInt64)buf[6] << 8) | (wxInt64)buf[7];
+        } else {
+            return ((wxInt64)buf[7] << 56) | ((wxInt64)buf[6] << 48) |
+                   ((wxInt64)buf[5] << 40) | ((wxInt64)buf[4] << 32) |
+                   ((wxInt64)buf[3] << 24) | ((wxInt64)buf[2] << 16) |
+                   ((wxInt64)buf[1] << 8) | (wxInt64)buf[0];
+        }
+    }
+
+    void Read64(wxLongLong* val, size_t count) {
+        for (size_t i = 0; i < count; i++) {
+            val[i] = wxLongLong(Read64());
+        }
+    }
+
+    wxString ReadString() {
+        uint32_t len = Read32();
+        if (len == 0 || !is) return "";
+        std::vector<char> buf(len);
+        is->Read(buf.data(), len);
+        return wxString(std::string(buf.data(), len));
+    }
+
+    double ReadDouble() {
+        double d = 0.0;
+        if (is) is->Read(&d, sizeof(double));
+        return d;
+    }
 };
 
 // Graphics types used in core
