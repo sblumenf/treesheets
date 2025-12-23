@@ -26,31 +26,7 @@ struct TSWebMenu : public TSMenu {
     virtual void AppendSubMenu(TSMenu* submenu, const wxString& text, const wxString& help = wxEmptyString) override {
         TSWebMenu* webSub = dynamic_cast<TSWebMenu*>(submenu);
         if(webSub) {
-             // Link submenu. JS side needs to handle submenu type (4)
-             // Or maybe flattening?
-             // Simple JS menu implementation supports flat list.
-             // Nested is harder.
-             // I'll skip nested for now or treat as item that opens another menu?
-             // Standard wxMenu is nested.
-             // I'll append as type 4?
-             // But JS logic needs to know the submenu ID.
-             // I'll encode submenu ID in itemId? No itemId is 0 for submenu usually?
-             // Or passed as help?
-             // Let's just log it for now as "Submenu not fully supported in JS basic implementation".
-             // Or append items of submenu to this menu? (Flattening).
-             // Flattening is easier for Phase 4 proof of concept.
-             // "Submenu: Title" -> items.
-             // But TSFrame uses submenus extensively.
-
-             // I'll append a separator with title "--- Submenu: Title ---"
-             JS_Menu_Append(id, 0, (wxString("--- ") + text + " ---").c_str(), help.c_str(), 3, false);
-             // Then append items from submenu?
-             // But submenu items are already added to submenu.id.
-             // I need to copy them?
-             // Or JS side handles hierarchy.
-             // Let's stick to flat or just log.
-             // Reverting to console log for submenu to avoid breaking JS.
-             std::cout << "Submenu appended: " << text << " (ID: " << webSub->id << ")" << std::endl;
+            JS_Menu_AppendSubMenu(id, webSub->id, text.c_str(), help.c_str());
         }
     }
     virtual void AppendCheckItem(int itemId, const wxString& text, const wxString& help = wxEmptyString) override {
@@ -60,7 +36,7 @@ struct TSWebMenu : public TSMenu {
         JS_Menu_Append(id, itemId, text.c_str(), help.c_str(), 2, false);
     }
     virtual void Check(int itemId, bool check) override {
-        // JS_Menu_Check(id, itemId, check); // Todo
+        JS_Menu_Check(id, itemId, check);
     }
 };
 

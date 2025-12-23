@@ -17,15 +17,58 @@ using uchar = unsigned char;
 using uint = unsigned int;
 using wxChar = wchar_t;
 
-// wxString Shim
+// UTF-8 conversion helpers
+namespace utf8_utils {
+    // Convert a single wchar_t codepoint to UTF-8 bytes, append to string
+    inline void append_wchar_as_utf8(std::string& s, wchar_t wc) {
+        uint32_t cp = static_cast<uint32_t>(wc);
+        if (cp < 0x80) {
+            s.push_back(static_cast<char>(cp));
+        } else if (cp < 0x800) {
+            s.push_back(static_cast<char>(0xC0 | (cp >> 6)));
+            s.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else if (cp < 0x10000) {
+            s.push_back(static_cast<char>(0xE0 | (cp >> 12)));
+            s.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            s.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else if (cp < 0x110000) {
+            s.push_back(static_cast<char>(0xF0 | (cp >> 18)));
+            s.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+            s.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            s.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        }
+        // Invalid codepoints are silently ignored
+    }
+
+    // Convert wchar_t string to UTF-8 string
+    inline std::string wchar_to_utf8(const wchar_t* s) {
+        std::string result;
+        if (s) {
+            while (*s) {
+                append_wchar_as_utf8(result, *s);
+                s++;
+            }
+        }
+        return result;
+    }
+
+    // Convert std::wstring to UTF-8 string
+    inline std::string wstring_to_utf8(const std::wstring& s) {
+        std::string result;
+        for (wchar_t wc : s) {
+            append_wchar_as_utf8(result, wc);
+        }
+        return result;
+    }
+}
+
+// wxString Shim - stores UTF-8 internally
 class wxString : public std::string {
 public:
     wxString() : std::string() {}
     wxString(const char* s) : std::string(s ? s : "") {}
     wxString(const std::string& s) : std::string(s) {}
-    wxString(const wchar_t* s) {
-        if(s) while(*s) { push_back((char)*s); s++; }
-    }
+    wxString(const wchar_t* s) : std::string(utf8_utils::wchar_to_utf8(s)) {}
 
     static wxString Format(const char* fmt, ...) {
         char buf[1024];
@@ -37,7 +80,10 @@ public:
     }
 
     static wxString Format(const wchar_t* fmt, ...) {
-        return "FormatW";
+        // Convert wchar_t format to UTF-8, then format
+        // This is a simplified version - for full printf-style formatting
+        // we'd need more complex handling
+        return wxString(fmt);  // At minimum, preserve the format string
     }
 
     size_t Len() const { return length(); }
@@ -109,21 +155,24 @@ public:
     }
 
     wxString& operator+=(const wchar_t* s) {
-        while(s && *s) push_back((char)*s++);
+        if (s) {
+            while (*s) {
+                utf8_utils::append_wchar_as_utf8(*this, *s);
+                s++;
+            }
+        }
         return *this;
     }
 
     using std::string::operator+=;
 
     wxString& operator=(const std::wstring& s) {
-        clear();
-        for(auto c : s) push_back((char)c);
+        assign(utf8_utils::wstring_to_utf8(s));
         return *this;
     }
 
     wxString& operator=(const wchar_t* s) {
-        clear();
-        if(s) while(*s) push_back((char)*s++);
+        assign(utf8_utils::wchar_to_utf8(s));
         return *this;
     }
 
@@ -164,12 +213,12 @@ public:
 
     friend wxString operator+(const wxString& lhs, wchar_t rhs) {
         wxString s = lhs;
-        s.push_back((char)rhs);
+        utf8_utils::append_wchar_as_utf8(s, rhs);
         return s;
     }
     friend wxString operator+(wchar_t lhs, const wxString& rhs) {
         wxString s;
-        s.push_back((char)lhs);
+        utf8_utils::append_wchar_as_utf8(s, lhs);
         s += rhs;
         return s;
     }

@@ -45,6 +45,8 @@ extern "C" {
     // Menus
     void JS_Menu_Create(int id, const char* title);
     void JS_Menu_Append(int parentId, int id, const char* text, const char* help, int type, bool checked);
+    void JS_Menu_AppendSubMenu(int parentId, int submenuId, const char* text, const char* help);
+    void JS_Menu_Check(int menuId, int itemId, bool checked);
     void JS_MenuBar_Append(int menuId, const char* title);
 
     // Dialogs
@@ -52,6 +54,7 @@ extern "C" {
     char* JS_AskText(const char* title, const char* msg, const char* def);
     double JS_AskNumber(const char* title, const char* msg, double def, double min, double max);
     int JS_SingleChoice(const char* title, const char* msg, const char* choices_json);
+    int JS_PickColor(unsigned int defaultColor);
 
     // Toolbar
     void JS_Toolbar_Create();
