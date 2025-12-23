@@ -23,6 +23,11 @@ using namespace std;
 // Globals
 int g_deftextsize = g_deftextsize_default;
 
+// Canvas state
+static int g_canvasWidth = 800;
+static int g_canvasHeight = 600;
+static bool g_needsRedraw = true;
+
 static const std::map<char, pair<wxBitmapType, wxString>> imagetypes = {
     {'I', {wxBITMAP_TYPE_PNG, "image/png"}}, {'J', {wxBITMAP_TYPE_JPEG, "image/jpeg"}}};
 
@@ -288,6 +293,19 @@ struct wasm_treesheets {
         static void OnTBIDBLClick(void*) {}
         static void OnFileSystemEvent(void*) {}
 
+        // Stub for canvas access - returns nullptr for now
+        struct CanvasStub {
+            Document* doc = nullptr;
+            void SetFocus() {}
+            void Refresh() { g_needsRedraw = true; }
+            void CursorScroll(int dx, int dy) {}
+        };
+        CanvasStub* GetCurrentTab() {
+            static CanvasStub stub;
+            return &stub;
+        }
+        void Refresh() { g_needsRedraw = true; }
+
         TSFrame() {} // Default constructor for stub
     };
 
@@ -431,27 +449,128 @@ wasm_treesheets::System* wasm_treesheets::sys = nullptr;
 // It only builds the menu.
 // So I don't need `GetFilesFromUser` stub for `CreateMenus`.
 
+// Forward declaration for render
+static void RenderDocument();
+
 void Iterate() {
-    // std::cout << "Loop Frame" << std::endl;
+    if (g_needsRedraw) {
+        RenderDocument();
+        g_needsRedraw = false;
+    }
+}
+
+// Render the current document/demo content
+static void RenderDocument() {
+    TSWebGraphics g;
+
+    // Clear background
+    g.SetBrushColor(0xFFFFFF);  // White
+    g.SetPenColor(0xFFFFFF);
+    g.DrawRectangle(0, 0, g_canvasWidth, g_canvasHeight);
+
+    // Draw header bar
+    g.SetBrushColor(0xE0E0E0);  // Light gray
+    g.SetPenColor(0xCCCCCC);
+    g.DrawRectangle(0, 0, g_canvasWidth, 30);
+
+    // Draw title
+    g.SetFont(14, 0);
+    g.SetTextForeground(0x333333);
+    g.DrawText("TreeSheets Web (POC)", 10, 8);
+
+    // Draw demo cell content
+    g.SetFont(12, 0);
+    g.SetBrushColor(0xF5F5F5);
+    g.SetPenColor(0x999999);
+    g.DrawRoundedRectangle(20, 50, 200, 40, 5);
+    g.SetTextForeground(0x000000);
+    g.DrawText("Welcome to TreeSheets!", 30, 62);
+
+    // Draw instructions
+    g.SetFont(11, 0);
+    g.SetTextForeground(0x666666);
+    g.DrawText("Use File > Open to load a .cts file", 20, 110);
+    g.DrawText("Menus and toolbar are functional", 20, 130);
+
+    // Draw canvas size info
+    wxString sizeInfo = wxString::Format("Canvas: %dx%d", g_canvasWidth, g_canvasHeight);
+    g.DrawText(sizeInfo.c_str(), 20, 160);
 }
 
 extern "C" {
     void WASM_FileLoaded(const char* filename, const uint8_t* data, int size) {
-        std::cout << "File Loaded Callback: " << filename << " (" << size << " bytes)" << std::endl;
+        std::cout << "File Loaded: " << filename << " (" << size << " bytes)" << std::endl;
+        // TODO: Parse the .cts file and load into document
+        // For now, just acknowledge receipt
         wxMemoryInputStream mis(data, size);
-        // In real impl: sys->LoadDBFromStream(mis, ...);
+
+        // Verify magic number
+        char magic[5] = {0};
+        mis.Read(magic, 4);
+        if (std::string(magic) == "TSFF") {
+            std::cout << "Valid TreeSheets file detected!" << std::endl;
+            // TODO: Continue parsing...
+        } else {
+            std::cout << "Warning: Not a valid TreeSheets file" << std::endl;
+        }
+
+        g_needsRedraw = true;
     }
 
     void WASM_Mouse(int type, int x, int y, int modifiers) {
-        std::cout << "Mouse: " << type << " at " << x << "," << y << std::endl;
+        // type: 0=move, 1=down, 2=up, 3=wheel
+        // For now, just request redraw on click
+        if (type == 1) {
+            g_needsRedraw = true;
+        }
     }
 
     void WASM_Key(int type, int key, int modifiers) {
-        std::cout << "Key: " << type << " " << key << std::endl;
+        // type: 0=down, 1=up
+        // modifiers: bit0=ctrl, bit1=shift, bit2=alt
+        if (type == 0) {
+            g_needsRedraw = true;
+        }
     }
 
     void WASM_Resize(int w, int h) {
-        std::cout << "Resize: " << w << "x" << h << std::endl;
+        g_canvasWidth = w;
+        g_canvasHeight = h;
+        g_needsRedraw = true;
+        std::cout << "Resized to: " << w << "x" << h << std::endl;
+    }
+
+    void WASM_Action(int id) {
+        std::cout << "Action triggered: " << id << std::endl;
+
+        // Handle some basic actions
+        switch (id) {
+            case wxID_NEW:
+                std::cout << "New document requested" << std::endl;
+                break;
+            case wxID_OPEN:
+                std::cout << "Open file requested" << std::endl;
+                JS_TriggerUpload();
+                break;
+            case wxID_SAVE:
+                std::cout << "Save requested" << std::endl;
+                break;
+            case wxID_ABOUT:
+                JS_ShowMessage("About TreeSheets",
+                    "TreeSheets Web Port (Proof of Concept)\n\n"
+                    "A hierarchical spreadsheet application.\n"
+                    "https://strlen.com/treesheets/");
+                break;
+            case wxID_EXIT:
+                std::cout << "Exit requested (ignored in web)" << std::endl;
+                break;
+            default:
+                // For other actions, just log them
+                std::cout << "Unhandled action: " << id << std::endl;
+                break;
+        }
+
+        g_needsRedraw = true;
     }
 }
 
