@@ -591,6 +591,65 @@ struct wasm_treesheets {
             }
         }
 
+        const wxChar* SaveDBToStream(wxOutputStream& os) {
+            if (!currentDoc || !currentDoc->root) return L"No document to save.";
+
+            wxDataOutputStream dos(os);
+
+            // Write magic header
+            os.Write("TSFF", 4);
+
+            // Write version
+            char vers = TS_VERSION;
+            os.Write(&vers, 1);
+
+            // Write selection info
+            dos.Write8(1);  // xs
+            dos.Write8(1);  // ys
+            dos.Write8(0);  // zoom level
+
+            // No images for now (would need RefreshImageRefCount)
+
+            // Write document marker
+            os.Write("D", 1);
+
+            // Write compressed cell data
+            {
+                wxZlibOutputStream zos(os, 9);
+                if (!zos.IsOk()) return L"Zlib error while writing file.";
+                wxDataOutputStream zdos(zos);
+                currentDoc->root->Save(zdos, nullptr);
+
+                // Write tags
+                for (auto& [tag, color] : currentDoc->tags) {
+                    zdos.WriteString(tag);
+                    zdos.Write32(color);
+                }
+                zdos.WriteString(wxEmptyString);  // End marker
+            }
+
+            return nullptr;  // Success
+        }
+
+        bool SaveToFile(const wxString& filename) {
+            wxMemoryOutputStream mos;
+            auto err = SaveDBToStream(mos);
+            if (err) {
+                std::cout << "Save error: ";
+                const wchar_t* werr = err;
+                while (*werr) { std::cout << (char)*werr++; }
+                std::cout << std::endl;
+                return false;
+            }
+
+            auto& buf = *mos.GetOutputStreamBuffer();
+            std::vector<uint8_t> data((uint8_t*)buf.GetBufferStart(),
+                                     (uint8_t*)buf.GetBufferEnd());
+
+            JS_DownloadFile(filename.c_str(), data.data(), data.size());
+            return true;
+        }
+
         const wxChar *Open(const wxString &filename) { return L""; }
         void TabChange(Document *doc) {}
         void RememberOpenFiles() {}
@@ -802,7 +861,13 @@ extern "C" {
             case wxID_SAVE:
                 std::cout << "Save requested" << std::endl;
                 if (doc && doc->root) {
-                    JS_ShowMessage("Save", "Save functionality coming soon.\nUse browser's save feature for now.");
+                    wxString filename = doc->filename;
+                    if (filename.empty()) filename = "untitled.cts";
+                    if (sys->SaveToFile(filename)) {
+                        std::cout << "File saved: " << filename.c_str() << std::endl;
+                    }
+                } else {
+                    JS_ShowMessage("Save", "No document to save.");
                 }
                 break;
 
