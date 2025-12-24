@@ -36,6 +36,9 @@ set(EMSCRIPTEN_FLAGS
     "-sEXPORTED_FUNCTIONS=['_main','_WASM_FileLoaded','_WASM_Mouse','_WASM_Key','_WASM_Resize','_WASM_Action']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8']"
 
+    # Use Emscripten's zlib port for decompression
+    "-sUSE_ZLIB=1"
+
     # Allow memory growth for dynamic content
     "-sALLOW_MEMORY_GROWTH=1"
 
