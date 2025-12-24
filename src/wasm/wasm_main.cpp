@@ -37,9 +37,21 @@ static const std::map<char, pair<wxBitmapType, wxString>> imagetypes = {
 
 // Mocks and implementations
 wxString wxBase64Encode(const void* data, size_t len) { return ""; }
-inline uint LightColor(uint c) { return c; }
+inline uint LightColor(uint c) {
+    // Lighten the color slightly
+    uint r = (c >> 0) & 0xFF;
+    uint g = (c >> 8) & 0xFF;
+    uint b = (c >> 16) & 0xFF;
+    r = std::min(255u, r + (255 - r) / 4);
+    g = std::min(255u, g + (255 - g) / 4);
+    b = std::min(255u, b + (255 - b) / 4);
+    return (b << 16) | (g << 8) | r;
+}
+
 inline void DrawRectangle(TSGraphics &dc, uint color, int x, int y, int xs, int ys, bool outline = false) {
-    dc.DrawRectangle(x,y,xs,ys);
+    dc.SetBrushColor(color);
+    dc.SetPenColor(color);
+    dc.DrawRectangle(x, y, xs, ys);
 }
 inline bool wxLaunchDefaultBrowser(const wxString& url) {
     JS_LaunchBrowser(url.c_str());
