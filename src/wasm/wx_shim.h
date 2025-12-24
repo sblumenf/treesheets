@@ -8,6 +8,7 @@
 #include <sstream>
 #include <cstdarg>
 #include <cstring> // memcpy
+#include <zlib.h>  // Emscripten provides zlib with -sUSE_ZLIB=1
 
 // Basic Types
 using wxUint8 = uint8_t;
@@ -352,12 +353,70 @@ public:
 };
 
 class wxZlibInputStream : public wxInputStream {
-    wxInputStream& parent;
+    std::vector<uint8_t> decompressed;
+    size_t pos = 0;
+    bool ok = false;
 public:
-    wxZlibInputStream(wxInputStream& is) : parent(is) {}
-    bool IsOk() { return true; }
+    wxZlibInputStream(wxInputStream& is) {
+        // Read all remaining data from parent stream
+        std::vector<uint8_t> compressed;
+        uint8_t buf[4096];
+        size_t n;
+        while ((n = is.Read(buf, sizeof(buf))) > 0) {
+            compressed.insert(compressed.end(), buf, buf + n);
+        }
+
+        if (compressed.empty()) {
+            ok = false;
+            return;
+        }
+
+        // Initialize zlib for decompression (zlib format, not raw deflate)
+        z_stream strm = {};
+        strm.next_in = compressed.data();
+        strm.avail_in = compressed.size();
+
+        // Use inflateInit for zlib format (with header)
+        if (inflateInit(&strm) != Z_OK) {
+            ok = false;
+            return;
+        }
+
+        // Decompress in chunks
+        uint8_t outbuf[8192];
+        int ret;
+        do {
+            strm.next_out = outbuf;
+            strm.avail_out = sizeof(outbuf);
+            ret = inflate(&strm, Z_NO_FLUSH);
+            if (ret == Z_STREAM_ERROR || ret == Z_DATA_ERROR || ret == Z_MEM_ERROR) {
+                inflateEnd(&strm);
+                ok = false;
+                return;
+            }
+            size_t have = sizeof(outbuf) - strm.avail_out;
+            decompressed.insert(decompressed.end(), outbuf, outbuf + have);
+        } while (ret != Z_STREAM_END);
+
+        inflateEnd(&strm);
+        ok = true;
+    }
+
+    bool IsOk() const { return ok; }
+
     size_t Read(void *buffer, size_t size) override {
-        return parent.Read(buffer, size);
+        if (!ok || pos >= decompressed.size()) return 0;
+        size_t avail = decompressed.size() - pos;
+        size_t toRead = std::min(size, avail);
+        memcpy(buffer, decompressed.data() + pos, toRead);
+        pos += toRead;
+        return toRead;
+    }
+
+    size_t TellI() const { return pos; }
+
+    void SeekI(size_t newpos) {
+        if (newpos <= decompressed.size()) pos = newpos;
     }
 };
 

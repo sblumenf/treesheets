@@ -27,6 +27,10 @@ int g_deftextsize = g_deftextsize_default;
 static int g_canvasWidth = 800;
 static int g_canvasHeight = 600;
 static bool g_needsRedraw = true;
+static int g_scrollX = 0;
+static int g_scrollY = 0;
+static int g_mouseX = 0;
+static int g_mouseY = 0;
 
 static const std::map<char, pair<wxBitmapType, wxString>> imagetypes = {
     {'I', {wxBITMAP_TYPE_PNG, "image/png"}}, {'J', {wxBITMAP_TYPE_JPEG, "image/jpeg"}}};
@@ -328,7 +332,7 @@ struct wasm_treesheets {
     // Mocks needing Document/Selection
     static void HintIMELocation(Document* doc, int x, int y, int h, int style) {}
 
-    // Stub Document minimal for Cell.h
+    // Document - holds the cell tree and view state
     struct Document {
         Cell* currentdrawroot = nullptr;
         Cell* root = nullptr;
@@ -336,17 +340,83 @@ struct wasm_treesheets {
         std::map<wxString, uint> tags;
 
         struct Canvas {
-            void Refresh() {}
+            void Refresh() { g_needsRedraw = true; }
+            void GetClientSize(int* w, int* h) { *w = g_canvasWidth; *h = g_canvasHeight; }
         } *canvas = new Canvas();
 
-        int scrolly=0, maxy=0, scrollx=0, maxx=0;
+        int scrolly = 0, maxy = 0, scrollx = 0, maxx = 0;
+        int centerx = 0, centery = 0;
+        int layoutxs = 0, layoutys = 0;
         std::vector<Selection> drawpath;
         Selection hover;
+        Selection selected;
+        double currentviewscale = 1.0;
+        wxString filename;
 
-        bool PickFont(TSGraphics &dc, int depth, int relsize, int stylebits) { return false; }
-        uint Background() { return 0xFFFFFF; }
+        bool PickFont(TSGraphics &dc, int depth, int relsize, int stylebits) {
+            int size = g_deftextsize + relsize;
+            if (size < 6) size = 6;
+            if (size > 100) size = 100;
+            dc.SetFont(size, stylebits);
+            return true;
+        }
+
+        uint Background() { return root ? root->cellcolor : 0xFFFFFF; }
         void AddUndo(Cell* c) {}
-        Cell* WalkPath(const std::vector<Selection>& path) { return root; }
+
+        Cell* WalkPath(const std::vector<Selection>& path) {
+            if (!root) return nullptr;
+            Cell* c = root;
+            for (auto& sel : path) {
+                if (!c->grid) return c;
+                c = c->grid->C(sel.x, sel.y);
+            }
+            return c;
+        }
+
+        void Layout(TSGraphics &dc) {
+            if (!root) return;
+            ResetFont();
+            root->ResetLayout();
+            root->LazyLayout(this, dc, 0, false);
+            layoutxs = root->sx;
+            layoutys = root->sy;
+        }
+
+        void ResetFont() {
+            // Reset to default font state
+        }
+
+        void Render(TSGraphics &dc) {
+            if (!root) return;
+            currentdrawroot = root;
+            Cell* drawroot = WalkPath(drawpath);
+            if (!drawroot) drawroot = root;
+
+            // Clear with background color
+            dc.SetBrushColor(Background());
+            dc.SetPenColor(Background());
+            dc.DrawRectangle(0, 0, g_canvasWidth, g_canvasHeight);
+
+            // Layout if needed
+            drawroot->ResetLayout();
+            drawroot->LazyLayout(this, dc, 0, false);
+
+            // Calculate centering
+            if (drawroot->sx < g_canvasWidth) {
+                centerx = (g_canvasWidth - drawroot->sx) / 2;
+            } else {
+                centerx = hierarchysize;
+            }
+            if (drawroot->sy < g_canvasHeight) {
+                centery = (g_canvasHeight - drawroot->sy) / 2;
+            } else {
+                centery = hierarchysize;
+            }
+
+            // Draw the cells
+            drawroot->Render(this, centerx - scrollx, centery - scrolly, dc, 0, 0, 0, 0, 0);
+        }
     };
 
     // Image Stub
@@ -372,7 +442,7 @@ struct wasm_treesheets {
     struct System {
         std::unique_ptr<TSPlatformOS> os;
         std::unique_ptr<MockConfig> cfg = std::make_unique<MockConfig>(); // Mock Config
-        std::unique_ptr<TSDialogs> dialogs; // Added
+        std::unique_ptr<TSDialogs> dialogs;
 
         int defaultmaxcolwidth = 80;
         int roundness = 3;
@@ -423,8 +493,102 @@ struct wasm_treesheets {
         std::vector<int> loadimageids;
         std::vector<std::unique_ptr<Image>> imagelist;
 
+        // Current document being displayed
+        std::unique_ptr<Document> currentDoc;
+
         System(bool portable) {
-            frame->app = new TSApp(); // minimal app
+            frame->app = new TSApp();
+        }
+
+        int AddImageToList(double scale, std::vector<uint8_t>&& data, char type) {
+            auto img = std::make_unique<Image>();
+            img->display_scale = scale;
+            img->data = std::move(data);
+            img->type = type;
+            img->hash = imagelist.size(); // Simple hash for now
+            imagelist.push_back(std::move(img));
+            return imagelist.size() - 1;
+        }
+
+        const wxChar* LoadDBFromStream(wxInputStream& fis, const wxString& filename) {
+            wxDataInputStream dis(fis);
+            Cell* ics = nullptr;
+            char buf[4];
+
+            // Read and verify magic
+            fis.Read(buf, 4);
+            if (strncmp(buf, "TSFF", 4)) return L"Not a TreeSheets file.";
+
+            // Read version
+            fis.Read(&versionlastloaded, 1);
+            if (versionlastloaded > TS_VERSION) return L"File of newer version.";
+
+            std::cout << "Loading file version: " << (int)versionlastloaded << std::endl;
+
+            // Read selection info
+            auto xs = versionlastloaded >= 21 ? dis.Read8() : 1;
+            auto ys = versionlastloaded >= 21 ? dis.Read8() : 1;
+            auto zoomlevel = versionlastloaded >= 23 ? dis.Read8() : 0;
+            fakelasteditonload = 0;
+
+            loadimageids.clear();
+
+            // Read images and document data
+            for (;;) {
+                fis.Read(buf, 1);
+                switch (*buf) {
+                    case 'I':
+                    case 'J': {
+                        char iti = *buf;
+                        if (versionlastloaded < 9) dis.ReadString();
+                        auto sc = versionlastloaded >= 19 ? dis.ReadDouble() : 1.0;
+                        std::vector<uint8_t> image_data;
+                        if (versionlastloaded >= 22) {
+                            auto imagelen = (size_t)dis.Read64();
+                            image_data.resize(imagelen);
+                            fis.Read(image_data.data(), imagelen);
+                        }
+                        loadimageids.push_back(AddImageToList(sc, std::move(image_data), iti));
+                        std::cout << "Loaded image " << loadimageids.size() << std::endl;
+                        break;
+                    }
+
+                    case 'D': {
+                        wxZlibInputStream zis(fis);
+                        if (!zis.IsOk()) return L"Cannot decompress file.";
+                        wxDataInputStream zdis(zis);
+                        int numcells = 0, textbytes = 0;
+                        auto root = Cell::LoadWhich(zdis, nullptr, numcells, textbytes, ics);
+                        if (!root) return L"File corrupted!";
+
+                        std::cout << "Loaded " << numcells << " cells, " << textbytes << " text bytes" << std::endl;
+
+                        // Create new document
+                        currentDoc = std::make_unique<Document>();
+                        currentDoc->root = root;
+                        currentDoc->filename = filename;
+
+                        // Read tags
+                        if (versionlastloaded >= 11) {
+                            for (;;) {
+                                auto tag = zdis.ReadString();
+                                if (tag.empty()) break;
+                                currentDoc->tags[tag] = versionlastloaded >= 24 ? zdis.Read32() : g_tagcolor_default;
+                            }
+                        }
+
+                        // Set initial selection
+                        if (root->grid) {
+                            currentDoc->selected = Selection(root->grid, 0, 0, xs, ys);
+                        }
+
+                        return nullptr; // Success
+                    }
+
+                    default:
+                        return L"Corrupt block header.";
+                }
+            }
         }
 
         const wxChar *Open(const wxString &filename) { return L""; }
@@ -463,6 +627,14 @@ void Iterate() {
 static void RenderDocument() {
     TSWebGraphics g;
 
+    // If we have a loaded document, render it
+    if (wasm_treesheets::sys && wasm_treesheets::sys->currentDoc &&
+        wasm_treesheets::sys->currentDoc->root) {
+        wasm_treesheets::sys->currentDoc->Render(g);
+        return;
+    }
+
+    // Otherwise render the welcome screen
     // Clear background
     g.SetBrushColor(0xFFFFFF);  // White
     g.SetPenColor(0xFFFFFF);
@@ -471,57 +643,107 @@ static void RenderDocument() {
     // Draw header bar
     g.SetBrushColor(0xE0E0E0);  // Light gray
     g.SetPenColor(0xCCCCCC);
-    g.DrawRectangle(0, 0, g_canvasWidth, 30);
+    g.DrawRectangle(0, 0, g_canvasWidth, 40);
 
     // Draw title
-    g.SetFont(14, 0);
+    g.SetFont(16, 0);
     g.SetTextForeground(0x333333);
-    g.DrawText("TreeSheets Web (POC)", 10, 8);
+    g.DrawText("TreeSheets Web", 20, 10);
 
-    // Draw demo cell content
+    // Draw welcome content
+    g.SetBrushColor(0xF8F8F8);
+    g.SetPenColor(0xDDDDDD);
+    g.DrawRoundedRectangle(40, 80, g_canvasWidth - 80, 200, 10);
+
+    g.SetFont(14, STYLE_BOLD);
+    g.SetTextForeground(0x333333);
+    g.DrawText("Welcome to TreeSheets Web!", 60, 100);
+
     g.SetFont(12, 0);
-    g.SetBrushColor(0xF5F5F5);
-    g.SetPenColor(0x999999);
-    g.DrawRoundedRectangle(20, 50, 200, 40, 5);
-    g.SetTextForeground(0x000000);
-    g.DrawText("Welcome to TreeSheets!", 30, 62);
-
-    // Draw instructions
-    g.SetFont(11, 0);
     g.SetTextForeground(0x666666);
-    g.DrawText("Use File > Open to load a .cts file", 20, 110);
-    g.DrawText("Menus and toolbar are functional", 20, 130);
+    g.DrawText("A hierarchical spreadsheet that runs in your browser.", 60, 130);
+
+    g.SetFont(11, 0);
+    g.DrawText("To get started:", 60, 170);
+    g.DrawText("  - Use File > Open to load a .cts file", 60, 190);
+    g.DrawText("  - Or use File > New to create a new document", 60, 210);
+    g.DrawText("  - Menus and toolbar are functional", 60, 230);
 
     // Draw canvas size info
+    g.SetFont(10, 0);
+    g.SetTextForeground(0x999999);
     wxString sizeInfo = wxString::Format("Canvas: %dx%d", g_canvasWidth, g_canvasHeight);
-    g.DrawText(sizeInfo.c_str(), 20, 160);
+    g.DrawText(sizeInfo.c_str(), 20, g_canvasHeight - 20);
 }
 
 extern "C" {
     void WASM_FileLoaded(const char* filename, const uint8_t* data, int size) {
         std::cout << "File Loaded: " << filename << " (" << size << " bytes)" << std::endl;
-        // TODO: Parse the .cts file and load into document
-        // For now, just acknowledge receipt
-        wxMemoryInputStream mis(data, size);
 
-        // Verify magic number
-        char magic[5] = {0};
-        mis.Read(magic, 4);
-        if (std::string(magic) == "TSFF") {
-            std::cout << "Valid TreeSheets file detected!" << std::endl;
-            // TODO: Continue parsing...
+        if (!wasm_treesheets::sys) {
+            std::cout << "Error: System not initialized" << std::endl;
+            return;
+        }
+
+        wxMemoryInputStream mis(data, size);
+        const wxChar* error = wasm_treesheets::sys->LoadDBFromStream(mis, filename);
+
+        if (error) {
+            std::cout << "Error loading file: ";
+            // Convert wchar_t to char for cout
+            const wchar_t* werr = error;
+            while (*werr) {
+                std::cout << (char)*werr;
+                werr++;
+            }
+            std::cout << std::endl;
+            JS_ShowMessage("Error", "Failed to load file. It may be corrupted or an unsupported version.");
         } else {
-            std::cout << "Warning: Not a valid TreeSheets file" << std::endl;
+            std::cout << "File loaded successfully!" << std::endl;
+            // Reset scroll position
+            g_scrollX = 0;
+            g_scrollY = 0;
         }
 
         g_needsRedraw = true;
     }
 
     void WASM_Mouse(int type, int x, int y, int modifiers) {
-        // type: 0=move, 1=down, 2=up, 3=wheel
-        // For now, just request redraw on click
-        if (type == 1) {
-            g_needsRedraw = true;
+        // type: 0=move, 1=down, 2=up, 3=wheel, 4=wheel (delta in y)
+        g_mouseX = x;
+        g_mouseY = y;
+
+        auto& doc = wasm_treesheets::sys->currentDoc;
+
+        switch (type) {
+            case 0: // Move
+                break;
+
+            case 1: // Mouse down
+                if (doc && doc->root) {
+                    // Could implement cell selection here
+                    g_needsRedraw = true;
+                }
+                break;
+
+            case 2: // Mouse up
+                break;
+
+            case 3: // Wheel (y contains delta)
+            case 4:
+                if (doc && doc->root) {
+                    // Scroll the document
+                    int delta = y * 30; // y is wheel delta
+                    if (modifiers & 1) { // Ctrl - horizontal scroll
+                        doc->scrollx += delta;
+                        if (doc->scrollx < 0) doc->scrollx = 0;
+                    } else {
+                        doc->scrolly += delta;
+                        if (doc->scrolly < 0) doc->scrolly = 0;
+                    }
+                    g_needsRedraw = true;
+                }
+                break;
         }
     }
 
@@ -543,27 +765,70 @@ extern "C" {
     void WASM_Action(int id) {
         std::cout << "Action triggered: " << id << std::endl;
 
-        // Handle some basic actions
+        auto& sys = wasm_treesheets::sys;
+        auto& doc = sys->currentDoc;
+
+        // Handle actions
         switch (id) {
-            case wxID_NEW:
+            case wxID_NEW: {
                 std::cout << "New document requested" << std::endl;
+                // Create a new document with a single cell
+                sys->currentDoc = std::make_unique<wasm_treesheets::Document>();
+                auto root = new wasm_treesheets::Cell(nullptr, nullptr, CT_DATA);
+                root->cellcolor = 0xFFFFFF;
+                root->textcolor = 0x000000;
+
+                // Create a 3x3 grid
+                auto grid = new wasm_treesheets::Grid(3, 3);
+                grid->cell = root;
+                root->grid = grid;
+
+                // Add some default text
+                grid->C(0, 0)->text.t = "New Document";
+
+                sys->currentDoc->root = root;
+                sys->currentDoc->filename = "untitled.cts";
+                sys->currentDoc->selected = wasm_treesheets::Selection(grid, 0, 0, 1, 1);
+                g_scrollX = 0;
+                g_scrollY = 0;
                 break;
+            }
+
             case wxID_OPEN:
                 std::cout << "Open file requested" << std::endl;
                 JS_TriggerUpload();
                 break;
+
             case wxID_SAVE:
                 std::cout << "Save requested" << std::endl;
+                if (doc && doc->root) {
+                    JS_ShowMessage("Save", "Save functionality coming soon.\nUse browser's save feature for now.");
+                }
                 break;
+
             case wxID_ABOUT:
                 JS_ShowMessage("About TreeSheets",
                     "TreeSheets Web Port (Proof of Concept)\n\n"
                     "A hierarchical spreadsheet application.\n"
                     "https://strlen.com/treesheets/");
                 break;
+
             case wxID_EXIT:
                 std::cout << "Exit requested (ignored in web)" << std::endl;
                 break;
+
+            case A_ZOOMIN:
+                if (doc) {
+                    g_deftextsize = std::min(g_deftextsize + 1, 40);
+                }
+                break;
+
+            case A_ZOOMOUT:
+                if (doc) {
+                    g_deftextsize = std::max(g_deftextsize - 1, 6);
+                }
+                break;
+
             default:
                 // For other actions, just log them
                 std::cout << "Unhandled action: " << id << std::endl;
