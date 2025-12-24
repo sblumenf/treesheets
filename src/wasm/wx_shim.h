@@ -316,11 +316,44 @@ public:
 
 class wxZlibOutputStream : public wxOutputStream {
     wxOutputStream& parent;
+    std::vector<uint8_t> buffer;
+    int compressionLevel;
+    bool ok = true;
 public:
-    wxZlibOutputStream(wxOutputStream& os, int level=9) : parent(os) {}
-    bool IsOk() { return true; }
-    void Write(const void *buffer, size_t size) override {
-        parent.Write(buffer, size); // No actual compression in shim
+    wxZlibOutputStream(wxOutputStream& os, int level = 9)
+        : parent(os), compressionLevel(level) {}
+
+    ~wxZlibOutputStream() {
+        // Compress and write on destruction
+        if (!buffer.empty()) {
+            Flush();
+        }
+    }
+
+    bool IsOk() const { return ok; }
+
+    void Write(const void *data, size_t size) override {
+        const uint8_t* p = static_cast<const uint8_t*>(data);
+        buffer.insert(buffer.end(), p, p + size);
+    }
+
+    void Flush() {
+        if (buffer.empty()) return;
+
+        // Compress the buffered data
+        uLongf compressedSize = compressBound(buffer.size());
+        std::vector<uint8_t> compressed(compressedSize);
+
+        int ret = compress2(compressed.data(), &compressedSize,
+                           buffer.data(), buffer.size(), compressionLevel);
+        if (ret != Z_OK) {
+            ok = false;
+            return;
+        }
+
+        // Write compressed data to parent stream
+        parent.Write(compressed.data(), compressedSize);
+        buffer.clear();
     }
 };
 
