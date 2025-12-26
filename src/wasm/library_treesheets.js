@@ -1,3 +1,36 @@
+/**
+ * TreeSheets WebAssembly Library
+ *
+ * This library provides the JavaScript side of the C++/JS boundary for TreeSheets web port.
+ *
+ * Phase 1 Enhancements (Completed):
+ *
+ * 1. Accurate Text Measurement
+ *    - JS_GetCharHeight: Uses Canvas TextMetrics.actualBoundingBox* for accurate height
+ *    - JS_GetTextHeight: Per-string height measurement with fallback for older browsers
+ *    - Ensures proper text layout and rendering
+ *
+ * 2. File Upload Support
+ *    - JS_TriggerUpload: Uses FileReader API to load .cts files
+ *    - Creates temporary file input, reads as ArrayBuffer, passes to WASM
+ *    - Properly manages WASM heap memory allocation/deallocation
+ *
+ * 3. Mouse Wheel Support
+ *    - Added 'wheel' event listener with type 3
+ *    - Normalizes deltaY across browsers (pixel/line/page modes)
+ *    - Prevents default scroll behavior for canvas interaction
+ *
+ * 4. Enhanced Keyboard Handling
+ *    - Modifier keys (Ctrl, Shift, Alt, Meta) passed as bitflags
+ *    - Prevents browser defaults for common shortcuts (Ctrl+S, Ctrl+O, etc.)
+ *    - Enables proper keyboard shortcut handling in TreeSheets
+ *
+ * Modifier Bitflags:
+ *   Bit 0 (1): Ctrl
+ *   Bit 1 (2): Shift
+ *   Bit 2 (4): Alt
+ *   Bit 3 (8): Meta/Command
+ */
 mergeInto(LibraryManager.library, {
     JS_DrawRectangle: function(x, y, w, h) {
         var ctx = Module.canvas.getContext('2d');
@@ -33,15 +66,34 @@ mergeInto(LibraryManager.library, {
         ctx.fillRect(x, y, 16, 16);
     },
     JS_GetCharHeight: function() {
-        return 12;
+        var ctx = Module.canvas.getContext('2d');
+        // Use TextMetrics to get accurate font height
+        var metrics = ctx.measureText('M'); // Use 'M' as it's typically the tallest character
+        var height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+        // Fallback to font size parsing if TextMetrics not fully supported
+        if (!height || height < 1) {
+            var fontSizeMatch = ctx.font.match(/(\d+)px/);
+            height = fontSizeMatch ? parseInt(fontSizeMatch[1]) : 12;
+        }
+        return Math.ceil(height);
     },
     JS_GetTextWidth: function(str) {
         var ctx = Module.canvas.getContext('2d');
         var s = UTF8ToString(str);
-        return ctx.measureText(s).width;
+        return Math.ceil(ctx.measureText(s).width);
     },
     JS_GetTextHeight: function(str) {
-        return 12;
+        var ctx = Module.canvas.getContext('2d');
+        var s = UTF8ToString(str);
+        var metrics = ctx.measureText(s);
+        // Calculate actual text height using bounding box
+        var height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+        // Fallback for browsers with limited TextMetrics support
+        if (!height || height < 1) {
+            var fontSizeMatch = ctx.font.match(/(\d+)px/);
+            height = fontSizeMatch ? parseInt(fontSizeMatch[1]) : 12;
+        }
+        return Math.ceil(height);
     },
     JS_SetBrushColor: function(c) {
         var ctx = Module.canvas.getContext('2d');
@@ -137,11 +189,50 @@ mergeInto(LibraryManager.library, {
 
     JS_InitInput: function() {
         var canvas = Module.canvas;
-        canvas.addEventListener('mousedown', function(e) { Module._WASM_Mouse(1, e.offsetX, e.offsetY, 0); });
-        canvas.addEventListener('mouseup', function(e) { Module._WASM_Mouse(2, e.offsetX, e.offsetY, 0); });
-        canvas.addEventListener('mousemove', function(e) { Module._WASM_Mouse(0, e.offsetX, e.offsetY, 0); });
-        window.addEventListener('keydown', function(e) { Module._WASM_Key(0, e.keyCode, 0); });
-        window.addEventListener('keyup', function(e) { Module._WASM_Key(1, e.keyCode, 0); });
+
+        // Helper to build modifier flags
+        var getModifiers = function(e) {
+            var mods = 0;
+            if (e.ctrlKey)  mods |= 1;  // Ctrl = bit 0
+            if (e.shiftKey) mods |= 2;  // Shift = bit 1
+            if (e.altKey)   mods |= 4;  // Alt = bit 2
+            if (e.metaKey)  mods |= 8;  // Meta/Command = bit 3
+            return mods;
+        };
+
+        // Mouse events with modifiers
+        canvas.addEventListener('mousedown', function(e) {
+            Module._WASM_Mouse(1, e.offsetX, e.offsetY, getModifiers(e));
+        });
+        canvas.addEventListener('mouseup', function(e) {
+            Module._WASM_Mouse(2, e.offsetX, e.offsetY, getModifiers(e));
+        });
+        canvas.addEventListener('mousemove', function(e) {
+            Module._WASM_Mouse(0, e.offsetX, e.offsetY, getModifiers(e));
+        });
+
+        // Mouse wheel support
+        canvas.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            // Type 3 for wheel, pass deltaY as x coordinate (negative = scroll up)
+            var delta = e.deltaY;
+            // Normalize wheel delta (different browsers use different scales)
+            if (e.deltaMode === 1) delta *= 16; // LINE mode
+            if (e.deltaMode === 2) delta *= 100; // PAGE mode
+            Module._WASM_Mouse(3, Math.round(delta), 0, getModifiers(e));
+        }, { passive: false });
+
+        // Keyboard events with modifiers
+        window.addEventListener('keydown', function(e) {
+            // Prevent default for common shortcuts to avoid browser interference
+            if ((e.ctrlKey || e.metaKey) && ['s', 'o', 'n', 'w', 'z', 'y', 'x', 'c', 'v', 'a', 'f'].indexOf(e.key.toLowerCase()) !== -1) {
+                e.preventDefault();
+            }
+            Module._WASM_Key(0, e.keyCode, getModifiers(e));
+        });
+        window.addEventListener('keyup', function(e) {
+            Module._WASM_Key(1, e.keyCode, getModifiers(e));
+        });
 
         var onResize = function() {
             var w = canvas.clientWidth;
