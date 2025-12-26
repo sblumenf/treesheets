@@ -75,6 +75,34 @@
  *    - Cache eviction (max 100 images)
  *    - Proper null/undefined checks
  *
+ * Production Quality Fixes (Phase 5):
+ *
+ * 13. Critical Bug Fixes
+ *    - Fixed color codec endianness (RGB byte order)
+ *    - Fixed image loading race condition
+ *    - Fixed async dialog handling with Asyncify
+ *    - Added JSON.parse error handling
+ *
+ * 14. Error Boundaries
+ *    - Memory allocation checks (_malloc failure handling)
+ *    - File upload error handling and cleanup
+ *    - Try-catch blocks for critical operations
+ *    - Graceful degradation on errors
+ *
+ * 15. Resource Cleanup
+ *    - Input element cleanup after file upload
+ *    - Event listener deduplication guard
+ *    - Modal keydown listener cleanup
+ *    - Proper DOM element removal
+ *
+ * BUILD REQUIREMENTS:
+ *    This library requires Emscripten ASYNCIFY to be enabled for proper
+ *    dialog functionality. Add to your build command:
+ *      -s ASYNCIFY=1
+ *      -s 'ASYNCIFY_IMPORTS=["JS_AskText","JS_AskNumber","JS_SingleChoice","JS_PickColor"]'
+ *    Without ASYNCIFY, dialogs will not work correctly as they cannot
+ *    block execution to wait for user input.
+ *
  * Modifier Bitflags:
  *   Bit 0 (1): Ctrl
  *   Bit 1 (2): Shift
@@ -111,11 +139,12 @@ mergeInto(LibraryManager.library, {
 
     // Color codec utilities (eliminates duplication)
     _colorUtils: {
+        // C++ contract: color is 0xRRGGBB (Red in bits 16-23, Green in 8-15, Blue in 0-7)
         decode: function(color) {
             return {
-                r: color & 0xFF,
-                g: (color >> 8) & 0xFF,
-                b: (color >> 16) & 0xFF
+                r: (color >> 16) & 0xFF,  // Red in high byte
+                g: (color >> 8) & 0xFF,   // Green in middle byte
+                b: color & 0xFF           // Blue in low byte
             };
         },
         toRGBString: function(color) {
@@ -127,7 +156,7 @@ mergeInto(LibraryManager.library, {
             var r = parseInt(hex.substring(0, 2), 16);
             var g = parseInt(hex.substring(2, 4), 16);
             var b = parseInt(hex.substring(4, 6), 16);
-            return r | (g << 8) | (b << 16);
+            return (r << 16) | (g << 8) | b;  // Encode as 0xRRGGBB
         },
         toHex: function(color) {
             var c = this.decode(color);
@@ -233,9 +262,10 @@ mergeInto(LibraryManager.library, {
             Module.imageLoadQueue[idx] = true;
             img = new Image();
             img.onload = function() {
+                // Only cache after successful load
                 Module._cacheManager.addImage(idx, img);
                 delete Module.imageLoadQueue[idx];
-                // Trigger redraw if needed
+                // Trigger redraw to show the loaded image
                 if (Module._WASM_Resize) {
                     var w = Module.canvas.width;
                     var h = Module.canvas.height;
@@ -244,15 +274,15 @@ mergeInto(LibraryManager.library, {
             };
             img.onerror = function() {
                 delete Module.imageLoadQueue[idx];
-                // Create placeholder image
+                console.warn('Failed to load image:', idx);
+                // Create minimal placeholder image for cache
                 var placeholder = new Image();
                 placeholder.width = size;
                 placeholder.height = size;
                 Module._cacheManager.addImage(idx, placeholder);
             };
-            // Try to load from common paths
+            // Set src to start loading (do NOT cache before load completes)
             img.src = 'images/icon' + idx + '.png';
-            Module._cacheManager.addImage(idx, img);
 
             // Draw placeholder while loading
             ctx.fillStyle = 'rgba(200,200,200,0.3)';
@@ -419,7 +449,11 @@ mergeInto(LibraryManager.library, {
         input.accept = '.cts';
         input.onchange = function(e) {
             var file = e.target.files[0];
-            if (!file) return;
+            if (!file) {
+                // Clean up input element
+                if (input.parentNode) input.parentNode.removeChild(input);
+                return;
+            }
 
             // Security: Check file size
             var maxSize = Module._CONSTANTS.MAX_FILE_SIZE_BYTES;
@@ -428,29 +462,59 @@ mergeInto(LibraryManager.library, {
                     Math.floor(maxSize / (1024 * 1024)) + 'MB.</p>', [
                     { text: 'OK', primary: true }
                 ]);
+                // Clean up input element
+                if (input.parentNode) input.parentNode.removeChild(input);
                 return;
             }
 
             var reader = new FileReader();
             reader.onload = function(evt) {
-                var arrayBuffer = evt.target.result;
-                var uint8Array = new Uint8Array(arrayBuffer);
-                var ptr = Module._malloc(uint8Array.length);
-                Module.HEAPU8.set(uint8Array, ptr);
+                try {
+                    var arrayBuffer = evt.target.result;
+                    var uint8Array = new Uint8Array(arrayBuffer);
 
-                var nameLen = lengthBytesUTF8(file.name) + 1;
-                var namePtr = Module._malloc(nameLen);
-                stringToUTF8(file.name, namePtr, nameLen);
+                    // Check malloc succeeded
+                    var ptr = Module._malloc(uint8Array.length);
+                    if (!ptr) {
+                        Module._createModal('Error', '<p>Failed to allocate memory for file.</p>', [
+                            { text: 'OK', primary: true }
+                        ]);
+                        return;
+                    }
+                    Module.HEAPU8.set(uint8Array, ptr);
 
-                Module._WASM_FileLoaded(namePtr, ptr, uint8Array.length);
+                    var nameLen = lengthBytesUTF8(file.name) + 1;
+                    var namePtr = Module._malloc(nameLen);
+                    if (!namePtr) {
+                        Module._free(ptr);
+                        Module._createModal('Error', '<p>Failed to allocate memory for filename.</p>', [
+                            { text: 'OK', primary: true }
+                        ]);
+                        return;
+                    }
+                    stringToUTF8(file.name, namePtr, nameLen);
 
-                Module._free(ptr);
-                Module._free(namePtr);
+                    Module._WASM_FileLoaded(namePtr, ptr, uint8Array.length);
+
+                    Module._free(ptr);
+                    Module._free(namePtr);
+                } catch (err) {
+                    console.error('Error processing uploaded file:', err);
+                    Module._createModal('Error', '<p>Failed to process file: ' + err.message + '</p>', [
+                        { text: 'OK', primary: true }
+                    ]);
+                } finally {
+                    // Clean up input element
+                    if (input.parentNode) input.parentNode.removeChild(input);
+                }
             };
-            reader.onerror = function() {
+            reader.onerror = function(err) {
+                console.error('FileReader error:', err);
                 Module._createModal('Error', '<p>Failed to read file.</p>', [
                     { text: 'OK', primary: true }
                 ]);
+                // Clean up input element
+                if (input.parentNode) input.parentNode.removeChild(input);
             };
             reader.readAsArrayBuffer(file);
         };
@@ -458,6 +522,13 @@ mergeInto(LibraryManager.library, {
     },
 
     JS_InitInput: function() {
+        // Prevent duplicate initialization (avoids event listener accumulation)
+        if (Module._inputInitialized) {
+            console.warn('JS_InitInput: Already initialized, skipping duplicate call');
+            return;
+        }
+        Module._inputInitialized = true;
+
         var canvas = Module.canvas;
 
         // Helper to build modifier flags
@@ -806,36 +877,32 @@ mergeInto(LibraryManager.library, {
         content.appendChild(p);
         content.appendChild(input);
 
-        var modal = Module._createModal(title, content, [
-            { text: 'Cancel', callback: function() {
-                var len = 1;
-                resultPtr = _malloc(len);
-                stringToUTF8('', resultPtr, len);
-            }},
-            { text: 'OK', primary: true, callback: function() {
-                var res = input.value || '';
-                var len = lengthBytesUTF8(res) + 1;
-                resultPtr = _malloc(len);
-                stringToUTF8(res, resultPtr, len);
-            }}
-        ]);
+        // Use promise-based approach for proper async handling
+        return Asyncify.handleSleep(function(wakeUp) {
+            Module._createModal(title, content, [
+                { text: 'Cancel', callback: function() {
+                    var len = 1;
+                    resultPtr = _malloc(len);
+                    stringToUTF8('', resultPtr, len);
+                    wakeUp(resultPtr);
+                }},
+                { text: 'OK', primary: true, callback: function() {
+                    var res = input.value || '';
+                    var len = lengthBytesUTF8(res) + 1;
+                    resultPtr = _malloc(len);
+                    stringToUTF8(res, resultPtr, len);
+                    wakeUp(resultPtr);
+                }}
+            ]);
 
-        // Focus input
-        setTimeout(function() { input.focus(); }, 100);
-
-        // Wait for user (synchronous behavior approximation)
-        // Note: This is a limitation - true modal dialogs in JS are async
-        // For now, return empty string and improve later
-        var len = lengthBytesUTF8(def) + 1;
-        resultPtr = _malloc(len);
-        stringToUTF8(def, resultPtr, len);
-        return resultPtr;
+            // Focus input after a brief delay
+            setTimeout(function() { input.focus(); }, 100);
+        });
     },
     JS_AskNumber: function(titlePtr, msgPtr, def, min, max) {
         var title = UTF8ToString(titlePtr);
         var msg = UTF8ToString(msgPtr);
 
-        var result = def;
         var input = document.createElement('input');
         input.type = 'number';
         input.value = def;
@@ -850,21 +917,36 @@ mergeInto(LibraryManager.library, {
         content.appendChild(p);
         content.appendChild(input);
 
-        Module._createModal(title, content, [
-            { text: 'Cancel' },
-            { text: 'OK', primary: true, callback: function() {
-                result = parseFloat(input.value) || def;
-            }}
-        ]);
+        // Use promise-based approach for proper async handling
+        return Asyncify.handleSleep(function(wakeUp) {
+            Module._createModal(title, content, [
+                { text: 'Cancel', callback: function() {
+                    wakeUp(def);
+                }},
+                { text: 'OK', primary: true, callback: function() {
+                    var result = parseFloat(input.value);
+                    if (isNaN(result)) result = def;
+                    wakeUp(result);
+                }}
+            ]);
 
-        return def; // Async limitation workaround
+            // Focus input after a brief delay
+            setTimeout(function() { input.focus(); }, 100);
+        });
     },
     JS_SingleChoice: function(titlePtr, msgPtr, choicesJsonPtr) {
         var title = UTF8ToString(titlePtr);
         var msg = UTF8ToString(msgPtr);
-        var choices = JSON.parse(UTF8ToString(choicesJsonPtr));
 
-        var result = 0;
+        // Add error handling for JSON parsing
+        var choices;
+        try {
+            choices = JSON.parse(UTF8ToString(choicesJsonPtr));
+        } catch (e) {
+            console.error('JS_SingleChoice: Invalid JSON for choices:', e);
+            return 0;
+        }
+
         var content = document.createElement('div');
         var p = document.createElement('p');
         p.textContent = msg;
@@ -881,17 +963,24 @@ mergeInto(LibraryManager.library, {
         });
         content.appendChild(select);
 
-        Module._createModal(title, content, [
-            { text: 'Cancel' },
-            { text: 'OK', primary: true, callback: function() {
-                result = parseInt(select.value) || 0;
-            }}
-        ]);
+        // Use promise-based approach for proper async handling
+        return Asyncify.handleSleep(function(wakeUp) {
+            Module._createModal(title, content, [
+                { text: 'Cancel', callback: function() {
+                    wakeUp(0);
+                }},
+                { text: 'OK', primary: true, callback: function() {
+                    var result = parseInt(select.value, 10);
+                    if (isNaN(result)) result = 0;
+                    wakeUp(result);
+                }}
+            ]);
 
-        return 0; // Async limitation workaround
+            // Focus select after a brief delay
+            setTimeout(function() { select.focus(); }, 100);
+        });
     },
     JS_PickColor: function(defaultColor) {
-        var result = defaultColor;
         // Use color utility for hex conversion
         var hexColor = Module._colorUtils.toHex(defaultColor);
 
@@ -902,14 +991,21 @@ mergeInto(LibraryManager.library, {
         input.style.cssText = 'width:100%;height:100px;border:1px solid #ccc;border-radius:4px;cursor:pointer;';
         content.appendChild(input);
 
-        Module._createModal('Choose Color', content, [
-            { text: 'Cancel' },
-            { text: 'OK', primary: true, callback: function() {
-                result = Module._colorUtils.fromHex(input.value);
-            }}
-        ]);
+        // Use promise-based approach for proper async handling
+        return Asyncify.handleSleep(function(wakeUp) {
+            Module._createModal('Choose Color', content, [
+                { text: 'Cancel', callback: function() {
+                    wakeUp(defaultColor);
+                }},
+                { text: 'OK', primary: true, callback: function() {
+                    var result = Module._colorUtils.fromHex(input.value);
+                    wakeUp(result);
+                }}
+            ]);
 
-        return defaultColor; // Async limitation workaround
+            // Focus input after a brief delay
+            setTimeout(function() { input.focus(); }, 100);
+        });
     },
 
     // Toolbar
@@ -1007,9 +1103,18 @@ mergeInto(LibraryManager.library, {
     JS_Toolbar_AddDropdown: function(id, width, choicesJsonPtr) {
         var toolbar = document.getElementById('toolbar');
         if(!toolbar) return;
+
+        // Add error handling for JSON parsing
+        var choices;
+        try {
+            choices = JSON.parse(UTF8ToString(choicesJsonPtr));
+        } catch (e) {
+            console.error('JS_Toolbar_AddDropdown: Invalid JSON for choices:', e);
+            return;
+        }
+
         var sel = document.createElement('select');
         sel.style.width = width + 'px';
-        var choices = JSON.parse(UTF8ToString(choicesJsonPtr));
         choices.forEach(function(c, i) {
             var opt = document.createElement('option');
             opt.value = i;
