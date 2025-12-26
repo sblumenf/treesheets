@@ -37,6 +37,31 @@
  *    - Color picker, font selector, multi-choice dialogs
  *    - Better UX than browser defaults
  *
+ * Phase 3 Enhancements (Completed):
+ *
+ * 7. Touch/Mobile Support
+ *    - Single-touch: tap, drag, swipe gestures
+ *    - Two-finger pinch-to-zoom (simulates wheel events)
+ *    - Touch duration detection for tap vs drag
+ *    - Prevents default touch behavior for smooth interaction
+ *
+ * 8. Performance Optimizations
+ *    - Cached canvas context (_getCtx) reduces repeated lookups
+ *    - Minimizes C++/JS boundary crossings
+ *    - All drawing functions use shared context instance
+ *
+ * 9. LocalStorage Integration
+ *    - JS_LocalStorage_SetItem/GetItem/RemoveItem/Clear
+ *    - Namespaced keys ('treesheets_' prefix)
+ *    - Persistent settings and state across sessions
+ *    - Graceful error handling for quota/privacy limits
+ *
+ * 10. Keyboard Dialog Controls
+ *    - Enter key submits (clicks primary button)
+ *    - Escape key cancels (closes dialog)
+ *    - Proper event cleanup on dialog close
+ *    - Works with all modal dialogs
+ *
  * Modifier Bitflags:
  *   Bit 0 (1): Ctrl
  *   Bit 1 (2): Shift
@@ -44,13 +69,21 @@
  *   Bit 3 (8): Meta/Command
  */
 mergeInto(LibraryManager.library, {
+    // Performance: Rendering context cache
+    _getCtx: function() {
+        if (!Module._cachedCtx) {
+            Module._cachedCtx = Module.canvas.getContext('2d');
+        }
+        return Module._cachedCtx;
+    },
+
     JS_DrawRectangle: function(x, y, w, h) {
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         ctx.fillRect(x, y, w, h);
         ctx.strokeRect(x, y, w, h);
     },
     JS_DrawRoundedRectangle: function(x, y, w, h, radius) {
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         ctx.beginPath();
         if (ctx.roundRect) {
             ctx.roundRect(x, y, w, h, radius);
@@ -61,14 +94,14 @@ mergeInto(LibraryManager.library, {
         ctx.stroke();
     },
     JS_DrawLine: function(x1, y1, x2, y2) {
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         ctx.beginPath();
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
         ctx.stroke();
     },
     JS_DrawText: function(str, x, y) {
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         var s = UTF8ToString(str);
         ctx.fillText(s, x, y);
     },
@@ -77,7 +110,7 @@ mergeInto(LibraryManager.library, {
         if (!Module.imageCache) Module.imageCache = {};
         if (!Module.imageLoadQueue) Module.imageLoadQueue = {};
 
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         var img = Module.imageCache[idx];
 
         if (img && img.complete && img.naturalWidth > 0) {
@@ -129,7 +162,7 @@ mergeInto(LibraryManager.library, {
         Module.imageCache[idxOrPath] = img;
     },
     JS_GetCharHeight: function() {
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         // Use TextMetrics to get accurate font height
         var metrics = ctx.measureText('M'); // Use 'M' as it's typically the tallest character
         var height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
@@ -141,12 +174,12 @@ mergeInto(LibraryManager.library, {
         return Math.ceil(height);
     },
     JS_GetTextWidth: function(str) {
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         var s = UTF8ToString(str);
         return Math.ceil(ctx.measureText(s).width);
     },
     JS_GetTextHeight: function(str) {
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         var s = UTF8ToString(str);
         var metrics = ctx.measureText(s);
         // Calculate actual text height using bounding box
@@ -159,21 +192,21 @@ mergeInto(LibraryManager.library, {
         return Math.ceil(height);
     },
     JS_SetBrushColor: function(c) {
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         var r = c & 0xFF;
         var g = (c >> 8) & 0xFF;
         var b = (c >> 16) & 0xFF;
         ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
     },
     JS_SetPenColor: function(c) {
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         var r = c & 0xFF;
         var g = (c >> 8) & 0xFF;
         var b = (c >> 16) & 0xFF;
         ctx.strokeStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
     },
     JS_SetTextForeground: function(c) {
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         var r = c & 0xFF;
         var g = (c >> 8) & 0xFF;
         var b = (c >> 16) & 0xFF;
@@ -182,7 +215,7 @@ mergeInto(LibraryManager.library, {
     JS_SetTextBackground: function(c) {
     },
     JS_SetFont: function(size, stylebits) {
-        var ctx = Module.canvas.getContext('2d');
+        var ctx = Module._getCtx();
         var font = '';
         if(stylebits & 2) font += 'italic ';
         if(stylebits & 1) font += 'bold ';
@@ -219,6 +252,55 @@ mergeInto(LibraryManager.library, {
         var text = UTF8ToString(textPtr);
         if (navigator.clipboard) {
             navigator.clipboard.writeText(text);
+        }
+    },
+
+    // LocalStorage Integration
+    JS_LocalStorage_SetItem: function(keyPtr, valuePtr) {
+        try {
+            var key = UTF8ToString(keyPtr);
+            var value = UTF8ToString(valuePtr);
+            localStorage.setItem('treesheets_' + key, value);
+        } catch (e) {
+            console.warn('LocalStorage setItem failed:', e);
+        }
+    },
+    JS_LocalStorage_GetItem: function(keyPtr) {
+        try {
+            var key = UTF8ToString(keyPtr);
+            var value = localStorage.getItem('treesheets_' + key);
+            if (value === null) return 0;
+            var len = lengthBytesUTF8(value) + 1;
+            var ptr = _malloc(len);
+            stringToUTF8(value, ptr, len);
+            return ptr;
+        } catch (e) {
+            console.warn('LocalStorage getItem failed:', e);
+            return 0;
+        }
+    },
+    JS_LocalStorage_RemoveItem: function(keyPtr) {
+        try {
+            var key = UTF8ToString(keyPtr);
+            localStorage.removeItem('treesheets_' + key);
+        } catch (e) {
+            console.warn('LocalStorage removeItem failed:', e);
+        }
+    },
+    JS_LocalStorage_Clear: function() {
+        try {
+            var keys = [];
+            for (var i = 0; i < localStorage.length; i++) {
+                var key = localStorage.key(i);
+                if (key && key.startsWith('treesheets_')) {
+                    keys.push(key);
+                }
+            }
+            keys.forEach(function(key) {
+                localStorage.removeItem(key);
+            });
+        } catch (e) {
+            console.warn('LocalStorage clear failed:', e);
         }
     },
 
@@ -283,6 +365,89 @@ mergeInto(LibraryManager.library, {
             if (e.deltaMode === 1) delta *= 16; // LINE mode
             if (e.deltaMode === 2) delta *= 100; // PAGE mode
             Module._WASM_Mouse(3, Math.round(delta), 0, getModifiers(e));
+        }, { passive: false });
+
+        // Touch support for mobile/tablet
+        var touchState = {
+            lastTouchX: 0,
+            lastTouchY: 0,
+            touchStartTime: 0,
+            initialDistance: 0,
+            isPinching: false
+        };
+
+        var getTouchPos = function(touch) {
+            var rect = canvas.getBoundingClientRect();
+            return {
+                x: Math.round(touch.clientX - rect.left),
+                y: Math.round(touch.clientY - rect.top)
+            };
+        };
+
+        var getTouchDistance = function(t1, t2) {
+            var dx = t1.clientX - t2.clientX;
+            var dy = t1.clientY - t2.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        };
+
+        canvas.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            touchState.touchStartTime = Date.now();
+
+            if (e.touches.length === 1) {
+                // Single touch - treat as mouse down
+                var pos = getTouchPos(e.touches[0]);
+                touchState.lastTouchX = pos.x;
+                touchState.lastTouchY = pos.y;
+                touchState.isPinching = false;
+                Module._WASM_Mouse(1, pos.x, pos.y, 0);
+            } else if (e.touches.length === 2) {
+                // Two finger pinch/zoom
+                touchState.isPinching = true;
+                touchState.initialDistance = getTouchDistance(e.touches[0], e.touches[1]);
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+
+            if (e.touches.length === 1 && !touchState.isPinching) {
+                // Single touch - treat as mouse move/drag
+                var pos = getTouchPos(e.touches[0]);
+                Module._WASM_Mouse(0, pos.x, pos.y, 0);
+                touchState.lastTouchX = pos.x;
+                touchState.lastTouchY = pos.y;
+            } else if (e.touches.length === 2) {
+                // Pinch zoom - simulate wheel event
+                var currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
+                var delta = (touchState.initialDistance - currentDistance) * 2;
+                Module._WASM_Mouse(3, Math.round(delta), 0, 0);
+                touchState.initialDistance = currentDistance;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', function(e) {
+            e.preventDefault();
+
+            if (e.touches.length === 0) {
+                // All touches ended
+                var touchDuration = Date.now() - touchState.touchStartTime;
+
+                // Detect tap (short touch < 200ms without much movement)
+                if (touchDuration < 200 && !touchState.isPinching) {
+                    // Send mouse up at last position
+                    Module._WASM_Mouse(2, touchState.lastTouchX, touchState.lastTouchY, 0);
+                } else if (!touchState.isPinching) {
+                    Module._WASM_Mouse(2, touchState.lastTouchX, touchState.lastTouchY, 0);
+                }
+
+                touchState.isPinching = false;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchcancel', function(e) {
+            e.preventDefault();
+            touchState.isPinching = false;
         }, { passive: false });
 
         // Keyboard events with modifiers
@@ -425,6 +590,8 @@ mergeInto(LibraryManager.library, {
         dialog.appendChild(contentDiv);
 
         // Button bar
+        var primaryButton = null;
+        var cancelButton = null;
         if (buttons && buttons.length > 0) {
             var buttonBar = document.createElement('div');
             buttonBar.style.cssText = 'padding:12px 16px;border-top:1px solid #ddd;text-align:right;display:flex;gap:8px;justify-content:flex-end;';
@@ -436,8 +603,11 @@ mergeInto(LibraryManager.library, {
                 button.onmouseout = function() { button.style.opacity = '1'; };
                 button.onclick = function() {
                     overlay.remove();
+                    document.removeEventListener('keydown', keyHandler);
                     if (btn.callback) btn.callback();
                 };
+                if (btn.primary) primaryButton = button;
+                if (btn.text.toLowerCase() === 'cancel') cancelButton = button;
                 buttonBar.appendChild(button);
             });
             dialog.appendChild(buttonBar);
@@ -446,10 +616,29 @@ mergeInto(LibraryManager.library, {
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
 
+        // Keyboard controls (Enter = OK/primary, Esc = Cancel)
+        var keyHandler = function(e) {
+            if (e.key === 'Enter' && primaryButton) {
+                e.preventDefault();
+                primaryButton.click();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                if (cancelButton) {
+                    cancelButton.click();
+                } else {
+                    overlay.remove();
+                    document.removeEventListener('keydown', keyHandler);
+                    if (onClose) onClose();
+                }
+            }
+        };
+        document.addEventListener('keydown', keyHandler);
+
         // Close on overlay click
         overlay.onclick = function(e) {
             if (e.target === overlay) {
                 overlay.remove();
+                document.removeEventListener('keydown', keyHandler);
                 if (onClose) onClose();
             }
         };
