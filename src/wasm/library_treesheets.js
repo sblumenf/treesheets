@@ -406,7 +406,9 @@ mergeInto(LibraryManager.library, {
     _validation: {
         clampFontSize: function(size) {
             var constants = Module._CONSTANTS;
-            if (typeof size !== 'number' || isNaN(size)) {
+            // EDGE CASE: Handle invalid values including Infinity and negative
+            if (typeof size !== 'number' || isNaN(size) || !isFinite(size) || size <= 0) {
+                console.warn('Invalid font size:', size, '- using default');
                 return constants.DEFAULT_FONT_SIZE;
             }
             return Math.max(constants.MIN_FONT_SIZE,
@@ -552,6 +554,34 @@ mergeInto(LibraryManager.library, {
         return Module._cachedCtx;
     },
 
+    // Canvas context invalidation (call when canvas element changes)
+    _invalidateCanvasContext: function() {
+        Module._cachedCtx = null;
+        console.log('Canvas context cache invalidated');
+    },
+
+    // Event listener cleanup infrastructure
+    _eventListenerRegistry: {
+        listeners: [],
+        add: function(element, event, handler, options) {
+            element.addEventListener(event, handler, options);
+            this.listeners.push({ element: element, event: event, handler: handler, options: options });
+        },
+        remove: function(element, event, handler) {
+            element.removeEventListener(event, handler);
+            this.listeners = this.listeners.filter(function(l) {
+                return !(l.element === element && l.event === event && l.handler === handler);
+            });
+        },
+        removeAll: function() {
+            this.listeners.forEach(function(l) {
+                l.element.removeEventListener(l.event, l.handler, l.options);
+            });
+            this.listeners = [];
+            console.log('All registered event listeners removed');
+        }
+    },
+
     JS_DrawRectangle: function(x, y, w, h) {
         var ctx = Module._getCtx();
         ctx.fillRect(x, y, w, h);
@@ -563,7 +593,18 @@ mergeInto(LibraryManager.library, {
         if (ctx.roundRect) {
             ctx.roundRect(x, y, w, h, radius);
         } else {
-            ctx.rect(x, y, w, h);
+            // POLYFILL: Manual roundRect implementation for older browsers
+            // This ensures consistent UI across all browsers
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + w - radius, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+            ctx.lineTo(x + w, y + h - radius);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+            ctx.lineTo(x + radius, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
         }
         ctx.fill();
         ctx.stroke();
@@ -1366,6 +1407,9 @@ mergeInto(LibraryManager.library, {
             // Keyboard navigation for menu
             var currentIndex = -1;
             var menuKeyHandler = function(ev) {
+                // EDGE CASE: Prevent divide by zero if menu has no items
+                if (menuItems.length === 0) return;
+
                 if (ev.key === 'ArrowDown') {
                     ev.preventDefault();
                     currentIndex = (currentIndex + 1) % menuItems.length;
@@ -1496,13 +1540,16 @@ mergeInto(LibraryManager.library, {
         var firstFocusable = focusableElements[0];
         var lastFocusable = focusableElements[focusableElements.length - 1];
 
-        // Set initial focus
+        // EDGE CASE: Set initial focus only if there are focusable elements
         if (firstFocusable) {
-            setTimeout(function() { firstFocusable.focus(); }, 100);
+            setTimeout(function() { firstFocusable.focus(); }, Module._CONSTANTS.MODAL_FOCUS_DELAY_MS);
         }
 
         // Focus trap handler
         var focusTrap = function(e) {
+            // EDGE CASE: Only trap focus if we have focusable elements
+            if (!firstFocusable || !lastFocusable) return;
+
             if (e.key === 'Tab') {
                 if (e.shiftKey) {
                     // Shift+Tab
@@ -2495,16 +2542,63 @@ mergeInto(LibraryManager.library, {
     _importManager: {
         importCSV: function(text) {
             try {
-                var lines = text.split('\n');
-                var data = [];
-                lines.forEach(function(line) {
-                    if (line.trim()) {
-                        data.push(line.split(','));
+                // IMPROVED: RFC 4180 compliant CSV parsing
+                // Handles quoted fields, escaped quotes, and CRLF line endings
+                var rows = [];
+                var currentRow = [];
+                var currentField = '';
+                var inQuotes = false;
+
+                // Normalize line endings
+                text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+                for (var i = 0; i < text.length; i++) {
+                    var char = text[i];
+                    var nextChar = text[i + 1];
+
+                    if (inQuotes) {
+                        if (char === '"') {
+                            if (nextChar === '"') {
+                                // Escaped quote
+                                currentField += '"';
+                                i++; // Skip next quote
+                            } else {
+                                // End of quoted field
+                                inQuotes = false;
+                            }
+                        } else {
+                            currentField += char;
+                        }
+                    } else {
+                        if (char === '"') {
+                            inQuotes = true;
+                        } else if (char === ',') {
+                            currentRow.push(currentField);
+                            currentField = '';
+                        } else if (char === '\n') {
+                            currentRow.push(currentField);
+                            if (currentRow.length > 0 && (currentRow.length > 1 || currentRow[0].trim() !== '')) {
+                                rows.push(currentRow);
+                            }
+                            currentRow = [];
+                            currentField = '';
+                        } else {
+                            currentField += char;
+                        }
                     }
-                });
-                console.log('Parsed CSV data:', data);
+                }
+
+                // Handle last field/row
+                if (currentField || currentRow.length > 0) {
+                    currentRow.push(currentField);
+                    if (currentRow.length > 1 || currentRow[0].trim() !== '') {
+                        rows.push(currentRow);
+                    }
+                }
+
+                console.log('Parsed CSV data (RFC 4180):', rows);
                 // Would pass to C++ here
-                Module._createModal('Import Success', '<p>Imported ' + data.length + ' rows from CSV</p>', [
+                Module._createModal('Import Success', '<p>Imported ' + rows.length + ' rows from CSV</p>', [
                     { text: 'OK', primary: true }
                 ]);
             } catch (e) {
