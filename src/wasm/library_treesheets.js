@@ -382,6 +382,11 @@ mergeInto(LibraryManager.library, {
             return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
         },
         fromHex: function(hexString) {
+            // VALIDATION: Check input format
+            if (!hexString || typeof hexString !== 'string' || !hexString.match(/^#[0-9A-Fa-f]{6}$/)) {
+                console.warn('Invalid hex color format:', hexString, '- using black');
+                return 0x000000; // Return black as safe default
+            }
             var hex = hexString.substring(1);
             var r = parseInt(hex.substring(0, 2), 16);
             var g = parseInt(hex.substring(2, 4), 16);
@@ -410,7 +415,9 @@ mergeInto(LibraryManager.library, {
         isValidPointer: function(ptr) {
             return ptr !== 0 && ptr !== null && ptr !== undefined;
         },
-        sanitizeHTML: function(text) {
+        escapeHTML: function(text) {
+            // RENAMED from sanitizeHTML - this escapes HTML entities, not sanitizes
+            // Returns HTML-escaped version suitable for use in innerHTML contexts
             if (!text) return '';
             var div = document.createElement('div');
             div.textContent = text;
@@ -502,6 +509,19 @@ mergeInto(LibraryManager.library, {
             document.body.appendChild(announcer);
         }
         announcer.textContent = message;
+    },
+
+    // Text utilities - XSS safe newline handling
+    _addTextWithLineBreaks: function(element, text) {
+        // SECURITY: Safely add text with newlines without using innerHTML
+        // This prevents XSS by creating BR elements programmatically
+        var lines = text.split('\n');
+        lines.forEach(function(line, i) {
+            element.appendChild(document.createTextNode(line));
+            if (i < lines.length - 1) {
+                element.appendChild(document.createElement('br'));
+            }
+        });
     },
 
     // Pen and Brush style lookups (replaces switch statements)
@@ -897,14 +917,21 @@ mergeInto(LibraryManager.library, {
         }
     },
     JS_LocalStorage_GetItem: function(keyPtr) {
+        // MEMORY OWNERSHIP: Returns a malloc'd pointer that the C++ caller MUST free using Module._free()
+        // Returns 0 (null pointer) if key not found or on error
         try {
             var key = UTF8ToString(keyPtr);
             var value = localStorage.getItem('treesheets_' + key);
             if (value === null) return 0;
             var len = lengthBytesUTF8(value) + 1;
             var ptr = _malloc(len);
+            // CRITICAL: Check malloc success before writing
+            if (!ptr) {
+                console.error('Failed to allocate memory for localStorage value');
+                return 0;
+            }
             stringToUTF8(value, ptr, len);
-            return ptr;
+            return ptr; // CRITICAL: Caller must free this pointer!
         } catch (e) {
             console.warn('LocalStorage getItem failed:', e);
             return 0;
@@ -936,11 +963,16 @@ mergeInto(LibraryManager.library, {
     },
 
     JS_ReadFile: function(filenamePtr) {
+        // MEMORY OWNERSHIP: Returns a malloc'd pointer that the C++ caller MUST free using Module._free()
+        // Returns 0 (null pointer) if file not found or on error
+        // IMPORTANT: Caller must call JS_GetLastFileSize IMMEDIATELY after JS_ReadFile to get the size
+        // WARNING: _lastReadFileSize is global state - concurrent calls will have race conditions
         var filename = UTF8ToString(filenamePtr);
         var bytes = Module._VFS.loadFile(filename);
 
         if (!bytes || bytes.length === 0) {
             console.warn('File not found in VFS:', filename);
+            Module._lastReadFileSize = 0;
             return 0; // Return null pointer if file not found
         }
 
@@ -948,17 +980,21 @@ mergeInto(LibraryManager.library, {
         var ptr = _malloc(bytes.length);
         if (!ptr) {
             console.error('Failed to allocate memory for file read');
+            Module._lastReadFileSize = 0;
             return 0;
         }
 
         Module.HEAPU8.set(bytes, ptr);
 
         // Store size for caller to retrieve
+        // NOTE: Global state - caller MUST call JS_GetLastFileSize immediately
         Module._lastReadFileSize = bytes.length;
 
-        return ptr;
+        return ptr; // CRITICAL: Caller must free this pointer!
     },
     JS_GetLastFileSize: function() {
+        // Returns size of last file read by JS_ReadFile
+        // WARNING: Must be called IMMEDIATELY after JS_ReadFile due to global state
         return Module._lastReadFileSize || 0;
     },
 
@@ -1217,7 +1253,7 @@ mergeInto(LibraryManager.library, {
         var resizeTimeout;
         var debouncedResize = function() {
             clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(onResize, 150);
+            resizeTimeout = setTimeout(onResize, Module._CONSTANTS.RESIZE_DEBOUNCE_MS);
         };
         window.addEventListener('resize', debouncedResize);
         onResize(); // Call immediately on init
@@ -1528,9 +1564,8 @@ mergeInto(LibraryManager.library, {
         // Security: Create safe content with textContent
         var content = document.createElement('div');
         var p = document.createElement('p');
-        p.textContent = msg;
-        // Preserve newlines by converting to <br> tags safely
-        p.innerHTML = p.textContent.replace(/\n/g, '<br>');
+        // XSS SAFETY: Use safe utility instead of innerHTML
+        Module._addTextWithLineBreaks(p, msg);
         content.appendChild(p);
 
         Module._createModal(title, content, [
@@ -1550,8 +1585,8 @@ mergeInto(LibraryManager.library, {
 
         var content = document.createElement('div');
         var p = document.createElement('p');
-        p.textContent = msg;
-        p.innerHTML = p.textContent.replace(/\n/g, '<br>');
+        // XSS SAFETY: Use safe utility instead of innerHTML
+        Module._addTextWithLineBreaks(p, msg);
         content.appendChild(p);
         content.appendChild(input);
 
@@ -1590,8 +1625,8 @@ mergeInto(LibraryManager.library, {
 
         var content = document.createElement('div');
         var p = document.createElement('p');
-        p.textContent = msg;
-        p.innerHTML = p.textContent.replace(/\n/g, '<br>');
+        // XSS SAFETY: Use safe utility instead of innerHTML
+        Module._addTextWithLineBreaks(p, msg);
         content.appendChild(p);
         content.appendChild(input);
 
@@ -1629,8 +1664,8 @@ mergeInto(LibraryManager.library, {
 
         var content = document.createElement('div');
         var p = document.createElement('p');
-        p.textContent = msg;
-        p.innerHTML = p.textContent.replace(/\n/g, '<br>');
+        // XSS SAFETY: Use safe utility instead of innerHTML
+        Module._addTextWithLineBreaks(p, msg);
         content.appendChild(p);
 
         var select = document.createElement('select');
@@ -1991,7 +2026,7 @@ mergeInto(LibraryManager.library, {
                 var age = Date.now() - state.timestamp;
 
                 // Only restore if session is less than 24 hours old
-                if (age > 24 * 60 * 60 * 1000) {
+                if (age > Module._CONSTANTS.SESSION_MAX_AGE_MS) {
                     console.log('Session too old, not restoring');
                     return false;
                 }
@@ -2224,7 +2259,8 @@ mergeInto(LibraryManager.library, {
                 var file = files[0];
 
                 // Check file extension
-                if (!file.name.endsWith('.cts')) {
+                // CASE-INSENSITIVE file extension check
+                if (!file.name.toLowerCase().endsWith('.cts')) {
                     Module._createModal('Invalid File', '<p>Only .cts files are supported.</p>', [
                         { text: 'OK', primary: true }
                     ]);
@@ -2852,6 +2888,9 @@ mergeInto(LibraryManager.library, {
                 elem.requestFullscreen();
             } else if (elem.webkitRequestFullscreen) {
                 elem.webkitRequestFullscreen();
+            } else if (elem.mozRequestFullScreen) {
+                // Firefox uses capital 'S' in Screen
+                elem.mozRequestFullScreen();
             } else if (elem.msRequestFullscreen) {
                 elem.msRequestFullscreen();
             }
