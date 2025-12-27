@@ -283,6 +283,65 @@ mergeInto(LibraryManager.library, {
 
     // ===== UTILITY FUNCTIONS =====
 
+    // Error handling utilities
+    _errorHandler: {
+        showError: function(title, message, error) {
+            console.error(title + ':', message, error);
+            Module._createModal(title, '<p>' + message + '</p>', [
+                { text: 'OK', primary: true }
+            ]);
+        },
+        logError: function(context, error) {
+            console.error(context + ':', error);
+        },
+        handleQuietly: function(context, error, fallback) {
+            console.warn(context + ':', error);
+            return fallback;
+        }
+    },
+
+    // File loading utility (DRY - eliminates duplication)
+    _fileLoader: {
+        loadFromVFS: function(filename, onSuccess, onError) {
+            var bytes = Module._VFS.loadFile(filename);
+            if (!bytes) {
+                if (onError) onError('File not found: ' + filename);
+                return false;
+            }
+
+            var ptr = null;
+            var namePtr = null;
+            try {
+                ptr = _malloc(bytes.length);
+                if (!ptr) {
+                    throw new Error('Failed to allocate memory for file data');
+                }
+
+                Module.HEAPU8.set(bytes, ptr);
+
+                var nameLen = lengthBytesUTF8(filename) + 1;
+                namePtr = _malloc(nameLen);
+                if (!namePtr) {
+                    throw new Error('Failed to allocate memory for filename');
+                }
+
+                stringToUTF8(filename, namePtr, nameLen);
+                Module._WASM_FileLoaded(namePtr, ptr, bytes.length);
+
+                if (onSuccess) onSuccess();
+                return true;
+            } catch (err) {
+                console.error('Error loading file:', err);
+                if (onError) onError(err.message);
+                return false;
+            } finally {
+                // CRITICAL: Always free memory, even on error
+                if (ptr) _free(ptr);
+                if (namePtr) _free(namePtr);
+            }
+        }
+    },
+
     // Color codec utilities (eliminates duplication)
     _colorUtils: {
         // C++ contract: color is 0xRRGGBB (Red in bits 16-23, Green in 8-15, Blue in 0-7)
@@ -403,19 +462,32 @@ mergeInto(LibraryManager.library, {
         if (img && img.complete && img.naturalWidth > 0) {
             // Image loaded, draw it
             ctx.drawImage(img, x, y);
-        } else if (!Module.imageLoadQueue[idx]) {
-            // Start loading this image
+        } else if (!Module.imageLoadQueue[idx] && !Module.imageCache[idx]) {
+            // BUGFIX: Check both queue and cache to prevent race condition
+            // Mark as loading IMMEDIATELY to prevent duplicate loads
             Module.imageLoadQueue[idx] = true;
+
             img = new Image();
+            var loadingStartTime = Date.now();
+
             img.onload = function() {
-                // Only cache after successful load
-                Module._cacheManager.addImage(idx, img);
-                delete Module.imageLoadQueue[idx];
-                // Trigger redraw to show the loaded image
-                if (Module._WASM_Resize) {
-                    var w = Module.canvas.width;
-                    var h = Module.canvas.height;
-                    Module._WASM_Resize(w, h);
+                // Only cache if this is still the expected load operation
+                if (Module.imageLoadQueue[idx]) {
+                    Module._cacheManager.addImage(idx, img);
+                    delete Module.imageLoadQueue[idx];
+
+                    console.log('Image loaded:', idx, 'in', Date.now() - loadingStartTime, 'ms');
+
+                    // BUGFIX: Debounce redraws to avoid multiple rapid calls
+                    if (Module._WASM_Resize && !Module._pendingRedraw) {
+                        Module._pendingRedraw = true;
+                        requestAnimationFrame(function() {
+                            Module._pendingRedraw = false;
+                            var w = Module.canvas.width;
+                            var h = Module.canvas.height;
+                            Module._WASM_Resize(w, h);
+                        });
+                    }
                 }
             };
             img.onerror = function() {
@@ -674,13 +746,26 @@ mergeInto(LibraryManager.library, {
     _VFS: {
         saveFile: function(filename, data) {
             try {
-                // Store file data as base64 to handle binary data
-                var base64 = btoa(String.fromCharCode.apply(null, data));
+                // BUGFIX: Handle large arrays by chunking to avoid stack overflow
+                var binary = '';
+                var chunkSize = 8192;
+                for (var i = 0; i < data.length; i += chunkSize) {
+                    var end = Math.min(i + chunkSize, data.length);
+                    var chunk = data.subarray ? data.subarray(i, end) : Array.prototype.slice.call(data, i, end);
+                    binary += String.fromCharCode.apply(null, chunk);
+                }
+
+                var base64 = btoa(binary);
                 localStorage.setItem('treesheets_file_' + filename, base64);
                 console.log('Saved file to VFS:', filename, data.length, 'bytes');
                 return true;
             } catch (e) {
                 console.error('VFS saveFile failed:', e);
+                // Check for quota exceeded
+                if (e.name === 'QuotaExceededError') {
+                    Module._errorHandler.showError('Storage Full',
+                        'Not enough storage space. Try deleting old files or clearing browser data.');
+                }
                 return false;
             }
         },
@@ -698,6 +783,7 @@ mergeInto(LibraryManager.library, {
                 return bytes;
             } catch (e) {
                 console.error('VFS loadFile failed:', e);
+                Module._errorHandler.logError('VFS loadFile', e);
                 return null;
             }
         },
@@ -1645,27 +1731,19 @@ mergeInto(LibraryManager.library, {
                 li.onmouseover = function() { li.style.backgroundColor = '#f0f0f0'; };
                 li.onmouseout = function() { li.style.backgroundColor = 'white'; };
                 li.onclick = function() {
-                    // Load file from VFS
-                    var bytes = Module._VFS.loadFile(filename);
-                    if (bytes) {
-                        var ptr = _malloc(bytes.length);
-                        if (ptr) {
-                            Module.HEAPU8.set(bytes, ptr);
-                            var nameLen = lengthBytesUTF8(filename) + 1;
-                            var namePtr = _malloc(nameLen);
-                            if (namePtr) {
-                                stringToUTF8(filename, namePtr, nameLen);
-                                Module._WASM_FileLoaded(namePtr, ptr, bytes.length);
-                                _free(ptr);
-                                _free(namePtr);
-                                document.getElementById('ts-modal').remove();
-                            }
+                    // BUGFIX: Use fileLoader utility to prevent memory leaks
+                    Module._fileLoader.loadFromVFS(
+                        filename,
+                        function() {
+                            // Success - close modal
+                            var modal = document.getElementById('ts-modal');
+                            if (modal) modal.remove();
+                        },
+                        function(error) {
+                            // Error - show message
+                            Module._errorHandler.showError('Error', error);
                         }
-                    } else {
-                        Module._createModal('Error', '<p>File not found: ' + filename + '</p>', [
-                            { text: 'OK', primary: true }
-                        ]);
-                    }
+                    );
                 };
                 list.appendChild(li);
             });
@@ -1843,26 +1921,20 @@ mergeInto(LibraryManager.library, {
                             localStorage.removeItem('treesheets_session_recovery');
                         }},
                         { text: 'Yes', primary: true, callback: function() {
-                            // Restore last opened file
+                            // BUGFIX: Use fileLoader utility to prevent memory leaks
                             if (state.files.length > 0) {
                                 var filename = state.files[0];
-                                var bytes = Module._VFS.loadFile(filename);
-                                if (bytes) {
-                                    var ptr = _malloc(bytes.length);
-                                    if (ptr) {
-                                        Module.HEAPU8.set(bytes, ptr);
-                                        var nameLen = lengthBytesUTF8(filename) + 1;
-                                        var namePtr = _malloc(nameLen);
-                                        if (namePtr) {
-                                            stringToUTF8(filename, namePtr, nameLen);
-                                            Module._WASM_FileLoaded(namePtr, ptr, bytes.length);
-                                            _free(ptr);
-                                            _free(namePtr);
-                                        }
+                                Module._fileLoader.loadFromVFS(
+                                    filename,
+                                    function() {
+                                        console.log('Session restored successfully:', filename);
+                                    },
+                                    function(error) {
+                                        console.error('Session restore failed:', error);
+                                        Module._errorHandler.showError('Restore Failed', error);
                                     }
-                                }
+                                );
                             }
-                            console.log('Session restored successfully');
                         }}
                     ]);
                     return true;
@@ -2085,27 +2157,23 @@ mergeInto(LibraryManager.library, {
                 // Read and process file
                 var reader = new FileReader();
                 reader.onload = function(evt) {
+                    // BUGFIX: Proper try-finally to prevent memory leaks
+                    var ptr = null;
+                    var namePtr = null;
                     try {
                         var arrayBuffer = evt.target.result;
                         var uint8Array = new Uint8Array(arrayBuffer);
 
-                        var ptr = _malloc(uint8Array.length);
+                        ptr = _malloc(uint8Array.length);
                         if (!ptr) {
-                            Module._createModal('Error', '<p>Failed to allocate memory for file.</p>', [
-                                { text: 'OK', primary: true }
-                            ]);
-                            return;
+                            throw new Error('Failed to allocate memory for file data');
                         }
                         Module.HEAPU8.set(uint8Array, ptr);
 
                         var nameLen = lengthBytesUTF8(file.name) + 1;
-                        var namePtr = _malloc(nameLen);
+                        namePtr = _malloc(nameLen);
                         if (!namePtr) {
-                            _free(ptr);
-                            Module._createModal('Error', '<p>Failed to allocate memory for filename.</p>', [
-                                { text: 'OK', primary: true }
-                            ]);
-                            return;
+                            throw new Error('Failed to allocate memory for filename');
                         }
                         stringToUTF8(file.name, namePtr, nameLen);
 
@@ -2115,15 +2183,14 @@ mergeInto(LibraryManager.library, {
 
                         Module._WASM_FileLoaded(namePtr, ptr, uint8Array.length);
 
-                        _free(ptr);
-                        _free(namePtr);
-
                         console.log('File loaded via drag & drop:', file.name);
                     } catch (err) {
                         console.error('Error processing dropped file:', err);
-                        Module._createModal('Error', '<p>Failed to process file: ' + err.message + '</p>', [
-                            { text: 'OK', primary: true }
-                        ]);
+                        Module._errorHandler.showError('Error', 'Failed to process file: ' + err.message);
+                    } finally {
+                        // CRITICAL: Always free memory, even on error
+                        if (ptr) _free(ptr);
+                        if (namePtr) _free(namePtr);
                     }
                 };
                 reader.onerror = function(err) {
@@ -2141,6 +2208,13 @@ mergeInto(LibraryManager.library, {
 
     // Initialize all polished features
     _initPolishedFeatures: function() {
+        // BUGFIX: Prevent multiple initialization to avoid event listener accumulation
+        if (Module._polishedFeaturesInitialized) {
+            console.warn('Polished features already initialized, skipping');
+            return;
+        }
+        Module._polishedFeaturesInitialized = true;
+
         console.log('Initializing polished features...');
         Module._autoSave.init();
         Module._darkMode.init();
@@ -2152,13 +2226,14 @@ mergeInto(LibraryManager.library, {
             Module._sessionRecovery.restore();
         }, 1000);
 
-        // Add F1 keyboard shortcut for help
-        window.addEventListener('keydown', function(e) {
+        // Add F1 keyboard shortcut for help (store reference for cleanup)
+        Module._polishedKeyHandler = function(e) {
             if (e.key === 'F1') {
                 e.preventDefault();
                 Module._keyboardHelp.show();
             }
-        });
+        };
+        window.addEventListener('keydown', Module._polishedKeyHandler);
 
         console.log('All polished features initialized');
     },
@@ -2921,12 +2996,19 @@ mergeInto(LibraryManager.library, {
 
     // Initialize all power user features
     _initPowerFeatures: function() {
+        // BUGFIX: Prevent multiple initialization to avoid event listener accumulation
+        if (Module._powerFeaturesInitialized) {
+            console.warn('Power user features already initialized, skipping');
+            return;
+        }
+        Module._powerFeaturesInitialized = true;
+
         console.log('Initializing power user features...');
         Module._themeManager.init();
         Module._settingsManager.load();
 
-        // Add Ctrl+Shift+P for command palette
-        window.addEventListener('keydown', function(e) {
+        // Add keyboard shortcuts (store reference for cleanup)
+        Module._powerKeyHandler = function(e) {
             if (e.ctrlKey && e.shiftKey && e.key === 'P') {
                 e.preventDefault();
                 Module._commandPalette.show();
@@ -2942,7 +3024,8 @@ mergeInto(LibraryManager.library, {
                     Module._fullscreenManager.isFullscreen = !Module._fullscreenManager.isFullscreen;
                 }, 100);
             }
-        });
+        };
+        window.addEventListener('keydown', Module._powerKeyHandler);
 
         console.log('All power user features initialized');
     },
