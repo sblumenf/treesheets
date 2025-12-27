@@ -9,7 +9,13 @@ struct TSWebOS : public TSPlatformOS {
     }
 
     std::vector<uint8_t> ReadFile(const wxString& filename) override {
-        return {};
+        uint8_t* ptr = JS_ReadFile(filename.c_str());
+        if (!ptr) return {};
+
+        int size = JS_GetLastFileSize();
+        std::vector<uint8_t> data(ptr, ptr + size);
+        free(ptr);
+        return data;
     }
 
     void LaunchBrowser(const wxString& url) override {
@@ -21,6 +27,10 @@ struct TSWebOS : public TSPlatformOS {
     }
 
     wxString GetClipboardText() override {
-        return "";
+        char* ptr = JS_GetClipboardText();
+        if (!ptr) return "";
+        wxString result(ptr);
+        free(ptr);
+        return result;
     }
 };

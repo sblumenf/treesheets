@@ -36,6 +36,9 @@ extern "C" {
     void JS_DownloadFile(const char* filename, const uint8_t* data, int size);
     void JS_LaunchBrowser(const char* url);
     void JS_SetClipboardText(const char* text);
+    char* JS_GetClipboardText(); // Read from clipboard (requires ASYNCIFY)
+    uint8_t* JS_ReadFile(const char* filename); // Read file from VFS (LocalStorage)
+    int JS_GetLastFileSize(); // Get size of last read file
     void JS_TriggerUpload(); // Opens file picker
     void JS_InitInput(); // Set up event listeners
 
