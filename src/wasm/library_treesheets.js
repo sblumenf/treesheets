@@ -526,6 +526,15 @@ mergeInto(LibraryManager.library, {
         });
     },
 
+    // Modal utilities
+    _closeCurrentModal: function() {
+        // DRY: Centralized modal removal (eliminates 5 duplicate patterns)
+        var modal = document.getElementById('ts-modal');
+        if (modal) {
+            modal.remove();
+        }
+    },
+
     // Pen and Brush style lookups (replaces switch statements)
     _penStyles: {
         0: { strokeStyle: 'rgb(200,200,200)', lineWidth: 1, lineDash: [] },      // PEN_GRIDLINES
@@ -751,8 +760,8 @@ mergeInto(LibraryManager.library, {
         var ctx = Module._getCtx();
         // Use object lookup instead of switch statement
         var brushColor = Module._brushStyles[brushType] || Module._brushStyles[1]; // Default to BRUSH_WHITE
-        Module._currentBrush = brushColor;
-        ctx.fillStyle = Module._currentBrush;
+        // CLEANED: Removed redundant Module._currentBrush assignment - not used anywhere
+        ctx.fillStyle = brushColor;
     },
 
     JS_DownloadFile: function(filenamePtr, dataPtr, size) {
@@ -1130,39 +1139,34 @@ mergeInto(LibraryManager.library, {
         input.click();
     },
 
-    JS_InitInput: function() {
-        // Prevent duplicate initialization (avoids event listener accumulation)
-        if (Module._inputInitialized) {
-            console.warn('JS_InitInput: Already initialized, skipping duplicate call');
-            return;
-        }
-        Module._inputInitialized = true;
+    // ===== INPUT INITIALIZATION HELPERS =====
+    // Refactored from 184-line JS_InitInput into focused, testable functions
 
-        var canvas = Module.canvas;
+    _getModifiers: function(event) {
+        var modifiers = 0;
+        if (event.ctrlKey)  modifiers |= 1;  // Ctrl = bit 0
+        if (event.shiftKey) modifiers |= 2;  // Shift = bit 1
+        if (event.altKey)   modifiers |= 4;  // Alt = bit 2
+        if (event.metaKey)  modifiers |= 8;  // Meta/Command = bit 3
+        return modifiers;
+    },
 
-        // Helper to build modifier flags
-        var getModifiers = function(e) {
-            var mods = 0;
-            if (e.ctrlKey)  mods |= 1;  // Ctrl = bit 0
-            if (e.shiftKey) mods |= 2;  // Shift = bit 1
-            if (e.altKey)   mods |= 4;  // Alt = bit 2
-            if (e.metaKey)  mods |= 8;  // Meta/Command = bit 3
-            return mods;
-        };
+    _initMouseEvents: function(canvas) {
+        var getModifiers = Module._getModifiers;
 
-        // Mouse events with modifiers
-        canvas.addEventListener('mousedown', function(e) {
-            Module._WASM_Mouse(1, e.offsetX, e.offsetY, getModifiers(e));
+        // Mouse button events
+        canvas.addEventListener('mousedown', function(event) {
+            Module._WASM_Mouse(1, event.offsetX, event.offsetY, getModifiers(event));
         });
-        canvas.addEventListener('mouseup', function(e) {
-            Module._WASM_Mouse(2, e.offsetX, e.offsetY, getModifiers(e));
+        canvas.addEventListener('mouseup', function(event) {
+            Module._WASM_Mouse(2, event.offsetX, event.offsetY, getModifiers(event));
         });
 
         // Throttle mousemove using requestAnimationFrame (~60fps)
         var mousemoveScheduled = false;
         var lastMouseEvent = null;
-        canvas.addEventListener('mousemove', function(e) {
-            lastMouseEvent = e;
+        canvas.addEventListener('mousemove', function(event) {
+            lastMouseEvent = event;
             if (!mousemoveScheduled) {
                 mousemoveScheduled = true;
                 requestAnimationFrame(function() {
@@ -1173,19 +1177,23 @@ mergeInto(LibraryManager.library, {
                 });
             }
         });
+    },
 
-        // Mouse wheel support
-        canvas.addEventListener('wheel', function(e) {
-            e.preventDefault();
+    _initWheelEvents: function(canvas) {
+        var getModifiers = Module._getModifiers;
+
+        canvas.addEventListener('wheel', function(event) {
+            event.preventDefault();
             // Type 3 for wheel, pass deltaY as x coordinate (negative = scroll up)
-            var delta = e.deltaY;
+            var delta = event.deltaY;
             // Normalize wheel delta (different browsers use different scales)
-            if (e.deltaMode === 1) delta *= 16; // LINE mode
-            if (e.deltaMode === 2) delta *= 100; // PAGE mode
-            Module._WASM_Mouse(3, Math.round(delta), 0, getModifiers(e));
+            if (event.deltaMode === 1) delta *= Module._CONSTANTS.WHEEL_LINE_DELTA;
+            if (event.deltaMode === 2) delta *= Module._CONSTANTS.WHEEL_PAGE_DELTA;
+            Module._WASM_Mouse(3, Math.round(delta), 0, getModifiers(event));
         }, { passive: false });
+    },
 
-        // Touch support for mobile/tablet
+    _initTouchEvents: function(canvas) {
         var touchState = {
             lastTouchX: 0,
             lastTouchY: 0,
@@ -1208,46 +1216,46 @@ mergeInto(LibraryManager.library, {
             return Math.sqrt(dx * dx + dy * dy);
         };
 
-        canvas.addEventListener('touchstart', function(e) {
-            e.preventDefault();
+        canvas.addEventListener('touchstart', function(event) {
+            event.preventDefault();
             touchState.touchStartTime = Date.now();
 
-            if (e.touches.length === 1) {
+            if (event.touches.length === 1) {
                 // Single touch - treat as mouse down
-                var pos = getTouchPos(e.touches[0]);
+                var pos = getTouchPos(event.touches[0]);
                 touchState.lastTouchX = pos.x;
                 touchState.lastTouchY = pos.y;
                 touchState.isPinching = false;
                 Module._WASM_Mouse(1, pos.x, pos.y, 0);
-            } else if (e.touches.length === 2) {
+            } else if (event.touches.length === 2) {
                 // Two finger pinch/zoom
                 touchState.isPinching = true;
-                touchState.initialDistance = getTouchDistance(e.touches[0], e.touches[1]);
+                touchState.initialDistance = getTouchDistance(event.touches[0], event.touches[1]);
             }
         }, { passive: false });
 
-        canvas.addEventListener('touchmove', function(e) {
-            e.preventDefault();
+        canvas.addEventListener('touchmove', function(event) {
+            event.preventDefault();
 
-            if (e.touches.length === 1 && !touchState.isPinching) {
+            if (event.touches.length === 1 && !touchState.isPinching) {
                 // Single touch - treat as mouse move/drag
-                var pos = getTouchPos(e.touches[0]);
+                var pos = getTouchPos(event.touches[0]);
                 Module._WASM_Mouse(0, pos.x, pos.y, 0);
                 touchState.lastTouchX = pos.x;
                 touchState.lastTouchY = pos.y;
-            } else if (e.touches.length === 2) {
+            } else if (event.touches.length === 2) {
                 // Pinch zoom - simulate wheel event
-                var currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
+                var currentDistance = getTouchDistance(event.touches[0], event.touches[1]);
                 var delta = (touchState.initialDistance - currentDistance) * 2;
                 Module._WASM_Mouse(3, Math.round(delta), 0, 0);
                 touchState.initialDistance = currentDistance;
             }
         }, { passive: false });
 
-        canvas.addEventListener('touchend', function(e) {
-            e.preventDefault();
+        canvas.addEventListener('touchend', function(event) {
+            event.preventDefault();
 
-            if (e.touches.length === 0) {
+            if (event.touches.length === 0) {
                 // All touches ended
                 var touchDuration = Date.now() - touchState.touchStartTime;
 
@@ -1263,49 +1271,72 @@ mergeInto(LibraryManager.library, {
             }
         }, { passive: false });
 
-        canvas.addEventListener('touchcancel', function(e) {
-            e.preventDefault();
+        canvas.addEventListener('touchcancel', function(event) {
+            event.preventDefault();
             touchState.isPinching = false;
         }, { passive: false });
+    },
 
-        // Keyboard events with modifiers
-        window.addEventListener('keydown', function(e) {
+    _initKeyboardEvents: function() {
+        var getModifiers = Module._getModifiers;
+
+        window.addEventListener('keydown', function(event) {
             // Prevent default for common shortcuts to avoid browser interference
-            if ((e.ctrlKey || e.metaKey) && ['s', 'o', 'n', 'w', 'z', 'y', 'x', 'c', 'v', 'a', 'f'].indexOf(e.key.toLowerCase()) !== -1) {
-                e.preventDefault();
+            var commonShortcuts = ['s', 'o', 'n', 'w', 'z', 'y', 'x', 'c', 'v', 'a', 'f'];
+            if ((event.ctrlKey || event.metaKey) && commonShortcuts.indexOf(event.key.toLowerCase()) !== -1) {
+                event.preventDefault();
             }
-            Module._WASM_Key(0, e.keyCode, getModifiers(e));
-        });
-        window.addEventListener('keyup', function(e) {
-            Module._WASM_Key(1, e.keyCode, getModifiers(e));
+            Module._WASM_Key(0, event.keyCode, getModifiers(event));
         });
 
+        window.addEventListener('keyup', function(event) {
+            Module._WASM_Key(1, event.keyCode, getModifiers(event));
+        });
+    },
+
+    _initResizeHandler: function(canvas) {
         var onResize = function() {
-            var w = canvas.clientWidth;
-            var h = canvas.clientHeight;
-            if (canvas.width != w || canvas.height != h) {
-                canvas.width = w;
-                canvas.height = h;
-                Module._WASM_Resize(w, h);
+            var width = canvas.clientWidth;
+            var height = canvas.clientHeight;
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+                Module._WASM_Resize(width, height);
             }
         };
 
-        // Debounce resize events (150ms delay)
+        // Debounce resize events
         var resizeTimeout;
         var debouncedResize = function() {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(onResize, Module._CONSTANTS.RESIZE_DEBOUNCE_MS);
         };
+
         window.addEventListener('resize', debouncedResize);
         onResize(); // Call immediately on init
+    },
 
-        // Initialize polished features after input is ready
+    JS_InitInput: function() {
+        // REFACTORED: Broken down from 184 lines into focused, testable functions
+        // Prevent duplicate initialization (avoids event listener accumulation)
+        if (Module._inputInitialized) {
+            console.warn('JS_InitInput: Already initialized, skipping duplicate call');
+            return;
+        }
+        Module._inputInitialized = true;
+
+        var canvas = Module.canvas;
+
+        // Initialize each input subsystem
+        Module._initMouseEvents(canvas);
+        Module._initWheelEvents(canvas);
+        Module._initTouchEvents(canvas);
+        Module._initKeyboardEvents();
+        Module._initResizeHandler(canvas);
+
+        // Initialize feature systems
         Module._initPolishedFeatures();
-
-        // Initialize power user features
         Module._initPowerFeatures();
-
-        // Initialize complete application suite
         Module._initCompleteFeatures();
 
         // Save session on page unload
@@ -2763,7 +2794,7 @@ mergeInto(LibraryManager.library, {
 
                 card.onclick = function() {
                     self.applyTheme(themeId);
-                    document.getElementById('ts-modal').remove();
+                    Module._closeCurrentModal();
                 };
 
                 card.onmouseover = function() {
@@ -2847,12 +2878,12 @@ mergeInto(LibraryManager.library, {
                     item.onmouseout = function() { item.style.backgroundColor = 'white'; };
                     item.onclick = function() {
                         cmd.action();
-                        document.getElementById('ts-modal').remove();
+                        Module._closeCurrentModal();
                     };
                     item.onkeydown = function(e) {
                         if (e.key === 'Enter') {
                             cmd.action();
-                            document.getElementById('ts-modal').remove();
+                            Module._closeCurrentModal();
                         }
                     };
                     list.appendChild(item);
@@ -2937,7 +2968,7 @@ mergeInto(LibraryManager.library, {
                 btn.onclick = function() {
                     self.currentIndex = index;
                     self.applyZoom(level);
-                    document.getElementById('ts-modal').remove();
+                    Module._closeCurrentModal();
                 };
                 content.appendChild(btn);
             });
@@ -3339,7 +3370,7 @@ mergeInto(LibraryManager.library, {
 
                 card.onclick = function() {
                     self.createFromTemplate(template.id);
-                    document.getElementById('ts-modal').remove();
+                    Module._closeCurrentModal();
                 };
 
                 card.onmouseover = function() {
