@@ -278,7 +278,29 @@ mergeInto(LibraryManager.library, {
             { id: 'schedule', name: 'Weekly Schedule', desc: '7-day schedule planner' },
             { id: 'project', name: 'Project Plan', desc: 'Project management template' },
             { id: 'notes', name: 'Meeting Notes', desc: 'Meeting minutes template' }
-        ]
+        ],
+
+        // Cache eviction
+        CACHE_EVICTION_PERCENTAGE: 0.2,
+
+        // Placeholder colors
+        PLACEHOLDER_BG_COLOR: 'rgba(200,200,200,0.3)',
+        PLACEHOLDER_BORDER_COLOR: 'rgba(150,150,150,0.5)',
+
+        // Base64 encoding
+        BASE64_CHUNK_SIZE: 8192,
+
+        // Wheel normalization
+        WHEEL_LINE_DELTA: 16,
+        WHEEL_PAGE_DELTA: 100,
+
+        // Timing constants
+        RESIZE_DEBOUNCE_MS: 150,
+        MODAL_FOCUS_DELAY_MS: 100,
+        STATUS_FADE_TIMEOUT_MS: 3000,
+        SESSION_RESTORE_DELAY_MS: 1000,
+        FULLSCREEN_CHECK_DELAY_MS: 100,
+        SESSION_MAX_AGE_MS: 24 * 60 * 60 * 1000  // 24 hours
     },
 
     // ===== UTILITY FUNCTIONS =====
@@ -322,6 +344,9 @@ mergeInto(LibraryManager.library, {
                 var nameLen = lengthBytesUTF8(filename) + 1;
                 namePtr = _malloc(nameLen);
                 if (!namePtr) {
+                    // CRITICAL: Free ptr before throwing to prevent memory leak
+                    _free(ptr);
+                    ptr = null;
                     throw new Error('Failed to allocate memory for filename');
                 }
 
@@ -400,8 +425,8 @@ mergeInto(LibraryManager.library, {
             var keys = Object.keys(Module.imageCache);
             if (keys.length <= Module._CONSTANTS.MAX_IMAGE_CACHE_SIZE) return;
 
-            // Remove oldest 20% when limit exceeded
-            var toRemove = Math.floor(keys.length * 0.2);
+            // Remove oldest using configured percentage
+            var toRemove = Math.floor(keys.length * Module._CONSTANTS.CACHE_EVICTION_PERCENTAGE);
             for (var i = 0; i < toRemove; i++) {
                 delete Module.imageCache[keys[i]];
             }
@@ -411,6 +436,92 @@ mergeInto(LibraryManager.library, {
             this.evictOldestImages();
             Module.imageCache[idx] = img;
         }
+    },
+
+    // String utilities
+    _stringFromPtr: function(ptr, fallback) {
+        if (!Module._validation.isValidPointer(ptr)) {
+            console.warn('Invalid pointer passed to UTF8ToString');
+            return fallback || '';
+        }
+        return UTF8ToString(ptr);
+    },
+
+    // Drawing utilities
+    _drawPlaceholder: function(ctx, x, y, size) {
+        ctx.fillStyle = Module._CONSTANTS.PLACEHOLDER_BG_COLOR;
+        ctx.fillRect(x, y, size, size);
+        ctx.strokeStyle = Module._CONSTANTS.PLACEHOLDER_BORDER_COLOR;
+        ctx.strokeRect(x, y, size, size);
+    },
+
+    _getFontHeight: function(metrics, ctx) {
+        var height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+        if (!height || height < 1) {
+            var fontSizeMatch = ctx.font.match(/(\d+)px/);
+            height = fontSizeMatch ? parseInt(fontSizeMatch[1]) : Module._CONSTANTS.DEFAULT_FONT_SIZE;
+        }
+        return Math.ceil(height);
+    },
+
+    // File utilities
+    _downloadBlob: function(blob, filename) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    },
+
+    _validateFileSize: function(file) {
+        var maxSize = Module._CONSTANTS.MAX_FILE_SIZE_BYTES;
+        if (file.size > maxSize) {
+            Module._createModal('Error', '<p>File too large. Maximum size is ' +
+                Math.floor(maxSize / (1024 * 1024)) + 'MB.</p>', [
+                { text: 'OK', primary: true }
+            ]);
+            return false;
+        }
+        return true;
+    },
+
+    // Accessibility utilities
+    _screenReaderAnnounce: function(message) {
+        var announcer = document.getElementById('sr-announcer');
+        if (!announcer) {
+            announcer = document.createElement('div');
+            announcer.id = 'sr-announcer';
+            announcer.setAttribute('role', 'status');
+            announcer.setAttribute('aria-live', 'polite');
+            announcer.style.position = 'absolute';
+            announcer.style.left = '-10000px';
+            announcer.style.width = '1px';
+            announcer.style.height = '1px';
+            announcer.style.overflow = 'hidden';
+            document.body.appendChild(announcer);
+        }
+        announcer.textContent = message;
+    },
+
+    // Pen and Brush style lookups (replaces switch statements)
+    _penStyles: {
+        0: { strokeStyle: 'rgb(200,200,200)', lineWidth: 1, lineDash: [] },      // PEN_GRIDLINES
+        1: { strokeStyle: 'rgb(230,230,230)', lineWidth: 1, lineDash: [] },      // PEN_TINYGRIDLINES
+        2: { strokeStyle: 'rgb(0,120,215)', lineWidth: 1, lineDash: [] },        // PEN_THINSELECT
+        3: { strokeStyle: 'rgb(100,100,100)', lineWidth: 1, lineDash: [] },      // PEN_TINYTEXT
+        4: { strokeStyle: 'rgb(255,0,0)', lineWidth: 1, lineDash: [] },          // PEN_RED
+        5: { strokeStyle: 'rgb(211,211,211)', lineWidth: 1, lineDash: [] },      // PEN_LIGHT_GREY
+        6: { strokeStyle: 'rgb(0,0,0)', lineWidth: 1, lineDash: [] },            // PEN_BLACK
+        7: { strokeStyle: 'rgb(255,255,255)', lineWidth: 1, lineDash: [] },      // PEN_WHITE
+        8: { strokeStyle: 'rgb(128,128,128)', lineWidth: 1, lineDash: [] }       // PEN_GREY
+    },
+
+    _brushStyles: {
+        0: 'transparent',        // BRUSH_TRANSPARENT
+        1: 'rgb(255,255,255)',   // BRUSH_WHITE
+        2: 'rgb(0,0,0)',         // BRUSH_BLACK
+        3: 'rgb(211,211,211)'    // BRUSH_LIGHT_GREY
     },
 
     // Performance: Rendering context cache
@@ -503,14 +614,10 @@ mergeInto(LibraryManager.library, {
             img.src = 'images/icon' + idx + '.png';
 
             // Draw placeholder while loading
-            ctx.fillStyle = 'rgba(200,200,200,0.3)';
-            ctx.fillRect(x, y, size, size);
-            ctx.strokeStyle = 'rgba(150,150,150,0.5)';
-            ctx.strokeRect(x, y, size, size);
+            Module._drawPlaceholder(ctx, x, y, size);
         } else {
             // Loading in progress, draw placeholder
-            ctx.fillStyle = 'rgba(200,200,200,0.3)';
-            ctx.fillRect(x, y, size, size);
+            Module._drawPlaceholder(ctx, x, y, size);
         }
     },
     JS_LoadImage: function(idxOrPath, pathPtr) {
@@ -525,13 +632,7 @@ mergeInto(LibraryManager.library, {
         var ctx = Module._getCtx();
         // Use TextMetrics to get accurate font height
         var metrics = ctx.measureText('M'); // Use 'M' as it's typically the tallest character
-        var height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
-        // Fallback to font size parsing if TextMetrics not fully supported
-        if (!height || height < 1) {
-            var fontSizeMatch = ctx.font.match(/(\d+)px/);
-            height = fontSizeMatch ? parseInt(fontSizeMatch[1]) : 12;
-        }
-        return Math.ceil(height);
+        return Module._getFontHeight(metrics, ctx);
     },
     JS_GetTextWidth: function(str) {
         var ctx = Module._getCtx();
@@ -542,14 +643,7 @@ mergeInto(LibraryManager.library, {
         var ctx = Module._getCtx();
         var s = UTF8ToString(str);
         var metrics = ctx.measureText(s);
-        // Calculate actual text height using bounding box
-        var height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
-        // Fallback for browsers with limited TextMetrics support
-        if (!height || height < 1) {
-            var fontSizeMatch = ctx.font.match(/(\d+)px/);
-            height = fontSizeMatch ? parseInt(fontSizeMatch[1]) : 12;
-        }
-        return Math.ceil(height);
+        return Module._getFontHeight(metrics, ctx);
     },
     JS_SetBrushColor: function(c) {
         var ctx = Module._getCtx();
@@ -564,7 +658,10 @@ mergeInto(LibraryManager.library, {
         ctx.fillStyle = Module._colorUtils.toRGBString(c);
     },
     JS_SetTextBackground: function(c) {
-        // Background color not currently used in canvas rendering
+        // NOTE: Text background color is not implemented in the canvas 2D API.
+        // Canvas fillText only supports foreground color via fillStyle.
+        // If text backgrounds are needed, they must be drawn separately using fillRect
+        // before rendering the text. The C++ code does not currently request this.
     },
     JS_SetFont: function(size, stylebits) {
         var ctx = Module._getCtx();
@@ -583,102 +680,56 @@ mergeInto(LibraryManager.library, {
     },
     JS_SetPen: function(penType) {
         var ctx = Module._getCtx();
-        // Pen enum values from ts_graphics.h:
-        // 0: PEN_GRIDLINES, 1: PEN_TINYGRIDLINES, 2: PEN_THINSELECT
-        // 3: PEN_TINYTEXT, 4: PEN_RED, 5: PEN_LIGHT_GREY
-        // 6: PEN_BLACK, 7: PEN_WHITE, 8: PEN_GREY
-        switch (penType) {
-            case 0: // PEN_GRIDLINES
-                ctx.strokeStyle = 'rgb(200,200,200)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                break;
-            case 1: // PEN_TINYGRIDLINES
-                ctx.strokeStyle = 'rgb(230,230,230)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                break;
-            case 2: // PEN_THINSELECT
-                ctx.strokeStyle = 'rgb(0,120,215)'; // Blue selection
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                break;
-            case 3: // PEN_TINYTEXT
-                ctx.strokeStyle = 'rgb(100,100,100)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                break;
-            case 4: // PEN_RED
-                ctx.strokeStyle = 'rgb(255,0,0)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                break;
-            case 5: // PEN_LIGHT_GREY
-                ctx.strokeStyle = 'rgb(211,211,211)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                break;
-            case 6: // PEN_BLACK
-                ctx.strokeStyle = 'rgb(0,0,0)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                break;
-            case 7: // PEN_WHITE
-                ctx.strokeStyle = 'rgb(255,255,255)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                break;
-            case 8: // PEN_GREY
-                ctx.strokeStyle = 'rgb(128,128,128)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                break;
-            default:
-                ctx.strokeStyle = 'rgb(0,0,0)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-        }
+        // Use object lookup instead of switch statement
+        var style = Module._penStyles[penType] || Module._penStyles[6]; // Default to PEN_BLACK
+        ctx.strokeStyle = style.strokeStyle;
+        ctx.lineWidth = style.lineWidth;
+        ctx.setLineDash(style.lineDash);
     },
     JS_SetBrush: function(brushType) {
         var ctx = Module._getCtx();
-        // Brush enum values from ts_graphics.h:
-        // 0: BRUSH_TRANSPARENT, 1: BRUSH_WHITE, 2: BRUSH_BLACK, 3: BRUSH_LIGHT_GREY
-        switch (brushType) {
-            case 0: // BRUSH_TRANSPARENT
-                Module._currentBrush = 'transparent';
-                break;
-            case 1: // BRUSH_WHITE
-                Module._currentBrush = 'rgb(255,255,255)';
-                break;
-            case 2: // BRUSH_BLACK
-                Module._currentBrush = 'rgb(0,0,0)';
-                break;
-            case 3: // BRUSH_LIGHT_GREY
-                Module._currentBrush = 'rgb(211,211,211)';
-                break;
-            default:
-                Module._currentBrush = 'rgb(255,255,255)';
-        }
-        // Apply immediately to fillStyle
+        // Use object lookup instead of switch statement
+        var brushColor = Module._brushStyles[brushType] || Module._brushStyles[1]; // Default to BRUSH_WHITE
+        Module._currentBrush = brushColor;
         ctx.fillStyle = Module._currentBrush;
     },
 
     JS_DownloadFile: function(filenamePtr, dataPtr, size) {
-        var filename = UTF8ToString(filenamePtr);
-        var data = new Uint8Array(Module.HEAPU8.buffer, dataPtr, size);
-        var blob = new Blob([data], { type: 'application/octet-stream' });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        try {
+            var filename = Module._stringFromPtr(filenamePtr, 'download.cts');
+            var data = new Uint8Array(Module.HEAPU8.buffer, dataPtr, size);
+            var blob = new Blob([data], { type: 'application/octet-stream' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error('Download failed:', e);
+            Module._errorHandler.showError('Download Failed',
+                'Unable to download file. Error: ' + e.message);
+        }
     },
     JS_LaunchBrowser: function(urlPtr) {
-        var url = UTF8ToString(urlPtr);
-        window.open(url, '_blank');
+        try {
+            var url = Module._stringFromPtr(urlPtr, '');
+            if (!url) {
+                console.warn('Empty URL provided to JS_LaunchBrowser');
+                return;
+            }
+            var win = window.open(url, '_blank');
+            if (!win) {
+                Module._errorHandler.showError('Popup Blocked',
+                    'Your browser blocked the popup. Please allow popups for this site to open links in new tabs.');
+            }
+        } catch (e) {
+            console.error('Failed to open URL:', e);
+            Module._errorHandler.showError('Navigation Failed',
+                'Unable to open link. Error: ' + e.message);
+        }
     },
     JS_SetClipboardText: function(textPtr) {
         var text = UTF8ToString(textPtr);
@@ -696,6 +747,8 @@ mergeInto(LibraryManager.library, {
     },
     JS_GetClipboardText: function() {
         // Modern Clipboard API with Asyncify
+        // MEMORY OWNERSHIP: Returns a malloc'd pointer that the C++ caller MUST free using Module._free()
+        // Returns 0 (null pointer) on failure or if clipboard is empty
         if (navigator.clipboard && navigator.clipboard.readText) {
             return Asyncify.handleSleep(function(wakeUp) {
                 navigator.clipboard.readText()
@@ -708,6 +761,7 @@ mergeInto(LibraryManager.library, {
                             return;
                         }
                         stringToUTF8(text, ptr, len);
+                        // CRITICAL: Caller must free this pointer after use!
                         wakeUp(ptr);
                     })
                     .catch(function(err) {
@@ -744,11 +798,20 @@ mergeInto(LibraryManager.library, {
 
     // Virtual File System using LocalStorage
     _VFS: {
+        _fileListCache: null,
+        _cacheTime: 0,
+        _CACHE_TTL: 1000, // Cache for 1 second
+
+        _invalidateCache: function() {
+            this._fileListCache = null;
+            this._cacheTime = 0;
+        },
+
         saveFile: function(filename, data) {
             try {
-                // BUGFIX: Handle large arrays by chunking to avoid stack overflow
+                // PERFORMANCE: Handle large arrays by chunking to avoid stack overflow
                 var binary = '';
-                var chunkSize = 8192;
+                var chunkSize = Module._CONSTANTS.BASE64_CHUNK_SIZE;
                 for (var i = 0; i < data.length; i += chunkSize) {
                     var end = Math.min(i + chunkSize, data.length);
                     var chunk = data.subarray ? data.subarray(i, end) : Array.prototype.slice.call(data, i, end);
@@ -757,14 +820,18 @@ mergeInto(LibraryManager.library, {
 
                 var base64 = btoa(binary);
                 localStorage.setItem('treesheets_file_' + filename, base64);
+                this._invalidateCache(); // Invalidate cache when files change
                 console.log('Saved file to VFS:', filename, data.length, 'bytes');
                 return true;
             } catch (e) {
                 console.error('VFS saveFile failed:', e);
-                // Check for quota exceeded
+                // IMPROVED ERROR: Provide actionable guidance
                 if (e.name === 'QuotaExceededError') {
                     Module._errorHandler.showError('Storage Full',
-                        'Not enough storage space. Try deleting old files or clearing browser data.');
+                        'Not enough storage space. Try:\n• Clearing old files from Recent Files\n• Clearing browser cache\n• Using Export to save important data');
+                } else {
+                    Module._errorHandler.showError('Save Failed',
+                        'Failed to save file to browser storage. Error: ' + e.message);
                 }
                 return false;
             }
@@ -773,12 +840,9 @@ mergeInto(LibraryManager.library, {
             try {
                 var base64 = localStorage.getItem('treesheets_file_' + filename);
                 if (!base64) return null;
-                // Decode base64 back to Uint8Array
+                // PERFORMANCE: More efficient decoding using Uint8Array.from
                 var binary = atob(base64);
-                var bytes = new Uint8Array(binary.length);
-                for (var i = 0; i < binary.length; i++) {
-                    bytes[i] = binary.charCodeAt(i);
-                }
+                var bytes = Uint8Array.from(binary, function(c) { return c.charCodeAt(0); });
                 console.log('Loaded file from VFS:', filename, bytes.length, 'bytes');
                 return bytes;
             } catch (e) {
@@ -788,6 +852,12 @@ mergeInto(LibraryManager.library, {
             }
         },
         listFiles: function() {
+            // PERFORMANCE: Cache file list to avoid repeated localStorage iterations
+            var now = Date.now();
+            if (this._fileListCache && (now - this._cacheTime) < this._CACHE_TTL) {
+                return this._fileListCache;
+            }
+
             var files = [];
             try {
                 for (var i = 0; i < localStorage.length; i++) {
@@ -799,7 +869,20 @@ mergeInto(LibraryManager.library, {
             } catch (e) {
                 console.error('VFS listFiles failed:', e);
             }
+
+            this._fileListCache = files;
+            this._cacheTime = now;
             return files;
+        },
+        deleteFile: function(filename) {
+            try {
+                localStorage.removeItem('treesheets_file_' + filename);
+                this._invalidateCache();
+                return true;
+            } catch (e) {
+                console.error('VFS deleteFile failed:', e);
+                return false;
+            }
         }
     },
 
@@ -1189,7 +1272,7 @@ mergeInto(LibraryManager.library, {
         }
 
         var btn = document.createElement('button');
-        btn.innerText = title.replace('&', '');
+        btn.textContent = title.replace('&', '');
         btn.style.border = 'none';
         btn.style.background = 'none';
         btn.style.cursor = 'pointer';
@@ -1224,7 +1307,7 @@ mergeInto(LibraryManager.library, {
                     return;
                 }
                 var itemDiv = document.createElement('div');
-                itemDiv.innerText = item.text.replace(/&/g, '').split('\t')[0];
+                itemDiv.textContent = item.text.replace(/&/g, '').split('\t')[0];
                 itemDiv.style.padding = '5px 15px';
                 itemDiv.style.cursor = 'pointer';
                 itemDiv.setAttribute('role', 'menuitem');
@@ -1323,14 +1406,16 @@ mergeInto(LibraryManager.library, {
         var titleBar = document.createElement('div');
         titleBar.id = 'modal-title';
         titleBar.style.cssText = 'background:#f0f0f0;padding:12px 16px;border-bottom:1px solid #ddd;font-weight:bold;border-radius:8px 8px 0 0;';
-        titleBar.innerText = title;
+        titleBar.textContent = title;
         dialog.appendChild(titleBar);
 
         // Content
         var contentDiv = document.createElement('div');
         contentDiv.style.cssText = 'padding:16px;';
         if (typeof content === 'string') {
-            contentDiv.innerHTML = content;
+            // XSS SAFETY: Use textContent for plain text, or sanitize if HTML is needed
+            // For now, treat all strings as plain text to prevent XSS
+            contentDiv.textContent = content;
         } else {
             contentDiv.appendChild(content);
         }
@@ -1344,7 +1429,7 @@ mergeInto(LibraryManager.library, {
             buttonBar.style.cssText = 'padding:12px 16px;border-top:1px solid #ddd;text-align:right;display:flex;gap:8px;justify-content:flex-end;';
             buttons.forEach(function(btn) {
                 var button = document.createElement('button');
-                button.innerText = btn.text;
+                button.textContent = btn.text;
                 button.style.cssText = 'padding:6px 16px;border:1px solid #ccc;border-radius:4px;background:' + (btn.primary ? '#007bff' : '#fff') + ';color:' + (btn.primary ? '#fff' : '#000') + ';cursor:pointer;';
                 button.onmouseover = function() { button.style.opacity = '0.8'; };
                 button.onmouseout = function() { button.style.opacity = '1'; };
@@ -1537,6 +1622,8 @@ mergeInto(LibraryManager.library, {
             choices = JSON.parse(UTF8ToString(choicesJsonPtr));
         } catch (e) {
             console.error('JS_SingleChoice: Invalid JSON for choices:', e);
+            Module._errorHandler.showError('Invalid Data',
+                'The application provided invalid data for this dialog. This may be a bug. Error: ' + e.message);
             return 0;
         }
 
@@ -3488,7 +3575,8 @@ mergeInto(LibraryManager.library, {
                 row.style.cssText = 'display:flex;justify-content:space-between;padding:12px;border-bottom:1px solid #eee;';
 
                 var left = document.createElement('span');
-                left.innerHTML = metric.icon + ' ' + metric.label;
+                // XSS SAFETY: Use textContent to prevent potential injection
+                left.textContent = metric.icon + ' ' + metric.label;
                 left.style.fontWeight = 'bold';
 
                 var right = document.createElement('span');
@@ -3734,17 +3822,17 @@ mergeInto(LibraryManager.library, {
             img.style.display = 'inline-block';
             img.onerror = function() {
                 // Fallback to text label if icon fails
-                btn.innerText = label.split(' (')[0];
+                btn.textContent = label.split(' (')[0];
             };
             img.onload = function() {
                 btn.appendChild(img);
                 var span = document.createElement('span');
-                span.innerText = label.split(' (')[0];
+                span.textContent = label.split(' (')[0];
                 span.style.fontSize = '12px';
                 btn.appendChild(span);
             };
         } else {
-            btn.innerText = label.split(' (')[0];
+            btn.textContent = label.split(' (')[0];
         }
 
         btn.onclick = function() { Module._WASM_Action(id); };
@@ -3764,7 +3852,7 @@ mergeInto(LibraryManager.library, {
         var toolbar = document.getElementById('toolbar');
         if(!toolbar) return;
         var span = document.createElement('span');
-        span.innerText = UTF8ToString(labelPtr);
+        span.textContent = UTF8ToString(labelPtr);
         span.style.fontSize = '12px';
         toolbar.appendChild(span);
     },
