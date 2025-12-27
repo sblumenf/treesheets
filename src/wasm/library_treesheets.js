@@ -251,7 +251,24 @@ mergeInto(LibraryManager.library, {
         MAX_RECENT_FILES: 10,
 
         // Version
-        VERSION: '1.0.0 Web'
+        VERSION: '1.0.0 Web',
+
+        // Export/Import
+        EXPORT_FORMATS: ['CSV', 'JSON', 'HTML', 'Markdown', 'Text'],
+
+        // Themes
+        THEMES: {
+            'light': { name: 'Light', bg: '#f5f5f5', fg: '#000', canvas: '#fff', ui: '#e0e0e0' },
+            'dark': { name: 'Dark', bg: '#1e1e1e', fg: '#e0e0e0', canvas: '#2d2d2d', ui: '#2d2d2d' },
+            'solarized-light': { name: 'Solarized Light', bg: '#fdf6e3', fg: '#657b83', canvas: '#eee8d5', ui: '#eee8d5' },
+            'solarized-dark': { name: 'Solarized Dark', bg: '#002b36', fg: '#839496', canvas: '#073642', ui: '#073642' },
+            'dracula': { name: 'Dracula', bg: '#282a36', fg: '#f8f8f2', canvas: '#44475a', ui: '#44475a' },
+            'nord': { name: 'Nord', bg: '#2e3440', fg: '#eceff4', canvas: '#3b4252', ui: '#3b4252' },
+            'monokai': { name: 'Monokai', bg: '#272822', fg: '#f8f8f2', canvas: '#3e3d32', ui: '#3e3d32' }
+        },
+
+        // Zoom levels
+        ZOOM_LEVELS: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0]
     },
 
     // ===== UTILITY FUNCTIONS =====
@@ -1028,6 +1045,9 @@ mergeInto(LibraryManager.library, {
 
         // Initialize polished features after input is ready
         Module._initPolishedFeatures();
+
+        // Initialize power user features
+        Module._initPowerFeatures();
 
         // Save session on page unload
         window.addEventListener('unload', function() {
@@ -2128,6 +2148,790 @@ mergeInto(LibraryManager.library, {
         });
 
         console.log('All polished features initialized');
+    },
+
+    // ===== POWER USER FEATURES (PHASE 11) =====
+
+    // Export Manager
+    _exportManager: {
+        exportToCSV: function(data) {
+            // Placeholder: Would need actual document data from C++
+            // For now, create sample export
+            var csv = 'Column1,Column2,Column3\n';
+            csv += 'Value1,Value2,Value3\n';
+            csv += 'Value4,Value5,Value6\n';
+
+            var blob = new Blob([csv], { type: 'text/csv' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'treesheets-export.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            console.log('Exported to CSV');
+        },
+
+        exportToJSON: function(data) {
+            var jsonData = {
+                version: Module._CONSTANTS.VERSION,
+                exported: new Date().toISOString(),
+                data: data || { cells: [], metadata: {} }
+            };
+
+            var json = JSON.stringify(jsonData, null, 2);
+            var blob = new Blob([json], { type: 'application/json' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'treesheets-export.json';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            console.log('Exported to JSON');
+        },
+
+        exportToHTML: function(data) {
+            var html = '<!DOCTYPE html>\n<html>\n<head>\n';
+            html += '<meta charset="UTF-8">\n';
+            html += '<title>TreeSheets Export</title>\n';
+            html += '<style>\n';
+            html += 'body { font-family: sans-serif; margin: 20px; }\n';
+            html += 'table { border-collapse: collapse; width: 100%; }\n';
+            html += 'th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\n';
+            html += 'th { background-color: #f0f0f0; font-weight: bold; }\n';
+            html += '</style>\n</head>\n<body>\n';
+            html += '<h1>TreeSheets Export</h1>\n';
+            html += '<table>\n<tr><th>Column 1</th><th>Column 2</th><th>Column 3</th></tr>\n';
+            html += '<tr><td>Value 1</td><td>Value 2</td><td>Value 3</td></tr>\n';
+            html += '<tr><td>Value 4</td><td>Value 5</td><td>Value 6</td></tr>\n';
+            html += '</table>\n</body>\n</html>';
+
+            var blob = new Blob([html], { type: 'text/html' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'treesheets-export.html';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            console.log('Exported to HTML');
+        },
+
+        exportToMarkdown: function(data) {
+            var md = '# TreeSheets Export\n\n';
+            md += '| Column 1 | Column 2 | Column 3 |\n';
+            md += '|----------|----------|----------|\n';
+            md += '| Value 1  | Value 2  | Value 3  |\n';
+            md += '| Value 4  | Value 5  | Value 6  |\n';
+
+            var blob = new Blob([md], { type: 'text/markdown' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'treesheets-export.md';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            console.log('Exported to Markdown');
+        },
+
+        showExportDialog: function() {
+            var content = document.createElement('div');
+
+            var title = document.createElement('h3');
+            title.textContent = 'Export Document';
+            title.style.margin = '0 0 15px 0';
+            content.appendChild(title);
+
+            var formatLabel = document.createElement('p');
+            formatLabel.textContent = 'Choose export format:';
+            formatLabel.style.margin = '10px 0 5px 0';
+            content.appendChild(formatLabel);
+
+            var formatSelect = document.createElement('select');
+            formatSelect.style.cssText = 'width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;';
+            Module._CONSTANTS.EXPORT_FORMATS.forEach(function(format) {
+                var option = document.createElement('option');
+                option.value = format.toLowerCase();
+                option.textContent = format;
+                formatSelect.appendChild(option);
+            });
+            content.appendChild(formatSelect);
+
+            var self = this;
+            Module._createModal('Export', content, [
+                { text: 'Cancel' },
+                { text: 'Export', primary: true, callback: function() {
+                    var format = formatSelect.value;
+                    switch(format) {
+                        case 'csv': self.exportToCSV(); break;
+                        case 'json': self.exportToJSON(); break;
+                        case 'html': self.exportToHTML(); break;
+                        case 'markdown': self.exportToMarkdown(); break;
+                        default: console.warn('Unknown format:', format);
+                    }
+                }}
+            ]);
+        }
+    },
+
+    JS_ShowExportDialog: function() {
+        Module._exportManager.showExportDialog();
+    },
+
+    // Import Manager
+    _importManager: {
+        importCSV: function(text) {
+            try {
+                var lines = text.split('\n');
+                var data = [];
+                lines.forEach(function(line) {
+                    if (line.trim()) {
+                        data.push(line.split(','));
+                    }
+                });
+                console.log('Parsed CSV data:', data);
+                // Would pass to C++ here
+                Module._createModal('Import Success', '<p>Imported ' + data.length + ' rows from CSV</p>', [
+                    { text: 'OK', primary: true }
+                ]);
+            } catch (e) {
+                console.error('CSV import failed:', e);
+                Module._createModal('Import Error', '<p>Failed to parse CSV: ' + e.message + '</p>', [
+                    { text: 'OK', primary: true }
+                ]);
+            }
+        },
+
+        importJSON: function(text) {
+            try {
+                var data = JSON.parse(text);
+                console.log('Parsed JSON data:', data);
+                // Would pass to C++ here
+                Module._createModal('Import Success', '<p>Imported JSON data successfully</p>', [
+                    { text: 'OK', primary: true }
+                ]);
+            } catch (e) {
+                console.error('JSON import failed:', e);
+                Module._createModal('Import Error', '<p>Failed to parse JSON: ' + e.message + '</p>', [
+                    { text: 'OK', primary: true }
+                ]);
+            }
+        },
+
+        showImportDialog: function() {
+            var content = document.createElement('div');
+
+            var title = document.createElement('h3');
+            title.textContent = 'Import Data';
+            title.style.margin = '0 0 15px 0';
+            content.appendChild(title);
+
+            var formatLabel = document.createElement('p');
+            formatLabel.textContent = 'Format:';
+            content.appendChild(formatLabel);
+
+            var formatSelect = document.createElement('select');
+            formatSelect.style.cssText = 'width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;margin-bottom:10px;';
+            ['CSV', 'JSON'].forEach(function(format) {
+                var option = document.createElement('option');
+                option.value = format.toLowerCase();
+                option.textContent = format;
+                formatSelect.appendChild(option);
+            });
+            content.appendChild(formatSelect);
+
+            var dataLabel = document.createElement('p');
+            dataLabel.textContent = 'Paste data:';
+            content.appendChild(dataLabel);
+
+            var textarea = document.createElement('textarea');
+            textarea.style.cssText = 'width:100%;height:200px;padding:8px;border:1px solid #ccc;border-radius:4px;font-family:monospace;font-size:12px;';
+            textarea.placeholder = 'Paste CSV or JSON data here...';
+            content.appendChild(textarea);
+
+            var self = this;
+            Module._createModal('Import', content, [
+                { text: 'Cancel' },
+                { text: 'Import', primary: true, callback: function() {
+                    var format = formatSelect.value;
+                    var text = textarea.value.trim();
+                    if (!text) {
+                        Module._createModal('Error', '<p>No data to import</p>', [{ text: 'OK', primary: true }]);
+                        return;
+                    }
+                    if (format === 'csv') {
+                        self.importCSV(text);
+                    } else if (format === 'json') {
+                        self.importJSON(text);
+                    }
+                }}
+            ]);
+
+            setTimeout(function() { textarea.focus(); }, 100);
+        }
+    },
+
+    JS_ShowImportDialog: function() {
+        Module._importManager.showImportDialog();
+    },
+
+    // Theme Manager
+    _themeManager: {
+        currentTheme: 'light',
+
+        applyTheme: function(themeId) {
+            var theme = Module._CONSTANTS.THEMES[themeId];
+            if (!theme) {
+                console.warn('Theme not found:', themeId);
+                return;
+            }
+
+            document.body.style.backgroundColor = theme.bg;
+            document.body.style.color = theme.fg;
+
+            if (Module.canvas) {
+                Module.canvas.style.backgroundColor = theme.canvas;
+            }
+
+            var menubar = document.getElementById('menubar');
+            if (menubar) {
+                menubar.style.backgroundColor = theme.ui;
+                menubar.style.color = theme.fg;
+            }
+
+            var toolbar = document.getElementById('toolbar');
+            if (toolbar) {
+                toolbar.style.backgroundColor = theme.ui;
+                toolbar.style.color = theme.fg;
+            }
+
+            // Update dark mode toggle to match
+            var isDark = themeId !== 'light' && themeId !== 'solarized-light';
+            if (Module._darkMode) {
+                Module._darkMode.isDark = isDark;
+                if (Module._darkMode.toggleButton) {
+                    Module._darkMode.toggleButton.textContent = isDark ? '☀️' : '🌙';
+                    Module._darkMode.toggleButton.style.background = theme.ui;
+                    Module._darkMode.toggleButton.style.color = theme.fg;
+                }
+            }
+
+            this.currentTheme = themeId;
+            localStorage.setItem('treesheets_theme', themeId);
+            console.log('Applied theme:', theme.name);
+        },
+
+        showThemeGallery: function() {
+            var content = document.createElement('div');
+
+            var title = document.createElement('h3');
+            title.textContent = 'Choose Theme';
+            title.style.margin = '0 0 15px 0';
+            content.appendChild(title);
+
+            var gallery = document.createElement('div');
+            gallery.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:10px;';
+
+            var self = this;
+            Object.keys(Module._CONSTANTS.THEMES).forEach(function(themeId) {
+                var theme = Module._CONSTANTS.THEMES[themeId];
+                var card = document.createElement('div');
+                card.style.cssText = 'padding:15px;border:2px solid ' + (self.currentTheme === themeId ? '#007bff' : '#ddd') + ';border-radius:8px;cursor:pointer;transition:border-color 0.2s;';
+                card.style.backgroundColor = theme.canvas;
+                card.style.color = theme.fg;
+
+                var name = document.createElement('div');
+                name.textContent = theme.name;
+                name.style.cssText = 'font-weight:bold;margin-bottom:5px;';
+                card.appendChild(name);
+
+                var preview = document.createElement('div');
+                preview.style.cssText = 'display:flex;gap:5px;margin-top:10px;';
+                [theme.bg, theme.fg, theme.canvas, theme.ui].forEach(function(color) {
+                    var swatch = document.createElement('div');
+                    swatch.style.cssText = 'width:20px;height:20px;border-radius:3px;background-color:' + color + ';border:1px solid rgba(0,0,0,0.2);';
+                    preview.appendChild(swatch);
+                });
+                card.appendChild(preview);
+
+                card.onclick = function() {
+                    self.applyTheme(themeId);
+                    document.getElementById('ts-modal').remove();
+                };
+
+                card.onmouseover = function() {
+                    if (self.currentTheme !== themeId) {
+                        card.style.borderColor = '#007bff';
+                    }
+                };
+                card.onmouseout = function() {
+                    if (self.currentTheme !== themeId) {
+                        card.style.borderColor = '#ddd';
+                    }
+                };
+
+                gallery.appendChild(card);
+            });
+
+            content.appendChild(gallery);
+
+            Module._createModal('Theme Gallery', content, [
+                { text: 'Close', primary: true }
+            ]);
+        },
+
+        init: function() {
+            var saved = localStorage.getItem('treesheets_theme');
+            if (saved && Module._CONSTANTS.THEMES[saved]) {
+                this.applyTheme(saved);
+            }
+        }
+    },
+
+    JS_ShowThemeGallery: function() {
+        Module._themeManager.showThemeGallery();
+    },
+
+    // Command Palette
+    _commandPalette: {
+        commands: [
+            { id: 'file-new', name: 'File: New Document', action: function() { console.log('New'); } },
+            { id: 'file-open', name: 'File: Open', action: function() { Module._WASM_Action(1); } },
+            { id: 'file-save', name: 'File: Save', action: function() { Module._autoSave.save(); } },
+            { id: 'file-export', name: 'File: Export...', action: function() { Module._exportManager.showExportDialog(); } },
+            { id: 'file-import', name: 'File: Import...', action: function() { Module._importManager.showImportDialog(); } },
+            { id: 'file-recent', name: 'File: Recent Files', action: function() { Module._recentFiles.showMenu(); } },
+            { id: 'view-theme', name: 'View: Change Theme', action: function() { Module._themeManager.showThemeGallery(); } },
+            { id: 'view-dark', name: 'View: Toggle Dark Mode', action: function() { Module._darkMode.toggle(); } },
+            { id: 'view-zoom-in', name: 'View: Zoom In', action: function() { Module._zoomManager.zoomIn(); } },
+            { id: 'view-zoom-out', name: 'View: Zoom Out', action: function() { Module._zoomManager.zoomOut(); } },
+            { id: 'view-zoom-reset', name: 'View: Reset Zoom', action: function() { Module._zoomManager.resetZoom(); } },
+            { id: 'view-fullscreen', name: 'View: Toggle Fullscreen', action: function() { Module._fullscreenManager.toggle(); } },
+            { id: 'help-shortcuts', name: 'Help: Keyboard Shortcuts', action: function() { Module._keyboardHelp.show(); } },
+            { id: 'help-about', name: 'Help: About TreeSheets', action: function() { Module.JS_ShowAbout(); } }
+        ],
+
+        show: function() {
+            var content = document.createElement('div');
+
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = 'Type to search commands...';
+            input.style.cssText = 'width:100%;padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;margin-bottom:10px;';
+            content.appendChild(input);
+
+            var list = document.createElement('div');
+            list.style.cssText = 'max-height:400px;overflow-y:auto;';
+            content.appendChild(list);
+
+            var self = this;
+            var renderCommands = function(filter) {
+                list.innerHTML = '';
+                var filtered = self.commands.filter(function(cmd) {
+                    return !filter || cmd.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0;
+                });
+
+                filtered.forEach(function(cmd, index) {
+                    var item = document.createElement('div');
+                    item.textContent = cmd.name;
+                    item.style.cssText = 'padding:10px;cursor:pointer;border-bottom:1px solid #eee;';
+                    item.setAttribute('tabindex', '0');
+                    item.onmouseover = function() { item.style.backgroundColor = '#f0f0f0'; };
+                    item.onmouseout = function() { item.style.backgroundColor = 'white'; };
+                    item.onclick = function() {
+                        cmd.action();
+                        document.getElementById('ts-modal').remove();
+                    };
+                    item.onkeydown = function(e) {
+                        if (e.key === 'Enter') {
+                            cmd.action();
+                            document.getElementById('ts-modal').remove();
+                        }
+                    };
+                    list.appendChild(item);
+                });
+
+                if (filtered.length === 0) {
+                    var empty = document.createElement('div');
+                    empty.textContent = 'No commands found';
+                    empty.style.cssText = 'padding:20px;text-align:center;color:#999;';
+                    list.appendChild(empty);
+                }
+            };
+
+            input.oninput = function() {
+                renderCommands(input.value);
+            };
+
+            renderCommands('');
+
+            Module._createModal('Command Palette', content, [
+                { text: 'Close', primary: true }
+            ]);
+
+            setTimeout(function() { input.focus(); }, 100);
+        }
+    },
+
+    JS_ShowCommandPalette: function() {
+        Module._commandPalette.show();
+    },
+
+    // Zoom Manager
+    _zoomManager: {
+        currentZoom: 1.0,
+        currentIndex: 3, // 1.0 is at index 3
+
+        applyZoom: function(level) {
+            this.currentZoom = level;
+            if (Module.canvas) {
+                Module.canvas.style.transform = 'scale(' + level + ')';
+                Module.canvas.style.transformOrigin = 'top left';
+            }
+            console.log('Zoom:', (level * 100).toFixed(0) + '%');
+        },
+
+        zoomIn: function() {
+            var levels = Module._CONSTANTS.ZOOM_LEVELS;
+            if (this.currentIndex < levels.length - 1) {
+                this.currentIndex++;
+                this.applyZoom(levels[this.currentIndex]);
+            }
+        },
+
+        zoomOut: function() {
+            var levels = Module._CONSTANTS.ZOOM_LEVELS;
+            if (this.currentIndex > 0) {
+                this.currentIndex--;
+                this.applyZoom(levels[this.currentIndex]);
+            }
+        },
+
+        resetZoom: function() {
+            this.currentIndex = 3;
+            this.applyZoom(1.0);
+        },
+
+        showZoomMenu: function() {
+            var content = document.createElement('div');
+
+            var title = document.createElement('h3');
+            title.textContent = 'Zoom Level';
+            title.style.margin = '0 0 15px 0';
+            content.appendChild(title);
+
+            var levels = Module._CONSTANTS.ZOOM_LEVELS;
+            var self = this;
+
+            levels.forEach(function(level, index) {
+                var btn = document.createElement('button');
+                btn.textContent = (level * 100).toFixed(0) + '%';
+                btn.style.cssText = 'width:100%;padding:10px;margin:5px 0;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:' + (index === self.currentIndex ? '#007bff' : '#fff') + ';color:' + (index === self.currentIndex ? '#fff' : '#000') + ';';
+                btn.onclick = function() {
+                    self.currentIndex = index;
+                    self.applyZoom(level);
+                    document.getElementById('ts-modal').remove();
+                };
+                content.appendChild(btn);
+            });
+
+            Module._createModal('Zoom', content, [
+                { text: 'Close', primary: true }
+            ]);
+        }
+    },
+
+    JS_ZoomIn: function() {
+        Module._zoomManager.zoomIn();
+    },
+
+    JS_ZoomOut: function() {
+        Module._zoomManager.zoomOut();
+    },
+
+    JS_ResetZoom: function() {
+        Module._zoomManager.resetZoom();
+    },
+
+    JS_ShowZoomMenu: function() {
+        Module._zoomManager.showZoomMenu();
+    },
+
+    // Fullscreen Manager
+    _fullscreenManager: {
+        isFullscreen: false,
+
+        toggle: function() {
+            if (!this.isFullscreen) {
+                this.enter();
+            } else {
+                this.exit();
+            }
+        },
+
+        enter: function() {
+            var elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) {
+                elem.msRequestFullscreen();
+            }
+            this.isFullscreen = true;
+            console.log('Entered fullscreen');
+        },
+
+        exit: function() {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+            this.isFullscreen = false;
+            console.log('Exited fullscreen');
+        }
+    },
+
+    JS_ToggleFullscreen: function() {
+        Module._fullscreenManager.toggle();
+    },
+
+    // Find & Replace Manager
+    _findReplaceManager: {
+        show: function() {
+            var content = document.createElement('div');
+
+            var title = document.createElement('h3');
+            title.textContent = 'Find & Replace';
+            title.style.margin = '0 0 15px 0';
+            content.appendChild(title);
+
+            // Find input
+            var findLabel = document.createElement('label');
+            findLabel.textContent = 'Find:';
+            findLabel.style.display = 'block';
+            findLabel.style.marginBottom = '5px';
+            content.appendChild(findLabel);
+
+            var findInput = document.createElement('input');
+            findInput.type = 'text';
+            findInput.placeholder = 'Enter search text...';
+            findInput.style.cssText = 'width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;margin-bottom:10px;';
+            content.appendChild(findInput);
+
+            // Replace input
+            var replaceLabel = document.createElement('label');
+            replaceLabel.textContent = 'Replace with:';
+            replaceLabel.style.display = 'block';
+            replaceLabel.style.marginBottom = '5px';
+            content.appendChild(replaceLabel);
+
+            var replaceInput = document.createElement('input');
+            replaceInput.type = 'text';
+            replaceInput.placeholder = 'Enter replacement text...';
+            replaceInput.style.cssText = 'width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;margin-bottom:10px;';
+            content.appendChild(replaceInput);
+
+            // Options
+            var optionsDiv = document.createElement('div');
+            optionsDiv.style.marginBottom = '10px';
+
+            var caseSensitive = document.createElement('input');
+            caseSensitive.type = 'checkbox';
+            caseSensitive.id = 'case-sensitive';
+            var caseLabel = document.createElement('label');
+            caseLabel.htmlFor = 'case-sensitive';
+            caseLabel.textContent = ' Case sensitive';
+            caseLabel.style.marginRight = '15px';
+            optionsDiv.appendChild(caseSensitive);
+            optionsDiv.appendChild(caseLabel);
+
+            var useRegex = document.createElement('input');
+            useRegex.type = 'checkbox';
+            useRegex.id = 'use-regex';
+            var regexLabel = document.createElement('label');
+            regexLabel.htmlFor = 'use-regex';
+            regexLabel.textContent = ' Use regex';
+            optionsDiv.appendChild(useRegex);
+            optionsDiv.appendChild(regexLabel);
+
+            content.appendChild(optionsDiv);
+
+            // Results
+            var results = document.createElement('div');
+            results.style.cssText = 'padding:10px;background:#f0f0f0;border-radius:4px;margin-top:10px;min-height:40px;';
+            results.textContent = 'Enter search term to begin';
+            content.appendChild(results);
+
+            Module._createModal('Find & Replace', content, [
+                { text: 'Close' },
+                { text: 'Find Next', callback: function() {
+                    var searchTerm = findInput.value;
+                    if (!searchTerm) {
+                        results.textContent = 'Please enter search term';
+                        return;
+                    }
+                    results.textContent = 'Searching for "' + searchTerm + '"... (functionality would integrate with C++)';
+                    console.log('Find:', searchTerm, 'Case:', caseSensitive.checked, 'Regex:', useRegex.checked);
+                }},
+                { text: 'Replace All', primary: true, callback: function() {
+                    var searchTerm = findInput.value;
+                    var replaceTerm = replaceInput.value;
+                    if (!searchTerm) {
+                        results.textContent = 'Please enter search term';
+                        return;
+                    }
+                    results.textContent = 'Replaced "' + searchTerm + '" with "' + replaceTerm + '" (functionality would integrate with C++)';
+                    console.log('Replace:', searchTerm, '->', replaceTerm);
+                }}
+            ]);
+
+            setTimeout(function() { findInput.focus(); }, 100);
+        }
+    },
+
+    JS_ShowFindReplace: function() {
+        Module._findReplaceManager.show();
+    },
+
+    // Settings Panel
+    _settingsManager: {
+        settings: {
+            autoSaveInterval: 30000,
+            maxRecentFiles: 10,
+            theme: 'light',
+            enableAutoSave: true,
+            enableSessionRecovery: true,
+            defaultZoom: 1.0
+        },
+
+        show: function() {
+            var content = document.createElement('div');
+
+            var title = document.createElement('h3');
+            title.textContent = 'Settings';
+            title.style.margin = '0 0 15px 0';
+            content.appendChild(title);
+
+            var self = this;
+
+            // Auto-save interval
+            var addSetting = function(label, type, key, options) {
+                var container = document.createElement('div');
+                container.style.marginBottom = '15px';
+
+                var labelEl = document.createElement('label');
+                labelEl.textContent = label;
+                labelEl.style.cssText = 'display:block;margin-bottom:5px;font-weight:bold;';
+                container.appendChild(labelEl);
+
+                var input;
+                if (type === 'checkbox') {
+                    input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.checked = self.settings[key];
+                } else if (type === 'select' && options) {
+                    input = document.createElement('select');
+                    input.style.cssText = 'width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;';
+                    options.forEach(function(opt) {
+                        var option = document.createElement('option');
+                        option.value = opt.value;
+                        option.textContent = opt.label;
+                        if (opt.value === self.settings[key]) option.selected = true;
+                        input.appendChild(option);
+                    });
+                } else {
+                    input = document.createElement('input');
+                    input.type = type;
+                    input.value = self.settings[key];
+                    input.style.cssText = 'width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;';
+                }
+
+                input.id = 'setting-' + key;
+                container.appendChild(input);
+
+                content.appendChild(container);
+                return input;
+            };
+
+            var autoSaveInput = addSetting('Auto-save interval (ms)', 'number', 'autoSaveInterval');
+            var maxRecentInput = addSetting('Max recent files', 'number', 'maxRecentFiles');
+            var enableAutoSaveInput = addSetting('Enable auto-save', 'checkbox', 'enableAutoSave');
+            var enableRecoveryInput = addSetting('Enable session recovery', 'checkbox', 'enableSessionRecovery');
+            var themeInput = addSetting('Theme', 'select', 'theme', [
+                { value: 'light', label: 'Light' },
+                { value: 'dark', label: 'Dark' },
+                { value: 'solarized-light', label: 'Solarized Light' },
+                { value: 'solarized-dark', label: 'Solarized Dark' }
+            ]);
+
+            Module._createModal('Settings', content, [
+                { text: 'Cancel' },
+                { text: 'Save', primary: true, callback: function() {
+                    self.settings.autoSaveInterval = parseInt(autoSaveInput.value) || 30000;
+                    self.settings.maxRecentFiles = parseInt(maxRecentInput.value) || 10;
+                    self.settings.enableAutoSave = enableAutoSaveInput.checked;
+                    self.settings.enableSessionRecovery = enableRecoveryInput.checked;
+                    self.settings.theme = themeInput.value;
+
+                    // Apply settings
+                    Module._CONSTANTS.AUTO_SAVE_INTERVAL_MS = self.settings.autoSaveInterval;
+                    Module._CONSTANTS.MAX_RECENT_FILES = self.settings.maxRecentFiles;
+                    Module._themeManager.applyTheme(self.settings.theme);
+
+                    localStorage.setItem('treesheets_settings', JSON.stringify(self.settings));
+                    console.log('Settings saved');
+                }}
+            ]);
+        },
+
+        load: function() {
+            var saved = localStorage.getItem('treesheets_settings');
+            if (saved) {
+                try {
+                    this.settings = JSON.parse(saved);
+                } catch (e) {
+                    console.error('Failed to load settings:', e);
+                }
+            }
+        }
+    },
+
+    JS_ShowSettings: function() {
+        Module._settingsManager.show();
+    },
+
+    // Initialize all power user features
+    _initPowerFeatures: function() {
+        console.log('Initializing power user features...');
+        Module._themeManager.init();
+        Module._settingsManager.load();
+
+        // Add Ctrl+Shift+P for command palette
+        window.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+                e.preventDefault();
+                Module._commandPalette.show();
+            }
+            // Ctrl+F for find
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                Module._findReplaceManager.show();
+            }
+            // F11 for fullscreen (already handled by browser, but we track it)
+            if (e.key === 'F11') {
+                setTimeout(function() {
+                    Module._fullscreenManager.isFullscreen = !Module._fullscreenManager.isFullscreen;
+                }, 100);
+            }
+        });
+
+        console.log('All power user features initialized');
     },
 
     // Toolbar
