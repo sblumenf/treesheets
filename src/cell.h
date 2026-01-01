@@ -119,9 +119,8 @@ struct Cell {
 
     void Render(Document *doc, int bx, int by, TSGraphics &dc, int depth, int ml, int mr, int mt, int mb,
                 int maxcolwidth, int cell_margin) {
-        emscripten_console_log("*** CELL RENDER CALLED ***");
-        std::cout << "Cell::Render depth=" << depth << " bx=" << bx << " by=" << by
-                  << " sx=" << sx << " sy=" << sy << " hasGrid=" << (grid != nullptr) << std::endl;
+        printf("*** CELL RENDER CALLED *** depth=%d bx=%d by=%d sx=%d sy=%d hasGrid=%d\n",
+               depth, bx, by, sx, sy, (grid != nullptr) ? 1 : 0);
         // Choose color from celltype (program operations)
         switch (celltype) {
             case CT_VARD: actualcellcolor = 0xFF8080; break;
