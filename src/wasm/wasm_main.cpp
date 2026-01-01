@@ -884,6 +884,7 @@ extern "C" {
                 auto grid = new wasm_treesheets::Grid(3, 3);
                 grid->cell = root;
                 root->grid = grid;
+                grid->InitCells();  // Actually allocate the cells!
 
                 // Set up cells with visible colors and text
                 for (int y = 0; y < 3; y++) {
