@@ -1426,16 +1426,21 @@ mergeInto(LibraryManager.library, {
         Module._initResizeHandler(canvas);
 
         // Initialize feature systems
-        Module._initPolishedFeatures();
-        Module._initPowerFeatures();
-        Module._initCompleteFeatures();
+        // NOTE: These are stubbed out for MVP - internal library functions aren't
+        // automatically exposed on Module in Emscripten. These features (auto-save,
+        // dark mode, themes, templates, etc.) can be enabled later with proper
+        // architecture refactoring.
+        console.log('Skipping polished/power/complete features for MVP - basic functionality enabled');
+        // Module._initPolishedFeatures();
+        // Module._initPowerFeatures();
+        // Module._initCompleteFeatures();
 
-        // Save session on page unload
-        window.addEventListener('unload', function() {
-            if (Module._sessionRecovery) {
-                Module._sessionRecovery.save();
-            }
-        });
+        // Save session on page unload (disabled for MVP - _sessionRecovery not on Module)
+        // window.addEventListener('unload', function() {
+        //     if (Module._sessionRecovery) {
+        //         Module._sessionRecovery.save();
+        //     }
+        // });
     },
 
     // Menus
