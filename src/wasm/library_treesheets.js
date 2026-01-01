@@ -307,6 +307,26 @@ mergeInto(LibraryManager.library, {
             window.addEventListener('resize', function() { setTimeout(onResize, 100); });
             onResize();
         };
+        Module._colorUtils = {
+            decode: function(color) {
+                return { r: (color >> 16) & 0xFF, g: (color >> 8) & 0xFF, b: color & 0xFF };
+            },
+            toRGBString: function(color) {
+                var c = this.decode(color);
+                return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+            },
+            fromHex: function(hexString) {
+                if (!hexString || typeof hexString !== 'string' || !hexString.match(/^#[0-9A-Fa-f]{6}$/)) {
+                    return 0x000000;
+                }
+                var hex = hexString.substring(1);
+                return (parseInt(hex.substring(0, 2), 16) << 16) | (parseInt(hex.substring(2, 4), 16) << 8) | parseInt(hex.substring(4, 6), 16);
+            },
+            toHex: function(color) {
+                var c = this.decode(color);
+                return '#' + ('0' + c.r.toString(16)).slice(-2) + ('0' + c.g.toString(16)).slice(-2) + ('0' + c.b.toString(16)).slice(-2);
+            }
+        };
     `,
     $__tsHelpers: function() {},
 
