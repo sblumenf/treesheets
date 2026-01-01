@@ -433,8 +433,13 @@ struct wasm_treesheets {
             }
             std::cout << "  centerx=" << centerx << " centery=" << centery << std::endl;
 
+            // Set visibility bounds for Grid::Render culling
+            maxx = g_canvasWidth;
+            maxy = g_canvasHeight;
+
             // Draw the cells
             std::cout << "  Calling Cell::Render at " << (centerx - scrollx) << "," << (centery - scrolly) << std::endl;
+            std::cout << "  Visibility bounds: maxx=" << maxx << " maxy=" << maxy << std::endl;
             drawroot->Render(this, centerx - scrollx, centery - scrolly, dc, 0, 0, 0, 0, 0, 0, 0);
             std::cout << "  Render complete" << std::endl;
 
