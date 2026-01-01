@@ -57,24 +57,25 @@ set(EMSCRIPTEN_FLAGS
 
     # Environment settings
     "-sENVIRONMENT='web'"
-
-    # Enable assertions in debug builds
-    "$<$<CONFIG:Debug>:-sASSERTIONS=2>"
-    "$<$<CONFIG:Debug>:-sSTACK_OVERFLOW_CHECK=2>"
-    "$<$<CONFIG:Debug>:-g>"
-
-    # Optimization in release builds
-    "$<$<CONFIG:Release>:-O3>"
-    "$<$<CONFIG:Release>:-sASSERTIONS=0>"
 )
 
-# Convert list to string for linker flags
-string(REPLACE ";" " " EMSCRIPTEN_FLAGS_STR "${EMSCRIPTEN_FLAGS}")
+# Set output suffix
+set_target_properties(treesheets PROPERTIES SUFFIX ".js")
 
-# Set linker flags
-set_target_properties(treesheets PROPERTIES
-    SUFFIX ".js"
-    LINK_FLAGS "${EMSCRIPTEN_FLAGS_STR}"
+# Apply linker flags using target_link_options (supports generator expressions)
+target_link_options(treesheets PRIVATE ${EMSCRIPTEN_FLAGS})
+
+# Debug-specific linker flags
+target_link_options(treesheets PRIVATE
+    $<$<CONFIG:Debug>:-sASSERTIONS=2>
+    $<$<CONFIG:Debug>:-sSTACK_OVERFLOW_CHECK=2>
+    $<$<CONFIG:Debug>:-g>
+)
+
+# Release-specific linker flags
+target_link_options(treesheets PRIVATE
+    $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:Release>:-sASSERTIONS=0>
 )
 
 # Compiler flags (including zlib for header access)
