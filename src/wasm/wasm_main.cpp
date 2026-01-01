@@ -366,11 +366,12 @@ struct wasm_treesheets {
         wxString filename;
 
         bool PickFont(TSGraphics &dc, int depth, int relsize, int stylebits) {
-            int size = g_deftextsize + relsize;
-            if (size < 6) size = 6;
+            int size = g_deftextsize - depth - relsize;
+            if (size < 4) size = 4;  // g_mintextsize() equivalent
             if (size > 100) size = 100;
             dc.SetFont(size, stylebits);
-            return true;
+            // Return true only if font is at minimum size (tiny mode)
+            return size <= 4;
         }
 
         uint Background() { return root ? root->cellcolor : 0xFFFFFF; }
