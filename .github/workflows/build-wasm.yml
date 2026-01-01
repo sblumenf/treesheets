@@ -29,15 +29,32 @@ jobs:
 
       - name: Build
         run: |
-          cmake --build build-wasm -j$(nproc)
+          cmake --build build-wasm -j1 --verbose 2>&1 | tee build.log
+        continue-on-error: true
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 7
+
+      - name: Show build errors
+        if: always()
+        run: |
+          echo "=== Last 100 lines of build log ==="
+          tail -100 build.log
 
       - name: List output files
+        if: success()
         run: |
           ls -la build-wasm/
           ls -la build-wasm/web/
 
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: treesheets-web
           path: build-wasm/web/
