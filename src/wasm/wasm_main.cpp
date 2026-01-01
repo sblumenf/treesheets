@@ -871,16 +871,28 @@ extern "C" {
                 // Create a new document with a single cell
                 sys->currentDoc = std::make_unique<wasm_treesheets::Document>();
                 auto root = new wasm_treesheets::Cell(nullptr, nullptr, CT_DATA);
-                root->cellcolor = 0xFFFFFF;
+                root->cellcolor = 0xE8E8E8;  // Light gray background
                 root->textcolor = 0x000000;
+                root->drawstyle = DS_GRID;   // Grid draw style
 
                 // Create a 3x3 grid
                 auto grid = new wasm_treesheets::Grid(3, 3);
                 grid->cell = root;
                 root->grid = grid;
 
-                // Add some default text
-                grid->C(0, 0)->text.t = "New Document";
+                // Set up cells with visible colors and text
+                for (int y = 0; y < 3; y++) {
+                    for (int x = 0; x < 3; x++) {
+                        auto cell = grid->C(x, y);
+                        cell->cellcolor = 0xFFFFFF;  // White cells
+                        cell->textcolor = 0x000000;  // Black text
+                        cell->drawstyle = DS_GRID;
+                    }
+                }
+                grid->C(0, 0)->text.t = "Hello";
+                grid->C(1, 0)->text.t = "World";
+                grid->C(0, 1)->text.t = "TreeSheets";
+                grid->C(1, 1)->text.t = "Web";
 
                 sys->currentDoc->root = root;
                 sys->currentDoc->filename = "untitled.cts";
