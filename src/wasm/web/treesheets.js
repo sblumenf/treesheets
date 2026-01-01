@@ -1039,6 +1039,9 @@ async function createWasm() {
           if (!Module._validation.isValidPointer(str)) return;
           var ctx = Module._getCtx();
           var s = UTF8ToString(str);
+          // Apply stored text foreground color before drawing
+          // This ensures brush color changes don't affect text color
+          ctx.fillStyle = Module._textForegroundColor;
           console.log('DrawText:', s, 'at', x, y, 'font:', ctx.font, 'fill:', ctx.fillStyle);
           ctx.fillText(s, x, y);
       }
@@ -1481,8 +1484,9 @@ async function createWasm() {
       }
 
   function _JS_SetTextForeground(c) {
-          var ctx = Module._getCtx();
-          ctx.fillStyle = Module._colorUtils.toRGBString(c);
+          // Store text color separately - don't set ctx.fillStyle here
+          // JS_DrawText will apply this color before drawing
+          Module._textForegroundColor = Module._colorUtils.toRGBString(c);
       }
 
   function _JS_ShowMessage(titlePtr, msgPtr) {
@@ -2439,6 +2443,10 @@ async function createWasm() {
               2: 'rgb(0,0,0)',
               3: 'rgb(211,211,211)'
           };
+          // Text foreground color stored separately from brush color
+          // This fixes the issue where SetBrushColor overwrites text color
+          // since both used ctx.fillStyle in canvas 2D API
+          Module._textForegroundColor = 'rgb(0,0,0)';
       ;
 // End JS library code
 

@@ -442,15 +442,6 @@ struct wasm_treesheets {
             std::cout << "  Calling Cell::Render at " << (centerx - scrollx) << "," << (centery - scrolly) << std::endl;
             std::cout << "  Visibility bounds: maxx=" << maxx << " maxy=" << maxy << std::endl;
             drawroot->Render(this, centerx - scrollx, centery - scrolly, dc, 0, 0, 0, 0, 0, 0, 0);
-            std::cout << "  Render complete" << std::endl;
-
-            // DEBUG: Draw a visible marker to confirm canvas works
-            dc.SetBrushColor(0xFF0000);  // Red
-            dc.SetPenColor(0x000000);    // Black outline
-            dc.DrawRectangle(centerx - scrollx, centery - scrolly, 100, 50);
-            dc.SetTextForeground(0x000000);
-            dc.SetFont(14, 0);
-            dc.DrawText("DEBUG: Document rendered", centerx - scrollx + 5, centery - scrolly + 15);
         }
     };
 
