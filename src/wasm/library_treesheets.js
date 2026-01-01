@@ -219,7 +219,31 @@
  *   Bit 2 (4): Alt
  *   Bit 3 (8): Meta/Command
  */
+// Attach helper functions to Module when library loads
+if (typeof Module === 'undefined') Module = {};
+
 mergeInto(LibraryManager.library, {
+    // Initialize helpers on Module
+    $__tsHelpers__postset: `
+        Module._getCtx = function() {
+            if (!Module._cachedCtx) {
+                Module._cachedCtx = Module.canvas.getContext('2d');
+            }
+            return Module._cachedCtx;
+        };
+        Module._getFontHeight = function(metrics, ctx) {
+            if (metrics.fontBoundingBoxAscent !== undefined && metrics.fontBoundingBoxDescent !== undefined) {
+                return Math.ceil(metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent);
+            }
+            if (metrics.actualBoundingBoxAscent !== undefined && metrics.actualBoundingBoxDescent !== undefined) {
+                return Math.ceil(metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent);
+            }
+            var fontMatch = ctx.font.match(/(\\d+)px/);
+            return fontMatch ? parseInt(fontMatch[1]) : 12;
+        };
+    `,
+    $__tsHelpers: function() {},
+
     // ===== CONSTANTS =====
     _CONSTANTS: {
         // Font style bits
@@ -733,6 +757,7 @@ mergeInto(LibraryManager.library, {
         // If text backgrounds are needed, they must be drawn separately using fillRect
         // before rendering the text. The C++ code does not currently request this.
     },
+    JS_SetFont__deps: ['$__tsHelpers'],
     JS_SetFont: function(size, stylebits) {
         var ctx = Module._getCtx();
         var constants = Module._CONSTANTS;
