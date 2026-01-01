@@ -862,6 +862,7 @@ extern "C" {
                 sys->currentDoc->selected = wasm_treesheets::Selection(grid, 0, 0, 1, 1);
                 g_scrollX = 0;
                 g_scrollY = 0;
+                g_needsRedraw = true;  // Trigger re-render
                 break;
             }
 
