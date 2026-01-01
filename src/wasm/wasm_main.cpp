@@ -697,7 +697,13 @@ wasm_treesheets::System* wasm_treesheets::sys = nullptr;
 static void RenderDocument();
 
 void Iterate() {
+    static int iterCount = 0;
+    iterCount++;
+    if (iterCount % 60 == 1) {  // Log once per ~second at 60fps
+        std::cout << "Iterate #" << iterCount << " needsRedraw=" << g_needsRedraw << std::endl;
+    }
     if (g_needsRedraw) {
+        std::cout << "Iterate: Redrawing now" << std::endl;
         RenderDocument();
         g_needsRedraw = false;
     }
@@ -874,6 +880,7 @@ extern "C" {
                 g_scrollX = 0;
                 g_scrollY = 0;
                 g_needsRedraw = true;  // Trigger re-render
+                std::cout << "New document created, root=" << (void*)sys->currentDoc->root << " needsRedraw=" << g_needsRedraw << std::endl;
                 break;
             }
 
