@@ -390,7 +390,7 @@ struct wasm_treesheets {
             if (!root) return;
             ResetFont();
             root->ResetLayout();
-            root->LazyLayout(this, dc, 0, false);
+            root->LazyLayout(this, dc, 0, 0, false);
             layoutxs = root->sx;
             layoutys = root->sy;
         }
@@ -412,7 +412,7 @@ struct wasm_treesheets {
 
             // Layout if needed
             drawroot->ResetLayout();
-            drawroot->LazyLayout(this, dc, 0, false);
+            drawroot->LazyLayout(this, dc, 0, 0, false);
 
             // Calculate centering
             if (drawroot->sx < g_canvasWidth) {
@@ -427,7 +427,7 @@ struct wasm_treesheets {
             }
 
             // Draw the cells
-            drawroot->Render(this, centerx - scrollx, centery - scrolly, dc, 0, 0, 0, 0, 0);
+            drawroot->Render(this, centerx - scrollx, centery - scrolly, dc, 0, 0, 0, 0, 0, 0, 0);
         }
     };
 
