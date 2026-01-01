@@ -266,6 +266,47 @@ mergeInto(LibraryManager.library, {
                 return div.innerHTML;
             }
         };
+        Module._getModifiers = function(event) {
+            var modifiers = 0;
+            if (event.ctrlKey) modifiers |= 1;
+            if (event.shiftKey) modifiers |= 2;
+            if (event.altKey) modifiers |= 4;
+            if (event.metaKey) modifiers |= 8;
+            return modifiers;
+        };
+        Module._initMouseEvents = function(canvas) {
+            var getModifiers = Module._getModifiers;
+            canvas.addEventListener('mousedown', function(e) { Module._WASM_Mouse(1, e.offsetX, e.offsetY, getModifiers(e)); });
+            canvas.addEventListener('mouseup', function(e) { Module._WASM_Mouse(2, e.offsetX, e.offsetY, getModifiers(e)); });
+            canvas.addEventListener('mousemove', function(e) { Module._WASM_Mouse(0, e.offsetX, e.offsetY, getModifiers(e)); });
+        };
+        Module._initWheelEvents = function(canvas) {
+            canvas.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                var delta = e.deltaY;
+                if (e.deltaMode === 1) delta *= 20;
+                if (e.deltaMode === 2) delta *= 400;
+                Module._WASM_Mouse(3, Math.round(delta), 0, Module._getModifiers(e));
+            }, { passive: false });
+        };
+        Module._initTouchEvents = function(canvas) {
+            var state = { lastX: 0, lastY: 0, startTime: 0, pinching: false, initDist: 0 };
+            var getPos = function(t) { var r = canvas.getBoundingClientRect(); return { x: Math.round(t.clientX - r.left), y: Math.round(t.clientY - r.top) }; };
+            var getDist = function(t1, t2) { return Math.sqrt(Math.pow(t1.clientX - t2.clientX, 2) + Math.pow(t1.clientY - t2.clientY, 2)); };
+            canvas.addEventListener('touchstart', function(e) { e.preventDefault(); state.startTime = Date.now(); if (e.touches.length === 1) { var p = getPos(e.touches[0]); state.lastX = p.x; state.lastY = p.y; state.pinching = false; Module._WASM_Mouse(1, p.x, p.y, 0); } else if (e.touches.length === 2) { state.pinching = true; state.initDist = getDist(e.touches[0], e.touches[1]); } }, { passive: false });
+            canvas.addEventListener('touchmove', function(e) { e.preventDefault(); if (e.touches.length === 1 && !state.pinching) { var p = getPos(e.touches[0]); Module._WASM_Mouse(0, p.x, p.y, 0); state.lastX = p.x; state.lastY = p.y; } else if (e.touches.length === 2) { var d = getDist(e.touches[0], e.touches[1]); Module._WASM_Mouse(3, Math.round((state.initDist - d) * 2), 0, 0); state.initDist = d; } }, { passive: false });
+            canvas.addEventListener('touchend', function(e) { e.preventDefault(); if (e.touches.length === 0) { Module._WASM_Mouse(2, state.lastX, state.lastY, 0); state.pinching = false; } }, { passive: false });
+        };
+        Module._initKeyboardEvents = function() {
+            var shortcuts = ['s','o','n','w','z','y','x','c','v','a','f'];
+            window.addEventListener('keydown', function(e) { if ((e.ctrlKey || e.metaKey) && shortcuts.indexOf(e.key.toLowerCase()) !== -1) e.preventDefault(); Module._WASM_Key(0, e.keyCode, Module._getModifiers(e)); });
+            window.addEventListener('keyup', function(e) { Module._WASM_Key(1, e.keyCode, Module._getModifiers(e)); });
+        };
+        Module._initResizeHandler = function(canvas) {
+            var onResize = function() { var w = canvas.clientWidth, h = canvas.clientHeight; if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; Module._WASM_Resize(w, h); } };
+            window.addEventListener('resize', function() { setTimeout(onResize, 100); });
+            onResize();
+        };
     `,
     $__tsHelpers: function() {},
 
