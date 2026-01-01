@@ -1359,6 +1359,23 @@ mergeInto(LibraryManager.library, {
             Module.menus[parentId].items.push({id: id, text: text, type: type, checked: checked});
         }
     },
+    JS_Menu_AppendSubMenu: function(parentId, submenuId, textPtr, helpPtr) {
+        var text = UTF8ToString(textPtr);
+        if (Module.menus[parentId]) {
+            Module.menus[parentId].items.push({id: submenuId, text: text, type: 4, submenu: true});
+        }
+    },
+    JS_Menu_Check: function(menuId, itemId, checked) {
+        if (Module.menus[menuId]) {
+            var items = Module.menus[menuId].items;
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].id === itemId) {
+                    items[i].checked = checked;
+                    break;
+                }
+            }
+        }
+    },
     JS_MenuBar_Append: function(menuId, titlePtr) {
         var title = UTF8ToString(titlePtr);
         var menu = Module.menus[menuId];
