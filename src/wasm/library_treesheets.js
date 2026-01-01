@@ -241,6 +241,31 @@ mergeInto(LibraryManager.library, {
             var fontMatch = ctx.font.match(/(\\d+)px/);
             return fontMatch ? parseInt(fontMatch[1]) : 12;
         };
+        Module._CONSTANTS = {
+            FONT_BOLD: 1, FONT_ITALIC: 2, FONT_MONOSPACE: 4,
+            MIN_FONT_SIZE: 6, MAX_FONT_SIZE: 200, DEFAULT_FONT_SIZE: 12,
+            TAP_DURATION_MS: 200, MAX_FILE_SIZE_BYTES: 50*1024*1024,
+            MAX_IMAGE_CACHE_SIZE: 100, PLACEHOLDER_SIZE: 16,
+            CACHE_EVICTION_PERCENTAGE: 0.25,
+            PLACEHOLDER_BG_COLOR: '#f0f0f0', PLACEHOLDER_BORDER_COLOR: '#ccc',
+            BASE64_CHUNK_SIZE: 32768, WHEEL_LINE_DELTA: 20, WHEEL_PAGE_DELTA: 400,
+            RESIZE_DEBOUNCE_MS: 100
+        };
+        Module._validation = {
+            clampFontSize: function(size) {
+                if (typeof size !== 'number' || isNaN(size) || !isFinite(size) || size <= 0) {
+                    return Module._CONSTANTS.DEFAULT_FONT_SIZE;
+                }
+                return Math.max(Module._CONSTANTS.MIN_FONT_SIZE, Math.min(Module._CONSTANTS.MAX_FONT_SIZE, size));
+            },
+            isValidPointer: function(ptr) { return ptr !== 0 && ptr !== null && ptr !== undefined; },
+            escapeHTML: function(text) {
+                if (!text) return '';
+                var div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        };
     `,
     $__tsHelpers: function() {},
 
