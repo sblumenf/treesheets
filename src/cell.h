@@ -119,6 +119,8 @@ struct Cell {
 
     void Render(Document *doc, int bx, int by, TSGraphics &dc, int depth, int ml, int mr, int mt, int mb,
                 int maxcolwidth, int cell_margin) {
+        std::cout << "Cell::Render depth=" << depth << " bx=" << bx << " by=" << by
+                  << " sx=" << sx << " sy=" << sy << " hasGrid=" << (grid != nullptr) << std::endl;
         // Choose color from celltype (program operations)
         switch (celltype) {
             case CT_VARD: actualcellcolor = 0xFF8080; break;
