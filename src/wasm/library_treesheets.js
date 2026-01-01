@@ -756,6 +756,7 @@ mergeInto(LibraryManager.library, {
         if (!Module._validation.isValidPointer(str)) return;
         var ctx = Module._getCtx();
         var s = UTF8ToString(str);
+        console.log('DrawText:', s, 'at', x, y, 'font:', ctx.font, 'fill:', ctx.fillStyle);
         ctx.fillText(s, x, y);
     },
     JS_DrawBitmap: function(idx, x, y) {
