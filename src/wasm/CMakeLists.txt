@@ -33,7 +33,7 @@ set(EMSCRIPTEN_FLAGS
     "--js-library=${CMAKE_CURRENT_SOURCE_DIR}/library_treesheets.js"
 
     # Export functions for JavaScript to call
-    "-sEXPORTED_FUNCTIONS=['_main','_WASM_FileLoaded','_WASM_Mouse','_WASM_Key','_WASM_Resize','_WASM_Action','_Iterate']"
+    "-sEXPORTED_FUNCTIONS=['_main','_WASM_FileLoaded','_WASM_Mouse','_WASM_Key','_WASM_Resize','_WASM_Action']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8']"
 
     # Use Emscripten's zlib port for decompression

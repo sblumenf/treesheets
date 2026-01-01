@@ -698,20 +698,16 @@ static void RenderDocument();
 
 void Iterate() {
     if (g_needsRedraw) {
-        RenderDocument();
+        try {
+            RenderDocument();
+        } catch (const std::exception& e) {
+            std::cerr << "Render error: " << e.what() << std::endl;
+        } catch (...) {
+            std::cerr << "Unknown render error" << std::endl;
+        }
         g_needsRedraw = false;
     }
 }
-
-// Use requestAnimationFrame for continuous updates
-EM_JS(void, scheduleNextFrame, (), {
-    requestAnimationFrame(function frame() {
-        if (Module._Iterate) {
-            Module._Iterate();
-        }
-        requestAnimationFrame(frame);
-    });
-});
 
 // Render the current document/demo content
 static void RenderDocument() {
@@ -962,8 +958,8 @@ int main() {
     // Init JS hooks
     JS_InitInput();
 
-    // Start render loop using requestAnimationFrame
-    scheduleNextFrame();
+    // Start main loop - fps=0 uses requestAnimationFrame, simulate=0 returns immediately
+    emscripten_set_main_loop(Iterate, 0, 0);
 
     return 0;
 }
