@@ -400,12 +400,17 @@ struct wasm_treesheets {
         }
 
         void Render(TSGraphics &dc) {
-            if (!root) return;
+            if (!root) {
+                std::cout << "Document::Render - no root!" << std::endl;
+                return;
+            }
+            std::cout << "Document::Render starting, root text: " << (root->text.t.empty() ? "(grid)" : root->text.t.c_str()) << std::endl;
             currentdrawroot = root;
             Cell* drawroot = WalkPath(drawpath);
             if (!drawroot) drawroot = root;
 
             // Clear with background color
+            std::cout << "  Clearing background color: " << Background() << std::endl;
             dc.SetBrushColor(Background());
             dc.SetPenColor(Background());
             dc.DrawRectangle(0, 0, g_canvasWidth, g_canvasHeight);
@@ -413,6 +418,7 @@ struct wasm_treesheets {
             // Layout if needed
             drawroot->ResetLayout();
             drawroot->LazyLayout(this, dc, 0, 0, false);
+            std::cout << "  After layout: sx=" << drawroot->sx << " sy=" << drawroot->sy << std::endl;
 
             // Calculate centering
             if (drawroot->sx < g_canvasWidth) {
@@ -425,9 +431,12 @@ struct wasm_treesheets {
             } else {
                 centery = hierarchysize;
             }
+            std::cout << "  centerx=" << centerx << " centery=" << centery << std::endl;
 
             // Draw the cells
+            std::cout << "  Calling Cell::Render" << std::endl;
             drawroot->Render(this, centerx - scrollx, centery - scrolly, dc, 0, 0, 0, 0, 0, 0, 0);
+            std::cout << "  Render complete" << std::endl;
         }
     };
 
@@ -701,9 +710,11 @@ static void RenderDocument() {
     // If we have a loaded document, render it
     if (wasm_treesheets::sys && wasm_treesheets::sys->currentDoc &&
         wasm_treesheets::sys->currentDoc->root) {
+        std::cout << "Rendering document with root cell" << std::endl;
         wasm_treesheets::sys->currentDoc->Render(g);
         return;
     }
+    std::cout << "No document to render, showing welcome screen" << std::endl;
 
     // Otherwise render the welcome screen
     // Clear background
