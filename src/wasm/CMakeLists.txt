@@ -77,11 +77,12 @@ set_target_properties(treesheets PROPERTIES
     LINK_FLAGS "${EMSCRIPTEN_FLAGS_STR}"
 )
 
-# Compiler flags
+# Compiler flags (including zlib for header access)
 target_compile_options(treesheets PRIVATE
     -Wall
     -Wextra
     -Wno-unused-parameter
+    -sUSE_ZLIB=1
     "$<$<CONFIG:Debug>:-g>"
     "$<$<CONFIG:Release>:-O3>"
 )
