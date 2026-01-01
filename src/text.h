@@ -177,6 +177,7 @@ struct Text {
 
     int Render(Document *doc, int bx, int by, int depth, TSGraphics &dc, int &leftoffset,
                int maxcolwidth) {
+        std::cout << "Text::Render called, text='" << t.c_str() << "' tiny=" << cell->tiny << std::endl;
         auto ixs = 0, iys = 0;
         if (!cell->tiny) sys->ImageSize(DisplayImage(), ixs, iys);
 
