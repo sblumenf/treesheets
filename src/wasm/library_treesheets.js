@@ -327,6 +327,23 @@ mergeInto(LibraryManager.library, {
                 return '#' + ('0' + c.r.toString(16)).slice(-2) + ('0' + c.g.toString(16)).slice(-2) + ('0' + c.b.toString(16)).slice(-2);
             }
         };
+        Module._penStyles = {
+            0: { strokeStyle: 'rgb(200,200,200)', lineWidth: 1, lineDash: [] },
+            1: { strokeStyle: 'rgb(230,230,230)', lineWidth: 1, lineDash: [] },
+            2: { strokeStyle: 'rgb(0,120,215)', lineWidth: 1, lineDash: [] },
+            3: { strokeStyle: 'rgb(100,100,100)', lineWidth: 1, lineDash: [] },
+            4: { strokeStyle: 'rgb(255,0,0)', lineWidth: 1, lineDash: [] },
+            5: { strokeStyle: 'rgb(211,211,211)', lineWidth: 1, lineDash: [] },
+            6: { strokeStyle: 'rgb(0,0,0)', lineWidth: 1, lineDash: [] },
+            7: { strokeStyle: 'rgb(255,255,255)', lineWidth: 1, lineDash: [] },
+            8: { strokeStyle: 'rgb(128,128,128)', lineWidth: 1, lineDash: [] }
+        };
+        Module._brushStyles = {
+            0: 'transparent',
+            1: 'rgb(255,255,255)',
+            2: 'rgb(0,0,0)',
+            3: 'rgb(211,211,211)'
+        };
     `,
     $__tsHelpers: function() {},
 
