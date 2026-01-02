@@ -335,7 +335,9 @@ struct wasm_treesheets {
         Selection(Grid* g, int _x, int _y, int _xs, int _ys) : grid(g), x(_x), y(_y), xs(_xs), ys(_ys) {}
 
         bool TextEdit() const { return false; }
-        Cell* GetCell() const { return nullptr; }
+        Cell* GetCell() const {
+            return (grid && xs == 1 && ys == 1) ? grid->C(x, y) : nullptr;
+        }
         void EnterEdit(Document* doc, int c=0, int ce=0) {}
         bool Thin() const { return xs == 0 || ys == 0; }
         void ExitEdit(Document* doc) {}
@@ -442,6 +444,23 @@ struct wasm_treesheets {
             std::cout << "  Calling Cell::Render at " << (centerx - scrollx) << "," << (centery - scrolly) << std::endl;
             std::cout << "  Visibility bounds: maxx=" << maxx << " maxy=" << maxy << std::endl;
             drawroot->Render(this, centerx - scrollx, centery - scrolly, dc, 0, 0, 0, 0, 0, 0, 0);
+
+            // Draw selection highlight
+            if (selected.grid && selected.xs > 0 && selected.ys > 0) {
+                Cell* selCell = selected.GetCell();
+                if (selCell) {
+                    int selX = centerx - scrollx + selCell->ox;
+                    int selY = centery - scrolly + selCell->oy;
+                    // Draw selection rectangle (blue highlight)
+                    dc.SetPenColor(0x0078D7);  // Windows blue
+                    dc.SetBrushColor(0x0078D7);
+                    // Draw 2-pixel border
+                    dc.DrawRectangle(selX - 2, selY - 2, selCell->sx + 4, 2);  // Top
+                    dc.DrawRectangle(selX - 2, selY + selCell->sy, selCell->sx + 4, 2);  // Bottom
+                    dc.DrawRectangle(selX - 2, selY, 2, selCell->sy);  // Left
+                    dc.DrawRectangle(selX + selCell->sx, selY, 2, selCell->sy);  // Right
+                }
+            }
         }
     };
 
@@ -813,8 +832,30 @@ extern "C" {
                 break;
 
             case 1: // Mouse down
-                if (doc && doc->root) {
-                    // Could implement cell selection here
+                if (doc && doc->root && doc->root->grid) {
+                    // Convert screen coordinates to document coordinates
+                    int docX = x - doc->centerx + doc->scrollx;
+                    int docY = y - doc->centery + doc->scrolly;
+
+                    // Find which cell was clicked
+                    Grid* grid = doc->root->grid;
+                    bool found = false;
+                    for (int cy = 0; cy < grid->ys && !found; cy++) {
+                        for (int cx = 0; cx < grid->xs && !found; cx++) {
+                            Cell* cell = grid->C(cx, cy);
+                            if (cell) {
+                                int cellX = cell->ox;
+                                int cellY = cell->oy;
+                                if (docX >= cellX && docX < cellX + cell->sx &&
+                                    docY >= cellY && docY < cellY + cell->sy) {
+                                    // Found the clicked cell
+                                    doc->selected = Selection(grid, cx, cy, 1, 1);
+                                    std::cout << "Selected cell at grid position (" << cx << "," << cy << ")" << std::endl;
+                                    found = true;
+                                }
+                            }
+                        }
+                    }
                     g_needsRedraw = true;
                 }
                 break;
