@@ -899,6 +899,11 @@ extern "C" {
         std::cout << "Resized to: " << w << "x" << h << std::endl;
     }
 
+    // Called from JavaScript animation loop
+    void WASM_Tick() {
+        Iterate();
+    }
+
     void WASM_Action(int id) {
         std::cout << "Action triggered: " << id << std::endl;
 

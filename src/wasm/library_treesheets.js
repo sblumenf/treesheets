@@ -1475,6 +1475,15 @@ mergeInto(LibraryManager.library, {
         Module._initKeyboardEvents();
         Module._initResizeHandler(canvas);
 
+        // Start animation loop to handle redraws
+        function animationLoop() {
+            if (Module._WASM_Tick) {
+                Module._WASM_Tick();
+            }
+            requestAnimationFrame(animationLoop);
+        }
+        requestAnimationFrame(animationLoop);
+
         // Initialize feature systems
         // NOTE: These are stubbed out for MVP - internal library functions aren't
         // automatically exposed on Module in Emscripten. These features (auto-save,
