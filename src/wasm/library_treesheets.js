@@ -1293,6 +1293,7 @@ mergeInto(LibraryManager.library, {
 
         // Mouse button events
         canvas.addEventListener('mousedown', function(event) {
+            console.log('Mouse down at', event.offsetX, event.offsetY);
             Module._WASM_Mouse(1, event.offsetX, event.offsetY, getModifiers(event));
         });
         canvas.addEventListener('mouseup', function(event) {
