@@ -838,18 +838,18 @@ extern "C" {
                     int docY = y - doc->centery + doc->scrolly;
 
                     // Find which cell was clicked
-                    Grid* grid = doc->root->grid;
+                    wasm_treesheets::Grid* grid = doc->root->grid;
                     bool found = false;
                     for (int cy = 0; cy < grid->ys && !found; cy++) {
                         for (int cx = 0; cx < grid->xs && !found; cx++) {
-                            Cell* cell = grid->C(cx, cy);
+                            wasm_treesheets::Cell* cell = grid->C(cx, cy);
                             if (cell) {
                                 int cellX = cell->ox;
                                 int cellY = cell->oy;
                                 if (docX >= cellX && docX < cellX + cell->sx &&
                                     docY >= cellY && docY < cellY + cell->sy) {
                                     // Found the clicked cell
-                                    doc->selected = Selection(grid, cx, cy, 1, 1);
+                                    doc->selected = wasm_treesheets::Selection(grid, cx, cy, 1, 1);
                                     std::cout << "Selected cell at grid position (" << cx << "," << cy << ")" << std::endl;
                                     found = true;
                                 }
