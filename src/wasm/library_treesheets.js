@@ -276,7 +276,10 @@ mergeInto(LibraryManager.library, {
         };
         Module._initMouseEvents = function(canvas) {
             var getModifiers = Module._getModifiers;
-            canvas.addEventListener('mousedown', function(e) { Module._WASM_Mouse(1, e.offsetX, e.offsetY, getModifiers(e)); });
+            canvas.addEventListener('mousedown', function(e) {
+                console.log('Mouse down at', e.offsetX, e.offsetY);
+                Module._WASM_Mouse(1, e.offsetX, e.offsetY, getModifiers(e));
+            });
             canvas.addEventListener('mouseup', function(e) { Module._WASM_Mouse(2, e.offsetX, e.offsetY, getModifiers(e)); });
             canvas.addEventListener('mousemove', function(e) { Module._WASM_Mouse(0, e.offsetX, e.offsetY, getModifiers(e)); });
         };
