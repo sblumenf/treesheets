@@ -720,8 +720,11 @@ wasm_treesheets::System* wasm_treesheets::sys = nullptr;
 // Forward declaration for render
 static void RenderDocument();
 
+static int g_iterateCount = 0;
 void Iterate() {
+    g_iterateCount++;
     if (g_needsRedraw) {
+        std::cout << "Iterate: redrawing (count=" << g_iterateCount << ")" << std::endl;
         try {
             RenderDocument();
         } catch (const std::exception& e) {
