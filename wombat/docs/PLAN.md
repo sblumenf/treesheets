@@ -16,7 +16,7 @@ that any interface (web technology or fully native) can sit on top of it later.
 | # | Milestone | What gets built | What you can try | Status |
 |---|---|---|---|---|
 | 0 | Ground rules | The plan, design decisions, future list and working rules in the repository; tests that run automatically on every change | Read the plan in the repository | done |
-| 1 | Documents and file format | Nested-grid documents with permanent cell IDs; the `.wombat` file format; workspaces (a folder of documents); safe handling of damaged files | Create a document, save it, open the file in a text editor | not started |
+| 1 | Documents and file format | Nested-grid documents with permanent cell IDs; the `.wombat` file format; workspaces (a folder of documents); safe handling of damaged files | Create a document, save it, open the file in a text editor | done ([summary](milestones/M1.md)) |
 | 2 | TreeSheets importer | Read-only import of the example `.cts` files, as a testing tool, checked against the real TreeSheets | Convert an example and print it as an outline | not started |
 | 3 | Editing, undo and redo | Add, delete, move, sort and restructure cells; edit and style text; fold; every change recorded as a reversible step; the core reports what changed | Make a series of edits, undo them all, get the original back | not started |
 | 4 | Links and backlinks | Links that point at cell IDs, within and across documents; a list of what links to any cell | Rename a linked cell and see the link survive | not started |

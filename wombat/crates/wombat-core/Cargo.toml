@@ -10,3 +10,8 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+# float_roundtrip: numbers in unknown fields must survive load and save exactly.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
+[dev-dependencies]
+proptest = "1"

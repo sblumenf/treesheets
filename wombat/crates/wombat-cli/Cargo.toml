@@ -15,3 +15,5 @@ workspace = true
 
 [dependencies]
 wombat-core = { path = "../wombat-core" }
+# Operating system randomness, to seed the generator of permanent IDs.
+getrandom = "0.3"

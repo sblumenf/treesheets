@@ -12,9 +12,9 @@ memory: sessions do not remember each other, so anything agreed must be written 
 | ---- | -------- |
 | `docs/PLAN.md` | The milestones, their status, scope and the future list |
 | `docs/DECISIONS.md` | Design decisions and deliberate departures from TreeSheets |
-| `docs/FILE_FORMAT.md` | Specification of the `.wombat` format (from milestone 1) |
+| `docs/FILE_FORMAT.md` | Specification of the `.wombat` format, the image folder and the view-state file |
 | `docs/milestones/` | One summary per finished milestone |
-| `crates/wombat-core` | The core library: document model, commands, undo, links, formulas, file format |
+| `crates/wombat-core` | The core library: document model (`model.rs`), file format (`format.rs`), view state (`view.rs`), files and workspaces (`storage.rs`, `workspace.rs`); later commands, undo, links, formulas |
 | `crates/wombat-cli` | The `wombat` command-line tool, a thin layer over the core |
 | `referee/` | Scripts that drive the real TreeSheets app, and the reference ("golden") data it produced |
 
