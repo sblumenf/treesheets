@@ -7,7 +7,7 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use wombat_core::limits::MAX_FILE_BYTES;
-use wombat_core::{storage, CellId, CellKind, Document, SeededIds, Workspace};
+use wombat_core::{storage, CellId, CellKind, Document, SeededIds, ViewState, Workspace};
 
 const USAGE: &str = "\
 wombat: nested-grid documents
@@ -16,7 +16,10 @@ Usage:
   wombat new <file.wombat>                  create an empty document
   wombat new <file.wombat> --from <outline> create a document from an indented text outline
                                             (\"-\" reads the outline from standard input)
-  wombat show <file.wombat> [--ids]         print the document as an indented outline
+  wombat show <file> [--ids]                print a document (.wombat, or a TreeSheets .cts
+                                            read on the spot) as an indented outline
+  wombat import <file.cts> <file.wombat>    convert a TreeSheets file: writes the document,
+                                            its images and its view state (folds, selection)
   wombat check <file.wombat>                check that the file is a valid document
   wombat list [<folder>]                    list the documents of a workspace folder
   wombat help                               show this text
@@ -33,6 +36,12 @@ enum Failure {
 
 impl From<wombat_core::Error> for Failure {
     fn from(error: wombat_core::Error) -> Failure {
+        Failure::Failed(error.to_string())
+    }
+}
+
+impl From<wombat_cts::CtsError> for Failure {
+    fn from(error: wombat_cts::CtsError) -> Failure {
         Failure::Failed(error.to_string())
     }
 }
@@ -68,6 +77,7 @@ fn run(args: &[&str]) -> Result<String, Failure> {
         ["show", file] => show(file, false),
         ["show", file, "--ids"] | ["show", "--ids", file] => show(file, true),
         ["check", file] => check(file),
+        ["import", source, file] => import(source, file),
         ["list"] => list("."),
         ["list", folder] => list(folder),
         _ => Err(Failure::Usage("unknown command or wrong arguments".into())),
@@ -82,7 +92,8 @@ fn os_ids() -> Result<SeededIds, Failure> {
     Ok(SeededIds::from_seed(seed))
 }
 
-fn new(file: &str, outline_file: Option<&str>) -> Result<String, Failure> {
+/// The path of a document that is about to be created: named `.wombat` and not there yet.
+fn new_path(file: &str) -> Result<&Path, Failure> {
     let path = Path::new(file);
     if path.extension().is_none_or(|e| e != storage::EXTENSION) {
         return Err(Failure::Usage(format!(
@@ -94,6 +105,11 @@ fn new(file: &str, outline_file: Option<&str>) -> Result<String, Failure> {
             "{file} already exists; it was not changed"
         )));
     }
+    Ok(path)
+}
+
+fn new(file: &str, outline_file: Option<&str>) -> Result<String, Failure> {
+    let path = new_path(file)?;
     let mut ids = os_ids()?;
     let doc = match outline_file {
         None => Document::new(&mut ids),
@@ -127,19 +143,91 @@ fn read_text(source: &str) -> Result<String, Failure> {
     String::from_utf8(bytes).map_err(|_| Failure::Failed(format!("{source}: not UTF-8 text")))
 }
 
+/// Converts a TreeSheets file into a new Wombat document with its images and view state.
+fn import(source: &str, file: &str) -> Result<String, Failure> {
+    let path = new_path(file)?;
+    let imported = wombat_cts::import_file(Path::new(source), &mut os_ids()?)
+        .map_err(|e| Failure::Failed(format!("{source}: {e}")))?;
+    imported.save(path)?;
+    let doc = &imported.document;
+    let mut out = format!(
+        "imported {source} (TreeSheets format version {}) as {file}: document {}, {} cells, \
+         nested {} deep\n",
+        imported.version,
+        doc.id(),
+        doc.cell_count(),
+        imported.max_depth
+    );
+    let images = imported.images.iter().filter(|image| image.used).count();
+    if images > 0 {
+        let folder = storage::images_dir(path);
+        out.push_str(&format!("{images} images in {}\n", folder.display()));
+    }
+    let unused = imported.images.len().saturating_sub(images);
+    if unused > 0 {
+        out.push_str(&format!(
+            "note: {unused} images that no cell shows were left out\n"
+        ));
+    }
+    if !imported.view.folded.is_empty() {
+        out.push_str(&format!(
+            "{} folded grids (kept in the view state, not the document)\n",
+            imported.view.folded.len()
+        ));
+    }
+    for link in &imported.unresolved_links {
+        out.push_str(&format!(
+            "note: cell {} links to a cell with the text {:?}, which does not exist; the link \
+             keeps that text\n",
+            link.cell, link.target
+        ));
+    }
+    if imported.undecodable_strings > 0 {
+        out.push_str(&format!(
+            "note: {} texts were not valid UTF-8 and are empty, as in TreeSheets\n",
+            imported.undecodable_strings
+        ));
+    }
+    if imported.autoexport_html != 0 || imported.autoexport_pdf {
+        out.push_str("note: the file's \"export on every save\" setting was not kept\n");
+    }
+    Ok(out)
+}
+
+/// Loads what `show` prints: a Wombat document with its view state if it has one, or a
+/// TreeSheets file, which is imported in memory and not written anywhere.
+fn load_for_show(file: &str) -> Result<(Document, Option<ViewState>), Failure> {
+    let path = Path::new(file);
+    // By name, not content, so that a damaged .wombat file is always reported as one.
+    if path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("cts"))
+    {
+        let imported = wombat_cts::import_file(path, &mut os_ids()?)
+            .map_err(|e| Failure::Failed(format!("{file}: {e}")))?;
+        return Ok((imported.document, Some(imported.view)));
+    }
+    let doc = storage::load_document(path)?;
+    // View state is a convenience: a damaged one must not stop the document being shown.
+    let folder = path.parent().unwrap_or(Path::new(""));
+    let view = storage::load_view_state(folder, doc.id()).ok().flatten();
+    Ok((doc, view))
+}
+
 fn show(file: &str, with_ids: bool) -> Result<String, Failure> {
-    let doc = storage::load_document(Path::new(file))?;
+    let (doc, view) = load_for_show(file)?;
     let mut out = format!("document {} ({} cells)\n", doc.id(), doc.cell_count());
     for tag in doc.tags.keys() {
         out.push_str(&format!("tag {tag:?}\n"));
     }
-    show_cell(&doc, doc.root(), 0, "", with_ids, &mut out);
+    show_cell(&doc, view.as_ref(), doc.root(), 0, "", with_ids, &mut out);
     Ok(out)
 }
 
 /// Prints a cell, then its grid: a "grid" line and one line per cell, marked [column,row].
 fn show_cell(
     doc: &Document,
+    view: Option<&ViewState>,
     id: CellId,
     indent: usize,
     label: &str,
@@ -167,12 +255,18 @@ fn show_cell(
     out.push('\n');
     if let Some(grid) = cell.grid() {
         let inner = indent.saturating_add(2);
-        out.push_str(&format!("{pad}  grid {} x {}\n", grid.xs(), grid.ys()));
+        let folded = view.is_some_and(|view| view.folded.contains(&id));
+        let folded = if folded { " (folded)" } else { "" };
+        out.push_str(&format!(
+            "{pad}  grid {} x {}{folded}\n",
+            grid.xs(),
+            grid.ys()
+        ));
         for y in 0..grid.ys() {
             for x in 0..grid.xs() {
                 if let Some(child) = grid.at(x, y) {
                     let label = format!("[{},{}] ", x.saturating_add(1), y.saturating_add(1));
-                    show_cell(doc, child, inner, &label, with_ids, out);
+                    show_cell(doc, view, child, inner, &label, with_ids, out);
                 }
             }
         }

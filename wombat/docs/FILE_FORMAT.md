@@ -157,6 +157,11 @@ A link has `url`, or `cell` (optionally with `doc`), or neither; `url` together 
 version does not know; its unknown fields say what it is. The target cell need not exist (it may
 have been deleted, or be in a document that is not present).
 
+One such unknown field is in use: the `.cts` importer (`crates/wombat-cts`) writes a TreeSheets
+link to a cell by text, for which no cell with that text exists, as a link with neither `url` nor
+`cell` and with `"cts_target": "<the text>"` (decision B14). The core keeps it like any unknown
+field and does not interpret it.
+
 **Rules for runs and for links** (each list separately): sorted by `start`; `len` at least 1; no
 two ranges overlap; every range ends at or before the end of the text. A file that breaks them is
 refused.

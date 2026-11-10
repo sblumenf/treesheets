@@ -76,6 +76,24 @@ TreeSheets.
     of range, duplicate IDs or a grid of the wrong size make the whole file an error. (TreeSheets
     silently drops bad runs.) Saving checks the same rules first, so the core never writes a file
     it would refuse to read.
+23. **The `.cts` importer does what TreeSheets' loader does, and refuses where that loader
+    would go wrong.** It is a separate crate (`wombat-cts`) so the core carries no `.cts` or
+    zlib code. Like the loader it turns control characters in text and tag names into spaces,
+    moves or drops runs and links that overlap or leave the text, ignores an image number that
+    is not in the file, reads a string that is not UTF-8 as empty (and counts it), limits image
+    scales to 1/16..100 and column widths to at least 5, and accepts a tag list that ends with
+    the file. Unlike the loader it refuses, as damaged: a file whose compressed part is cut
+    short or fails its checksum, more runs or links than characters (the loader then reads the
+    rest out of step), and a cell type, draw style or contents byte it does not know.
+24. **Importer limits** (A12): the compressed part may decompress to at most 256 MiB; at most
+    65,536 images; a grid may have at most 4,194,304 cells (TreeSheets' own limit) and must
+    fit in the data that is left, checked before any cell is made; nesting at most 32
+    (A20: the deepest example is 15 deep, so the limit was not raised). Zlib is read with
+    `miniz_oxide`, pure Rust with one small dependency.
+25. **What the importer leaves behind.** It reports, but the document does not keep: the
+    "export to HTML/PDF on every save" setting, which Wombat has no feature for. It drops:
+    style bits other than the five known ones, the image names of files before version 9
+    (TreeSheets ignores them too), and images that no cell shows (returned, not saved).
 
 ## B. Deliberate departures from TreeSheets
 
@@ -102,3 +120,17 @@ TreeSheets.
     Wombat's editing commands do the same is for milestone 3.
 13. **A selection is its top-left cell's ID plus a size, and zoom is the ID of the cell zoomed
     into.** TreeSheets saves a zoom depth and marks the selected cell in the file.
+14. **A link to a missing cell is kept by its text.** A `.cts` link names its target by text
+    and TreeSheets looks for it each time the link is followed. Where the importer finds no
+    cell with that text, the link keeps its range, has no target (`LinkTarget::Unknown`), and
+    carries the text in the field `cts_target`, which the file format keeps as an unknown
+    field. Nothing re-resolves it later; milestone 4 may.
+15. **At import, a formula cell is never the target of a link.** In TreeSheets the text of a
+    formula cell is its calculated result, so a link can go to a cell by what it shows. The
+    importer has the formula, not the result (milestone 5), and would rather leave such a link
+    without a target (B14) than point it at the wrong cell.
+16. **The view state of an imported file is what TreeSheets shows after loading it**, not the
+    raw header values: the selection is clamped to its grid and is at least one cell, a missing
+    one is the first cell of the root's grid, and the zoom is the cell on the way to the
+    selection at the saved depth (B13).
+17. **An image's display scale is TreeSheets' number, unchanged**: larger means drawn smaller.

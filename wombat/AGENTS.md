@@ -15,6 +15,7 @@ memory: sessions do not remember each other, so anything agreed must be written 
 | `docs/FILE_FORMAT.md` | Specification of the `.wombat` format, the image folder and the view-state file |
 | `docs/milestones/` | One summary per finished milestone |
 | `crates/wombat-core` | The core library: document model (`model.rs`), file format (`format.rs`), view state (`view.rs`), files and workspaces (`storage.rs`, `workspace.rs`); later commands, undo, links, formulas |
+| `crates/wombat-cts` | Read-only importer of TreeSheets `.cts` files (all format versions up to 31), a testing tool; `tests/referee.rs` compares it with `referee/golden/`, `tests/quirks/` holds hand-built files with their own golden data |
 | `crates/wombat-cli` | The `wombat` command-line tool, a thin layer over the core |
 | `referee/` | Scripts that drive the real TreeSheets app, and the reference ("golden") data it produced |
 

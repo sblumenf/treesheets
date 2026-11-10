@@ -214,3 +214,113 @@ fn usage() {
         assert!(stderr(&result).contains("Usage:"));
     }
 }
+
+fn fixture() -> String {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../referee/fixtures/features.cts");
+    path.to_str().unwrap().to_string()
+}
+
+#[test]
+fn import_converts_a_treesheets_file_with_its_images_and_view() {
+    let dir = folder("import");
+    let done = wombat(&dir, &["import", &fixture(), "f.wombat"]);
+    assert!(done.status.success(), "{}", stderr(&done));
+    let said = stdout(&done);
+    assert!(said.contains("(TreeSheets format version 31) as f.wombat: document "));
+    assert!(said.contains(", 47 cells, nested 4 deep\n"), "{said}");
+    assert!(said.contains("1 images in f.wombat.images\n"), "{said}");
+    assert!(said.contains("1 folded grids"), "{said}");
+    assert!(
+        said.contains("links to a cell with the text \"no such cell\", which does not exist"),
+        "{said}"
+    );
+
+    // The document is a valid Wombat file with nothing missing.
+    let checked = wombat(&dir, &["check", "f.wombat"]);
+    assert!(checked.status.success(), "{}", stderr(&checked));
+    assert!(stdout(&checked).contains("47 cells, nested 4 deep"));
+    assert!(!stdout(&checked).contains("missing"));
+    let images: Vec<_> = fs::read_dir(dir.join("f.wombat.images")).unwrap().collect();
+    assert_eq!(images.len(), 1);
+    let image = fs::read(images[0].as_ref().unwrap().path()).unwrap();
+    assert!(image.starts_with(b"\x89PNG"));
+    assert_eq!(fs::read_dir(dir.join(".wombat-view")).unwrap().count(), 1);
+    let text = fs::read_to_string(dir.join("f.wombat")).unwrap();
+    assert!(text.contains("\"cts_target\": \"no such cell\""), "{text}");
+
+    // The outline: text, kinds, notes, links, and the fold from the view state.
+    let shown = stdout(&wombat(&dir, &["show", "f.wombat"]));
+    assert!(
+        shown.contains("  grid 4 x 7\n  [1,1] \"plain\"\n  [2,1] \"bold\"\n"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("  [3,4] \"=SUM(Numbers) - 10\" (formula)\n"),
+        "{shown}"
+    );
+    assert!(shown.contains("  [2,3] \"a web link and a file link\" links: 2\n"));
+    assert!(shown.contains("  [2,5] \"has a note\" note: \"The note, with"));
+    assert!(
+        shown.contains("  [1,7] \"folded\"\n    grid 2 x 2 (folded)\n"),
+        "{shown}"
+    );
+    assert!(shown.contains("\u{1F600}"));
+    // The .cts itself shows the same outline (under another document ID).
+    let direct = wombat(&dir, &["show", &fixture()]);
+    assert!(direct.status.success(), "{}", stderr(&direct));
+    // Without the first line (the ID) and the image's name, which are new on every import.
+    let tail = |text: &str| -> Vec<String> {
+        let lines = text.lines().skip(1);
+        lines
+            .map(|line| line.split(" image: ").next().unwrap().to_string())
+            .collect()
+    };
+    assert!(shown.contains("  [4,7] \"image\" image: "));
+    assert_eq!(tail(&stdout(&direct)), tail(&shown));
+
+    // Nothing is overwritten, and the workspace lists the new document.
+    let again = wombat(&dir, &["import", &fixture(), "f.wombat"]);
+    assert_eq!(again.status.code(), Some(1));
+    assert!(stderr(&again).contains("already exists"));
+    assert_eq!(fs::read_to_string(dir.join("f.wombat")).unwrap(), text);
+    assert!(stdout(&wombat(&dir, &["list"])).contains("  f.wombat\n"));
+}
+
+#[test]
+fn import_refuses_what_it_cannot_read() {
+    let dir = folder("import-bad");
+    fs::write(dir.join("not.cts"), "hello").unwrap();
+    fs::write(dir.join("locked.cts"), b"TSFF\x1f\x01rest").unwrap();
+    fs::write(dir.join("newer.cts"), b"TSFF\x20\0").unwrap();
+    let mut cut = fs::read(fixture()).unwrap();
+    cut.truncate(cut.len() / 2);
+    fs::write(dir.join("cut.cts"), cut).unwrap();
+    for (file, message) in [
+        ("not.cts", "not a TreeSheets file"),
+        ("locked.cts", "password-protected files are not supported"),
+        ("newer.cts", "format version 32"),
+        ("cut.cts", "damaged TreeSheets file"),
+        ("missing.cts", "missing.cts"),
+    ] {
+        for args in [&["import", file, "out.wombat"][..], &["show", file]] {
+            let output = wombat(&dir, args);
+            assert_eq!(output.status.code(), Some(1), "{args:?}");
+            assert!(
+                stderr(&output).contains(message),
+                "{args:?}: {}",
+                stderr(&output)
+            );
+            assert!(!stderr(&output).contains("panicked"));
+        }
+        assert!(!dir.join("out.wombat").exists());
+    }
+    let wrong = wombat(&dir, &["import", &fixture(), "out.txt"]);
+    assert_eq!(wrong.status.code(), Some(2));
+    for args in [
+        &["import"][..],
+        &["import", "a.cts"],
+        &["import", "a", "b", "c"],
+    ] {
+        assert_eq!(wombat(&dir, args).status.code(), Some(2), "{args:?}");
+    }
+}
