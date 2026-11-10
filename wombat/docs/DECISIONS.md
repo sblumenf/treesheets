@@ -46,6 +46,11 @@ TreeSheets.
 15. **Licence.** Not yet decided for Wombat as a product. Until it is, the repository's zlib
     licence applies. TreeSheets (c) Wouter van Oortmerssen is credited as the inspiration and as
     the source of the `.cts` format knowledge and the formula system.
+16. **Flutter for the interface**, one codebase for the iPhone, Android, macOS, Windows and Linux
+    apps, calling the Rust core natively through `flutter_rust_bridge`. Replaces the interface part
+    of A2: WebAssembly is not a target. Flutter builds every app from one project with no separate
+    wrapper, draws identically on every platform, and gives smooth scrolling and gestures on
+    phones. The interface is designed for the phone first and widened for desktop.
 
 ## B. Deliberate departures from TreeSheets
 
