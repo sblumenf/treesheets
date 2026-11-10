@@ -94,6 +94,55 @@ TreeSheets.
     "export to HTML/PDF on every save" setting, which Wombat has no feature for. It drops:
     style bits other than the five known ones, the image names of files before version 9
     (TreeSheets ignores them too), and images that no cell shows (returned, not saved).
+26. **A file is at most 32 MiB** (replaces the 256 MiB of A20; found in review of milestone 1).
+    The reader parses a file into a generic JSON tree and then builds the document, and at the
+    peak this takes about 13 times the file's size for an ordinary document (189 MiB for the
+    14.2 MB, 101,001-cell test document) and about 17 times in the worst case, a long array of
+    small numbers in an unknown field (547 MiB at the limit, measured). At 256 MiB that was
+    several gigabytes, more than a phone gives one app; at 32 MiB the worst case stays near
+    half a gigabyte, and the limit still holds over 200,000 cells of ordinary text (TreeSheets
+    files of that size are rare; its files grow large through embedded images, which Wombat
+    keeps outside the document). A reader that builds the document directly, without the tree,
+    would cut this several times and is the condition for raising the limit. The `.cts` importer
+    keeps its own limit of 256 MiB (A24), because a `.cts` file holds its images. Listing a
+    workspace and refusing a newer or foreign file read only the header (`format`, `version`,
+    `minor`, `id`, which writers put first) and build nothing, so they cost the same for a file
+    of any size; a file damaged after its header is therefore listed and fails when opened.
+27. **Saving through links, and permissions.** The temporary file of a save is never opened
+    through a link: whatever is at its name is removed and it is created new, so a link planted
+    there cannot make a save overwrite another file. If the document's own path is a symbolic
+    link, the save goes to the real file (temporary file beside it) and the link stays, because
+    that is what someone who links a document into a folder means, and replacing the link would
+    silently leave two diverging files; a link that leads nowhere is refused. On Unix the saved
+    file keeps the permissions of the one it replaces (a private document stays private); the
+    owner cannot be kept without privileges and becomes whoever saves. Image folders and view
+    state stay beside the name that was opened.
+28. **A copy of a document has IDs of its own** (settles the open end of A16). Copying a
+    `.wombat` file by hand makes two files with one document ID, the same cell IDs and one
+    shared view-state file, which makes links, backlinks and the search index ambiguous. So a
+    copy is made by the core (`Document::with_fresh_ids`, `storage::copy_document`,
+    `Workspace::duplicate`, `wombat copy`): new document ID, new cell IDs in document order,
+    links to the document's own cells follow the copy (with or without its document ID in
+    them), links into other documents and links to cells the document does not have are left
+    alone, images are copied, and the view state is copied under the new IDs. IDs written
+    inside unknown fields cannot be recognised and are not changed. Hand copies are detected,
+    not repaired: `Workspace::list` names the files with the same document ID (from headers
+    alone), and `Workspace::id_collisions` loads every document to find shared cell IDs too.
+    `Workspace::open_id` still opens the first by name.
+29. **Saving produces only what loading accepts, also at the limits** (completes A22; A20's
+    "128 deep" becomes a rule). Saving fails with a limit error if the file would be over
+    32 MiB. The value of an unknown field may nest arrays and objects at most 24 deep, checked
+    when loading and when saving; with grids 32 deep (3 JSON levels each) the deepest possible
+    file nests 124 levels, inside the 127 the parser reads, wherever a cell with such a field
+    is moved to. The model's consistency check follows the tree with a set of visited cells
+    instead of counting them, so a cell listed twice cannot hide one left out. View state has
+    the same rules. An object that repeats a key is refused at every level, also inside
+    unknown fields, instead of the last one winning, since two readers could disagree on which
+    counts.
+30. **Image file names must work on every system.** Besides A21: a name may not end with a dot
+    and may not be a Windows device name (`CON`, `PRN`, `AUX`, `NUL`, `COM0`-`COM9`,
+    `LPT0`-`LPT9`, in any case, alone or before the first dot). A document written on one
+    system would otherwise name an image that cannot exist on another.
 
 ## B. Deliberate departures from TreeSheets
 

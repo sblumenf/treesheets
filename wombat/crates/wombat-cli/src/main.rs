@@ -20,8 +20,13 @@ Usage:
                                             read on the spot) as an indented outline
   wombat import <file.cts> <file.wombat>    convert a TreeSheets file: writes the document,
                                             its images and its view state (folds, selection)
+  wombat copy <file.wombat> <new.wombat>    save a copy that has its own document and cell
+                                            IDs, with its images and view state (copying
+                                            the file itself would duplicate the IDs)
   wombat check <file.wombat>                check that the file is a valid document
-  wombat list [<folder>]                    list the documents of a workspace folder
+  wombat list [<folder>] [--cells]          list the documents of a workspace folder and warn
+                                            of files with the same document ID; --cells also
+                                            loads every document to find shared cell IDs
   wombat help                               show this text
 
 Outline format: one line per row of a grid, cells separated by \" | \"; lines indented
@@ -78,8 +83,11 @@ fn run(args: &[&str]) -> Result<String, Failure> {
         ["show", file, "--ids"] | ["show", "--ids", file] => show(file, true),
         ["check", file] => check(file),
         ["import", source, file] => import(source, file),
-        ["list"] => list("."),
-        ["list", folder] => list(folder),
+        ["copy", source, file] => copy(source, file),
+        ["list"] => list(".", false),
+        ["list", "--cells"] => list(".", true),
+        ["list", folder, "--cells"] | ["list", "--cells", folder] => list(folder, true),
+        ["list", folder] => list(folder, false),
         _ => Err(Failure::Usage("unknown command or wrong arguments".into())),
     }
 }
@@ -293,13 +301,49 @@ fn check(file: &str) -> Result<String, Failure> {
     Ok(out)
 }
 
-fn list(folder: &str) -> Result<String, Failure> {
+/// Saves a copy of a document that shares no ID with it.
+fn copy(source: &str, file: &str) -> Result<String, Failure> {
+    let path = new_path(file)?;
+    let doc = storage::copy_document(Path::new(source), path, &mut os_ids()?)?;
+    Ok(format!(
+        "copied {source} as {file}: document {}, {} cells, all with new IDs\n",
+        doc.id(),
+        doc.cell_count()
+    ))
+}
+
+fn list(folder: &str, cells: bool) -> Result<String, Failure> {
+    const ADVICE: &str = "one is a copy of the file; make copies with \"wombat copy\"";
+    let workspace = Workspace::open(folder)?;
     let mut out = String::new();
-    for entry in Workspace::open(folder)?.list()? {
+    let mut warnings = String::new();
+    for entry in workspace.list()? {
         match entry.id {
             Ok(id) => out.push_str(&format!("{id}  {}\n", entry.name)),
             Err(error) => out.push_str(&format!("{:36}  {}  ({error})\n", "damaged", entry.name)),
         }
+        // Each pair once, at the first of the two.
+        for other in entry.same_id.iter().filter(|other| **other > entry.name) {
+            warnings.push_str(&format!(
+                "warning: {} and {other} have the same document ID: {ADVICE}\n",
+                entry.name
+            ));
+        }
     }
-    Ok(out)
+    if cells {
+        for found in workspace.id_collisions()? {
+            warnings.push_str(&format!(
+                "warning: {} and {} share {} IDs{}: {ADVICE}\n",
+                found.first,
+                found.second,
+                found.shared_ids,
+                if found.same_document {
+                    ", the document ID among them"
+                } else {
+                    ""
+                }
+            ));
+        }
+    }
+    Ok(out + &warnings)
 }

@@ -180,7 +180,14 @@ fn check_and_show_report_bad_files_without_crashing() {
     let listed = wombat(&dir, &["list"]);
     assert!(listed.status.success());
     let listed = stdout(&listed);
-    assert_eq!(listed.lines().count(), 6);
+    // Six files, and one warning: listing reads only the header of each file, by which
+    // broken.wombat is a second file with the ID of ok.wombat.
+    assert_eq!(listed.lines().count(), 7);
+    assert!(listed
+        .lines()
+        .last()
+        .unwrap()
+        .starts_with("warning: broken.wombat and ok.wombat have the same document ID"));
     assert!(listed
         .lines()
         .any(|l| l.ends_with("  ok.wombat") && !l.starts_with("damaged")));
@@ -323,4 +330,83 @@ fn import_refuses_what_it_cannot_read() {
     ] {
         assert_eq!(wombat(&dir, args).status.code(), Some(2), "{args:?}");
     }
+}
+
+#[test]
+fn copy_gives_new_ids_and_list_warns_of_files_copied_by_hand() {
+    let dir = folder("copy");
+    fs::write(
+        dir.join("shop.txt"),
+        "Shopping\n  Fruit | Price\n  Apple | 1.20\n",
+    )
+    .unwrap();
+    assert!(wombat(&dir, &["new", "a.wombat", "--from", "shop.txt"])
+        .status
+        .success());
+    let copied = wombat(&dir, &["copy", "a.wombat", "b.wombat"]);
+    assert!(copied.status.success(), "{}", stderr(&copied));
+    assert!(
+        stdout(&copied).contains("5 cells, all with new IDs"),
+        "{}",
+        stdout(&copied)
+    );
+    // The same content under different IDs, every one of them.
+    let shown = |name: &str, ids: bool| {
+        let args: &[&str] = if ids {
+            &["show", name, "--ids"]
+        } else {
+            &["show", name]
+        };
+        stdout(&wombat(&dir, args))
+    };
+    let body = |text: String| text.split_once('\n').unwrap().1.to_string();
+    assert_eq!(
+        body(shown("a.wombat", false)),
+        body(shown("b.wombat", false))
+    );
+    let ids = |name: &str| -> Vec<String> {
+        let text = fs::read_to_string(dir.join(name)).unwrap();
+        text.split("\"id\": \"")
+            .skip(1)
+            .map(|rest| rest[..36].to_string())
+            .collect()
+    };
+    let (a, b) = (ids("a.wombat"), ids("b.wombat"));
+    assert_eq!((a.len(), b.len()), (6, 6));
+    assert!(a.iter().all(|id| !b.contains(id)));
+    assert!(wombat(&dir, &["check", "b.wombat"]).status.success());
+    let clean = stdout(&wombat(&dir, &["list", "--cells"]));
+    assert_eq!(clean.lines().count(), 2, "{clean}");
+
+    // An existing file is never replaced, and the new name must be a document's.
+    let again = wombat(&dir, &["copy", "a.wombat", "b.wombat"]);
+    assert_eq!(again.status.code(), Some(1));
+    assert!(stderr(&again).contains("already exists"));
+    assert_eq!(
+        wombat(&dir, &["copy", "a.wombat", "c.txt"]).status.code(),
+        Some(2)
+    );
+    assert_eq!(
+        wombat(&dir, &["copy", "absent.wombat", "c.wombat"])
+            .status
+            .code(),
+        Some(1)
+    );
+    assert_eq!(wombat(&dir, &["copy", "a.wombat"]).status.code(), Some(2));
+    assert!(!dir.join("c.wombat").exists());
+
+    // A copy made by copying the file is pointed out.
+    fs::copy(dir.join("a.wombat"), dir.join("c.wombat")).unwrap();
+    let listed = stdout(&wombat(&dir, &["list"]));
+    assert_eq!(listed.lines().count(), 4, "{listed}");
+    assert!(listed.contains(
+        "warning: a.wombat and c.wombat have the same document ID: one is a copy of the file; \
+         make copies with \"wombat copy\""
+    ));
+    let listed = stdout(&wombat(&dir, &["list", ".", "--cells"]));
+    assert_eq!(listed.lines().count(), 5, "{listed}");
+    assert!(
+        listed.contains("warning: a.wombat and c.wombat share 6 IDs, the document ID among them"),
+        "{listed}"
+    );
 }

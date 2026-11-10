@@ -3,10 +3,11 @@
 //! The documents of a workspace are the `*.wombat` files directly in its folder. Their
 //! images and view state are beside them, as [`crate::storage`] lays out.
 
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Component, Path, PathBuf};
 
 use crate::error::{invalid, Error};
-use crate::id::{DocId, IdSource};
+use crate::id::{DocId, Id, IdSource};
 use crate::model::Document;
 use crate::storage::{self, EXTENSION};
 use crate::view::ViewState;
@@ -22,8 +23,25 @@ pub struct Workspace {
 pub struct Entry {
     /// The file name, for example `notes.wombat`.
     pub name: String,
-    /// The ID of the document, or why the file could not be loaded.
+    /// The ID of the document, or why the file's header could not be read.
     pub id: Result<DocId, Error>,
+    /// The other files that hold the same document ID, sorted: copies made by copying the
+    /// file, which must not stay in one workspace (decision A28). Normally empty.
+    pub same_id: Vec<String>,
+}
+
+/// Two files of a workspace that use some of the same IDs, as [`Workspace::id_collisions`]
+/// reports them.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct IdCollision {
+    /// The file that comes first by name.
+    pub first: String,
+    /// The other file.
+    pub second: String,
+    /// Whether the two have the same document ID.
+    pub same_document: bool,
+    /// How many IDs, of cells or of the document, both files use.
+    pub shared_ids: usize,
 }
 
 impl Workspace {
@@ -60,9 +78,8 @@ impl Workspace {
         Ok(self.dir.join(name))
     }
 
-    /// Lists the documents, sorted by file name. Every file is loaded to find its ID, so a
-    /// damaged file is listed with its error instead of hiding the others.
-    pub fn list(&self) -> Result<Vec<Entry>, Error> {
+    /// The file names of the documents, sorted.
+    fn names(&self) -> Result<Vec<String>, Error> {
         let io = |source| Error::Io {
             path: self.dir.clone(),
             source,
@@ -79,13 +96,89 @@ impl Workspace {
             }
         }
         names.sort();
-        Ok(names
+        Ok(names)
+    }
+
+    /// Lists the documents, sorted by file name, with their IDs. Only the header of each
+    /// file is read ([`storage::document_id`]), so listing is cheap however large the
+    /// documents are; a file whose header cannot be read is listed with the error instead
+    /// of hiding the others, and damage further on in a file shows only when it is opened.
+    /// Files that hold the same document ID name each other in [`Entry::same_id`].
+    pub fn list(&self) -> Result<Vec<Entry>, Error> {
+        let mut entries: Vec<Entry> = self
+            .names()?
             .into_iter()
-            .map(|name| {
-                let id = storage::load_document(&self.dir.join(&name)).map(|doc| doc.id());
-                Entry { name, id }
+            .map(|name| Entry {
+                id: storage::document_id(&self.dir.join(&name)),
+                name,
+                same_id: Vec::new(),
+            })
+            .collect();
+        let mut by_id: BTreeMap<DocId, Vec<String>> = BTreeMap::new();
+        for entry in &entries {
+            if let Ok(id) = entry.id {
+                by_id.entry(id).or_default().push(entry.name.clone());
+            }
+        }
+        for entry in &mut entries {
+            if let Some(names) = entry.id.as_ref().ok().and_then(|id| by_id.get(id)) {
+                entry.same_id = names
+                    .iter()
+                    .filter(|n| **n != entry.name)
+                    .cloned()
+                    .collect();
+            }
+        }
+        Ok(entries)
+    }
+
+    /// Finds the files that share IDs, of the document or of any cell, which decision A5
+    /// rules out and which copying a file by hand causes. Unlike [`Workspace::list`] this
+    /// loads every document completely, one at a time; files that do not load are left out.
+    /// Each ID counts for the first file by name that uses it, so three copies of one file
+    /// are reported as two pairs. Sorted by file names.
+    pub fn id_collisions(&self) -> Result<Vec<IdCollision>, Error> {
+        let names = self.names()?;
+        let mut first_use: HashMap<Id, usize> = HashMap::new();
+        let mut doc_ids: Vec<Option<DocId>> = Vec::with_capacity(names.len());
+        let mut shared: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+        for (index, name) in names.iter().enumerate() {
+            let Ok(doc) = self.open_name(name) else {
+                doc_ids.push(None);
+                continue;
+            };
+            doc_ids.push(Some(doc.id()));
+            let cells = doc.cells_in_order();
+            for id in std::iter::once(doc.id().0).chain(cells.iter().map(|cell| cell.0)) {
+                let first = *first_use.entry(id).or_insert(index);
+                if first != index {
+                    let count = shared.entry((first, index)).or_default();
+                    *count = count.saturating_add(1);
+                }
+            }
+        }
+        Ok(shared
+            .into_iter()
+            .filter_map(|((first, second), shared_ids)| {
+                Some(IdCollision {
+                    first: names.get(first)?.clone(),
+                    second: names.get(second)?.clone(),
+                    same_document: doc_ids.get(first)? == doc_ids.get(second)?,
+                    shared_ids,
+                })
             })
             .collect())
+    }
+
+    /// Saves a copy of the document `name` as the new document `new_name`, with its images
+    /// and view state. The copy has IDs of its own ([`storage::copy_document`]).
+    pub fn duplicate(
+        &self,
+        name: &str,
+        new_name: &str,
+        ids: &mut dyn IdSource,
+    ) -> Result<Document, Error> {
+        storage::copy_document(&self.path_of(name)?, &self.path_of(new_name)?, ids)
     }
 
     /// Opens the document with the file name `name`.
@@ -94,7 +187,8 @@ impl Workspace {
     }
 
     /// Opens the document with this ID and returns its file name with it. If a file was
-    /// copied by hand, so that two files hold the same ID, the first by name is opened.
+    /// copied by hand, so that two files hold the same ID, the first by name is opened
+    /// ([`Workspace::list`] reports such files).
     pub fn open_id(&self, id: DocId) -> Result<(String, Document), Error> {
         for entry in self.list()? {
             if entry.id.is_ok_and(|found| found == id) {

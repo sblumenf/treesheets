@@ -12,6 +12,9 @@ workspace = true
 [dependencies]
 # float_roundtrip: numbers in unknown fields must survive load and save exactly.
 serde_json = { version = "1", features = ["float_roundtrip"] }
+# The traits serde_json reads through, to refuse repeated keys and to read only a file's
+# header. serde_json depends on it already, so it adds nothing to the build.
+serde_core = "1"
 
 [dev-dependencies]
 proptest = "1"

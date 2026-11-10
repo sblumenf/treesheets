@@ -21,11 +21,11 @@ pub mod workspace;
 pub use error::Error;
 pub use id::{CellId, DocId, Id, IdSource, SeededIds};
 pub use model::{
-    Cell, CellKind, Color, Document, DrawStyle, Grid, ImageRef, Link, LinkTarget, Run, Style, Tag,
-    TextAlign, VertAlign,
+    Cell, CellKind, Color, Document, DrawStyle, FreshIds, Grid, ImageRef, Link, LinkTarget, Run,
+    Style, Tag, TextAlign, VertAlign,
 };
 pub use view::{Selection, ViewState};
-pub use workspace::Workspace;
+pub use workspace::{IdCollision, Workspace};
 
 /// The version of the core library.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -10,14 +10,16 @@
 //! built on top of it (decision A9); until then tests, the command-line tool and the importer
 //! use it directly to construct documents.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 
 use serde_json::Value;
 
 use crate::error::{invalid, Error};
 use crate::id::{CellId, DocId, IdSource};
-use crate::limits::{MAX_CELLS, MAX_DEPTH, MAX_IMAGE_NAME_BYTES, MAX_TEXT_CODE_POINTS};
+use crate::limits::{
+    MAX_CELLS, MAX_DEPTH, MAX_IMAGE_NAME_BYTES, MAX_TEXT_CODE_POINTS, MAX_UNKNOWN_DEPTH,
+};
 
 /// Fields the core does not recognise, kept so that they are written back (decision A7).
 pub type Extra = BTreeMap<String, Value>;
@@ -562,12 +564,12 @@ impl Document {
             _ => return invalid("the root cell is missing or has a parent"),
         }
         // Walk the tree: every cell must be reached exactly once, under the parent it names.
-        let mut seen = 0usize;
+        // Counting is not enough: one cell listed twice can hide another that is left out.
+        let mut seen = HashSet::with_capacity(self.cells.len());
         let mut stack = vec![(self.root, 0u32)];
         while let Some((id, depth)) = stack.pop() {
-            seen = seen.saturating_add(1);
-            if seen > self.cells.len() {
-                return invalid("a cell is in more than one grid");
+            if !seen.insert(id) {
+                return invalid(format!("cell {id} is in a grid more than once"));
             }
             let Some(cell) = self.cells.get(&id) else {
                 return invalid(format!("cell {id} is in a grid but does not exist"));
@@ -590,10 +592,93 @@ impl Document {
                 }
             }
         }
-        if seen != self.cells.len() {
+        if seen.len() != self.cells.len() {
             return invalid("some cells are not reachable from the root");
         }
         Ok(())
+    }
+
+    /// Makes a copy of the document that shares no ID with it: the copy has a new document
+    /// ID and a new ID for every cell, taken from `ids` in document order. Links to cells of
+    /// this document (with or without its document ID) follow the copy's cells; links to
+    /// cells of other documents, and links to cells that are not in this document, are
+    /// unchanged. IDs inside unknown fields are not recognised and stay as they are. The
+    /// returned [`FreshIds`] says which ID became which, for the view state
+    /// ([`crate::ViewState::with_fresh_ids`]) and anything else keyed by cell ID.
+    pub fn with_fresh_ids(&self, ids: &mut dyn IdSource) -> Result<(Document, FreshIds), Error> {
+        self.validate()?;
+        let mut used = HashSet::with_capacity(self.cells.len().saturating_add(1));
+        let mut fresh_id = || {
+            let id = ids.next_id();
+            // Not an ID of the original either, or the two documents would still collide.
+            if id == self.id.0 || self.cells.contains_key(&CellId(id)) || !used.insert(id) {
+                return invalid(format!("the ID source repeated the ID {id}"));
+            }
+            Ok(id)
+        };
+        let mut fresh = FreshIds {
+            from: self.id,
+            to: DocId(fresh_id()?),
+            cells: HashMap::with_capacity(self.cells.len()),
+        };
+        for old in self.cells_in_order() {
+            fresh.cells.insert(old, CellId(fresh_id()?));
+        }
+        // Every cell is in the map, because the document is valid.
+        let renew = |old: CellId| {
+            fresh
+                .cell(old)
+                .ok_or_else(|| Error::Invalid(format!("cell {old} is not in the document")))
+        };
+        let mut cells = HashMap::with_capacity(self.cells.len());
+        for (old, cell) in &self.cells {
+            let mut cell = cell.clone();
+            cell.id = renew(*old)?;
+            cell.parent = cell.parent.map(renew).transpose()?;
+            if let Some(grid) = &mut cell.grid {
+                for child in &mut grid.cells {
+                    *child = renew(*child)?;
+                }
+            }
+            for link in &mut cell.links {
+                if let LinkTarget::Cell { doc, cell: target } = &mut link.target {
+                    if let (true, Some(new)) =
+                        (doc.is_none_or(|d| d == self.id), fresh.cell(*target))
+                    {
+                        *target = new;
+                        *doc = doc.map(|_| fresh.to);
+                    }
+                }
+            }
+            cells.insert(cell.id, cell);
+        }
+        let copy = Document {
+            id: fresh.to,
+            minor: self.minor,
+            root: renew(self.root)?,
+            cells,
+            tags: self.tags.clone(),
+            extra: self.extra.clone(),
+        };
+        Ok((copy, fresh))
+    }
+}
+
+/// Which IDs [`Document::with_fresh_ids`] replaced by which.
+#[derive(Clone, Debug)]
+pub struct FreshIds {
+    /// The ID of the original document.
+    pub from: DocId,
+    /// The ID of the copy.
+    pub to: DocId,
+    cells: HashMap<CellId, CellId>,
+}
+
+impl FreshIds {
+    /// The cell of the copy that corresponds to the cell `old` of the original; `None` if
+    /// the original has no such cell.
+    pub fn cell(&self, old: CellId) -> Option<CellId> {
+        self.cells.get(&old).copied()
     }
 }
 
@@ -602,13 +687,34 @@ pub fn code_points(text: &str) -> usize {
     text.chars().count()
 }
 
-fn check_extra(extra: &Extra, known: &[&str], place: &str) -> Result<(), Error> {
-    match extra.keys().find(|k| known.contains(&k.as_str())) {
-        Some(key) => invalid(format!(
-            "{place} has the known field {key:?} as an unknown field"
-        )),
-        None => Ok(()),
+/// Whether `value` nests arrays and objects at most `depth` deep. It never recurses deeper
+/// than that itself, however deep the value is.
+fn nests_at_most(value: &Value, depth: u32) -> bool {
+    let inside = |inner: &Value| nests_at_most(inner, depth.saturating_sub(1));
+    match value {
+        Value::Array(items) => depth > 0 && items.iter().all(inside),
+        Value::Object(map) => depth > 0 && map.values().all(inside),
+        _ => true,
     }
+}
+
+/// Checks the unknown fields of one object: none has the name of a known field, and none
+/// nests deeper than a file may (decision A22: what is saved must load).
+pub(crate) fn check_extra(extra: &Extra, known: &[&str], place: &str) -> Result<(), Error> {
+    for (key, value) in extra {
+        if known.contains(&key.as_str()) {
+            return invalid(format!(
+                "{place} has the known field {key:?} as an unknown field"
+            ));
+        }
+        if !nests_at_most(value, MAX_UNKNOWN_DEPTH) {
+            return Err(Error::Limit(format!(
+                "{place}: the unknown field {key:?} nests arrays and objects deeper than \
+                 {MAX_UNKNOWN_DEPTH}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Checks that ranges are sorted, not empty, not overlapping and inside a text of `len` code
@@ -634,12 +740,27 @@ fn check_ranges(
 }
 
 /// Whether `name` is acceptable as the file name of an image: 1 to 255 of the characters
-/// `A-Z a-z 0-9 . _ -`, not starting with a dot. This keeps names valid on every file system
-/// and makes it impossible for a document to point outside its image folder.
+/// `A-Z a-z 0-9 . _ -`, not starting or ending with a dot, and not a device name of Windows
+/// (`CON`, `PRN`, `AUX`, `NUL`, `COM0`-`COM9`, `LPT0`-`LPT9` in any case, alone or before
+/// the first dot). This keeps names usable on every file system and makes it impossible for
+/// a document to point outside its image folder.
 pub fn is_valid_image_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or(name);
+    let is = |device: &str| stem.eq_ignore_ascii_case(device);
+    let device = is("CON")
+        || is("PRN")
+        || is("AUX")
+        || is("NUL")
+        || (stem.len() == 4
+            && stem.get(..3).is_some_and(|port| {
+                port.eq_ignore_ascii_case("COM") || port.eq_ignore_ascii_case("LPT")
+            })
+            && stem.ends_with(|c: char| c.is_ascii_digit()));
     !name.is_empty()
         && name.len() <= MAX_IMAGE_NAME_BYTES
         && !name.starts_with('.')
+        && !name.ends_with('.')
+        && !device
         && name
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
@@ -723,7 +844,7 @@ fn validate_cell(cell: &Cell) -> Result<(), Error> {
 )]
 mod tests {
     use super::*;
-    use crate::id::SeededIds;
+    use crate::id::{Id, SeededIds};
 
     fn doc_with_grid() -> (Document, SeededIds) {
         let mut ids = SeededIds::from_u64(1);
@@ -743,6 +864,171 @@ mod tests {
         );
         assert_eq!(doc.depth(doc.root()), Some(0));
         doc.validate().unwrap();
+    }
+
+    #[test]
+    fn a_cell_listed_twice_while_another_is_left_out_is_invalid() {
+        let (mut doc, _) = doc_with_grid();
+        let root = doc.root();
+        let cells = doc.cell(root).unwrap().grid().unwrap().cells().to_vec();
+        // The counts still match: six cells are listed and six exist besides the root.
+        doc.cells
+            .get_mut(&root)
+            .unwrap()
+            .grid
+            .as_mut()
+            .unwrap()
+            .cells[1] = cells[0];
+        let error = doc.validate().unwrap_err();
+        assert!(error.to_string().contains("more than once"), "{error}");
+        assert!(crate::format::to_string(&doc).is_err());
+
+        // An orphan that names a parent which does not list it.
+        let (mut doc, mut ids) = doc_with_grid();
+        let orphan = CellId(ids.next_id());
+        doc.cells
+            .insert(orphan, Cell::new(orphan, Some(doc.root())));
+        let error = doc.validate().unwrap_err();
+        assert!(error.to_string().contains("not reachable"), "{error}");
+
+        // Two cells that list each other and are not under the root.
+        let (mut doc, mut ids) = doc_with_grid();
+        let (a, b) = (CellId(ids.next_id()), CellId(ids.next_id()));
+        for (id, other) in [(a, b), (b, a)] {
+            let mut cell = Cell::new(id, Some(other));
+            cell.grid = Some(Grid::new(1, 1, vec![other]));
+            doc.cells.insert(id, cell);
+        }
+        assert!(doc.validate().is_err());
+    }
+
+    fn link(target: LinkTarget) -> Link {
+        Link {
+            start: 0,
+            len: 1,
+            target,
+            extra: Extra::new(),
+        }
+    }
+
+    #[test]
+    fn a_copy_with_fresh_ids_shares_no_id_and_keeps_its_own_links() {
+        let (mut doc, mut ids) = doc_with_grid();
+        let root = doc.root();
+        let cells = doc.cell(root).unwrap().grid().unwrap().cells().to_vec();
+        doc.add_grid(cells[4], 1, 2, &mut ids).unwrap();
+        let inner = doc.child(cells[4], 0, 1).unwrap();
+        let elsewhere = DocId(ids.next_id());
+        let gone = CellId(ids.next_id());
+        let targets = [
+            LinkTarget::Cell {
+                doc: None,
+                cell: inner,
+            },
+            LinkTarget::Cell {
+                doc: Some(doc.id()),
+                cell: root,
+            },
+            // Into another document, even to a cell with an ID this document also has.
+            LinkTarget::Cell {
+                doc: Some(elsewhere),
+                cell: inner,
+            },
+            // To a cell this document does not have (deleted, perhaps).
+            LinkTarget::Cell {
+                doc: None,
+                cell: gone,
+            },
+            LinkTarget::Cell {
+                doc: Some(doc.id()),
+                cell: gone,
+            },
+            LinkTarget::External("https://example.org".into()),
+            LinkTarget::Unknown,
+        ];
+        {
+            let cell = doc.cell_mut(cells[0]).unwrap();
+            cell.text = "0123456".into();
+            cell.links = targets.iter().cloned().map(link).collect();
+            for (n, link) in cell.links.iter_mut().enumerate() {
+                link.start = n as u32;
+            }
+            cell.extra.insert("zz".into(), Value::from(1));
+        }
+        doc.cell_mut(inner).unwrap().text = "inner".into();
+        doc.tags.insert("tag".into(), Tag::default());
+        doc.extra.insert("zz".into(), Value::from(2));
+        doc.validate().unwrap();
+        let before = doc.clone();
+
+        let (copy, fresh) = doc.with_fresh_ids(&mut ids).unwrap();
+        assert_eq!(doc, before);
+        copy.validate().unwrap();
+        assert_eq!((fresh.from, fresh.to), (doc.id(), copy.id()));
+        assert_ne!(copy.id(), doc.id());
+        let (old, new) = (doc.cells_in_order(), copy.cells_in_order());
+        assert_eq!(old.len(), new.len());
+        for (old, new) in old.iter().zip(&new) {
+            assert_eq!(fresh.cell(*old), Some(*new));
+            assert!(doc.cell(*new).is_none() && new.0 != doc.id().0);
+            assert!(copy.cell(*old).is_none());
+            // Everything but the IDs is the same.
+            let (a, b) = (doc.cell(*old).unwrap(), copy.cell(*new).unwrap());
+            assert_eq!(
+                (&a.text, &a.extra, a.links.len()),
+                (&b.text, &b.extra, b.links.len())
+            );
+            assert_eq!(a.parent().and_then(|p| fresh.cell(p)), b.parent());
+            assert_eq!(
+                a.grid().map(|g| (g.xs(), g.ys())),
+                b.grid().map(|g| (g.xs(), g.ys()))
+            );
+        }
+        assert_eq!(fresh.cell(gone), None);
+        assert_eq!((&copy.tags, &copy.extra), (&doc.tags, &doc.extra));
+        let links: Vec<LinkTarget> = copy
+            .cell(fresh.cell(cells[0]).unwrap())
+            .unwrap()
+            .links
+            .iter()
+            .map(|l| l.target.clone())
+            .collect();
+        let mut expected = targets.to_vec();
+        expected[0] = LinkTarget::Cell {
+            doc: None,
+            cell: fresh.cell(inner).unwrap(),
+        };
+        expected[1] = LinkTarget::Cell {
+            doc: Some(copy.id()),
+            cell: copy.root(),
+        };
+        assert_eq!(links, expected);
+
+        // The same source of IDs gives the same copy; saving does not depend on map order.
+        let again = |seed| {
+            doc.with_fresh_ids(&mut SeededIds::from_u64(seed))
+                .unwrap()
+                .0
+        };
+        assert_eq!(again(7), again(7));
+        assert_ne!(again(7).id(), again(8).id());
+
+        // A source that repeats itself, or gives an ID of the original, is refused.
+        struct Fixed(Vec<Id>);
+        impl IdSource for Fixed {
+            fn next_id(&mut self) -> Id {
+                self.0.pop().unwrap_or(Id::from_u128(0))
+            }
+        }
+        let n = doc.cell_count() + 1;
+        let distinct: Vec<Id> = (1..=n as u128).map(Id::from_u128).collect();
+        assert!(doc.with_fresh_ids(&mut Fixed(distinct.clone())).is_ok());
+        assert!(doc.with_fresh_ids(&mut Fixed(Vec::new())).is_err());
+        for taken in [doc.id().0, inner.0] {
+            let mut with_old = distinct.clone();
+            with_old[0] = taken;
+            assert!(doc.with_fresh_ids(&mut Fixed(with_old)).is_err());
+        }
     }
 
     #[test]

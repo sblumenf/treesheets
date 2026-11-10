@@ -53,6 +53,13 @@ fn text() -> impl Strategy<Value = String> {
     ]
 }
 
+/// Any valid image file name; the pattern alone also gives names such as `a.` and `NUL`.
+fn image_name() -> impl Strategy<Value = String> {
+    "[A-Za-z0-9_-][A-Za-z0-9._-]{0,8}".prop_filter("a usable file name", |name| {
+        wombat_core::model::is_valid_image_name(name)
+    })
+}
+
 fn color() -> impl Strategy<Value = Color> {
     prop_oneof![
         Just(Color::WHITE),
@@ -168,7 +175,7 @@ fn cell_spec() -> impl Strategy<Value = CellSpec> {
         ),
         ranges((style(), proptest::option::of(color()), extra())),
         ranges((target(), extra())),
-        proptest::option::of(("[A-Za-z0-9_-][A-Za-z0-9._-]{0,8}", 0.01f64..100.0, extra())),
+        proptest::option::of((image_name(), 0.01f64..100.0, extra())),
         extra(),
     )
         .prop_map(
@@ -460,6 +467,197 @@ fn apply_tree(value: &mut Value, edit: &TreeEdit) {
     }
 }
 
+/// The JSON tokens of a file Wombat wrote: strings, numbers and names, and punctuation.
+fn tokens(text: &str) -> Vec<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let start = i;
+        match bytes[i] {
+            b' ' | b'\n' => {
+                i += 1;
+                continue;
+            }
+            b'"' => {
+                i += 1;
+                while bytes[i] != b'"' {
+                    i += if bytes[i] == b'\\' { 2 } else { 1 };
+                }
+                i += 1;
+            }
+            b'{' | b'}' | b'[' | b']' | b',' | b':' => i += 1,
+            _ => {
+                while i < bytes.len() && !b" \n{}[],:\"".contains(&bytes[i]) {
+                    i += 1;
+                }
+            }
+        }
+        out.push(text[start..i].to_string());
+    }
+    out
+}
+
+/// Where the value that starts at token `at` ends (one past its last token).
+fn value_end(tokens: &[String], at: usize) -> usize {
+    let mut depth = 0usize;
+    for (i, token) in tokens.iter().enumerate().skip(at) {
+        match token.as_str() {
+            "{" | "[" => depth += 1,
+            "}" | "]" => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 {
+            return i + 1;
+        }
+    }
+    tokens.len()
+}
+
+/// The tokens that are the key of a member.
+fn keys(tokens: &[String]) -> Vec<usize> {
+    (0..tokens.len().saturating_sub(1))
+        .filter(|i| tokens[i + 1] == ":")
+        .collect()
+}
+
+/// The tokens at which a value starts.
+fn values(tokens: &[String]) -> Vec<usize> {
+    (0..tokens.len())
+        .filter(|&i| {
+            !matches!(tokens[i].as_str(), "}" | "]" | "," | ":")
+                && tokens.get(i + 1).is_none_or(|next| next != ":")
+        })
+        .collect()
+}
+
+/// A change to a valid file made on its JSON tokens, so that the result is still JSON (or
+/// nearly) and reaches the checks behind the parser.
+#[derive(Clone, Debug)]
+enum TokenEdit {
+    /// Replace a value, whatever it is, by one of another type.
+    SwapType(usize, &'static str),
+    /// Replace a number by another number.
+    Number(usize, &'static str),
+    /// Remove a member with its key.
+    DeleteMember(usize),
+    /// Repeat a member, so that its object has the key twice.
+    DuplicateMember(usize),
+    /// Give a member the key of another member.
+    RenameKey(usize, usize),
+    /// Wrap a value in arrays or objects, this many levels.
+    Nest(usize, usize, bool),
+}
+
+fn token_edit() -> impl Strategy<Value = TokenEdit> {
+    let n = any::<usize>;
+    let other = proptest::sample::select(vec![
+        "0",
+        "1",
+        "-1",
+        "1.5",
+        "true",
+        "false",
+        "null",
+        "\"\"",
+        "\"x\"",
+        "[]",
+        "{}",
+        "[0]",
+        "\"00000000-0000-0000-0000-000000000001\"",
+        "\"#12345\"",
+    ]);
+    let number = proptest::sample::select(vec![
+        "0",
+        "1",
+        "2",
+        "-1",
+        "-0",
+        "0.5",
+        "1e2",
+        "1E400",
+        "4294967295",
+        "4294967296",
+        "9223372036854775807",
+        "9223372036854775808",
+        "18446744073709551616",
+        "1.0",
+        "01",
+    ]);
+    prop_oneof![
+        (n(), other).prop_map(|(at, new)| TokenEdit::SwapType(at, new)),
+        (n(), number).prop_map(|(at, new)| TokenEdit::Number(at, new)),
+        n().prop_map(TokenEdit::DeleteMember),
+        n().prop_map(TokenEdit::DuplicateMember),
+        (n(), n()).prop_map(|(at, from)| TokenEdit::RenameKey(at, from)),
+        (
+            n(),
+            prop_oneof![1usize..4, 20usize..40, 90usize..140],
+            any::<bool>()
+        )
+            .prop_map(|(at, levels, object)| TokenEdit::Nest(at, levels, object)),
+    ]
+}
+
+fn apply_token(tokens: &mut Vec<String>, edit: &TokenEdit) {
+    let pick = |list: Vec<usize>, n: usize| (!list.is_empty()).then(|| list[n % list.len()]);
+    match edit {
+        TokenEdit::SwapType(n, new) => {
+            if let Some(at) = pick(values(tokens), *n) {
+                let end = value_end(tokens, at);
+                tokens.splice(at..end, [new.to_string()]);
+            }
+        }
+        TokenEdit::Number(n, new) => {
+            let numbers = values(tokens)
+                .into_iter()
+                .filter(|&i| tokens[i].starts_with(|c: char| c == '-' || c.is_ascii_digit()))
+                .collect();
+            if let Some(at) = pick(numbers, *n) {
+                tokens[at] = new.to_string();
+            }
+        }
+        TokenEdit::DeleteMember(n) => {
+            if let Some(at) = pick(keys(tokens), *n) {
+                let end = value_end(tokens, at + 2);
+                if tokens.get(end).is_some_and(|t| t == ",") {
+                    tokens.drain(at..=end);
+                } else {
+                    let start = if tokens[at - 1] == "," { at - 1 } else { at };
+                    tokens.drain(start..end);
+                }
+            }
+        }
+        TokenEdit::DuplicateMember(n) => {
+            if let Some(at) = pick(keys(tokens), *n) {
+                let end = value_end(tokens, at + 2);
+                let mut copy = vec![",".to_string()];
+                copy.extend_from_slice(&tokens[at..end]);
+                tokens.splice(end..end, copy);
+            }
+        }
+        TokenEdit::RenameKey(n, from) => {
+            let keys = keys(tokens);
+            if let (Some(at), Some(from)) = (pick(keys.clone(), *n), pick(keys, *from)) {
+                tokens[at] = tokens[from].clone();
+            }
+        }
+        TokenEdit::Nest(n, levels, object) => {
+            if let Some(at) = pick(values(tokens), *n) {
+                let end = value_end(tokens, at);
+                let (open, close): (&[&str], &str) = if *object {
+                    (&["{", "\"zz\"", ":"], "}")
+                } else {
+                    (&["["], "]")
+                };
+                tokens.splice(end..end, vec![close.to_string(); *levels]);
+                let opens = open.repeat(*levels);
+                tokens.splice(at..at, opens.iter().map(|t| t.to_string()));
+            }
+        }
+    }
+}
+
 /// Whatever the loader accepts must be a sound document: valid, and stable under save/load.
 fn check_loaded(bytes: &[u8]) -> Result<bool, TestCaseError> {
     match format::from_slice(bytes) {
@@ -609,6 +807,21 @@ proptest! {
     }
 
     #[test]
+    fn loading_a_file_with_changed_tokens_never_panics(
+        spec in doc_spec(),
+        edits in vec(token_edit(), 1..4),
+    ) {
+        let text = format::to_string(&build(&spec)).unwrap();
+        let mut tokens = tokens(&text);
+        // The tokens are the file: put together again they are the same document.
+        prop_assert!(check_loaded(tokens.concat().as_bytes())?);
+        for edit in &edits {
+            apply_token(&mut tokens, edit);
+        }
+        check_loaded(tokens.concat().as_bytes())?;
+    }
+
+    #[test]
     fn view_state_round_trips(
         doc in id(),
         folded in vec(id(), 0..6),
@@ -673,4 +886,76 @@ fn the_damage_generators_reach_both_outcomes() {
     let half = bytes.len() / 2;
     apply(&mut bytes, &ByteEdit::Truncate(half));
     assert!(!check_loaded(&bytes).unwrap());
+}
+
+/// The same for the changes made on tokens: each kind does what it says, and the outcomes
+/// that the format's rules require follow.
+#[test]
+fn the_token_edits_reach_both_outcomes() {
+    let mut ids = SeededIds::from_u64(9);
+    let mut doc = Document::new(&mut ids);
+    doc.add_grid(doc.root(), 2, 1, &mut ids).unwrap();
+    let root = doc.root();
+    doc.cell_mut(root).unwrap().text = "abc".into();
+    doc.cell_mut(root)
+        .unwrap()
+        .extra
+        .insert("zz".into(), serde_json::json!([1]));
+    let text = format::to_string(&doc).unwrap();
+    let original = tokens(&text);
+    assert_eq!(
+        serde_json::from_str::<Value>(&original.concat()).unwrap(),
+        serde_json::from_str::<Value>(&text).unwrap()
+    );
+    let key = |name: &str| {
+        let quoted = format!("\"{name}\"");
+        let keys = keys(&original);
+        keys.iter().position(|&i| original[i] == quoted).unwrap()
+    };
+    let value = |name: &str| {
+        let quoted = format!("\"{name}\"");
+        let at = keys(&original)[key(name)] + 2;
+        assert_eq!(original[at - 2], quoted);
+        values(&original).iter().position(|&i| i == at).unwrap()
+    };
+    let outcome = |edit: TokenEdit| {
+        let mut tokens = original.clone();
+        apply_token(&mut tokens, &edit);
+        let text = tokens.concat();
+        assert_ne!(tokens, original, "{edit:?} changed nothing");
+        (check_loaded(text.as_bytes()).unwrap(), text)
+    };
+    // A text that is a number, and a column count that is a text: refused.
+    assert!(!outcome(TokenEdit::SwapType(value("text"), "1")).0);
+    assert!(!outcome(TokenEdit::SwapType(value("xs"), "\"x\"")).0);
+    // An unknown value may be anything.
+    assert!(outcome(TokenEdit::SwapType(value("zz"), "{}")).0);
+    // Numbers: a later minor version loads; fractions, exponents and overflows do not.
+    let minor = 1; // The numbers in order: version, minor, the unknown field's, xs, ys.
+    assert!(outcome(TokenEdit::Number(minor, "4294967295")).0);
+    for bad in ["4294967296", "1.0", "1e2", "-1", "01"] {
+        assert!(!outcome(TokenEdit::Number(minor, bad)).0, "{bad}");
+    }
+    assert!(!outcome(TokenEdit::Number(0, "2")).0);
+    // Members: one that has a default can go, a required one cannot; none may be repeated.
+    let (loads, without) = outcome(TokenEdit::DeleteMember(key("text")));
+    assert!(loads && !without.contains("abc"));
+    assert!(outcome(TokenEdit::DeleteMember(key("minor"))).0);
+    assert!(!outcome(TokenEdit::DeleteMember(key("ys"))).0);
+    assert!(!outcome(TokenEdit::DeleteMember(key("root"))).0);
+    for name in ["format", "text", "zz", "xs", "root"] {
+        let (loads, twice) = outcome(TokenEdit::DuplicateMember(key(name)));
+        assert!(!loads, "{name}");
+        assert_eq!(twice.matches(&format!("\"{name}\":")).count(), 2, "{name}");
+    }
+    assert!(!outcome(TokenEdit::RenameKey(key("text"), key("zz"))).0);
+    assert!(!outcome(TokenEdit::RenameKey(key("ys"), key("xs"))).0);
+    // Nesting: an unknown value may be deeper up to the limit; a known one may not be at all.
+    let deep = wombat_core::limits::MAX_UNKNOWN_DEPTH as usize;
+    assert!(outcome(TokenEdit::Nest(value("zz"), deep - 1, false)).0);
+    assert!(outcome(TokenEdit::Nest(value("zz"), deep - 1, true)).0);
+    assert!(!outcome(TokenEdit::Nest(value("zz"), deep, false)).0);
+    assert!(!outcome(TokenEdit::Nest(value("zz"), 500, true)).0);
+    assert!(!outcome(TokenEdit::Nest(value("root"), 1, false)).0);
+    assert!(!outcome(TokenEdit::Nest(value("root"), 500, false)).0);
 }

@@ -2,7 +2,8 @@
 
 This describes the files Wombat reads and writes, precisely enough to write another reader or
 writer. The implementation is `crates/wombat-core/src/format.rs` (documents), `view.rs` (view
-state) and `storage.rs` (where files go). The reasons are in `DECISIONS.md` (A7, A8, A12, A16-A21).
+state) and `storage.rs` (where files go). The reasons are in `DECISIONS.md` (A7, A8, A12, A16-A22,
+A26-A30).
 
 ## 1. Files on disk
 
@@ -22,7 +23,20 @@ folder/
 - View state is keyed by the document's ID, not its file name, so renaming a document keeps it.
   The `.wombat-view` folder differs per device and can be left out of sync and backups.
 - While saving `x`, a writer may create `.x.tmp` in the same folder and rename it over `x`. A
-  leftover `.x.tmp` is rubbish from an interrupted save and may be deleted.
+  leftover `.x.tmp` is rubbish from an interrupted save and may be deleted. Wombat deletes
+  whatever is at that name before it saves and creates the temporary file new, so that a link
+  placed there is never written through (decision A27).
+- If `x` is a symbolic link, Wombat saves to the file the link leads to (the temporary file is
+  beside that file) and leaves the link in place; a link that leads nowhere is an error. The
+  image folder and the view state stay beside the name the document was opened by.
+- On Unix a saved file keeps the permissions of the file it replaces. Its owner and group become
+  those of whoever saved it.
+- **Copying a document** is not copying its file: the copy would have the same document ID and
+  cell IDs, which must be unique (section 2). A copy is made by loading the document, giving it a
+  new document ID and new cell IDs, with its links to its own cells following (section 3), and
+  saving that, with its images and view state (`wombat copy`, decision A28). Two files of one
+  workspace with the same document ID are an error that tools should report. Moving or renaming
+  a file, with its image folder, is fine.
 
 ## 2. Common rules
 
@@ -47,15 +61,21 @@ folder/
   neither a signed or unsigned 64-bit integer nor a double are not preserved exactly, so writers
   of future fields must stay within those. Unknown *values* of known fields (for example a
   `kind` this version does not list) are errors, not unknown fields.
-- A JSON object must not repeat a key. (Wombat's reader keeps the last one.)
+- A JSON object must not repeat a key. A reader refuses a file in which any object does, at
+  every level, also inside the value of an unknown field.
 
 ### Versions
 
 Every file starts with `format` (what kind of file it is), `version` (the major version, a whole
-number of at least 1) and `minor` (default 0).
+number of at least 1) and `minor` (default 0), followed by the ID (`id`, in view state `doc`).
+Writers put these four first, in this order, so that a reader can tell what a file is, and
+which document, from its first bytes. A reader accepts them anywhere in the top-level object.
 
 - A reader **refuses** a file whose `version` is greater than the one it knows, with a clear
-  error and without reading the rest. Version 1 readers refuse 2 and above.
+  error and without reading the rest. Version 1 readers refuse 2 and above. (Wombat decides this
+  from the header when the header comes first; what follows it need not even be JSON.)
+- A reader that only wants a document's ID, for example to list a folder, may stop after the
+  header. Wombat's listing does, so it does not notice damage further on in a file.
 - A reader **accepts** a file whose `minor` is greater than the one it knows. A newer minor
   version may only *add fields* (which older readers keep as unknown fields). It may not add
   values to existing fields, change meanings or tighten rules; any such change needs a new major
@@ -64,16 +84,23 @@ number of at least 1) and `minor` (default 0).
 
 ### Limits
 
-A reader refuses a file that is over any of these. Writers never produce one.
+A reader refuses a file that is over any of these. Writers never produce one: Wombat refuses to
+save a document whose file would be over a limit, with an error that says which (decision A22).
 
 | Limit | Value |
 | ---- | ---- |
-| File size | 268,435,456 bytes (256 MiB) |
+| File size | 33,554,432 bytes (32 MiB) |
 | Cells in one document | 5,000,000 |
 | Nesting depth of grids (root cell is depth 0; a cell at depth 32 cannot have a grid) | 32 |
 | Text or note of one cell | 16,777,216 code points |
 | Image file name | 255 bytes |
-| JSON nesting inside unknown fields | The whole file may not nest JSON arrays/objects more than 128 deep |
+| Nesting of arrays and objects inside the value of one unknown field (`1` is 0 deep, `[]` is 1, `[{"a": []}]` is 3) | 24 |
+
+The limits on nesting are chosen together, so that no file nests JSON arrays and objects more
+than 127 deep in all, which common JSON parsers accept: the document object is 1 level, each
+level of grid costs 3 (grid object, `cells` array, cell object), a run or link of a cell 2 more,
+and 1 + 3 × 32 + 3 + 24 = 124. The limit on cells cannot be reached by a file, since 5,000,000
+cells take more than 32 MiB; it bounds documents built in memory.
 
 ## 3. The document file
 
@@ -184,7 +211,7 @@ A reader refuses the whole file (it does not repair or skip) when: a required fi
 known field has the wrong type or an unlisted value; an ID is not in canonical form; two cells
 have the same ID, or a cell has the document's ID; `cells` does not hold exactly `xs` × `ys`
 cells; `widths` does not hold `xs` numbers; runs or links break their rules; an image name or
-scale is invalid (section 5); or a limit is exceeded.
+scale is invalid (section 5); an object repeats a key; or a limit is exceeded.
 
 ## 4. Canonical form (what Wombat writes)
 
@@ -218,14 +245,19 @@ A cell's `image` object refers to a file in the document's image folder (section
 | `file` | string | required | The file's name in the image folder. |
 | `scale` | number | 1 | Display scale; finite and greater than 0. |
 
-- `file` is 1 to 255 characters from `A-Z a-z 0-9 . _ -` and does not start with a dot. It is a
-  name, never a path, so a document cannot refer to a file outside its image folder.
+- `file` is 1 to 255 characters from `A-Z a-z 0-9 . _ -` and does not start or end with a dot.
+  It is a name, never a path, so a document cannot refer to a file outside its image folder.
+- `file` is not a name that Windows reserves for devices: `CON`, `PRN`, `AUX`, `NUL`, `COM0` to
+  `COM9` and `LPT0` to `LPT9`, in upper or lower case, alone or followed by a dot and anything
+  (`nul.png` is refused, `nul_.png` and `com10.png` are not). So every valid name can be a file
+  on every system.
 - Wombat names an imported image `<new ID>.<extension>`, the extension being the original one in
   lower case if it is 1 to 8 letters or digits. Several cells may refer to the same file.
 - The image file is in whatever image format it was imported in (PNG, JPEG…); the core does not
   decode it. A missing image file does not make the document invalid.
-- Copying or moving a document means copying or moving its image folder with it. Files in the
-  image folder that no cell refers to are not removed by this version.
+- Moving a document means moving its image folder with it; a copy of a document (section 1) gets
+  copies of its images in its own image folder. Files in the image folder that no cell refers to
+  are not removed by this version.
 
 ## 6. View state
 
@@ -258,6 +290,9 @@ insertion point before the cell, as in TreeSheets); `cursor` (optional) is `[sta
 selected range of the cell's text in code points while it is being edited, with `start` ≤ `end`.
 
 View state can be older than the document, so it may name cells that no longer exist. That is not
-an error; a reader drops those references. Unknown fields are kept as in section 2. The canonical
+an error; a reader drops those references. Unknown fields are kept as in section 2, and the
+limits of section 2 on file size and on nesting inside unknown fields apply; `folded` holds at
+most 5,000,000 IDs. A copy of a document (section 1) gets a copy of the view state under its
+own ID, naming its own cells. The canonical
 layout is as in the example: line 2 the header, then `selection`, `zoom`, unknown fields and
 `folded` (one ID per line), each on its own line.

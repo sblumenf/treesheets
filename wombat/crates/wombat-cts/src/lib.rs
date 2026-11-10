@@ -34,6 +34,9 @@ use wombat_core::{
 
 /// The newest `.cts` format version this importer reads.
 pub const NEWEST_VERSION: u8 = 31;
+/// The largest `.cts` file that is read. It is not the limit on `.wombat` files, which is
+/// lower: a `.cts` file carries its images inside it and a `.wombat` file does not.
+pub const MAX_CTS_FILE_BYTES: u64 = 256 * 1024 * 1024;
 /// The most bytes the compressed part of a file may decompress to.
 pub const MAX_DECOMPRESSED_BYTES: usize = 256 * 1024 * 1024;
 /// The most images one file may hold.
@@ -345,7 +348,7 @@ fn initial_view(
 
 /// Reads and imports a `.cts` file.
 pub fn import_file(path: &Path, ids: &mut dyn IdSource) -> Result<Imported, CtsError> {
-    import(&storage::read_bounded(path)?, ids)
+    import(&storage::read_up_to(path, MAX_CTS_FILE_BYTES)?, ids)
 }
 
 impl Imported {

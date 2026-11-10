@@ -515,6 +515,7 @@ name = "wombat-core"
 version = "0.0.0"
 dependencies = [
  "proptest",
+ "serde_core",
  "serde_json",
 ]
 

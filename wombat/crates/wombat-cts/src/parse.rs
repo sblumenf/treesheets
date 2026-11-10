@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use wombat_core::limits::{MAX_FILE_BYTES, MAX_TEXT_CODE_POINTS};
+use wombat_core::limits::MAX_TEXT_CODE_POINTS;
 use wombat_core::model::{code_points, Extra};
 use wombat_core::{
     CellId, CellKind, Color, Document, DrawStyle, IdSource, ImageRef, Link, LinkTarget, Run, Style,
@@ -15,7 +15,7 @@ use wombat_core::{
 };
 
 use crate::reader::Reader;
-use crate::{CtsError, Image, ImageKind, MAX_IMAGES, NEWEST_VERSION};
+use crate::{CtsError, Image, ImageKind, MAX_CTS_FILE_BYTES, MAX_IMAGES, NEWEST_VERSION};
 
 /// TreeSheets refuses a grid with more cells than this (`g_max_grid_cells`).
 const MAX_GRID_CELLS: i64 = 4 * 1024 * 1024;
@@ -88,9 +88,9 @@ pub(crate) fn parse(
     ids: &mut dyn IdSource,
     max_decompressed: usize,
 ) -> Result<Parsed, CtsError> {
-    if u64::try_from(bytes.len()).map_or(true, |len| len > MAX_FILE_BYTES) {
+    if u64::try_from(bytes.len()).map_or(true, |len| len > MAX_CTS_FILE_BYTES) {
         return Err(CtsError::Limit(format!(
-            "the file is larger than {MAX_FILE_BYTES} bytes"
+            "the file is larger than {MAX_CTS_FILE_BYTES} bytes"
         )));
     }
     let mut r = Reader::new(bytes);

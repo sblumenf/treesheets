@@ -11,9 +11,9 @@ use crate::error::{invalid, Error};
 use crate::id::{CellId, DocId};
 use crate::json::{
     into_extra, into_object, parse, take_array, take_bool, take_color, take_header, take_i32,
-    take_i64, take_id, take_string, take_u32, Fields, Map,
+    take_i64, take_id, take_string, take_u32, Fields, Kind, Map,
 };
-use crate::limits::{MAX_CELLS, MAX_DEPTH};
+use crate::limits::{MAX_CELLS, MAX_DEPTH, MAX_FILE_BYTES};
 use crate::model::{
     Cell, CellKind, Color, Document, DrawStyle, Grid, ImageRef, Link, LinkTarget, Run, Style, Tag,
     TextAlign, VertAlign,
@@ -25,6 +25,12 @@ pub const FORMAT_NAME: &str = "wombat";
 pub const FORMAT_VERSION: u32 = 1;
 /// The minor format version this core writes.
 pub const FORMAT_MINOR: u32 = 0;
+
+const KIND: Kind = Kind {
+    format: FORMAT_NAME,
+    version: FORMAT_VERSION,
+    id_key: "id",
+};
 
 pub(crate) const DOCUMENT_KEYS: &[&str] = &["format", "version", "minor", "id", "tags", "root"];
 pub(crate) const TAG_KEYS: &[&str] = &["color", "text_color"];
@@ -67,7 +73,18 @@ pub(crate) const GRID_KEYS: &[&str] = &[
     "xs", "ys", "border", "spacing", "vertical", "widths", "cells",
 ];
 
-/// Writes a document as `.wombat` text. Fails only if the document is not valid.
+/// Refuses text that has grown too long to be loaded again (decision A22).
+pub(crate) fn check_size(out: &str) -> Result<(), Error> {
+    if out.len() as u64 > MAX_FILE_BYTES {
+        return Err(Error::Limit(format!(
+            "the file would be larger than {MAX_FILE_BYTES} bytes"
+        )));
+    }
+    Ok(())
+}
+
+/// Writes a document as `.wombat` text. Fails if the document is not valid or the text would
+/// be longer than [`MAX_FILE_BYTES`]; whatever it returns, [`from_slice`] reads back.
 pub fn to_string(doc: &Document) -> Result<String, Error> {
     doc.validate()?;
     let mut out = String::new();
@@ -108,6 +125,7 @@ pub fn to_string(doc: &Document) -> Result<String, Error> {
     out.push_str("\"root\": ");
     write_cell(doc, doc.root, 0, &mut out)?;
     out.push_str("\n}\n");
+    check_size(&out)?;
     Ok(out)
 }
 
@@ -262,13 +280,22 @@ fn write_cell(doc: &Document, id: CellId, indent: usize, out: &mut String) -> Re
         out.push_str("]}");
     }
     out.push('}');
-    Ok(())
+    // After every cell, so that a document far over the limit stops early.
+    check_size(out)
+}
+
+/// Reads only the header of `.wombat` text and returns the document's ID, without building
+/// the document and without reading past the header, so the rest of the file is not checked:
+/// a file that is damaged further on still gives its ID here and an error when loaded. The
+/// caller bounds how much `reader` gives.
+pub fn read_id(reader: impl std::io::Read) -> Result<DocId, Error> {
+    crate::json::read_id(reader, KIND).map(DocId)
 }
 
 /// Reads `.wombat` text. Any input gives either a valid document or an error.
 pub fn from_slice(bytes: &[u8]) -> Result<Document, Error> {
-    let mut map = into_object(parse(bytes)?, "the file")?;
-    let minor = take_header(&mut map, FORMAT_NAME, FORMAT_VERSION)?;
+    let mut map = into_object(parse(bytes, KIND)?, "the file")?;
+    let minor = take_header(&mut map, KIND)?;
     let Some(id) = take_id(&mut map, "id", "the document")? else {
         return invalid("the document has no \"id\"");
     };

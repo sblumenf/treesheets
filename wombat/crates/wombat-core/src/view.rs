@@ -10,10 +10,10 @@ use std::collections::BTreeSet;
 use crate::error::{invalid, Error};
 use crate::id::{CellId, DocId};
 use crate::json::{
-    into_extra, into_object, parse, take_array, take_header, take_id, take_u32, Fields,
+    into_extra, into_object, parse, take_array, take_header, take_id, take_u32, Fields, Kind,
 };
 use crate::limits::MAX_CELLS;
-use crate::model::{Document, Extra};
+use crate::model::{check_extra, Document, Extra, FreshIds};
 
 /// The value of the `format` field of a view-state file.
 pub const VIEW_FORMAT_NAME: &str = "wombat-view";
@@ -55,6 +55,12 @@ pub struct ViewState {
     minor: u32,
 }
 
+const KIND: Kind = Kind {
+    format: VIEW_FORMAT_NAME,
+    version: VIEW_FORMAT_VERSION,
+    id_key: "doc",
+};
+
 const VIEW_KEYS: &[&str] = &[
     "format",
     "version",
@@ -94,17 +100,43 @@ impl ViewState {
         }
     }
 
-    /// Writes the view state as text; the same state always gives the same bytes.
-    pub fn to_json(&self) -> Result<String, Error> {
-        let known = |extra: &Extra, keys: &[&str]| extra.keys().any(|k| keys.contains(&k.as_str()));
-        if known(&self.extra, VIEW_KEYS)
-            || self
-                .selection
-                .as_ref()
-                .is_some_and(|s| known(&s.extra, SELECTION_KEYS))
-        {
-            return invalid("a known view-state field is among the unknown fields");
+    /// The view state of the copy of the document that [`Document::with_fresh_ids`] made:
+    /// the same folds, selection and zoom, on the copy's cells.
+    pub fn with_fresh_ids(&self, fresh: &FreshIds) -> ViewState {
+        ViewState {
+            doc: fresh.to,
+            folded: self.folded.iter().filter_map(|c| fresh.cell(*c)).collect(),
+            selection: self.selection.as_ref().and_then(|selection| {
+                Some(Selection {
+                    cell: fresh.cell(selection.cell)?,
+                    ..selection.clone()
+                })
+            }),
+            zoom: self.zoom.and_then(|cell| fresh.cell(cell)),
+            extra: self.extra.clone(),
+            minor: self.minor,
         }
+    }
+
+    /// Checks what [`ViewState::from_json`] checks, so that what is written can be read.
+    fn validate(&self) -> Result<(), Error> {
+        check_extra(&self.extra, VIEW_KEYS, "the view state")?;
+        if let Some(selection) = &self.selection {
+            check_extra(&selection.extra, SELECTION_KEYS, "the selection")?;
+            if selection.cursor.is_some_and(|(start, end)| start > end) {
+                return invalid("the cursor is not [start, end]");
+            }
+        }
+        if self.folded.len() > MAX_CELLS {
+            return Err(Error::Limit(format!("more than {MAX_CELLS} folded cells")));
+        }
+        Ok(())
+    }
+
+    /// Writes the view state as text; the same state always gives the same bytes. Whatever
+    /// it returns, [`ViewState::from_json`] reads back.
+    pub fn to_json(&self) -> Result<String, Error> {
+        self.validate()?;
         let mut out = String::from("{\n");
         let mut head = Fields::new(&mut out);
         head.string("format", VIEW_FORMAT_NAME);
@@ -144,14 +176,15 @@ impl ViewState {
             out.push_str("\n]");
         }
         out.push_str("\n}\n");
+        crate::format::check_size(&out)?;
         Ok(out)
     }
 
     /// Reads view-state text. Any input gives either a view state or an error.
     pub fn from_json(bytes: &[u8]) -> Result<ViewState, Error> {
         let place = "the view state";
-        let mut map = into_object(parse(bytes)?, place)?;
-        let minor = take_header(&mut map, VIEW_FORMAT_NAME, VIEW_FORMAT_VERSION)?;
+        let mut map = into_object(parse(bytes, KIND)?, place)?;
+        let minor = take_header(&mut map, KIND)?;
         let Some(doc) = take_id(&mut map, "doc", place)?.map(DocId) else {
             return invalid("the view state has no \"doc\"");
         };
@@ -199,6 +232,7 @@ impl ViewState {
             }
         }
         view.extra = into_extra(map);
+        view.validate()?;
         Ok(view)
     }
 }
@@ -233,6 +267,53 @@ mod tests {
         });
         view.zoom = Some(b);
         (doc, view)
+    }
+
+    #[test]
+    fn what_cannot_be_read_back_is_not_written() {
+        let (_, good) = sample();
+        let mut view = good.clone();
+        view.selection.as_mut().unwrap().cursor = Some((4, 1));
+        assert!(matches!(view.to_json(), Err(Error::Invalid(_))));
+        let mut view = good.clone();
+        view.extra.insert("zoom".into(), json!(1));
+        assert!(matches!(view.to_json(), Err(Error::Invalid(_))));
+        let mut view = good.clone();
+        let extra = &mut view.selection.as_mut().unwrap().extra;
+        extra.insert("cell".into(), json!(1));
+        assert!(matches!(view.to_json(), Err(Error::Invalid(_))));
+        // Keys may not repeat, as in a document.
+        let text = good.to_json().unwrap();
+        let twice = text.replacen("\"xs\": 2", "\"xs\": 2, \"xs\": 2", 1);
+        assert_ne!(twice, text);
+        assert!(matches!(
+            ViewState::from_json(twice.as_bytes()),
+            Err(Error::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn view_state_follows_a_copy_with_fresh_ids() {
+        let (doc, mut view) = sample();
+        let gone = CellId(SeededIds::from_u64(99).next_id());
+        view.folded.insert(gone);
+        view.extra.insert("scale".into(), json!(1.5));
+        let (copy, fresh) = doc.with_fresh_ids(&mut SeededIds::from_u64(4)).unwrap();
+        let moved = view.with_fresh_ids(&fresh);
+        assert_eq!(moved.doc, copy.id());
+        let a = copy.child(copy.root(), 0, 0).unwrap();
+        let b = copy.child(copy.root(), 1, 1).unwrap();
+        // The fold of a cell that the document does not have is dropped.
+        assert_eq!(moved.folded, [copy.root(), b].into_iter().collect());
+        let selection = moved.selection.as_ref().unwrap();
+        assert_eq!((selection.cell, selection.xs, selection.ys), (a, 2, 1));
+        assert_eq!(selection.cursor, Some((1, 4)));
+        assert_eq!((moved.zoom, &moved.extra), (Some(b), &view.extra));
+        // A selection or zoom on a cell that is gone is dropped too.
+        view.selection.as_mut().unwrap().cell = gone;
+        view.zoom = Some(gone);
+        let moved = view.with_fresh_ids(&fresh);
+        assert_eq!((moved.selection, moved.zoom), (None, None));
     }
 
     #[test]

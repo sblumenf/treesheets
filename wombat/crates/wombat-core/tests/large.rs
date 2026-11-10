@@ -1,4 +1,4 @@
-//! A large document: 100,000 cells save and load in a sane time.
+//! A large document: 100,000 cells save and load within a set time.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -15,10 +15,12 @@ fn timed<T>(what: &str, f: impl FnOnce() -> T) -> T {
     let start = Instant::now();
     let result = f();
     let taken = start.elapsed();
-    eprintln!("large document: {what}: {taken:?}");
-    // Generous, so that a slow machine does not fail the test; the real times are far lower
-    // and are recorded in docs/milestones/M1.md.
-    assert!(taken < Duration::from_secs(60), "{what} took {taken:?}");
+    // About ten times what the slowest step (loading) takes on the development machine,
+    // recorded in docs/milestones/M1.md: 1.1 s unoptimised, 0.4 s optimised. Slow machines
+    // pass; a step that has become several times slower, or no longer linear, does not.
+    let limit = Duration::from_secs(if cfg!(debug_assertions) { 10 } else { 4 });
+    println!("large document: {what}: {taken:?} (limit {limit:?})");
+    assert!(taken < limit, "{what} took {taken:?}, over {limit:?}");
     result
 }
 
@@ -67,7 +69,9 @@ fn hundred_thousand_cells_save_and_load() {
     assert_eq!(doc.cell_count(), 101_001);
 
     let text = timed("save to text", || format::to_string(&doc).unwrap());
-    eprintln!("large document: {} bytes", text.len());
+    println!("large document: {} bytes", text.len());
+    // The size is part of the format's promise of one compact line per cell.
+    assert!(text.len() < 150 * doc.cell_count(), "{} bytes", text.len());
     let loaded = timed("load from text", || {
         format::from_slice(text.as_bytes()).unwrap()
     });
@@ -82,6 +86,19 @@ fn hundred_thousand_cells_save_and_load() {
     });
     let from_file = timed("load from file", || storage::load_document(&path).unwrap());
     assert_eq!(from_file.cell_count(), 101_001);
+    // Finding the ID reads the header only: a thousandth of the time of loading.
+    let started = Instant::now();
+    assert_eq!(storage::document_id(&path).unwrap(), doc.id());
+    let taken = started.elapsed();
+    println!("large document: read the ID from the file: {taken:?}");
+    assert!(
+        taken < Duration::from_millis(50),
+        "reading the ID took {taken:?}"
+    );
+    let copy = timed("copy with fresh IDs", || {
+        doc.with_fresh_ids(&mut ids).unwrap().0
+    });
+    assert_eq!(copy.cell_count(), 101_001);
     // Lookup by ID and of the parent does not depend on the size of the document.
     let order = timed("walk in order", || loaded.cells_in_order());
     assert_eq!(order.len(), 101_001);
