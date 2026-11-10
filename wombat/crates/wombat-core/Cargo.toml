@@ -1,0 +1,12 @@
+[package]
+name = "wombat-core"
+description = "The Wombat core: nested-grid documents with no interface"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
