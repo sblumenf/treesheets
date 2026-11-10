@@ -1,0 +1,203 @@
+  TreeSheet key quick reference
+  version Nov 2 2014
+  This reference sheet was made by WiM The Hague NL  20141229
+  http://strlen.com/treesheets
+  
+  
+  
+    select cell(s)/goto
+      select first child
+      SHIFT-Enter
+      one level higher
+      Esc
+      one level deeper insert grid at end
+      Insert/CTRL+G
+      next cell same level
+      tab
+      previous cell same level
+      SHIFT-tab
+      left
+      cursor left
+      right
+      cursor right
+      up
+      cursor up
+      down
+      cursor down
+      select neighbouring cell
+      SHIFT-cursor
+      select all
+      CTRL+a
+      next tab
+      CTRL+Tab
+      previous tab
+      SHIFT-CTRL+Tab
+    search/replace
+      search
+      CTRL+f
+      find next
+      F3
+      goto matching cell (same content)
+      F6
+      replace
+      CTRL+h
+      replace in current selection
+      CTRL+j
+      replace all
+      ALT+s a
+    edit
+      insert cell below
+      Enter Enter
+      
+      Enter and start typing content
+      insert neighbouring cell 
+      select side, press Enter type text
+      
+      select cell side and start typing
+      edit selection
+      F2
+      copy selection
+      CTRL+c
+      paste selection
+      CTRL+v
+      join cells
+      ALT+E, Copy as continous Text
+      undo
+      CTRL+z
+      redo
+      CTRL+y
+      discard changes
+      Esc
+      change width of column
+      ALT+mouse scroll
+      bold
+      CTRL+b
+       italics
+      CTRL+i
+      strikethrough
+      CTRL+t
+      underline
+      CTRL+u
+      larger font
+      SHIFT-PgUp
+      smaller font
+      SHIFT-PgDn
+      turn contents into tag (blue)
+      ALT+e UP RIGHT ENTER
+  
+    hierarchy 
+      zoom in one level
+      CTRL+PgUp
+      CTRL+scroll-up
+      
+      
+      zoom out one level
+      CTRL+PgDn
+      CTRL+scroll-down
+      
+      
+      collapse/expand/toggle fold
+      F10/SHIFT-F10
+      
+      
+      
+      wrap selection in new parent
+      F9
+      
+      
+      
+      inside/out  Swap uses tags
+      F8
+      right click, Grid reorganization..
+      s
+      
+      Hierarchify
+      
+      right click, Grid reorganization..
+      h
+      
+      Transpose
+      
+      right click, Grid reorganization..
+      t
+      
+      Flatten
+      SHIFT-CTRL+t
+      right click, Grid reorganization..
+      f
+      
+      sort Ascending
+      
+      right click, Grid reorganization..
+      a
+      
+      sort Descending
+      
+      right click, Grid reorganization..
+      d
+      
+      
+      
+      
+      
+      
+    
+    
+    
+    layout/view
+      full screen
+      F11
+      swap horizontal and vertical hierarchy
+      F7
+      layout (right click Layout Render style...)
+        gridstyle/spreadsheet/cells
+          vertical
+          ALT+1
+          horizontal
+          ALT+4
+          gridstyle
+          ALT+7
+        F7<->
+        gridstyle/spreadsheet/cells
+          vertical
+          ALT+1
+          horizontal
+          ALT+4
+          gridstyle
+          ALT+7
+        mindmap/line
+          vertical 
+            ALT+3
+          horizontal
+            ALT+6
+          line style/mindmap
+            ALT+9
+        F7<->
+        mindmap/line
+          vertical 
+            ALT+3
+          horizontal
+            ALT+6
+          line style/mindmap
+            ALT+9
+        bubble
+          vertical
+          ALT+2
+          horizontal
+          ALT+5
+          bubble
+          ALT+8
+        F7<->
+        bubble
+          vertical
+          ALT+2
+          horizontal
+          ALT+5
+          bubble
+          ALT+8
+      
+       view edit age or only search items
+        ALT+View
+        Filter
+         
+      

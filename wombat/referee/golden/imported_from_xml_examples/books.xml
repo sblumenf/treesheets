@@ -1,0 +1,170 @@
+  <grid>
+  <row>
+  <cell colorfg="0x000080">Gambardella, Matthew
+  </cell>
+  <cell stylebits="1">XML Developer's Guide
+  </cell>
+  <cell stylebits="2">Computer
+  </cell>
+  <cell stylebits="4">44.95
+  </cell>
+  <cell stylebits="4">2000-10-01
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">An in-depth look at creating applications with XML.
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080">Ralls, Kim
+  </cell>
+  <cell stylebits="1">Midnight Rain
+  </cell>
+  <cell stylebits="2">Fantasy
+  </cell>
+  <cell stylebits="4">5.95
+  </cell>
+  <cell stylebits="4">2000-12-16
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">A former architect battles corporate zombies, an evil sorceress, and her own childhood to become queen of the world.
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080">Corets, Eva
+  </cell>
+  <cell stylebits="1">Maeve Ascendant
+  </cell>
+  <cell stylebits="2">Fantasy
+  </cell>
+  <cell stylebits="4">5.95
+  </cell>
+  <cell stylebits="4">2000-11-17
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">After the collapse of a nanotechnology society in England, the young survivors lay the foundation for a new society.
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080">Corets, Eva
+  </cell>
+  <cell stylebits="1">Oberon's Legacy
+  </cell>
+  <cell stylebits="2">Fantasy
+  </cell>
+  <cell stylebits="4">5.95
+  </cell>
+  <cell stylebits="4">2001-03-10
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">In post-apocalypse England, the mysterious agent known only as Oberon helps to create a new life for the inhabitants of London. Sequel to Maeve Ascendant.
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080">Corets, Eva
+  </cell>
+  <cell stylebits="1">The Sundered Grail
+  </cell>
+  <cell stylebits="2">Fantasy
+  </cell>
+  <cell stylebits="4">5.95
+  </cell>
+  <cell stylebits="4">2001-09-10
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">The two daughters of Maeve, half-sisters, battle one another for control of England. Sequel to Oberon's Legacy.
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080">Randall, Cynthia
+  </cell>
+  <cell stylebits="1">Lover Birds
+  </cell>
+  <cell stylebits="2">Romance
+  </cell>
+  <cell stylebits="4">4.95
+  </cell>
+  <cell stylebits="4">2000-09-02
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">When Carla meets Paul at an ornithology conference, tempers fly as feathers get ruffled.
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080">Thurman, Paula
+  </cell>
+  <cell stylebits="1">Splish Splash
+  </cell>
+  <cell stylebits="2">Romance
+  </cell>
+  <cell stylebits="4">4.95
+  </cell>
+  <cell stylebits="4">2000-11-02
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">A deep sea diver finds true love twenty thousand leagues beneath the sea.
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080">Knorr, Stefan
+  </cell>
+  <cell stylebits="1">Creepy Crawlies
+  </cell>
+  <cell stylebits="2">Horror
+  </cell>
+  <cell stylebits="4">4.95
+  </cell>
+  <cell stylebits="4">2000-12-06
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">An anthology of horror stories about roaches, centipedes, scorpions  and other insects.
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080">Kress, Peter
+  </cell>
+  <cell stylebits="1">Paradox Lost
+  </cell>
+  <cell stylebits="2">Science Fiction
+  </cell>
+  <cell stylebits="4">6.95
+  </cell>
+  <cell stylebits="4">2000-11-02
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">After an inadvertant trip through a Heisenberg Uncertainty Device, James Salway discovers the problems of being quantum.
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080">O'Brien, Tim
+  </cell>
+  <cell stylebits="1">Microsoft .NET: The Programming Bible
+  </cell>
+  <cell stylebits="2">Computer
+  </cell>
+  <cell stylebits="4">36.95
+  </cell>
+  <cell stylebits="4">2000-12-09
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">Microsoft's .NET initiative is explored in detail in this deep programmer's reference.
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080">O'Brien, Tim
+  </cell>
+  <cell stylebits="1">MSXML3: A Comprehensive Guide
+  </cell>
+  <cell stylebits="2">Computer
+  </cell>
+  <cell stylebits="4">36.95
+  </cell>
+  <cell stylebits="4">2000-12-01
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">The Microsoft MSXML3 parser is covered in detail, with attention to XML DOM interfaces, XSLT processing, SAX and more.
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080">Galos, Mike
+  </cell>
+  <cell stylebits="1">Visual Studio 7: A Comprehensive Guide
+  </cell>
+  <cell stylebits="2">Computer
+  </cell>
+  <cell stylebits="4">49.95
+  </cell>
+  <cell stylebits="4">2001-04-16
+  </cell>
+  <cell colorfg="0x606060" relsize="-3">Microsoft Visual Studio 7 is explored in depth, looking at how Visual Basic, Visual C++, C#, and ASP+ are integrated into a comprehensive development environment.
+  </cell>
+  </row>
+  </grid>

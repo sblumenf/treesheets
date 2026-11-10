@@ -1,0 +1,52 @@
+  <grid>
+  <row>
+  <cell stylebits="1">Belgian Waffles
+  </cell>
+  <cell colorbg="0x8080FF">$5.95
+  </cell>
+  <cell colorfg="0x008080" stylebits="2">two of our famous Belgian Waffles with plenty of real maple syrup
+  </cell>
+  <cell>650
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1">Strawberry Belgian Waffles
+  </cell>
+  <cell colorbg="0x8080FF">$7.95
+  </cell>
+  <cell colorfg="0x008080" stylebits="2">light Belgian waffles covered with strawberries and whipped cream
+  </cell>
+  <cell>900
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1">Berry-Berry Belgian Waffles
+  </cell>
+  <cell colorbg="0x8080FF">$8.95
+  </cell>
+  <cell colorfg="0x008080" stylebits="2">light Belgian waffles covered with an assortment of fresh berries and whipped cream
+  </cell>
+  <cell>900
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1">French Toast
+  </cell>
+  <cell colorbg="0x8080FF">$4.50
+  </cell>
+  <cell colorfg="0x008080" stylebits="2">thick slices made from our homemade sourdough bread
+  </cell>
+  <cell>600
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1">Homestyle Breakfast
+  </cell>
+  <cell colorbg="0x8080FF">$6.95
+  </cell>
+  <cell colorfg="0x008080" stylebits="2">two eggs, bacon or sausage, toast, and our ever-popular hash browns
+  </cell>
+  <cell>950
+  </cell>
+  </row>
+  </grid>

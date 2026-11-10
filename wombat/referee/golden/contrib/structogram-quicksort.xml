@@ -1,0 +1,64 @@
+  <grid>
+  <row>
+  <cell>quicksort(array)
+    <grid>
+    <row>
+    <cell>if
+      <grid>
+      <row>
+      <cell>length(array)==1
+      </cell>
+      <cell>length(array)&gt;1
+      </cell>
+      </row>
+      <row>
+      <cell>return array
+      </cell>
+      <cell>create empty lists: less, greater
+      </cell>
+      </row>
+      <row>
+      <cell>
+      </cell>
+      <cell>take pivot from array
+      </cell>
+      </row>
+      <row>
+      <cell>
+      </cell>
+      <cell>for each item in array
+        <grid>
+        <row>
+        <cell>if
+          <grid>
+          <row>
+          <cell>item&lt;=pivot
+          </cell>
+          <cell>item&gt;pivot
+          </cell>
+          </row>
+          <row>
+          <cell>append item to less
+          </cell>
+          <cell>append item to greater
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell>
+      </cell>
+      <cell>return quicksort(less)++pivot++quicksort(greater)
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

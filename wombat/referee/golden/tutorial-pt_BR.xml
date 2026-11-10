@@ -1,0 +1,1624 @@
+  <grid>
+  <row>
+  <cell colorfg="0xFF0000" colorbg="0xF9F9F9" stylebits="2">
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" colorbg="0xF9F9F9" stylebits="2" relsize="8">Bem-vindo(a) ao TreeSheets!
+  </cell>
+  </row>
+  <row>
+  <cell colorbg="0xF9F9F9" relsize="1">(1) Este arquivo é um tutorial interativo. Simplesmente seguindo os números na frente do texto, você pode aprender a usar todas as funcionalidades do TreeSheets de forma rápida e fácil!
+    <grid>
+    <row>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="2">O básico
+      <grid>
+      <row>
+      <cell>(2) Você achou o passo 2! Ótimo, agora vamos tentar inserir texto. Cada uma destas caixas de texto é uma &quot;célula&quot;. Está vendo a célula vazia entre (2) e (3)? Clique dentro dela para selecioná-la.
+      </cell>
+      </row>
+      <row>
+      <cell relsize="2">
+      </cell>
+      </row>
+      <row>
+      <cell>(3) A célula acima deve estar selecionada (deve ter uma borda preta grossa ao redor). Agora digite alguma coisa, e veja que o texto aparece na célula selecionada. Repare que quando você começou a digitar, apareceu um cursor e a caixa de seleção ficou mais fina. Isso indica que a célula está em modo de edição de texto, e por isso você pode usar as teclas direcionais, DELETE, etc., para trabalhar no texto. Você também pode entrar no modo de edição com um duplo clique do mouse ou teclando ENTER. Para sair, tecle ENTER de novo, ou tecle ESC, ou simplesmente selecione outra célula.
+      </cell>
+      </row>
+      <row>
+      <cell>(4) Existe uma forma ainda melhor de inserir texto. Posicione o cursor do mouse na linha entre duas células: viu que surgiu uma linha tracejada? Nós a chamamos de &quot;linha de grade&quot;. Selecione (clique sobre) a linha de grade entre (4) e (5).
+      </cell>
+      </row>
+      <row>
+      <cell>(5) A linha logo acima deve estar realçada. Agora comece a digitar qualquer coisa, e repare que uma nova célula foi inserida entre (4) e (5). Isso também funciona nas bordas das células. Essa é a forma natural de estender qualquer documento do TreeSheets: clique no lugar onde você quer adicionar informação, e simplesmente comece a digitar!
+      </cell>
+      </row>
+      <row>
+      <cell>(6) Você também pode navegar entre as linhas de grade e as células sem usar o mouse e assim editar ainda mais rápido: com a célula selecionada, pressione a tecla direcional de CIMA ou a de BAIXO algumas vezes.
+      </cell>
+      </row>
+      <row>
+      <cell>(7) Agora vamos mostrar como excluir uma célula. Selecione a linha de grade acima desta célula. Para remover a célula acima (ou antes) dessa linha de grade, tecle BACKSPACE, e para remover a célula abaixo (ou depois) da linha de grade, tecle DELETE; é semelhante a como se faz em editores e processadores de texto. Outra forma de excluir células é simplesmente selecioná-las com o mouse (clique e arraste) e teclar DELETE em seguida.
+      </cell>
+      </row>
+      <row>
+      <cell>(8) Se você tiver excluído várias das linhas acima, agora é uma boa hora para usar o recurso Desfazer: tecle CTRL+Z repetidamente para desfazer as exclusões. O TreeSheets registra todas as mudanças que você faz ao editar um arquivo. Se você mantiver as teclas CTRL+Z pressionadas por tempo suficiente, todas as modificações serão desfeitas e o documento voltará ao estado original. Para refazer uma ação desfeita, tecle CTRL+Y.
+        <grid>
+        <row>
+        <cell>No macOS, sempre que este tutorial mencionar a tecla CTRL, use a tecla CMD. A tecla que corresponde a ALT é OPTION.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="2">Grades
+      <grid>
+      <row>
+      <cell>(9) Como você talvez já tenha notado, o TreeSheets pode aninhar grades de células. Cada célula pode conter sua própria grade. Esta célula, por exemplo, tem uma subgrade.
+        <grid>
+        <row>
+        <cell colorfg="0x000080" colorbg="0xF0F9F9" stylebits="4">Tequila
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" stylebits="4">2
+        </cell>
+        </row>
+        <row>
+        <cell colorfg="0x000080" colorbg="0xF0F9F9" stylebits="4">Grand Marnier
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" stylebits="4">1
+        </cell>
+        </row>
+        <row>
+        <cell colorfg="0x000080" colorbg="0xF0F9F9" stylebits="4">Suco de limão
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" stylebits="4">0,5
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell>(10) Para adicionar uma grade a uma célula, selecione a célula e tecle INSERT ou SHIFT+ENTER. Experimente com esta célula. Uma grade 1x1 vai aparecer embaixo deste texto.
+      </cell>
+      </row>
+      <row>
+      <cell>(11) Para expandir a grade adicionada em (10), vamos selecionar uma de suas quatro linhas de grade e digitar texto até termos uma grade de pelo menos 3x3. Experimente também navegar pelas células da grade com as teclas direcionais.
+      </cell>
+      </row>
+      <row>
+      <cell>(12) Agora vamos mostrar como mover conteúdo em uma grade. Para selecionar uma coluna inteira de uma grade (por exemplo, os números na grade contida em (9)), clique na célula mais alta e arraste até a célula mais baixa: no TreeSheets, assim como nos programas de planilhas, a ação de arrastar serve para expandir uma seleção e não para movê-la. Agora tecle CTRL+LEFT ou CTRL+RIGHT para mover os dados da coluna.
+      </cell>
+      </row>
+      <row>
+      <cell>(13) Você também pode copiar e colar células. Vamos usar esta como exemplo. Selecione-a (clique nela), copie-a com CTRL+C, aí selecione qualquer linha de grade, e então tecle CTRL+V para colar. Se você selecionar múltiplas células, a seleção será inserida no destino como múltiplas linhas. Experimente. A mesma lógica se aplica a recortar (CTRL+X) e excluir seleções com múltiplas células. Por fim, se não for desejável colar células copiadas/recortadas em uma linha ou coluna, você sempre pode adicionar uma grade e colar nela, criando assim uma hierarquia.
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="2">Formatação de células &amp; Zoom
+      <grid>
+      <row>
+      <cell>(14) O texto de uma célula, assim como o de um parágrafo, é dividido automaticamente em linhas a depender da largura da coluna em que a célula estiver. A barra de status mostra a largura da coluna sob o cursor do mouse. Você pode mudar a largura de uma coluna de acordo com a sua preferência: selecione uma célula da coluna, pressione e mantenha pressionada a tecla ALT, role o botão de rolagem do mouse para a frente ou para trás (ou tecle ALT+PGUP/PGDN) e veja o que acontece. A célula será reformatada automaticamente, assim como as outras células e grades da coluna. Note que a largura da coluna especifica o número máximo de caracteres por linha; assim, depois que o texto de cada célula couber em uma única linha, não será mais possível aumentar a largura de uma coluna.
+        <grid>
+        <row>
+        <cell>Em alguns teclados de Mac, as combinações FN+UP/DOWN emulam as teclas PGUP/PGDN. Além disso, ao usar um trackpad ou um Magic Mouse, o gesto de deslizar dois dedos para cima ou para baixo emula o botão de rolagem do mouse do PC.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell>(15) Uma opção mais poderosa para mudar o espaço que uma célula ocupa na tela (boa para indicar a importância relativa de alguma coisa) é mudar o tamanho do texto. Experimente: selecione esta célula, pressione e mantenha pressionada a tecla SHIFT, e role o botão de rolagem do mouse para a frente ou para trás (ou tecle SHIFT+PGUP/PGDN).
+      </cell>
+      </row>
+      <row>
+      <cell>(16) Diminua repetidamente o tamanho do texto de (15). O tamanho ficará progressivamente menor, até que, em dado momento, o texto será renderizado como pixels individuais. Isso pode parecer inútil à primeira vista, mas na verdade é um mecanismo elegante que substitui a abordagem, tão prevalente em outros programas, de dobrar/desdobrar hierarquias.
+      </cell>
+      </row>
+      <row>
+      <cell>(17) Vamos mostrar um exemplo. Selecione esta célula, que contém uma grade bem pequena, pressione e mantenha pressionada a tecla CTRL, e role o botão de rolagem do mouse para a frente (ou tecle CTRL+PGUP) três vezes para aplicar mais zoom.
+        <grid>
+        <row>
+        <cell relsize="-5">(18) Antes você não podia ler este texto, mas agora pode!
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">(19) Quando você aplica mais zoom, o TreeSheets define o tamanho-base de exibição do texto como a média do tamanho da grade de nível superior exibida. Quando você muda o tamanho do texto com SHIFT+botão de rolagem, o que muda é o tamanho relativo do texto; isso quer dizer que, de acordo com o nível de zoom aplicado, o texto é exibido em tamanho maior ou menor. Isso pode parecer complicado, então vamos dizer de outra forma: se você aplicar mais zoom, o TreeSheets exibe com tamanho-base perfeitamente legível um texto cujo tamanho você diminuiu até que fosse renderizado como pixels individuais.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">(20) A ideia é que você use pequenas subgrades como esta para armazenar informações (por exemplo, a lista de tarefas de um projeto) que você quer que estejam disponíveis no seu documento geral sem tomar espaço. Para ler ou editar, basta aplicar mais zoom.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">(21) Além disso, definir o tamanho do texto é algo que você geralmente só tem que fazer uma vez, enquanto que dobrar/desdobrar árvores ou rolar a tela, como acabamos tendo que fazer em outros programas, são coisas que precisamos fazer toda vez que queremos ver as informações. O TreeSheets torna menos trabalhoso navegar por grandes quantidades de informações, e mais fácil obter uma visão geral (o texto renderizado como pixels individuais ainda dá uma impressão do volume e da estrutura da informação em uma célula).
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">(22) Para fazer este texto ficar legível de novo no nível mais alto da hierarquia, selecione as células de (18) até (23), mas não a (17), aplique menos zoom duas vezes (CTRL+o botão de rolagem para trás), e aplique a combinação SHIFT+botão de rolagem para a frente até que este texto fique legível novamente.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">(23) Para reduzir o tamanho do texto das células e assim reverter o aumento, selecione-as e aplique a combinação SHIFT+botão de rolagem para trás.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">(24) Reparou no texto cinza que aparece acima do texto do cabeçalho ao aplicar mais zoom? É o que chamamos de contexto, e ajuda você a se lembrar em que parte do documento aplicou mais zoom.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell>Se preferir ocultar completamente uma grade, você pode dobrá-la (F10 no Windows, CTRL+F10 em outras plataformas). Experimente nesta célula para ver o efeito de dobrar e desdobrar.
+        <grid folded="1">
+        <row>
+        <cell>Quando você dobra a grade, esta célula e as células embaixo dela são ocultadas!
+        </cell>
+        </row>
+        <row>
+        <cell>Repare que uma célula que tem uma grade dobrada recebe como imagem um ícone de '+', que indica que ali existem informações adicionais que podem ser mostradas. Se você desdobrar a célula, a imagem vai desaparecer automaticamente.
+        </cell>
+        </row>
+        <row>
+        <cell>As células também serão desdobradas automaticamente se você usar funções como &quot;Ir para Resultado Seguinte da Busca (F3)&quot; para saltar entre células que não estiverem visíveis naquele momento.
+        </cell>
+        </row>
+        <row>
+        <cell>Embora dobrar e desdobrar sejam operações familiares que você conhece de outros programas, encolher o texto (consulte (17)) vai lhe dar uma visão geral melhor das sua informações. Experimente!
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="2">Renderização e Layout
+      <grid>
+      <row>
+      <cell>Você pode posicionar o texto acima da grade (layout vertical, como a maior parte deste documento) ou à esquerda dela (layout horizontal). Para alternar, tecle Alt+0 em qualquer seleção:
+        <grid>
+        <row>
+        <cell>texto acima
+          <grid>
+          <row>
+          <cell>grade de
+          </cell>
+          </row>
+          <row>
+          <cell>exemplo
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell>texto à esquerda
+          <grid>
+          <row>
+          <cell>grade de
+          </cell>
+          </row>
+          <row>
+          <cell>exemplo
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell>O TreeSheets tem três métodos de exibição de aninhamento no menu &quot;Editar &gt; Layout &amp; Estilo de Renderização&quot;: Grade (como a maior parte deste documento), Bolha, e Linhas. Esses três métodos, combinados com os layouts horizontal e vertical, resultam em seis estilos diferentes:
+        <grid>
+        <row>
+        <cell colorbg="0x8080FF">
+        </cell>
+        <cell colorbg="0x8080FF" stylebits="2">vertical
+        </cell>
+        <cell colorbg="0x8080FF" stylebits="2">horizontal
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0x8080FF" stylebits="1">grade
+        </cell>
+        <cell>texto de exemplo
+          <grid>
+          <row>
+          <cell>grade aninhada
+            <grid>
+            <row>
+            <cell>linha 1
+            </cell>
+            </row>
+            <row>
+            <cell>linha 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>mais uma linha
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell>texto de exemplo
+          <grid>
+          <row>
+          <cell>grade aninhada
+            <grid>
+            <row>
+            <cell>linha 1
+            </cell>
+            </row>
+            <row>
+            <cell>linha 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>mais uma linha
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0x8080FF" stylebits="1">bolhas
+        </cell>
+        <cell>texto de exemplo
+          <grid>
+          <row>
+          <cell>grade aninhada
+            <grid>
+            <row>
+            <cell>linha 1
+            </cell>
+            </row>
+            <row>
+            <cell>linha 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>mais uma linha
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell>texto de exemplo
+          <grid>
+          <row>
+          <cell>grade aninhada
+            <grid>
+            <row>
+            <cell>linha 1
+            </cell>
+            </row>
+            <row>
+            <cell>linha 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>mais uma linha
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0x8080FF" stylebits="1">linhas
+        </cell>
+        <cell>texto de exemplo
+          <grid>
+          <row>
+          <cell>grade aninhada
+            <grid>
+            <row>
+            <cell>linha 1
+            </cell>
+            </row>
+            <row>
+            <cell>linha 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>mais uma linha
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell>texto de exemplo
+          <grid>
+          <row>
+          <cell>grade aninhada
+            <grid>
+            <row>
+            <cell>linha 1
+            </cell>
+            </row>
+            <row>
+            <cell>linha 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>mais uma linha
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell>Embora os estilos tendam a funcionar melhor quando aplicados ao documento inteiro, você também pode usá-los em células individuais.
+        <grid>
+        <row>
+        <cell>O estilo Grade é o melhor para editar, porque mostra claramente onde você pode inserir novos dados.
+        </cell>
+        </row>
+        <row>
+        <cell>O estilo Bolhas funciona melhor se você atribuir cores de fundo diferentes para cada célula. Se você deixar todas as células com a mesma cor de fundo, o TreeSheets vai escolher automaticamente cores alternadas para evitar que as bolhas fiquem invisíveis.
+        </cell>
+        </row>
+        <row>
+        <cell>O estilo Linhas funciona bem para documentos com estilo de mapa mental.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="2">Imagens &amp; Estilos
+      <grid>
+      <row>
+      <cell relsize="-6">Adicione imagens às células para deixar seu documento mais expressivo. As imagens aparecem à esquerda do texto da célula. Você também pode adicionar uma imagem a uma célula sem texto. Experimente adicionar uma imagem (pequena) a qualquer uma das células acima (menu &quot;Editar &gt; Imagens &gt; Adicionar Imagem...&quot;, ou escolha uma da caixa de seleção na barra de ferramentas).
+        <grid>
+        <row>
+        <cell relsize="-6">Depois de adicionar uma imagem a um documento você nunca vai perdê-la, mesmo se o arquivo da imagem não estiver mais disponível, porque o TreeSheets armazena uma cópia dela no interior do arquivo (.cts). A cópia é armazenada uma única vez e você pode usar a imagem no documento quantas vezes quiser.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Se você quiser usar imagens grandes e não for prático armazená-las no interior do arquivo do documento (.cts), pode simplesmente copiá-las para a mesma pasta que o documento e digitar o nome do arquivo em uma célula. Você poderá então usar o menu &quot;Editar &gt; Navegação &gt; Abrir arquivo&quot; para visualizá-las.
+          <grid>
+          <row>
+          <cell relsize="-6">Você pode fazer referência a qualquer arquivo com esse método.
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-6">Para adicionar novos vínculos de arquivos (que não sejam de imagens) de forma conveniente, simplesmente arraste e solte os arquivos nas células desejadas.
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="3" relsize="-6">Faça o texto da célula ficar negrito, itálico, ou ambos! Experimente as combinações de teclas CTRL+B e CTRL+I em algumas células, ambas alternam entre aplicar e remover o respectivo estilo. Os estilos monoespaçado e sublinhado também estão disponíveis no menu &quot;Editar &gt; Estilo do Texto&quot;.
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="16" relsize="-6">O estilo tachado (CTRL+T) é útil em listas de tarefas para indicar itens que já foram concluídos.
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Experimente colorir as células com os dois seletores de cores na barra de ferramentas. Você pode atribuir instantaneamente as cores selecionadas com um duplo clique. Para mudar a aparência de uma célula (ou mais) que contenha uma grade (ou mais), selecione-a e use o seletor de cor &quot;Borda&quot; na barra de ferramentas, ou o menu &quot;Editar &gt; Largura da Borda da Grade&quot;.
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Adicione uma anotação a uma célula para o que não deve poluir o texto dela, como detalhes, fontes ou lembretes: selecione a célula e pressione CTRL+E (Editar &gt; Editar Anotação). Uma célula com anotação mostra um pequeno triângulo no canto superior direito. Aponte para o triângulo para ler a anotação e clique nele para editá-la. Esta célula tem uma anotação, experimente! Com Visualização &gt; Filtrar &gt; Evidenciar células com anotações você encontra todas elas.
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="2">Busca &amp; Navegação
+      <grid>
+      <row>
+      <cell relsize="-6">Para fazer uma busca instantânea, digite algo na caixa de texto &quot;Buscar&quot; na barra de ferramentas (tecle CTRL+F para mover o cursor para lá). Todas as células que contiverem alguma correspondência ficarão temporariamente vermelhas (tecle F3 para ir para o resultado seguinte). Para fazer uma substituição, digite algo na caixa de texto &quot;Substituir&quot; e em seguida clique em uma das operações de substituição do menu &quot;Buscar&quot;.
+        <grid>
+        <row>
+        <cell relsize="-7">Uma alternativa a fazer uma busca é a ação &quot;Ir para Célula Seguinte que Tiver o Mesmo Texto&quot; do menu &quot;Editar &gt; Seleção&quot;. Tecle F6 para percorrer todas as células que tiverem o mesmo texto que a célula atual. Isso pode ser usado como mecanismo de referência cruzada ou de link. Se houver mais de uma célula com o mesmo texto, a primeira que tiver formatação diferente da atual será selecionada, isto é, você pode usar a formatação para distinguir entre células de definição e de link. Experimente:
+          <grid>
+          <row>
+          <cell relsize="-7">CélulaComOMesmoTexto
+          </cell>
+          <cell relsize="-7">...
+          </cell>
+          <cell relsize="-7">CélulaComOMesmoTexto
+          </cell>
+          <cell relsize="-7">CélulaComOMesmoTexto
+          </cell>
+          </row>
+          <row>
+          <cell stylebits="1" relsize="-7">Link
+          </cell>
+          <cell relsize="-7">...
+          </cell>
+          <cell stylebits="2" relsize="-7">Link
+          </cell>
+          <cell stylebits="2" relsize="-7">Link
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-7">Definição
+          </cell>
+          <cell relsize="-7">
+          </cell>
+          <cell relsize="-7">Uso
+          </cell>
+          <cell relsize="-7">Uso
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Guarde URLs em um documento do TreeSheets. Quando quiser abrir alguma delas no navegador, selecione a célula pertinente e tecle F5.
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="2">Tags &amp; Hierarquia
+      <grid>
+      <row>
+      <cell relsize="-6">As tags são uma maneira prática de lidar com palavras que você usa repetidamente em um documento, como categorias, situações, etc. Para usar como tag o texto de uma célula, selecione a célula e clique na opção de menu &quot;Editar &gt; Tag &gt; Adicionar Texto da Célula como Tag&quot;. De agora em diante você pode preencher o texto de uma célula com essa tag (CTRL+botão direito do mouse). As tags, para indicar que são tags, têm cor azul. Isso ajuda a identificar erros em tags.
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Uma operação poderosa que funciona bem com tags é &quot;Trocar de Lugar com a Célula Mãe&quot;. Segue um exemplo do que ela faz:
+        <grid>
+        <row>
+        <cell relsize="-12">A motivação para a operação &quot;Trocar de Lugar com a Célula Mãe&quot; é que o TreeSheets torna fácil organizar seus dados em formato de árvore, mas muitas vezes esse formato não é ideal porque obriga você a arbitrar qual subdivisão é a mais importante.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-12">Digamos que eu estou organizando um projeto e tentando gerenciar as tarefas envolvidas. Eu uso tags para indicar as pessoas que estão trabalhando em cada tarefa, os marcos das entregas, e as áreas temáticas:
+          <grid>
+          <row>
+          <cell relsize="-12">marco 1
+            <grid>
+            <row>
+            <cell relsize="-12">front end
+              <grid>
+              <row>
+              <cell relsize="-12">fred
+                <grid>
+                <row>
+                <cell relsize="-12">consertar a interface
+                </cell>
+                </row>
+                <row>
+                <cell relsize="-12">conectar à base de dados
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-12">bob
+                <grid>
+                <row>
+                <cell relsize="-12">revisar os gráficos
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-12">back end
+              <grid>
+              <row>
+              <cell relsize="-12">fred
+                <grid>
+                <row>
+                <cell relsize="-12">adicionar formulários de entrada
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-12">marco 2
+            <grid>
+            <row>
+            <cell relsize="-12">back end
+              <grid>
+              <row>
+              <cell relsize="-12">fred
+                <grid>
+                <row>
+                <cell relsize="-12">desenhar novas tabelas
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-12">bob
+                <grid>
+                <row>
+                <cell relsize="-12">comprar novos servidores
+                </cell>
+                </row>
+                <row>
+                <cell relsize="-12">configurar a rede
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-12">Repare que na tabela acima os marcos são a subdivisão mais importante, as áreas temáticas vêm em segundo lugar, e as pessoas vêm por último. É um critério bem arbitrário. Pode ser que você queira ver as coisas do ponto de vista das pessoas, e com a operação &quot;Trocar de Lugar com a Célula Mãe&quot;, você pode! Selecione a primeira ocorrência de &quot;fred&quot;, tecle F8 duas vezes, e o resultado será como segue:
+          <grid>
+          <row>
+          <cell relsize="-12">marco 1
+            <grid>
+            <row>
+            <cell relsize="-12">front end
+              <grid>
+              <row>
+              <cell relsize="-12">bob
+                <grid>
+                <row>
+                <cell relsize="-12">revisar os gráficos
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-12">marco 2
+            <grid>
+            <row>
+            <cell relsize="-12">back end
+              <grid>
+              <row>
+              <cell relsize="-12">bob
+                <grid>
+                <row>
+                <cell relsize="-12">comprar novos servidores
+                </cell>
+                </row>
+                <row>
+                <cell relsize="-12">configurar a rede
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-12">fred
+            <grid>
+            <row>
+            <cell relsize="-12">marco 1
+              <grid>
+              <row>
+              <cell relsize="-12">front end
+                <grid>
+                <row>
+                <cell relsize="-12">consertar a interface
+                </cell>
+                </row>
+                <row>
+                <cell relsize="-12">conectar à base de dados
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-12">back end
+                <grid>
+                <row>
+                <cell relsize="-12">adicionar formulários de entrada
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-12">marco 2
+              <grid>
+              <row>
+              <cell relsize="-12">back end
+                <grid>
+                <row>
+                <cell relsize="-12">desenhar novas tabelas
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-12">O que efetivamente você fez foi dizer ao TreeSheets: &quot;mostre essa hierarquia da perspectiva do Fred&quot;. Agora você pode ver exatamente as tarefas dele, e pode fazer o mesmo com o Bob. Se você quiser saber o que Fred está fazendo no back end, tecle F8 uma vez em &quot;back end&quot; (na célula &quot;fred&quot;), e você terá ajustado sua perspectiva mais uma vez. Tecle F8 mais uma vez, dessa vez em &quot;front end&quot;, a agora a subdivisão principal passa a ser entre back end e front end.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-12">Experimente teclar F8 em várias tags e veja como você pode obter qualquer perspectiva que desejar.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-12">É importante destacar que quando você seleciona uma célula com uma tag e usa a operação &quot;Trocar de Lugar com a Célula Mãe&quot;, a tag que era a mãe da selecionada passa a ser filha. Nenhuma tag é excluída; elas apenas trocam de lugar na hierarquia. Não importa quantas vezes você usar a operação, nenhuma informação será perdida. Se você quiser, pode reverter a árvore à configuração original.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-12">Essa função permite que você associe quantas tags quiser a fragmentos de informação (por exemplo, &quot;consertar a interface&quot;). A operação &quot;Trocar de Lugar com a Célula Mãe&quot; permite que você mude livremente a ordem de importância das tags; por isso, a configuração em que a árvore estiver não reflete uma decisão inicial que você se viu obrigado(a) a arbitrar sobre a importância relativa de cada subdivisão, mas apenas a perspectiva mais recente que você escolheu para visualizar as informações.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-12">Você pode continuar a editar os dados na árvore, seja qual for a hierarquia aplicada. Não é necessário revertê-la à configuração original. Árvores como essa não têm ordem fixa!
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-12">Repare que &quot;promover&quot; Fred não promove Bob automaticamente. O TreeSheets não tem como saber que essas tags são do mesmo &quot;tipo&quot;. Como nem todos os cenários de uso das tags têm tipos bem definidos, e nem sempre é necessário reordenar todas as informações de uma vez, isso faz com que a função permaneça simples.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Outra operação aplicável a hierarquias é &quot;Horizontalizar&quot;. Vamos usá-la com o exemplo anterior dos marcos de projeto:
+        <grid>
+        <row>
+        <cell relsize="-8">marco 1
+          <grid>
+          <row>
+          <cell relsize="-8">front end
+            <grid>
+            <row>
+            <cell relsize="-8">fred
+              <grid>
+              <row>
+              <cell relsize="-8">consertar a interface
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-8">conectar à base de dados
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-8">bob
+              <grid>
+              <row>
+              <cell relsize="-8">revisar os gráficos
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-8">back end
+            <grid>
+            <row>
+            <cell relsize="-8">fred
+              <grid>
+              <row>
+              <cell relsize="-8">adicionar formulários de entrada
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-8">marco 2
+          <grid>
+          <row>
+          <cell relsize="-8">back end
+            <grid>
+            <row>
+            <cell relsize="-8">fred
+              <grid>
+              <row>
+              <cell relsize="-8">desenhar novas tabelas
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-8">bob
+              <grid>
+              <row>
+              <cell relsize="-8">comprar novos servidores
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-8">configurar a rede
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Após selecionar a célula que contém a grade e clicar na opção de menu &quot;Editar &gt;  Reorganização da Grade &gt; Horizontalizar&quot;, obtemos o resultado que segue:
+        <grid>
+        <row>
+        <cell relsize="-8">marco 1
+        </cell>
+        <cell relsize="-8">front end
+        </cell>
+        <cell relsize="-8">fred
+        </cell>
+        <cell relsize="-8">consertar a interface
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-8">marco 1
+        </cell>
+        <cell relsize="-8">front end
+        </cell>
+        <cell relsize="-8">fred
+        </cell>
+        <cell relsize="-8">conectar à base de dados
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-8">marco 1
+        </cell>
+        <cell relsize="-8">front end
+        </cell>
+        <cell relsize="-8">bob
+        </cell>
+        <cell relsize="-8">revisar os gráficos
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-8">marco 1
+        </cell>
+        <cell relsize="-8">back end
+        </cell>
+        <cell relsize="-8">fred
+        </cell>
+        <cell relsize="-8">adicionar formulários de entrada
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-8">marco 2
+        </cell>
+        <cell relsize="-8">back end
+        </cell>
+        <cell relsize="-8">fred
+        </cell>
+        <cell relsize="-8">desenhar novas tabelas
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-8">marco 2
+        </cell>
+        <cell relsize="-8">back end
+        </cell>
+        <cell relsize="-8">bob
+        </cell>
+        <cell relsize="-8">comprar novos servidores
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-8">marco 2
+        </cell>
+        <cell relsize="-8">back end
+        </cell>
+        <cell relsize="-8">bob
+        </cell>
+        <cell relsize="-8">configurar a rede
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Embora não seja tão útil quanto a versão hierárquica para visualizar a estrutura e fazer edições, é a única maneira de exportar as informações (clique na opção de menu &quot;Arquivo &gt; Exportar visualização como &gt; Texto delimitado por vírgulas (CSV)...&quot;) para programas &quot;horizontais&quot; como planilhas. Quando tiver que importar dados de planilhas, use a operação &quot;Editar &gt;  Reorganização da Grade &gt; Hierarquizar&quot;, que faz o contrário: transforma uma tabela como a da célula acima em uma hierarquia.
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="2">Operações avançadas
+      <grid>
+      <row>
+      <cell relsize="-6">(25) Se uma célula não tem texto mas contém uma grade, como a célula abaixo, ela é renderizada sem o espaço que seria ocupado pelo texto. Se depois você quiser inserir texto, pode ser difícil selecioná-la. Para selecionar essa ou qualquer outra célula que contiver uma grade, selecione uma subcélula (experimente selecionar (26)) e tecle ESC. Outro recurso conveniente é selecionar a grade toda com um duplo clique em uma linha de grade. Experimente: dê um duplo clique entre (26) e (27), e em seguida tecle ESC e digite algum texto.
+        <grid>
+        <row>
+        <cell relsize="-6">
+          <grid>
+          <row>
+          <cell relsize="-6">esta
+          </cell>
+          <cell relsize="-6">grade
+          </cell>
+          <cell relsize="-6">não
+          </cell>
+          <cell relsize="-6">tem
+          </cell>
+          <cell relsize="-6">texto
+          </cell>
+          <cell relsize="-6">no
+          </cell>
+          <cell relsize="-6">cabeçalho
+          </cell>
+          <cell relsize="-6">(26)
+          </cell>
+          <cell relsize="-6">(27)
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Você pode usar a operação &quot;Transpor&quot; para mudar o layout de uma lista. Selecione esta célula e clique na opção de menu &quot;Editar &gt; Reorganização da Grade &gt; Transpor&quot; (ou tecle CTRL+SHIFT+T) algumas vezes. Em seguida, com a lista na vertical, selecione todas as células da primeira coluna e clique na opção de menu &quot;Editar &gt; Reorganização da Grade &gt; Classificar em Ordem Ascendente&quot;.
+        <grid>
+        <row>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">Um
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">Dois
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">Três
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">Quatro
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">Cinco
+        </cell>
+        </row>
+        <row>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">1
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">2
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">3
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">4
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">5
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">O TreeSheets pode exportar e importar em vários formatos. Você também pode imprimir seu documento.
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">A operação &quot;Criar uma célula filha e mover o conteúdo da seleção para ela&quot; (F9) é uma maneira prática de criar uma nova hierarquia. Selecione as células desejadas e execute essa operação: uma nova célula sem texto tomará o lugar da seleção, e a seleção será inserida como grade nessa mesma célula. Selecione as células C e D abaixo, tecle F9, e digite alguma coisa:
+        <grid>
+        <row>
+        <cell relsize="-6">A
+        </cell>
+        <cell relsize="-6">B
+        </cell>
+        <cell relsize="-6">C
+        </cell>
+        <cell relsize="-6">D
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Os filtros são úteis quando os seus documentos ficam realmente grandes. Eles permitem que você filtre temporariamente (deixe menos evidente) uma parte do seu documento e assim possa focar nas células em que estiver trabalhando naquele momento. O texto das células filtradas fica cinza-claro, e suas grades e subgrades encolhem. Experimente as opções de filtragem no menu &quot;Visualização&quot;:
+        <grid>
+        <row>
+        <cell relsize="-6">Digite &quot;treesheets&quot; na caixa de texto &quot;Buscar&quot; na barra de ferramentas. Algumas células ficarão vermelhas. Agora experimente aplicar o filtro de busca (clique na opção de menu &quot;Visualização &gt; Filtrar &gt; Evidenciar células que contiverem resultados da busca&quot;). O volume evidenciado de informação deve diminuir consideravelmente, assim tornando mais fácil visualizar a informação que você procura. Faça isso no nível de exibição mais elevado deste documento: experimente aplicar mais zoom, e depois menos, com o filtro ativado. Por fim, experimente mudar o termo de busca: a visualização filtrada vai mudar à medida que você digita.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Apague o termo de busca e em seguida experimente o filtro &quot;Evidenciar edições mais recentes: últimas 10%&quot; neste documento. Pode ser que em documentos salvos por versões mais antigas do TreeSheets a função não evidencie os resultados que você espera, porque essas versões ainda não registravam a data e hora da última modificação de cada célula.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Se o seu computador for antigo ou você estiver trabalhando com documentos realmente grandes, experimente habilitar a opção de menu &quot;Opções &gt; Renderização de linhas mais veloz&quot;. A apresentação do documento ficará menos atraente, mas a rolagem vai ficar mais rápida.
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">O TreeSheets é muito bom para fazer apresentações. Diferente de programas tradicionais como o PowerPoint, nos quais é realmente difícil transmitir um senso de estrutura para o público, você pode organizar um documento do TreeSheets como se sua apresentação inteira fosse um único &quot;slide&quot;, e ter subslides minimizados nos quais pode aplicar mais zoom. O TreeSheets tem dois modos de visualização pensados para apresentações: Tela Cheia (F11), que reduz a poluição visual, e Apresentação em Escala (F12), que tenta tornar a visualização atual tão grande quanto possível.
+        <grid>
+        <row>
+        <cell relsize="-8">NOTA: o modo de visualização Apresentação em Escala e a função de impressão usam um método de escala que não preserva a fidelidade visual em todos os casos. Uma versão futura vai consertar isso.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">O TreeSheets tem uma linguagem de script embutida para criar plugins.
+        <grid>
+        <row>
+        <cell relsize="-6">Os scripts ficam na pasta &quot;scripts/&quot;. Quando o TreeSheets inicia eles são adicionados automaticamente ao menu &quot;Scripts&quot;, a partir do qual podem ser executados.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Você pode ler e modificar qualquer parte do seu documento com um script!
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Os scripts são escritos na linguagem de programação Lobster.
+          <grid>
+          <row>
+          <cell relsize="-6">Leia mais sobre a linguagem:
+          </cell>
+          <cell relsize="-6">https://strlen.com/lobster/
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">O documento &quot;docs/script_reference.html&quot; lista as funções que você pode usar no seu script.
+          <grid>
+          <row>
+          <cell relsize="-6">As funções com nomes começados em &quot;ts_&quot; são específicas do TreeSheets. Todas as outras são funções de uso geral.
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Leia o código dos scripts que vêm com o TreeSheets para ter uma ideia do que eles podem fazer!
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">O TreeSheets também tem uma linguagem de programação inovadora, inspirada em planilhas, que ainda não está completamente funcional.
+        <grid>
+        <row>
+        <cell relsize="-7">Ela funciona pondo operações nas grades, entre os dados.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-7">A linguagem então avalia a grade como se fosse uma expressão, da esquerda para a direita (e de cima para baixo) quando você &quot;roda&quot; o documento. Clique na opção de menu &quot;Programação &gt; Executar&quot; (ou no botão na barra de ferramentas): o quadrado verde na grade abaixo deve ser preenchido com um 9 (não com 7!).
+          <grid>
+          <row>
+          <cell relsize="-7">1
+          </cell>
+          <cell type="1" relsize="-7">+
+          </cell>
+          <cell relsize="-7">2
+          </cell>
+          <cell type="1" relsize="-7">*
+          </cell>
+          <cell relsize="-7">3
+          </cell>
+          <cell type="3" relsize="-7">
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-7">Você cria o programa associando significados especiais a determinadas células. Por padrão, todas as células são brancas (dados). Você pode torná-las células de operação (rosa) ou de visualização (verde claro) por meio das opções do menu &quot;Programação &gt; Marcar como&quot;. Uma célula de visualização simplesmente mostra o valor atual de qualquer operação que a antecede. Na grade abaixo, experimente marcar a célula &quot;+&quot; como uma operação e a última célula como uma visualização horizontal, e então execute:
+          <grid>
+          <row>
+          <cell relsize="-7">1
+          </cell>
+          <cell relsize="-7">+
+          </cell>
+          <cell relsize="-7">2
+          </cell>
+          <cell relsize="-7">
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-7">Os operadores operam automaticamente em grades inteiras. Por exemplo:
+          <grid>
+          <row>
+          <cell relsize="-7">
+            <grid>
+            <row>
+            <cell relsize="-7">1
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-7">2
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-7">3
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell type="1" relsize="-7">+
+          </cell>
+          <cell relsize="-7">
+            <grid>
+            <row>
+            <cell relsize="-7">4
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-7">5
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-7">6
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell type="1" relsize="-7">*
+          </cell>
+          <cell relsize="-7">
+            <grid>
+            <row>
+            <cell relsize="-7">7
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-7">8
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-7">9
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell type="3" relsize="-7">
+            <grid>
+            <row>
+            <cell relsize="-7">
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-7">
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-7">
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-7">A não ser que você seja muito ousado(a), não é recomendado usar a linguagem nesse momento porque apenas umas poucas operações estão implementadas e muitas combinações de operandos não são suportadas. O que funciona (mais ou menos):
+          <grid>
+          <row>
+          <cell relsize="-7">+
+          </cell>
+          <cell relsize="-7">-
+          </cell>
+          <cell relsize="-7">*
+          </cell>
+          <cell relsize="-7">/
+          </cell>
+          <cell relsize="-7">&lt;
+          </cell>
+          <cell relsize="-7">&gt;
+          </cell>
+          <cell relsize="-7">&lt;=
+          </cell>
+          <cell relsize="-7">&gt;=
+          </cell>
+          <cell relsize="-7">==
+          </cell>
+          <cell relsize="-7">!=
+          </cell>
+          <cell relsize="-7">=
+          </cell>
+          <cell relsize="-7">&lt;&gt;
+          </cell>
+          <cell relsize="-7">inc
+          </cell>
+          <cell relsize="-7">dec
+          </cell>
+          <cell relsize="-7">neg
+          </cell>
+          <cell relsize="-7">sum
+          </cell>
+          <cell relsize="-7">transpose
+          </cell>
+          <cell relsize="-7">if
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-7">Para saber mais detalhes sobre as operações, clique na opção de menu &quot;Ajuda &gt; Carregar referência de operações&quot; (CTRL+ALT+F1).
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-7">Consulte o exemplo &quot;examples/sales.cts&quot; para ver o que é possível fazer.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Fórmulas calculam resultados como em uma planilha e se atualizam sozinhas sempre que você muda algo. Digite em uma célula um texto que comece com =, como =SUM(Custos), e assim que você sair da célula ela mostra o resultado. A barra de fórmulas (&quot;Formula&quot; na barra de ferramentas) mostra a fórmula da célula selecionada, e você também pode editá-la ali (ENTER aplica).
+        <grid>
+        <row>
+        <cell relsize="-6">Um nome entre parênteses se refere à grade da célula com exatamente esse texto, a mais próxima primeiro. Abaixo, a grade da esquerda se chama Custos. Altere seus números e observe os resultados à direita:
+          <grid>
+          <row>
+          <cell relsize="-6">Custos
+            <grid>
+            <row>
+            <cell relsize="-6">120
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">80
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">40
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">Total
+            </cell>
+            <cell type="6" relsize="-6">=SUM(Custos)
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Mais caro
+            </cell>
+            <cell type="6" relsize="-6">=MAX(Custos)
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Média
+            </cell>
+            <cell type="6" relsize="-6">=AVG(Custos)
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Restante de um orçamento de 500
+            </cell>
+            <cell type="6" relsize="-6">=500 - SUM(Custos)
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Pressione F2 em um resultado para ver e alterar sua fórmula diretamente na célula. Digitar por cima de um resultado transforma a célula em texto comum novamente.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Você pode usar SUM, MIN, MAX, AVG, MEDIAN e COUNT, junto com números, + - * / e parênteses, por exemplo =(SUM(Receitas) - SUM(Custos)) / 12. Só contam os números diretamente na grade nomeada, e os resultados de outras fórmulas também contam como números. Com TREE na frente, por exemplo =TREESUM(Custos), também contam os números em todas as suas subgrades, mas não as fórmulas que estão nelas. Um nome sozinho representa o único número da sua grade, por exemplo =Preço * Quantidade.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">SUBSET usa só uma parte de uma grade: SUBSET(nome, colunas, linhas), com colunas e linhas contadas a partir de 0 no canto superior esquerdo. Cada uma é um número como 1, um intervalo como 0-1, um intervalo aberto em um lado como 1- (até o fim) ou -1 (desde o início), ou - para todas. Abaixo, a grade da esquerda se chama Vendas, com uma coluna por loja e uma linha por mês:
+          <grid>
+          <row>
+          <cell relsize="-6">Vendas
+            <grid>
+            <row>
+            <cell relsize="-6">30
+            </cell>
+            <cell relsize="-6">50
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">20
+            </cell>
+            <cell relsize="-6">60
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">40
+            </cell>
+            <cell relsize="-6">10
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">Melhor mês da primeira loja
+            </cell>
+            <cell type="6" relsize="-6">=MAX(SUBSET(Vendas, 0, -))
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">As duas lojas nos dois primeiros meses
+            </cell>
+            <cell type="6" relsize="-6">=SUM(SUBSET(Vendas, -, 0-1))
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Segunda loja a partir do segundo mês
+            </cell>
+            <cell type="6" relsize="-6">=SUM(SUBSET(Vendas, 1, 1-))
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Com TREE na frente, os números nas subgrades das células escolhidas também contam, todos, quaisquer que sejam suas colunas e linhas. Abaixo, cada loja da grade Pedidos tem seus pedidos em uma subgrade:
+          <grid>
+          <row>
+          <cell relsize="-6">Pedidos
+            <grid>
+            <row>
+            <cell relsize="-6">Primeira loja
+              <grid>
+              <row>
+              <cell relsize="-6">12
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">45
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">30
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            <cell relsize="-6">Segunda loja
+              <grid>
+              <row>
+              <cell relsize="-6">25
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">60
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">8
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">Maior pedido da segunda loja
+            </cell>
+            <cell type="6" relsize="-6">=TREEMAX(SUBSET(Pedidos, 1, 0))
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">TREESUBSET(nome, colunas, linhas, níveis) escolhe de novo as mesmas colunas e linhas nas subgrades das células escolhidas, e assim por diante, mas conta só os níveis do intervalo, sendo 0 a grade nomeada. Assim dá para separar os totais dos seus detalhes. Abaixo, cada fase de Plano tem suas horas na coluna 1, que contém suas tarefas com as horas delas nas mesmas colunas:
+          <grid>
+          <row>
+          <cell relsize="-6">Plano
+            <grid>
+            <row>
+            <cell relsize="-6">Projeto
+            </cell>
+            <cell relsize="-6">10
+              <grid>
+              <row>
+              <cell relsize="-6">Esboços
+              </cell>
+              <cell relsize="-6">4
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">Revisão
+              </cell>
+              <cell relsize="-6">6
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Construção
+            </cell>
+            <cell relsize="-6">25
+              <grid>
+              <row>
+              <cell relsize="-6">Estrutura
+              </cell>
+              <cell relsize="-6">12
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">Fiação
+              </cell>
+              <cell relsize="-6">8
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">Testes
+              </cell>
+              <cell relsize="-6">5
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">Horas de todas as fases
+            </cell>
+            <cell type="6" relsize="-6">=SUM(TREESUBSET(Plano, 1, -, 0))
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Tarefa mais longa
+            </cell>
+            <cell type="6" relsize="-6">=MAX(TREESUBSET(Plano, 1, -, 1))
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Número de tarefas
+            </cell>
+            <cell type="6" relsize="-6">=COUNT(TREESUBSET(Plano, 1, -, 1))
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Em vez de um nome, SUBSET e TREESUBSET também aceitam outro SUBSET ou TREESUBSET, e então usam as subgrades das células que ele escolhe. Assim cada nível pode ter suas próprias colunas e linhas. Abaixo, SUBSET(Plano, 1, 1) escolhe as horas de Construção, e as fórmulas olham só para as tarefas dela:
+          <grid>
+          <row>
+          <cell relsize="-6">Tarefa mais longa de Construção
+          </cell>
+          <cell type="6" relsize="-6">=MAX(SUBSET(SUBSET(Plano, 1, 1), 1, -))
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-6">Horas de Construção após Estrutura
+          </cell>
+          <cell type="6" relsize="-6">=SUM(SUBSET(SUBSET(Plano, 1, 1), 1, 1-))
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-6">Horas de Testes
+          </cell>
+          <cell type="6" relsize="-6">=SUBSET(SUBSET(Plano, 1, 1), 1, 2)
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Sozinho, SUBSET representa o único número que contém, por exemplo =SUBSET(Vendas, 1, 2) * 2. Os nomes também podem ser escritos entre aspas, o que é necessário quando contêm uma vírgula ou um parêntese, por exemplo =SUM(&quot;Custos, 2025&quot;) ou =MAX(SUBSET(&quot;Vendas (EUR)&quot;, 0, -)).
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">As fórmulas também podem usar as variáveis da linguagem de programação acima. Um nome que nenhuma grade tem representa a variável com esse nome, com o que o programa atribuiu a ela na última vez em que foi executado, e uma variável que contém uma grade conta como uma grade, por exemplo =SUM(Pontos). Até você executar o programa com Programação &gt; Executar, uma fórmula assim mostra #N/A. Abaixo, o programa à esquerda calcula 1 + 2 * 3 e atribui o resultado à variável Resposta (marcada com Programação &gt; Marcar como &gt; Atribuição de Variável). Execute-o e veja o resultado à direita:
+          <grid>
+          <row>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">1
+            </cell>
+            <cell type="1" relsize="-6">+
+            </cell>
+            <cell relsize="-6">2
+            </cell>
+            <cell type="1" relsize="-6">*
+            </cell>
+            <cell relsize="-6">3
+            </cell>
+            <cell type="2" relsize="-6">Resposta
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">O dobro da resposta
+            </cell>
+            <cell type="6" relsize="-6">=Resposta * 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Quando algo está errado, a célula mostra um erro: #NAME? para um nome ou função desconhecidos, #DIV/0! para uma divisão por zero, #CYCLE! para fórmulas que dependem umas das outras, #VALUE! para um nome ou SUBSET sozinho que não tem exatamente um número, #N/A para uma variável antes de o programa ser executado e #ERROR! para uma fórmula que não pode ser lida.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Os modelos começam novos documentos a partir de um que você já preparou, como um plano semanal ou o esboço de um projeto. Eles ficam em Arquivo &gt; Novo a partir de modelo:
+        <grid>
+        <row>
+        <cell relsize="-6">Adicionar documento atual como modelo adiciona o arquivo do documento atual a esse menu (salve-o antes), e Adicionar arquivos como modelos... adiciona outros arquivos do TreeSheets.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Clicar em um modelo ali cria um novo documento sem nome com uma cópia do seu conteúdo. O arquivo do modelo continua como está, pois ao salvar é pedido um novo nome de arquivo.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Abrir arquivo como modelo... faz o mesmo com qualquer arquivo do TreeSheets sem adicioná-lo ao menu, e Remover modelo... tira um modelo do menu de novo (o arquivo continua onde está).
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Se você usa o TreeSheets em mais de um computador, salve seus documentos em uma pasta compartilhada (por exemplo, o Dropbox) e habilite a opção de menu &quot;Opções &gt; Recarregar documentos automaticamente&quot;.
+        <grid>
+        <row>
+        <cell relsize="-6">Dessa forma, você pode deixar o TreeSheets em execução em todos os seus computadores com o documento aberto, e quando alternar entre eles sempre terá as informações mais recentes à sua disposição.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Como rodar o TreeSheets a partir da linha de comando
+        <grid>
+        <row>
+        <cell relsize="-6">Você pode rodar o TreeSheets a partir da linha de comando.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Você pode especificar um arquivo como argumento para o TreeSheets carregar.
+          <grid>
+          <row>
+          <cell relsize="-6">Se o TreeSheets já estiver rodando, a instância iniciada a partir da linha de comando passará o arquivo para a instância que já está em execução e em seguida terminará.
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Você também pode passar o argumento &quot;-p&quot;.
+          <grid>
+          <row>
+          <cell relsize="-6">Assim o TreeSheets vai rodar em modo &quot;portátil&quot;, e (no Windows) vai gravar sua configuração em um arquivo (.ini) na pasta atual em vez de no Registro.
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Note que para rodar corretamente o TreeSheets a partir da linha de comando, ao menos no Windows, é necessário iniciar o executável TreeSheets.exe com o caminho absoluto completo, senão ele não conseguirá encontrar seus ícones, etc.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

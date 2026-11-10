@@ -1,0 +1,17 @@
+  quicksort(array)
+    if
+      length(array)==1
+      length(array)>1
+      return array
+      create empty lists: less, greater
+      
+      take pivot from array
+      
+      for each item in array
+        if
+          item<=pivot
+          item>pivot
+          append item to less
+          append item to greater
+      
+      return quicksort(less)++pivot++quicksort(greater)

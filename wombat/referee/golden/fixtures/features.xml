@@ -1,0 +1,140 @@
+  <grid>
+  <row>
+  <cell>plain
+  </cell>
+  <cell stylebits="1">bold
+  </cell>
+  <cell stylebits="31">bold italic fixed underline strikethru
+  </cell>
+  <cell relsize="2">bigger
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-2">smaller
+  </cell>
+  <cell colorfg="0x7F0000" colorbg="0x7FFFFF">colors
+  </cell>
+  <cell>one <run stylebits="1">bold</run>, one <run stylebits="2">italic</run>, one <run stylebits="0" colorfg="0x0000FF">red</run> and one <run stylebits="4" colorfg="0x007F00">fixed green</run> word
+  </cell>
+  <cell>naïve <run stylebits="1">日本語</run> <run stylebits="0" colorfg="0xFF0000">😀 emoji</run>, שלום and <run stylebits="24">déjà</run> vu
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="2">italic cell with a <run stylebits="0">plain</run> span
+  </cell>
+  <cell>a web link and a file link
+  </cell>
+  <cell>go to Numbers, or to 日本 (missing)
+  </cell>
+  <cell>bold <run stylebits="1">link</run>
+  </cell>
+  </row>
+  <row>
+  <cell>https://example.com/cell-that-is-a-url
+  </cell>
+  <cell>Numbers
+    <grid>
+    <row>
+    <cell>1
+    </cell>
+    <cell>2.5
+    </cell>
+    </row>
+    <row>
+    <cell>three
+    </cell>
+    <cell>-4
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    <cell>1e2
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell type="6">=SUM(Numbers) - 10
+  </cell>
+  <cell type="6">=UPPER(SUBSET(Numbers, 0, 1)) &amp; ' / ' &amp; COUNT(Numbers)
+  </cell>
+  </row>
+  <row>
+  <cell type="6">=AVG(Missing)
+  </cell>
+  <cell>has a note
+  </cell>
+  <cell align="1">left
+  </cell>
+  <cell align="2">center
+  </cell>
+  </row>
+  <row>
+  <cell valign="3" align="3">right bottom
+  </cell>
+  <cell valign="2">middle
+  </cell>
+  <cell>filtered
+  </cell>
+  <cell>&lt;xml&gt; &amp; &quot;quotes&quot; 'apostrophes'    spaces
+  </cell>
+  </row>
+  <row>
+  <cell>folded
+    <grid folded="1" bordercolor="0x00007F">
+    <row>
+    <cell>inside a folded grid
+    </cell>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell>column widths
+    <grid>
+    <row>
+    <cell>wide text that wraps at the width of its column 0
+    </cell>
+    <cell>wide text that wraps at the width of its column 1
+    </cell>
+    <cell>wide text that wraps at the width of its column 2
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell>nested
+    <grid>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>level 2
+      <grid>
+      <row>
+      <cell>
+      </cell>
+      <cell>level 3
+        <grid>
+        <row>
+        <cell>level 4
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell>image
+  </cell>
+  </row>
+  </grid>

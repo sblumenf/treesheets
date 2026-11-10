@@ -1,0 +1,381 @@
+   
+  Willkommen bei TreeSheets!
+  (1) Diese Datei ist eine Hands-On Einführung. Durch simples Abarbeiten der Schritte anhand der Numerierung vor den Texten, kann man alle TreeSheets Funktionen schnell und einfach lernen und üben!
+    Die Grundlagen
+      (2) Sie haben Schritt 2 gefunden! Gut, dann wollen wir mal Text einfügen. Jedes dieser Textfelder ist eine sogenannte „Zelle“. Sehen Sie die leere Zelle zwischen (2) und (3)? Klicken Sie irgendwo in sie hinein, um sie zu selektieren 
+      
+      (3) Die Zelle oberhalb sollte nun selektiert sein (mit einem dicken, schwarzen Rand drumherum). Nun tippen Sie irgendwas, und der geschriebene Text landet in der selektierten Zelle. Haben Sie bemerkt, daß ein ein Cursor erschienen ist, als Sie zu schreiben anfingen, und der Markierungskasten wurde dünner. Dies zeigt an, daß sich die Zelle im Texteingabemodus befindet, so daß Pfeiltasten, Entfernen-Taste usw. im aktuellen Text benutzt werden können. Man gelangt auch über einen Doppelklick in den Texteingabemodus, oder durch Drücken der Eingabetaste (Enter). Um diesen Modus zu beenden, entweder erneut die Eingabetaste drücken, die Escape-Taste drücken, oder einfach eine andere Zelle selektieren.
+      (4) Es gibt sogar noch einen besseren Weg, um Text einzugeben. Sehen Sie die gepunkteten Linien zwischen den Zellen? Diese nennen wir „Rasterlinien“. Selektieren Sie (bzw. klicken Sie auf) die Rasterlinie zwischen (4) und (5).
+      (5) Die Linie über hier sollte hervorgehoben sein. Fangen Sie jetzt an, etwas einzutippen, und Sie bemerken, daß automatisch eine neue Zelle zwischen (4) und (5) eingefügt wurde. Das funktioniert auch mit den seitlichen Linien. Dies ist der natürliche Weg, ein TreeSheet zu erweitern: Suchen/Markieren Sie eine Stelle, an der Informationen hinzugefügt werden sollen und tippen Sie einfach los!
+      (6) Für ein noch schnelleres Bearbeiten könen Sie sich auch ohne Maus innerhalb von Zellen und Rasterlinien bewegen: Aktivieren Sie diese Zelle und betätigen Sie dann ein paar mal die Pfeiltasten hoch/runter.
+      (7) Das Löschen von Zellen funktioniert auf die gleiche Weise. Markieren Sie irgendeine Rasterlinie oberhalb und drücken Sie dann die Rücktaste (Backspace), um die Zelle darüber  (oder davor) zu löschen, oder drücken Sie ENTF um die Zelle darunter (oder danach) zu entfernen. Auf diese Weise funktionieren auch Editoren und Textverarbeitungen. Alternativ kann auch jede Zelle (oder mehrere Zellen) durch Klicken/Markieren selektiert und mittels der Taste ENTF gelöscht werden.
+      (8) Wenn Sie einige Zeilen oberhalb gelöscht haben  (hoffentlich nicht diese!), wäre jetzt eine gute Gelegenheit, die Funktion "Rückgängig" auszuprobieren! Drücken Sie mehrmals STRG+Z, um die gelöschten Zellen wiederherzustellen. TreeSheets verfügt über unbegrenztes Rückgängig, dauerhaftes festhalten von STRG+Z stellt also das Original-Dokument wieder her. STRG+Y wiederholt Vorgänge.
+        In OS X, verwenden Sie statt STRG die Taste CMD. ALT entspricht der Taste OPTION.
+    Tabellen
+      (9) Wie Sie vielleicht schon mitbekommen haben, kann TreeSheets Tabellen einbetten. Jede Zelle kann eine eigene Tabelle enthalten. Diese Zelle beinhaltet beispielsweise eine Untertabelle.
+        Tequila
+        2
+        Gran Marnier
+        1
+        Zitronensaft
+        0.5
+      (10) Um eine Tabelle in eine beliebige Zelle einzufügen, einfach die Zelle markieren und die Taste EINFG drücken. Versuchen Sie es mal mit dieser Zelle. Es sollte eine 1×1-Tabelle unterhalb dieses Textes erscheinen
+      (11) Versuchen Sie die eben (10) erstellte Zelle zu erweitern, indem Sie eine der 4 Rasterlinien markieren und Text eingeben, bis Sie eine 3x3 Tabelle haben. Versuchen Sie auch, sich mit den Pfeiltasten in alle Richtungen darin zu bewegen.
+      (12) Lassen Sie uns jetzt versuchen, Dinge innerhalb von Tabellen zu bewegen. Selektieren Sie eine ganze Spalte einer Tabelle (wie z.B. die Zahlen der Tabelle in (9)) durch Klicken und Ziehen von Oben nach Unten. So wie in Tabellenkalkulationen (und nicht wie in einigen anderen Programmen), dient das Ziehen in TreeSheets zur Erweiterung einer Auswahl, nicht zum Bewegen. Drücken Sie nun STRG+PfeilLinks oder STRG+PfeilRechts um die Daten zu bewegen.
+      (13) Sie können Zellen kopieren, selektieren Sie beispielsweise diese hier, kopieren Sie diese mit STRG+C, dann selektieren Sie eine beliebige Rasterlinie oberhalb und drücken STRG+V. Wenn Sie mehrere Zellen selektieren, wird die Auswahl als mehrfache Zeilen im Zielbereich eingefügt. Versuchen Sie es. Ausschneiden (STRG+X) oder Löschen mehrerer Zellen funktioniert ähnlich intuitiv. Falls das „Inline“-Einfügen nicht gewünscht ist, können Sie jederzeit zuerst eine neue Zelle erstellen und dann in dieser einfügen, um eine Hierarchie zu erzeugen.
+    Zellformatierung & Zoom
+      (14) Text in einer Zelle ist so ähnlich wie ein einzelner Absatz. Er wird automatisch umbrochen, je nach Größe der Zelle, in der er steht. Wie breit die Spalten sein sollen, hängt von Ihren Vorstellungen zur Struktur Ihres TreeSheets ab. Sie können die Spaltenbreite in der Statusanzeige sehen (für die Spalte, über der die Maus steht). Stellen Sie sicher, daß diese Zelle selektiert ist, und halten Sie dann ALT und betätigen Sie das Mausrad um zu sehen, was passiert (oder ALT+BildAuf/BildAb). Diese Zelle sollte automatisch neu formatiert werden, genau wie andere Zellen dieser Spalte und aller Tabellen dieser Spalte. Beachten Sie, daß die Spaltenbreite die maximale Anzahl an Zeichen pro Zeile darstellt, so daß die Tabelle nicht breiter wird, wenn jede Zelle irgendwann in einer einzigen Zeile steht.
+        Bei einigen Mac-Tastaturen werden die Tasten BildAuf/BildAb durch FN+Hoch/Runter emuliert. Ausserdem ersetzt ein Wischen auf dem Trackpad das Mausrad (oder der Magic Mouse).
+      (15) Eine mächtigere Möglichkeit, den Platz, den eine Zelle auf dem Bildschirm einnimmt, zu verändern (gut zum Herausstellen von relativen Gewichtungen), ist das Ändern der Schriftgröße. Selektieren Sie diese Zelle, halten Sie SHIFT und betätigen Sie das Mausrad (oder SHIFT+BildAuf/BildAb).
+      (16) Beachten Sie, daß Text als individuelle Pixel dargestellt wird, wenn Sie ihn verkleinern. Dies mag unnötig erscheinen, stellt aber eine praktische Art des Informationsmanagements dar, die das häufig verwendete Zusammenklappen/Aufklappen von Hierarchien in anderen Programmen ersetzt.
+      (17) Diese Zelle enthält eine winzige Tabelle. Selektieren Sie diese Zelle, dann halten Sie STRG und drehen Sie das Mausrad 3x vorwärts um in diese Zelle hineinzuzoomen (oder STRG+BildAuf/BildAb).
+        (18) Sie konnten diesen Text vorher nicht lesen, aber jetzt können Sie es!
+        (19) Wenn Sie hineinzoomen, setzt TreeSheets die Schriftgröße auf die durchschnittliche Größe der darüberliegenden Tabelle. Wenn Sie die Schriftgröße mittels SHIFT+sMausrad verändern, ändern Sie die relative Textgröße. Das bedeutet, es hängt von der Zoomstufe ab, wie groß der Text erscheint. Das hört sich kompliziert an, hat aber den Effekt, daß (viel) Text sehr klein gehalten, aber durch Hineinzoomen gelesen werden kann.
+        (20) Die Idee dahinter ist, daß Sie kleine Untertabellen wie diese hier nutzen, um Informationen vorzuhalten (wie z.B. eine Todo-Liste für ein bestimmtes Projekt), die zwar im TreeSheet enthalten sein, jedoch möglichst wenig Platz einnehmen sollen. Lesen oder bearbeiten ist dann immer nur eine Mausradumdrehung weit weg.
+        (21) Ausserdem ist das Festlegen der Schriftgröße normalerweise etwas, was Sie nur einmal machen müssen, wohingegen das Ein- und Ausklappen von Hierarchien und das Scrollen zu gewünschten Informationen in anderen Anwendungen ständig vorkommt. TreeSheets macht das Navigieren durch große Informationsmengen wesentlich angenehmer und einfacher zu überblicken (der pixelgroße Text gibt immernoch einen Eindruck davon, wieviele Informationen in der Zelle stecken, und von deren Struktur).
+        (22) Um diesen Text wieder auf der übergeordneten Ebene lesbar zu machen, selektieren Sie die Zellen (18-23) (nicht 17), zoomen zweimal heraus (Mausrad rückwärts), und dann SHIFT+Mausrad vorwärts bis dies wieder lesbar wird.
+        (23) Wenn Sie nun wünschen, dies zu verkleinern, selektieren Sie die selben Zellen und verwenden SHIFT+Mausrad rückwärts um die Größe zu verkleinern.
+        (24) Bemerken Sie den grauen Text, welcher sich über der Kopfzeile befindet, wenn Sie hineingezoomed haben? Dieser wird Kontext genannt und hilft Ihnen zu wissen, in welchen Teil Ihres TreeSheets Sie hineingezoomt haben.
+      Falls Sie es wünschen, eine Tabelle komplett aus dem Sichtfeld zu nehmen, verwenden Sie „folding“ (F10 in Windows, STRG+F10 auf anderen Plattformen). Versuchen Sie es mehrmals auf dieser Zelle, um diesen Effekt zu sehen
+        Diese Zelle und die unterhalb werden versteckt!
+        Beachten Sie, daß eine Zelle mit einer versteckten Tabelle darin ein „+“-Symbol erhält, welches anzeigt, daß hier weitere Informationen angezeigt werden können. Wenn Sie diese aufklappen, verschwindet das Symbol automatisch.
+        Zellen werden ebenfalls automatisch aufgeklappt, wenn Sie Funktionen wie „search next“ verwenden, um zwischen Zellen zu springen, welche gerade nicht sichtbar sind.
+        Obwohl Zusammenklappen eine Funktion ist, die Ihnen aus anderen Anwendungen bekannt sein könnte, bietet Ihnen das Verkleinern von Text (siehe 17) eine bessere Übersicht über Ihre Informationen. Probieren Sie's aus! 
+    Rendering und Layout
+      Sie können Text über die Tabelle plazieren (vertikales Layout, wie der größte Teil dieses Dokuments) oder daneben (horizontales Layout) durch Drücken von Alt+0 über einer Selektion:
+        Text über
+          Beispiel
+          Tabelle
+        Text neben
+          Beispiel
+          Tabelle
+      Sie können zwischen 3 verschiedenen Anzeigearten wählen, um die Einbettung darzustellen: Tabelle (wie der größte Teil dieses Dokuments), Blasen und Linien (siehe das Menü Bearbeiten/Anordnung & Render-Stil). Zusammen mit horizontalem/vertikalem Layout, ergeben sich daraus 6 verschiedene Stile:
+        
+        vertikal
+        horizontal
+        Tabelle
+        Beispieltext
+          Eingebettete Tabelle
+            eingebettet 1
+            eingebettet 2
+          Eine weitere Zeile
+        Beispieltext
+          Eingebettete Tabelle
+            eingebettet 1
+            eingebettet 2
+          Eine weitere Zeile
+        Blasen
+        Beispieltext
+          Eingebettete Tabelle
+            eingebettet 1
+            eingebettet 2
+          Eine weitere Zeile
+        Beispieltext
+          Eingebettete Tabelle
+            eingebettet 1
+            eingebettet 2
+          Eine weitere Zeile
+        Linien
+        Beispieltext
+          Eingebettete Tabelle
+            eingebettet 1
+            eingebettet 2
+          Eine weitere Zeile
+        Beispieltext
+          Eingebettete Tabelle
+            eingebettet 1
+            eingebettet 2
+          Eine weitere Zeile
+      Die verschiedenen Stile funktionieren am besten, wenn Sie diese dem gesamten Dokument zuweisen, sie können, falls gewünscht, jedoch auch jeder Zelle separat zugewiesen werden.
+        Der „Tabellen“-Stil eignet sich am besten für die Bearbeitung, da er sehr deutlich anzeigt, wo neue Daten eingetragen werden können.
+        Der „Blasen“-Stil funktioniert am besten, wenn unterschiedliche Hintergrundfarben je Zelle verwendet werden sollen. Wenn alle Zellen die gleiche Farbe haben, verwendet  TreeSheets automatisch alternierende Farben, um zu verhindern, daß Blasen unsichtbar werden.
+        Der „Linien“-Stil eignet sich für Dokumente im Mindmap-Stil.
+    Bilder & Stile
+      Fügen Sie Bilder in Zellen ein, um Ihr Dokument klarer zu gestalten. Bilder erscheinen vor dem Text der Zelle. Fügen Sie ein Bild in seine eigene Zelle ein, um maximale Flexibilität zu erhalten. Versuchen Sie ein (kleines) Bild in eine beliebige Zelle oberhalb einzufügen (Menü Bearbeiten/Bilder.../Bild hinzufügen, oder wählen Sie eines aus dem Bilder-Dropdown in der Symbolleiste). 
+        Bilder werden innerhalb des Dokumentes gespeichert (.cts Datei), was bedeutet, daß das Bild im Dokument erhalten bleibt, wenn Sie es verschieben sollten. Wird ein Bild mehrfach im Dokument verwendet, wird lediglich eine Kopie gespeichert.
+        Wenn Sie innerhalb eines TreeSheets größere Bilder verwenden wollen, diese jedoch zu unpraktisch innerhalb des Dokuments zu speichern wären, können Sie diese einfach in das Verzeichnis kopieren, in dem sich die .cts Datei befindet, und einfach deren Namen in die Zellen schreiben. Dann können Sie Edit/Open File (F4) nutzen, um diese anzuzeigen.
+          Sie können jeden Dateityp auf diese Weise referenzieren.
+          Um neue Dateiverweise bequem einzufügen, ziehen Sie einfach Dateien, die keine Bilder sind, per Drag+Drop auf die gewünschten Zellen.
+      Formatieren Sie eine Zelle fett, kursiv oder beides! Versuchen Sie STRG+B oder STRG+I auf einigen Zellen; beides setzt/deaktiviert. Zusätzlich sind die Stile Schreibmaschine und Unterstrichen über das Menü Bearbeiten/Textstil... verfügbar.
+      Durchgestrichen (STRG+L) ist ein nützlicher Stil für ToDo-Listen, um abgearbeitete Aufgaben anzuzeigen, die man jedoch noch nicht löschen möchte.
+      Versuchen Sie mal, Zellen mittels der beiden Farbwahl-Dropdowns in der Symbolleiste einzufärben. Sie können die aktuelle Farbe per Doppelklick sofort setzen. Selektieren Sie Zellen, die Tabellen enthalten, und verwenden Sie das Rahmenfarben-Dropdown oder das Menü Bearbeiten/Breite des Tabellenrands setzen..., um deren Aussehen zu verändern.
+      Fügen Sie einer Zelle eine Notiz hinzu für alles, was ihren Text nicht überladen soll, etwa Einzelheiten, Quellen oder Erinnerungen: Wählen Sie die Zelle aus und drücken Sie STRG+E (Bearbeiten > Notiz bearbeiten). Eine Zelle mit Notiz zeigt ein kleines Dreieck in ihrer oberen rechten Ecke. Zeigen Sie auf das Dreieck, um die Notiz zu lesen, und klicken Sie darauf, um sie zu bearbeiten. Diese Zelle hat eine Notiz, probieren Sie es aus! Mit Ansicht > Filter > Zellen mit Notizen anzeigen finden Sie alle.
+    Suchen & Navigation
+      Sie können unmittelbar suchen, indem Sie einen Suchbegriff in das Textfeld der Symbolleiste eingeben (STRG+F um diese zu aktivieren). Alle Zellen mit Treffern werden rot angezeigt (F3 zum Durchlaufen der Ergebnisse). Geben Sie etwas in das Ersetzen-Textfeld ein, und verwenden Sie dann eine der beiden Ersetzen-Operationen im Suchmenü.
+        Als Alternative zum Suchen durchläuft „go to matching cell“ (F6) die Zellen, die denselben Text wie die aktuelle Zelle enthalten, was als Querverweis oder Verknüpfungsmechanismus verwendet werden kann. Es gibt eine Einstellmöglichkeit, zu einer Zelle mit unterschiedlicher Formatierung zu springen, d.h., Sie können Formatierungen dazu verwenden, Definitionszellen und Linkzellen auseinanderzuhalten. Versuchen Sie's:
+          CycleCell
+          ...
+          CycleCell
+          CycleCell
+          LinkRef
+          ...
+          LinkRef
+          LinkRef
+          Definition
+          
+          Use
+          Use
+      Speichern Sie URLs oder Lesezeichen innerhalb von TreeSheets und drücken Sie einfach F5, um sie in Ihrem Browser zu öffnen.
+    Tags & Hierarchie
+      Tags sind eine gute Methode um mit Begriffen umzugehen, welche Sie wiederholt in einem Dokument verwenden, beispielsweise Status, Kategorien, usw. Um etwas als Tag zu definieren, suchen Sie ein Vorkommen und verwenden Sie "Add Cell as Tag" (Menü Edit/Tag...). Von da an können Sie jede andere Zelle mit STRG+Rechtsklick als Tag setzen. Tags werden blau dargestellt. Dies hilft, falls ein Tag falsch geschrieben ist.
+      Eine mächtige Methode, die sehr gut mit Tags funktioniert ist  "Hierarchietausch". Hier ein Beispiel, wie das praktisch angewendet werden kann:
+        Die Motivation hinter Hierarchietausch ist, daß Sie TreeSheets dazu verwenden, Daten in einer Baumstruktur zu verwalten, dies für Daten  jedoch oft nicht ideal ist, weil es Sie das dazu zwingt festzulegen, welche Untergruppierung am wichtigsten ist. 
+        Nehmen wir an, Sie verwalten ein Projekt und wollen festhalten, welche Aufgaben es beinhaltet. Sie verwenden Tags, um die Kollegen, die daran mitarbeiten, die zu erledigenden Aufgaben und die Arbeitsbereiche anzuzeigen:
+          Meilenstein 1
+            Frontend
+              Michael
+                GUI anpassen
+                Datenbank anbinden
+              Edi
+                Grafiken überarbeiten
+            Backend
+              Michael
+                Eingabeformulare hinzufügen
+          Meilenstein 2
+            Backend
+              Michael
+                Neue Tabellen erzeugen
+              Edi
+                Neue Server kaufen
+                Netzwerk einrichten
+        Beachten Sie, daß in der obigen Tabelle die Meilensteine die wichtigste Unterkategorie sind, die Aufgabenbereiche an zweiter Stelle stehen und die Mitarbeiter die am wenigsten wichtige Kategorie darstellen. Dies ist eine recht willkürliche Sicht, und eventuell wollen Sie die Dinge aus der Mitarbeiter-Perspektive betrachten, was sich mit Hierarchietausch bewerkstelligen lässt! Selektieren Sie irgendeine Zelle von „Michael“, drücken Sie zweimal F8 und Sie erhalten das:
+          Michael
+            Meilenstein 1
+              Frontend
+                GUI anpassen
+                Datenbank anbinden
+            Backend
+              Meilenstein 1
+                Eingabeformulare hinzufügen
+              Meilenstein 2
+                Neue Tabellen erzeugen
+          Edi
+            Meilenstein 1
+              Frontend
+                Grafiken überarbeiten
+            Meilenstein 2
+              Backend
+                Neue Server kaufen
+                Netzwerk einrichten
+        Tatsächlich ist das, was Sie getan haben folgendes: „Zeige mir diese Hierarchie aus Michaels Perspektive“. Sie sehen nun genau, woran er arbeitet. Sie könnten, falls gewünscht, dasselbe für Edi tun. Wenn Sie sehen wollen, was Michael am Backend tut, drücken Sie F8 einmal auf „Backend“ (innerhalb Michael) und Sie haben Ihre Perspektive erneut geändert. Drücken Sie nochmal F8, und Front-/Backend wird zur Hauptunterkategorie.
+        Wenden Sie F8 auf verschiedene Tags an, um jede Perspektive zu erhalten, die Sie benötigen.
+        WIchtig zu wissen ist, daß bei jedem Hierarchietausch das vormalige Eltern-Tag des ausgewählten Tags zum Kind-Tag wird. Das bedeutet, daß es keine Rolle spielt, wie oft Sie den Hierarchietausch durchführen, es geht keinerlei Information verloren. Sie können die Ursprungsstruktur wieder erreichen, wenn Sie dies wünschen.
+        Sie können dieses Feature als Möglichkeite betrachten, Informationsstückchen mit beliebiger Zahl von Tags zu verknüpfen. Der Hierarchietausch ermöglicht Ihnen, die Wichtigkeitsreihenfolge von Tags festzulegen. Dadurch ist die Baumansicht lediglich die zuletzt gewählte Ansicht.
+        Sie können die Daten im Baum wieterhin bearbeiten, ganz gleich, in welcher „Ansicht“ er sich befindet. Sie müssen den Baum nicht in die Ursprungsreihenfolge zurückversetzen. Bäume haben keine feste Ordnung!
+        Beachten Sie, daß „Michael“ höherzustufen nicht automatisch auch „Edi“ höherstuft. TreeSheets weiß nicht, daß diese Tags vom gleichen „Typ“ sind. Nicht alle verwendeten Tags haben klar abgegrenzte Typen und es ist nicht immer notwendig, alle gleichzeitig neu anzuordnen. Dies hält die Funktion einfach.
+      Verwandt mit der Arbeit mit Hierarchien ist die Möglichkeit, eine Hierarchie zu „verflachen“. Nehmen Sie das Meilenstein-Beispiel von oben. Nach der Anwendung von „Verflachen“ erhalten Sie:
+        Meilenstein 1
+        Frontend
+        Michael
+        GUI anpassen
+        Meilenstein 1
+        Frontend
+        Michael
+        Datenbank anbinden
+        Meilenstein 1
+        Frontend
+        Edi
+        Grafiken überarbeiten
+        Meilenstein 1
+        Backend
+        Michael
+        Eingabeformulare hinzufügen
+        Meilenstein 2
+        Backend
+        Michael
+        Neue Tabellen erzeugen
+        Meilenstein 2
+        Backend
+        Edi
+        Neue Server kaufen
+        Meilenstein 2
+        Backend
+        Edi
+        Netzwerk einrichten
+      Obwohl nicht so nützlich wie die hierarchische Version zum Bearbeiten und zur  Skrukturerkennung, ist dies der einzige Weg diese Daten in „flache“ Anwendungen wie z.B. Tabellenkalkulationen zu exportieren (siehe Export/CSV). Nutzer von Tabellenkalkulationen mögen es, Daten auf diese Weise zu modelieren. Die umgekehrte Methode, das „Hierarchisieren“ erlaubt es Ihnen, eine solche Tabelle wieder in die oben gezeigte Hierarchie zurückzuführen.
+    Fortgeschrittene Techniken
+      (25) Wenn eine Zelle keinen Text, aber eine Tabelle beinhaltet (wie unten), wird sie ohne Platz für den Text dargestellt. Dadurch kann es schwierig werden, sie zu selektieren oder Text einzugeben. Sie können eine Zelle selektieren, indem Sie ESC drücken, während Sie eine Unterzelle selektieren haben (versuchen Sie, (26) zu selektieren, dann ESC zu drücken, dann Text einzugeben). Ebenfalls bequem, Doppelklick auf eine Gitterlinie selektiert die gesamte Tabelle. Probieren Sie das einmal aus: Doppelklicken Sie zwischen (26) und (27), dann geben Sie Text ein.
+        
+          Diese
+          Tabelle
+          hat
+          keine
+          Text-
+          Überschrift
+          (26)
+          (27)
+      Transponieren ist eine nützliche Funktion, wenn Sie Listen in ein besser handhabbares Layout umwandeln möchten. Selektieren Sie diese Zelle und wählen Sie einige Male im Menü Bearbeiten/Tabellen-Umstrukturierung.../Transponieren. Stellen Sie sicher, daß sie die Tabelle vertikal anzeigen lassen, und versuchen Sie dann Bearbeiten/Tabellen-Umstrukturierung.../Aufsteigend sortieren, nachdem Sie entweder die erste oder zweite Spalte ausgewählt haben.
+        Eins
+        Zwei
+        Drei
+        Vier
+        Fünf
+        1
+        2
+        3
+        4
+        5
+      Schauen Sie sich die vielen Optionen für den  Im- und Export an, oder drucken Sie auf Papier oder als PDF.
+      Die Operation „In eine Tabelle als übergeordnetes Element setzen“ (F9) ist ein hervorragender Weg, um neue Hierarchien zu erzeugen. Selektieren Sie beliebige Zellen, und diese Operation erzeugt eine neue Tabelle und ein neues Elternobjekt, welches an der Stelle der Ursprungszellen erzeugt wird. Selektieren Sie beispielsweise C & D unten, drücken dann F9 und tippen beliebigen Text:
+        A
+        B
+        C
+        D
+      Filter sind nützlich, wenn Ihre TreeSheets irgendwann wirklich groß werden. Diese erlauben Ihnen, eine temporäre, gefilterte Sicht auf die Zellen, die gesucht werden. Dies wird dadurch erreicht, daß die ausgefilterten Zellen als 1-Pixel Text in Hellgrau dargestellt werden. Probieren Sie die Filterfunktion im Menü View aus:
+        Tippen Sie „treesheets“ als Suchbegriff gleich ein. Einige Zellen werden rot angezeigt. Setzen Sie jetzt den Suchfilter (Ansicht/Filter.../Nur Zellen in der aktuellen Suche anzeigen), alle Sheets sollten merklich schrumpfen, was es einfacher macht, das zu sehen, was man sucht. Machen Sie das auf der obersten Ansichtsebene dieses Sheets. Zoomen Sie mit aktiviertem Filter rein und raus. Bearbeiten Sie den Suchbegriff, die Filteransicht verändert sich schon während der Eingabe.
+        Probieren Sie auch die Einstellung „10% der letzten Änderungen anzeigen“ mit diesem Sheet. Deaktivieren Sie vorher die Filterung. Beachten Sie, daß bei  älteren TreeSheet-Dokumenten diese Funktion nicht zu 100% funktioniert, da ältere Versionen die Bearbeitungszeit der Zellen noch nicht gespeichert haben.
+      Wenn Sie einen älteren PC verwenden, oder sehr große TreeSheets bearbeiten, probieren Sie die Funktion „Schnelleres Zeilen-Rendering“, um das Dokument weniger „schön“, dafür aber schneller scrollbar zu machen.
+      TreeSheets eignet sich sehr gut für Präsentationen. Anders als traditionelle Werkzeuge wie Powerpoint, die es sehr schwer machen, dem Publikum eine Struktur darzustellen, können TreeSheets als eine große „Folie“ organisiert werden, mit minimierten Unterfolien, in die bei Bedarf hineingezoomt werden kann. Um es als Präsentationswerkzeug zu verwenden, gibt es zwei Betrachtungsmodi: Vollbild (F11) zur Minimierung optischer Ablenkungen, und Skalierte Präsentationsansicht (F12), welche versucht, die aktuelle Ansicht so groß wie möglich darzustellen.
+        Beachten Sie, daß diese beiden Funktionen und das Drucken sich einer Skaliermethode bedienen, welche die Darstellungstreue nicht in allen Fällen erhält. Dies wird in einer späteren Version korrigiert werden.
+      TreeSheets beinhaltet eine neue, tabellenkalkulationsartige Programmiersprache, welche momentan noch nicht voll funktionstüchtig ist.
+        Dies funktioniert durch Einfügen von Operationen direkt in Tabellen, gemischt mit Daten.
+        Die Sprache interpretiert dann die Tabellenausdrücke von links nach rechts (und oben nach unten), wenn Sie das Dokument „laufen“ lassen. Wählen Sie Program/Run (oder das Symbol in der Symbolleiste) und die grüne Zelle unten sollte mit einer 9 gefüllt werden 
+          1
+          +
+          2
+          *
+          3
+          
+        Sie erzeugen ein Programm, indem Sie bestimmten Zellen eine Funktion zuweisen. Standardmäßig sind alle Zellen weiß (Daten). Aus dem Menü Programm/Markieren als können Sie diese  als Operationen (rosa) oder Ergebniszellen (Hellgrün) deklarieren. Eine Ergebniszelle zeigt einfach den aktuellen Wert der vorangestellten Operationen an. Versuchen Sie über das Programm-Menü in der Tabelle unten das + als Operation und die letzte Zelle als horizontale Ergebniszelle zu deklarieren. Dann klicken Sie run:
+          1
+          +
+          2
+          
+        Operationen funktionieren automatisch innerhalb der gesamten Tabelle, beispielsweise:
+          
+            1
+            2
+            3
+          +
+          
+            4
+            5
+            6
+          *
+          
+            7
+            8
+            9
+          
+        Es wird nicht empfohlen, diese Sprache zum aktuellen Zeitpunkt einzusetzen, da sie nur wenige Operationen enthält und viele Operanden-Kombinationen nicht unterstützt werden. Halbwegs funktionieren:
+          +
+          -
+          *
+          /
+          <
+          >
+          <=
+          >=
+          ==
+          !=
+          =
+          <>
+          inc
+          dec
+          neg
+          sum
+          transpose
+          if
+        Für weitere Details zu den Operanden siehe Help > Load operation reference (CTRL+ALT+F1).
+        Schauen Sie sich die Beispieldatei sales.cts an, um einen Eindruck der Möglichkeiten zu bekommen.
+      Formeln berechnen Ergebnisse wie in einer Tabellenkalkulation und aktualisieren sich von selbst, sobald Sie etwas ändern. Geben Sie in eine Zelle einen Text ein, der mit = beginnt, etwa =SUM(Kosten). Sobald Sie die Zelle verlassen, zeigt sie das Ergebnis. Die Formelleiste („Formel“ in der Symbolleiste) zeigt die Formel der selektierten Zelle, und Sie können sie dort auch bearbeiten (ENTER übernimmt sie).
+        Ein Name in Klammern steht für die Tabelle der Zelle mit genau diesem Text, die nächstgelegene zuerst. Unten heißt die linke Tabelle Kosten. Ändern Sie ihre Zahlen und beobachten Sie die Ergebnisse rechts:
+          Kosten
+            120
+            80
+            40
+          
+            Summe
+            240
+            Am teuersten
+            120
+            Durchschnitt
+            80
+            Rest eines Budgets von 500
+            260
+        Drücken Sie F2 auf einem Ergebnis, um seine Formel direkt in der Zelle zu sehen und zu ändern. Wenn Sie ein Ergebnis überschreiben, wird die Zelle wieder zu normalem Text.
+        Sie können SUM, MIN, MAX, AVG, MEDIAN und COUNT verwenden, zusammen mit Zahlen, + - * / und Klammern, z. B. =(SUM(Einnahmen) - SUM(Kosten)) / 12. Es zählen nur die Zahlen direkt in der benannten Tabelle, und auch die Ergebnisse anderer Formeln zählen als Zahlen. Mit TREE davor, z. B. =TREESUM(Kosten), zählen auch die Zahlen in allen untergeordneten Tabellen, aber nicht die Formeln dort. Ein Name allein steht für die eine Zahl in seiner Tabelle, z. B. =Preis * Menge.
+        SUBSET verwendet nur einen Teil einer Tabelle: SUBSET(Name, Spalten, Zeilen), wobei Spalten und Zeilen ab 0 oben links gezählt werden. Jedes davon ist eine Zahl wie 1, ein Bereich wie 0-1, ein an einer Seite offener Bereich wie 1- (bis zum Ende) oder -1 (vom Anfang an) oder - für alle. Unten heißt die linke Tabelle Umsatz, mit einer Spalte pro Laden und einer Zeile pro Monat:
+          Umsatz
+            30
+            50
+            20
+            60
+            40
+            10
+          
+            Bester Monat des ersten Ladens
+            40
+            Beide Läden in den ersten zwei Monaten
+            160
+            Zweiter Laden ab dem zweiten Monat
+            70
+        Mit TREE davor zählen auch die Zahlen in den untergeordneten Tabellen der gewählten Zellen, alle, egal in welcher Spalte und Zeile. Unten hat jeder Laden in der Tabelle Bestellungen seine Bestellungen in einer untergeordneten Tabelle:
+          Bestellungen
+            Erster Laden
+              12
+              45
+              30
+            Zweiter Laden
+              25
+              60
+              8
+          
+            Größte Bestellung des zweiten Ladens
+            60
+        TREESUBSET(Name, Spalten, Zeilen, Ebenen) wählt dieselben Spalten und Zeilen erneut in den untergeordneten Tabellen der gewählten Zellen und so weiter, zählt aber nur die Ebenen im Bereich, wobei 0 die benannte Tabelle ist. So lassen sich Summen von ihren Einzelheiten unterscheiden. Unten hat jede Phase in Plan ihre Stunden in Spalte 1, die ihre Aufgaben mit deren Stunden in denselben Spalten enthält:
+          Plan
+            Entwurf
+            10
+              Skizzen
+              4
+              Prüfung
+              6
+            Bau
+            25
+              Rahmen
+              12
+              Verkabelung
+              8
+              Tests
+              5
+          
+            Stunden aller Phasen
+            35
+            Längste einzelne Aufgabe
+            12
+            Anzahl der Aufgaben
+            5
+        Statt eines Namens nehmen SUBSET und TREESUBSET auch ein weiteres SUBSET oder TREESUBSET und verwenden dann die untergeordneten Tabellen der Zellen, die es wählt. So kann jede Ebene ihre eigenen Spalten und Zeilen haben. Unten wählt SUBSET(Plan, 1, 1) die Stunden von Bau, und die Formeln betrachten nur dessen Aufgaben:
+          Längste Aufgabe von Bau
+          12
+          Stunden von Bau nach Rahmen
+          13
+          Stunden von Tests
+          5
+        Allein steht SUBSET für die eine Zahl darin, z. B. =SUBSET(Umsatz, 1, 2) * 2. Namen können auch in Anführungszeichen stehen, was sie brauchen, wenn sie ein Komma oder eine Klammer enthalten, z. B. =SUM("Kosten, 2025") oder =MAX(SUBSET("Umsatz (EUR)", 0, -)).
+        Formeln können auch die Variablen der Programmiersprache oben verwenden. Ein Name, den keine Tabelle hat, steht für die Variable mit diesem Namen, mit dem, was das Programm ihr beim letzten Ausführen zugewiesen hat, und eine Variable, die eine Tabelle enthält, zählt wie eine solche, z. B. =SUM(Punkte). Bis Sie das Programm mit Programm > Ausführen ausführen, zeigt eine solche Formel #N/A. Unten berechnet das Programm links 1 + 2 * 3 und weist das Ergebnis der Variablen Antwort zu (markiert mit Programm > Markieren als > Variable zuweisen). Führen Sie es aus und beobachten Sie das Ergebnis rechts:
+          
+            1
+            +
+            2
+            *
+            3
+            Antwort
+          
+            Doppelte Antwort
+            #N/A
+        Wenn etwas nicht stimmt, zeigt die Zelle einen Fehler: #NAME? für einen unbekannten Namen oder eine unbekannte Funktion, #DIV/0! für eine Division durch null, #CYCLE! für Formeln, die voneinander abhängen, #VALUE! für einen Namen oder ein SUBSET allein, in dem nicht genau eine Zahl steht, #N/A für eine Variable, bevor das Programm ausgeführt wurde, und #ERROR! für eine Formel, die nicht gelesen werden kann.
+      Vorlagen beginnen neue Dokumente mit einem, das Sie schon vorbereitet haben, etwa einem Wochenplan oder einer Projektgliederung. Sie finden sie unter Datei > Neu aus Vorlage:
+        Aktuelles Dokument als Vorlage hinzufügen fügt die Datei des aktuellen Dokuments zu diesem Menü hinzu (speichern Sie es zuerst), und Dateien als Vorlagen hinzufügen... fügt andere TreeSheets-Dateien hinzu.
+        Ein Klick auf eine Vorlage dort erstellt ein neues, unbenanntes Dokument mit einer Kopie ihres Inhalts. Die Vorlagendatei selbst bleibt unverändert, denn beim Speichern wird nach einem neuen Dateinamen gefragt.
+        Datei als Vorlage öffnen... macht dasselbe mit einer beliebigen TreeSheets-Datei, ohne sie zum Menü hinzuzufügen, und Vorlage entfernen... nimmt eine Vorlage wieder aus dem Menü (die Datei bleibt, wo sie ist).
+      Wenn Sie auf verschiedenen PCs mit TreeSheets Dateien arbeiten, speichern Sie diese in einem gemeinsamen Verzeichnis (wie z.B. DropBox) und aktivieren Sie im Menü Optionen/Dokument automatisch neu laden.
+        Auf diese Weise haben Sie nach dem Speichern auf allen PCs immer ein aktuelles Dokument zur Verfügung
+      Starten von TreeSheets von der Kommandozeile aus
+        TreeSheets kann von der Kommandozeile aus gestartet werden.
+        Sie können eine Datei als Argument übergeben.
+          Sollte TreeSheets bereits laufen, wird diese Datei der laufenden Instanz übergeben und die neue dann beendet.
+        Sie können auch den Parameter -p verwenden.
+          Dies startet TreeSheets im „portablen“ Modus, in dem (unter Windows) die Einstellungen in einer .ini Datei innerhalb des aktuellen Verzeichnisses statt der Registry gespeichert werden.
+        Beachten Sie, daß für eine korrekte Ausführung von der Befehlszeile aus (zumindest unter Windows) TreeSheets.exe mit dem vollständigen Pfad aufgerufen werden muß. Ansonsten können die Icons usw. zum relativen Pfad nicht gefunden werden.

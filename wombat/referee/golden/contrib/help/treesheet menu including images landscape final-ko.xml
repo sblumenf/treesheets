@@ -1,0 +1,1662 @@
+  <grid>
+  <row>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  </row>
+  <row>
+  <cell>
+    <grid>
+    <row>
+    <cell>Treesheets 메뉴 참조
+    </cell>
+    <cell>http://www.strlen.com/treesheets
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    </row>
+    <row>
+    <cell>메뉴
+      <grid>
+      <row>
+      <cell>파일[F]
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">새로 만들기[N]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+N
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">열기[O]...
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+O
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">닫기[C]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+W
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">최근 파일[R]
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">저장[S]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+S
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">다른 이름으로 저장[A]...
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">모두 저장
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">페이지 설정...
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">인쇄 비율 설정...
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">인쇄 미리 보기...
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">인쇄[P]...
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+P
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">내보내기[V]
+          <grid>
+          <row>
+          <cell>XML[X]...
+          </cell>
+          </row>
+          <row>
+          <cell>HTML (표+스타일링)[H]...
+          </cell>
+          </row>
+          <row>
+          <cell>HTML (개요)[O]...
+          </cell>
+          </row>
+          <row>
+          <cell>들여쓰기 텍스트[T]...
+          </cell>
+          </row>
+          <row>
+          <cell>쉼표로 구분된 텍스트 (CSV)[C]...
+          </cell>
+          </row>
+          <row>
+          <cell>이미지[I]...
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+          <grid>
+          <row>
+          <cell relsize="-1">
+          </cell>
+          </row>
+          <row>
+          <cell>가져올 수 있지만 이미지가 없음
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">중첩된 표 이미지 없음
+          </cell>
+          </row>
+          <row>
+          <cell>msword 개요
+          </cell>
+          </row>
+          <row>
+          <cell>마인드 매니저
+          </cell>
+          </row>
+          <row>
+          <cell>스프레드시트, db
+          </cell>
+          </row>
+          <row>
+          <cell>png 이미지
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">가져오기
+          <grid>
+          <row>
+          <cell>XML...
+          </cell>
+          </row>
+          <row>
+          <cell>XML (OMPL 등의 속성도 포함)...
+          </cell>
+          </row>
+          <row>
+          <cell>들여쓰기된 텍스트...
+          </cell>
+          </row>
+          <row>
+          <cell>쉼표로 구분된 텍스트 (CSV)...
+          </cell>
+          </row>
+          <row>
+          <cell>세미콜론으로 구분된 텍스트 (CSV)...
+          </cell>
+          </row>
+          <row>
+          <cell>탭으로 구분된 텍스트...
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">종료[E]
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">CTRL+Q
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell>편집[E]
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">잘라내기[T]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+X
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">복사[C]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+C
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">이미지와 함께 복사(I)
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+ALT+C
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">비트맵으로 복사
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">연속 텍스트로 복사
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">붙여넣기[P]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+V
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">스타일만 붙여넣기
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+SHIFT+V
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 축소
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+L
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">실행 취소
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+Z
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">다시 실행
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+Y
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">이후 삭제
+        </cell>
+        <cell colorbg="0xC0FFC0">Delete
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">이전 삭제
+        </cell>
+        <cell colorbg="0xC0FFC0">Backspace
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">이후 단어 삭제
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+Delete
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">이전 단어 삭제
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+Backspace
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">새 격자 삽입[I]
+        </cell>
+        <cell colorbg="0xC0FFC0">Insert
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">새 부모로 둘러싸기[W]
+        </cell>
+        <cell colorbg="0xC0FFC0">F9
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">접기 전환
+        </cell>
+        <cell colorbg="0xC0FFC0">F10
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">모두 접기
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+SHIFT+F10
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">모두 펴기
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+ALT+F10
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">선택[S]
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">격자 재구성[G]
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">레이아웃 랜더링 스타일[L]
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">이미지[I]
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">찾아보기[B]
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">텍스트 편집[E]
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">텍스트 크기
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">텍스트 스타일
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">격자 테두리 너비 설정
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">태그
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell colorbg="0xC0FFFF">
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFFF">선택[S]
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">다음 셀로 이동
+        </cell>
+        <cell colorbg="0xC0FFC0">TAB
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">이전 셀로 이동
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+TAB
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">현재 격자에서 모든 셀 선택[A]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+A
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택 왼쪽으로 이동
+        </cell>
+        <cell colorbg="0xC0FFC0">Left
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택 오른쪽으로 이동
+        </cell>
+        <cell colorbg="0xC0FFC0">Right
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택 위로 이동
+        </cell>
+        <cell colorbg="0xC0FFC0">Up
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택  아래로 이동
+        </cell>
+        <cell colorbg="0xC0FFC0">Down
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 왼쪽으로 이동
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+Left
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 오른쪽으로 이동
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+Right
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 위로 이동
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+Up
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 아래로 이동
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택 왼쪽 확장
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+Left
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택 오른쪽 확장
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+Right
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택 위로 확장
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+Up
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택 아래로 확장
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+Down
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택 전체 열 확장
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택 전체 행 확장
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">부모 선택[P]
+        </cell>
+        <cell colorbg="0xC0FFC0">Esc
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">첫 번째 자식 선택[C]
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+ENTER
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">일치 셀로 가기[M]
+        </cell>
+        <cell colorbg="0xC0FFC0">F6
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">격자 재구성[G]
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">순서 바꾸기[T]
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+CTRL+T
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">오름차순 정렬[A] (1xn 또는 nx1)
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">내림차순 정렬[D] (1xn 또는 nx1)
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">계층 교체[S]
+        </cell>
+        <cell colorbg="0xC0FFC0">F8 (부모와 함께)
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">계층화[H] (nxn에서 1xn)
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">평탄화[F] (1xn 또는 nx1에서 nxn)
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">레이아웃 렌더링 스타일[L]
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">격자 스타일 렌더링을 사용한 세로 레이아웃
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+1
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">버블 스타일 렌더링을 사용한 세로 레이아웃
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+2
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선 스타일 렌더링을 사용한 세로 레이아웃
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+3
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">격자 스타일 렌더링을 사용한 가로 레이아웃
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+4
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">버블 스타일 렌더링을 사용한 가로 레이아웃
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+5
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선 스타일 렌더링을 사용한 가로 레이아웃
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+6
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">격자 스타일 렌더링
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+7
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">버블 스타일 렌더링
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+8
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선 스타일 렌더링
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+9
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">세로 레이아웃 전환
+        </cell>
+        <cell colorbg="0xC0FFC0">F7
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">이미지[I]
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">이미지 추가[A]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">다른 이름으로 저장[S]...
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">비율 (픽셀 재샘플링, %) [M]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">비율 (픽셀 재샘플링, 너비 기준) [M]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">비율 (표시전용)[D]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">비율 재설정 (표시전용[R]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">JPEG로 삽입[J]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">PNG로 삽입[P]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">제거[V]
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">찾아보기[B]
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">브라우저에서 링크 열기
+        </cell>
+        <cell colorbg="0xC0FFC0">F5
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">파일 열기
+        </cell>
+        <cell colorbg="0xC0FFC0">F4
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell>
+    <grid>
+    <row>
+    <cell>
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFFF">
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">텍스트 편집[E]...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">커서 왼쪽
+        </cell>
+        <cell colorbg="0xC0FFC0">Left
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">커서 오른쪽
+        </cell>
+        <cell colorbg="0xC0FFC0">Right
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">단어 왼쪽
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+Left
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">단어 오른쪽
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+Right
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택  왼쪽 확장
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+Left
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택  오른쪽 확장
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+Right
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택 단어 왼쪽 확장
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+CTRL+Left
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택 단어 오른쪽 확장
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+CTRL+Right
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택을 시작으로 확장
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+HOME
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">선택를 끝까지 확장 
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+END
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">텍스트 줄의 시작
+        </cell>
+        <cell colorbg="0xC0FFC0">HOME
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">텍스트 줄의 끝
+        </cell>
+        <cell colorbg="0xC0FFC0">END
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">텍스트의 시작
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+HOME
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">텍스트의 끝
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+END
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">텍스트 편집 모드 진입/종료
+        </cell>
+        <cell colorbg="0xC0FFC0">ENTER
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">...그리고 텍스트의 끝으로 이동
+        </cell>
+        <cell colorbg="0xC0FFC0">F2
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">...그리고 새 행의 첫 번째 셀로 진행
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+ENTER
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">...그리고 오른쪽의 다음 셀로 진행
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+ENTER
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">텍스트 편집 취소
+        </cell>
+        <cell colorbg="0xC0FFC0">Esc
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">텍스트 크기...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">텍스트 크기 늘이기 (SHIFT+마우스 휠)[I]
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+PGUP
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">텍스트 크기 줄이기 (SHIFT+마우스 휠)[D]
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+PGDN
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">텍스트 크기 재설정[R]
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+CTRL+S
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">모든 하위 격자의 텍스트 축소[S]
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+CTRL+M
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">열 너비 늘이기 (ALT+마우스 휠)
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+PGUP
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">열 너비 줄이기 (ALT+마우스 휠)
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+PGDN
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">열 너비 늘이기 (하위 격자 없음)     
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+ALT+PGUP
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">열 너비 줄이기 (하위 격자 없음)
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+ALT+PGDN
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">열 너비 재설정
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+CTRL+W
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">텍스트 스타일...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 굵게 전환[B]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+B
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 기울임꼴[I]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+I
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 타자기체 전환[T]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+IALT+T
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 밑줄 전환[U
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+U
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 취소선 전환[S]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+T
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">텍스트 스타일 재설정[R]
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+CTRL+R
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">색상 재설정[C]
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+CTRL+C
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xCCDCE2">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">마지막 셀 색상 적용
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+ALT+C
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">마지막 텍스트 색상 적용
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+ALT+T
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">마지막 테두리 색상 적용
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+ALT+B
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 색상 열기
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+ALT+F9
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">텍스트 색상 열기
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+ALT+F10
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">테두리 색상 열기
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+ALT+F11
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">이미지 드롭다운 열기
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+ALT+F12
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">격자 테두리 너비 설정...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">1, 2, 3, 4, 5
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">태그...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 텍스트를 태그로 추가[A]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">태그에서 셀 텍스트 제거[R]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">셀 텍스트를 태그로 설정 (Ctrl+RMB 사용)[S] 
+          <grid>
+          <row>
+          <cell colorbg="0xC0FFC0"> (팝업 메뉴를 사용하여 현재 셀에 대한 태그를 빠르게 설정하려면 CTRL 키를 누른 채 마우스 오른쪽 버튼 (RMB)을 누르세요)
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell>
+    <grid>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>검색[S]
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFC0">검색[S]
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+F
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">대소문자 구분 검색
+      </cell>
+      <cell colorbg="0xCCDCE2">
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">다음 일치[N]
+      </cell>
+      <cell colorbg="0xC0FFC0">F3
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">이전 일치[P]
+      </cell>
+      <cell colorbg="0xC0FFC0">SHIFT+F3
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">바꾸기[R]
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+H
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">현재 선택에서 바꾸기[S]
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+K
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">현재 선택에서 바꾸고 다음으로 이동[J]
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+J
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">모두 바꾸기[A]
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>보기[V]
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFC0">확대 (CTRL+마우스 휠)[I]
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+PGUP
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">축소 (CTRL+마우스 휠)[O]
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+PGDN
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">다음 탭[N]
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+TAB
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">이전 탭[P]
+      </cell>
+      <cell colorbg="0xC0FFC0">SHIFT+CTRL+TAB
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">전체 화면 보기 전환[F]
+      </cell>
+      <cell colorbg="0xCCDCE2">
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">크기 조정된 프레젠테이션 보기 전환[S]
+      </cell>
+      <cell colorbg="0xCCDCE2">
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">시트 스크롤
+      </cell>
+      <cell colorbg="0xCCDCE2">
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">필터
+      </cell>
+      <cell colorbg="0xCCDCE2">
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">통계 표시
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+D
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xC0FFFF">시트 스크롤
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFC0">위로 스크롤 (마우스 휠)
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">위로 스크롤 (마우스 휠)
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">아래로 스크롤 (마우스 휠)
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">아래로 스크롤 (마우스 휠)
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">왼쪽 스크롤
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">오른쪽 스크롤
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xC0FFFF">필터
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFC0">필터 끄기
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">현재 검색에서 셀만 표시
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">마지막 편집의 5% 표시
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">마지막 편집의 10% 표시
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">마지막 편집의 20% 표시
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">마지막 편집의 50% 표시
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">마지막 필터보다 1% 더 많이 표시
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">마지막 필터보다 1% 더 적게 표시
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">동일한 셀 색상으로 필터링
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">다음 필터 일치로 가기
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell relsize="-1">
+    <grid>
+    <row>
+    <cell stylebits="4" relsize="-1">한국어 작성: 비너스걸
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">옵션[O]
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFC0">글꼴...
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">타자기 글꼴...
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">키 바인딩...
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">기본열 너비
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">사용자 지정 색상 설정[C]
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">셀 배경에서 사용자 지정 색상 설정[S]
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">배경 색상
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">커서 색상(R)...
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">---
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">도구 모음
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">상태 표시줄
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">하단의 파일 탭
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">트레이에 최소화
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">닫기 시 최소화
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">트레이에서 한 번 클릭으로 최대화
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">---
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">마우스 휠 스크롤 및 확대/축소 전환
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">커서 키로 셀 사이 탐색
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">---
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">파일 백업
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">자동 저장
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">문서 자동 다시 로드
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">HTML로 자동 내보내기
+        <grid>
+        <row>
+        <cell>자동 내보내기 안 함
+        </cell>
+        </row>
+        <row>
+        <cell>이미지 포함 내보내기
+        </cell>
+        </row>
+        <row>
+        <cell>이미지 포함 내보내기
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">---
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">문서 가운데로 렌더링
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">더 빠른 선 렌더링
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">어두운 모드로 반전
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">격자 테두리의 둥글기[R]...
+        <grid>
+        <row>
+        <cell>0, 1, 2, 3, 4, 5, 6
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">스크립트[C]
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFC0">추가...
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+ALT+L
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">제거...
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+SHIFT+ALT+L
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">JSON.lobster 내보내기
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+ALT+F1
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">프로그램[P]
+      <grid>
+      <row>
+      <cell relsize="-1">실행[R]
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-1">다음으로 표시[M]
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">데이터[D]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">작동[O]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">변수 할당[A]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">변수 읽기[R]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">가로 보기[H]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">세로 보기[V]
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-1">지우기[C]
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">도움말[H]
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFC0">정보[A]...
+      </cell>
+      <cell colorbg="0xCCDCE2" relsize="-1">
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">대화형 자습서[T]
+      </cell>
+      <cell colorbg="0xC0FFC0">F1
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">작동 참조
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+ALT+F1
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">자습서 웹 페이지[W]
+      </cell>
+      <cell colorbg="0xCCDCE2" relsize="-1">
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

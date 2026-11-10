@@ -1,0 +1,636 @@
+  <grid>
+  <row>
+  <cell>TreeSheet key quick reference
+  </cell>
+  <cell>version Nov 2 2014
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-4">This reference sheet was made by WiM The Hague NL  20141229
+  </cell>
+  <cell relsize="-2">http://strlen.com/treesheets
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-2">
+  </cell>
+  <cell relsize="-2">
+  </cell>
+  </row>
+  <row>
+  <cell>
+    <grid>
+    <row>
+    <cell>select cell(s)/goto
+      <grid>
+      <row>
+      <cell>select first child
+      </cell>
+      <cell>SHIFT-Enter
+      </cell>
+      </row>
+      <row>
+      <cell>one level higher
+      </cell>
+      <cell>Esc
+      </cell>
+      </row>
+      <row>
+      <cell>one level deeper insert grid at end
+      </cell>
+      <cell>Insert/CTRL+G
+      </cell>
+      </row>
+      <row>
+      <cell>next cell same level
+      </cell>
+      <cell>tab
+      </cell>
+      </row>
+      <row>
+      <cell>previous cell same level
+      </cell>
+      <cell>SHIFT-tab
+      </cell>
+      </row>
+      <row>
+      <cell>left
+      </cell>
+      <cell>cursor left
+      </cell>
+      </row>
+      <row>
+      <cell>right
+      </cell>
+      <cell>cursor right
+      </cell>
+      </row>
+      <row>
+      <cell>up
+      </cell>
+      <cell>cursor up
+      </cell>
+      </row>
+      <row>
+      <cell>down
+      </cell>
+      <cell>cursor down
+      </cell>
+      </row>
+      <row>
+      <cell>select neighbouring cell
+      </cell>
+      <cell>SHIFT-cursor
+      </cell>
+      </row>
+      <row>
+      <cell>select all
+      </cell>
+      <cell>CTRL+a
+      </cell>
+      </row>
+      <row>
+      <cell>next tab
+      </cell>
+      <cell>CTRL+Tab
+      </cell>
+      </row>
+      <row>
+      <cell>previous tab
+      </cell>
+      <cell>SHIFT-CTRL+Tab
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>search/replace
+      <grid>
+      <row>
+      <cell>search
+      </cell>
+      <cell>CTRL+f
+      </cell>
+      </row>
+      <row>
+      <cell>find next
+      </cell>
+      <cell>F3
+      </cell>
+      </row>
+      <row>
+      <cell>goto matching cell (same content)
+      </cell>
+      <cell>F6
+      </cell>
+      </row>
+      <row>
+      <cell>replace
+      </cell>
+      <cell>CTRL+h
+      </cell>
+      </row>
+      <row>
+      <cell>replace in current selection
+      </cell>
+      <cell>CTRL+j
+      </cell>
+      </row>
+      <row>
+      <cell>replace all
+      </cell>
+      <cell>ALT+s a
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>edit
+      <grid>
+      <row>
+      <cell>insert cell below
+      </cell>
+      <cell>Enter Enter
+      </cell>
+      </row>
+      <row>
+      <cell>
+      </cell>
+      <cell>Enter and start typing content
+      </cell>
+      </row>
+      <row>
+      <cell>insert neighbouring cell 
+      </cell>
+      <cell>select side, press Enter type text
+      </cell>
+      </row>
+      <row>
+      <cell>
+      </cell>
+      <cell>select cell side and start typing
+      </cell>
+      </row>
+      <row>
+      <cell>edit selection
+      </cell>
+      <cell>F2
+      </cell>
+      </row>
+      <row>
+      <cell>copy selection
+      </cell>
+      <cell>CTRL+c
+      </cell>
+      </row>
+      <row>
+      <cell>paste selection
+      </cell>
+      <cell>CTRL+v
+      </cell>
+      </row>
+      <row>
+      <cell>join cells
+      </cell>
+      <cell>ALT+E, Copy as continous Text
+      </cell>
+      </row>
+      <row>
+      <cell>undo
+      </cell>
+      <cell>CTRL+z
+      </cell>
+      </row>
+      <row>
+      <cell>redo
+      </cell>
+      <cell>CTRL+y
+      </cell>
+      </row>
+      <row>
+      <cell>discard changes
+      </cell>
+      <cell>Esc
+      </cell>
+      </row>
+      <row>
+      <cell>change width of column
+      </cell>
+      <cell>ALT+mouse scroll
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="1">bold
+      </cell>
+      <cell>CTRL+b
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="2"> italics
+      </cell>
+      <cell>CTRL+i
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="16">strikethrough
+      </cell>
+      <cell>CTRL+t
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="8">underline
+      </cell>
+      <cell>CTRL+u
+      </cell>
+      </row>
+      <row>
+      <cell relsize="2">larger font
+      </cell>
+      <cell>SHIFT-PgUp
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-1">smaller font
+      </cell>
+      <cell>SHIFT-PgDn
+      </cell>
+      </row>
+      <row>
+      <cell>turn contents into tag (blue)
+      </cell>
+      <cell>ALT+e UP RIGHT ENTER
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell>
+    <grid>
+    <row>
+    <cell>hierarchy 
+      <grid>
+      <row>
+      <cell>zoom in one level
+      </cell>
+      <cell>CTRL+PgUp
+      </cell>
+      <cell>CTRL+scroll-up
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>zoom out one level
+      </cell>
+      <cell>CTRL+PgDn
+      </cell>
+      <cell>CTRL+scroll-down
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>collapse/expand/toggle fold
+      </cell>
+      <cell>F10/SHIFT-F10
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>wrap selection in new parent
+      </cell>
+      <cell>F9
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell colorfg="0xFF0000">inside/out  Swap uses tags
+      </cell>
+      <cell>F8
+      </cell>
+      <cell>right click, Grid reorganization..
+      </cell>
+      <cell>s
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>Hierarchify
+      </cell>
+      <cell>
+      </cell>
+      <cell>right click, Grid reorganization..
+      </cell>
+      <cell>h
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>Transpose
+      </cell>
+      <cell>
+      </cell>
+      <cell>right click, Grid reorganization..
+      </cell>
+      <cell>t
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>Flatten
+      </cell>
+      <cell>SHIFT-CTRL+t
+      </cell>
+      <cell>right click, Grid reorganization..
+      </cell>
+      <cell>f
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>sort Ascending
+      </cell>
+      <cell>
+      </cell>
+      <cell>right click, Grid reorganization..
+      </cell>
+      <cell>a
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>sort Descending
+      </cell>
+      <cell>
+      </cell>
+      <cell>right click, Grid reorganization..
+      </cell>
+      <cell>d
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>layout/view
+      <grid>
+      <row>
+      <cell>full screen
+      </cell>
+      <cell>F11
+      </cell>
+      </row>
+      <row>
+      <cell>swap horizontal and vertical hierarchy
+      </cell>
+      <cell>F7
+      </cell>
+      </row>
+      <row>
+      <cell>layout (right click Layout Render style...)
+        <grid>
+        <row>
+        <cell relsize="1">gridstyle/spreadsheet/cells
+          <grid>
+          <row>
+          <cell colorbg="0xFFFF80" relsize="1">vertical
+          </cell>
+          <cell colorbg="0xFFFF80" relsize="1">ALT+1
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">horizontal
+          </cell>
+          <cell relsize="1">ALT+4
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">gridstyle
+          </cell>
+          <cell relsize="1">ALT+7
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell relsize="1">F7&lt;-&gt;
+        </cell>
+        <cell relsize="1">gridstyle/spreadsheet/cells
+          <grid>
+          <row>
+          <cell relsize="1">vertical
+          </cell>
+          <cell relsize="1">ALT+1
+          </cell>
+          </row>
+          <row>
+          <cell colorbg="0xFFFF80" relsize="1">horizontal
+          </cell>
+          <cell colorbg="0xFFFF80" relsize="1">ALT+4
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">gridstyle
+          </cell>
+          <cell relsize="1">ALT+7
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="1">mindmap/line
+          <grid>
+          <row>
+          <cell colorbg="0x80FF80" relsize="1">vertical 
+            <grid>
+            <row>
+            <cell colorbg="0x80FF80" relsize="1">ALT+3
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">horizontal
+            <grid>
+            <row>
+            <cell relsize="1">ALT+6
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">line style/mindmap
+            <grid>
+            <row>
+            <cell relsize="1">ALT+9
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell relsize="1">F7&lt;-&gt;
+        </cell>
+        <cell relsize="1">mindmap/line
+          <grid>
+          <row>
+          <cell relsize="1">vertical 
+            <grid>
+            <row>
+            <cell relsize="1">ALT+3
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell colorbg="0x80FF80" relsize="1">horizontal
+            <grid>
+            <row>
+            <cell colorbg="0x80FF80" relsize="1">ALT+6
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">line style/mindmap
+            <grid>
+            <row>
+            <cell relsize="1">ALT+9
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="1">bubble
+          <grid>
+          <row>
+          <cell colorbg="0xFF80FF" relsize="1">vertical
+          </cell>
+          <cell colorbg="0xFF80FF" relsize="1">ALT+2
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">horizontal
+          </cell>
+          <cell relsize="1">ALT+5
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">bubble
+          </cell>
+          <cell relsize="1">ALT+8
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell relsize="1">F7&lt;-&gt;
+        </cell>
+        <cell relsize="1">bubble
+          <grid>
+          <row>
+          <cell relsize="1">vertical
+          </cell>
+          <cell relsize="1">ALT+2
+          </cell>
+          </row>
+          <row>
+          <cell colorbg="0xFF80FF" relsize="1">horizontal
+          </cell>
+          <cell colorbg="0xFF80FF" relsize="1">ALT+5
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">bubble
+          </cell>
+          <cell relsize="1">ALT+8
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell> view edit age or only search items
+        <grid>
+        <row>
+        <cell>ALT+View
+        </cell>
+        <cell>Filter
+        </cell>
+        <cell>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

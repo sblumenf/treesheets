@@ -1,0 +1,433 @@
+{
+ "files": {
+  "complex_eval": {
+   "bytes": 1032,
+   "format_version": 17,
+   "sha256": "e117678e574baa67bb03167f0ffec80a355c1c6e5d78e9f264f0e067e01512c3",
+   "stats": {
+    "cells": 253,
+    "grids": 26,
+    "operations": 57
+   }
+  },
+  "contrib/Procrastination": {
+   "bytes": 1119,
+   "format_version": 15,
+   "sha256": "431ebdeec51870964e218bc752503e1342d65eb47f835458c735627c3bc90185",
+   "stats": {
+    "cells": 54,
+    "grids": 34
+   }
+  },
+  "contrib/help/treesheet key quick reference (by WiM) 3 posted": {
+   "bytes": 3919,
+   "format_version": 17,
+   "sha256": "55c099d1c475317857d3b534177d5d800dbe2a8242824ba77746c845f2c6a0cf",
+   "stats": {
+    "cells": 204,
+    "grids": 22,
+    "images": 1,
+    "tags": 1
+   }
+  },
+  "contrib/help/treesheet key quick reference (by WiM) 3 posted-ko": {
+   "bytes": 4193,
+   "format_version": 24,
+   "sha256": "d72057bc7e7f95cec0fd869087345c768c5aa0468893d4317a811ca73701010f",
+   "stats": {
+    "cells": 204,
+    "grids": 22,
+    "images": 1
+   }
+  },
+  "contrib/help/treesheet menu including images landscape final": {
+   "bytes": 13685,
+   "format_version": 17,
+   "sha256": "71f90ddbb8ba9cfb8b3eaf86dadcd5e7298f95c57325a392af4181d08ef93285",
+   "stats": {
+    "cells": 342,
+    "grids": 31,
+    "images": 11
+   }
+  },
+  "contrib/help/treesheet menu including images landscape final-ko": {
+   "bytes": 15747,
+   "format_version": 24,
+   "sha256": "9f4ee7577c13c4f0586a65e10b3fa8aa26f692bd719dc6b28f5d9ab2d7c88eb6",
+   "stats": {
+    "cells": 495,
+    "grids": 35,
+    "images": 11
+   }
+  },
+  "contrib/intro-ko": {
+   "bytes": 32848,
+   "format_version": 24,
+   "sha256": "d36bd6655fefe81e6af2a7eac23712ef137b535b7fca66b4cbc004b1ba8b778a",
+   "stats": {
+    "cells": 67,
+    "grids": 17,
+    "images": 19
+   }
+  },
+  "contrib/intro-ru": {
+   "bytes": 33939,
+   "format_version": 23,
+   "sha256": "342a81a1579f507fd45764be02c44de3eb6e66e0bb70eb123f56f6102a4eba36",
+   "stats": {
+    "cells": 67,
+    "grids": 17,
+    "images": 19
+   }
+  },
+  "contrib/structogram-quicksort": {
+   "bytes": 237,
+   "format_version": 7,
+   "sha256": "45bfb07d1ce539de5d0b3b2d12a2c826e8677694c4748a61ced9902d8bece7f0",
+   "stats": {
+    "cells": 18,
+    "grids": 5
+   }
+  },
+  "contrib/todo_calendar-zh": {
+   "bytes": 31114,
+   "format_version": 23,
+   "sha256": "2a1f948bb92d52bee9b75049528db8d7a7f18e68d6c93038342cb3cdd702bdd1",
+   "stats": {
+    "cells": 83,
+    "grids": 18,
+    "images": 17
+   }
+  },
+  "contrib/weekly+calendar": {
+   "bytes": 731,
+   "format_version": 8,
+   "sha256": "7a59aef907a7a9e1d84fb79fdb3a5caf6354ff6217492de64e61596de680c314",
+   "stats": {
+    "cells": 346,
+    "grids": 6
+   }
+  },
+  "contrib/what-i-like-about-treesheets": {
+   "bytes": 671,
+   "format_version": 15,
+   "sha256": "372991e9c7e614b5b17748212f323b83380f8ef131d9debeaee88541989dc892",
+   "stats": {
+    "cells": 63,
+    "grids": 14,
+    "operations": 4
+   }
+  },
+  "contrib/yearly-calendar": {
+   "bytes": 665,
+   "format_version": 13,
+   "sha256": "7a775760d49bba036d1840dac5d9a1c503f9d712d65c65ef711a0bb3b13759a0",
+   "stats": {
+    "cells": 86,
+    "grids": 9
+   }
+  },
+  "fixtures/features": {
+   "bytes": 1972,
+   "format_version": 31,
+   "sha256": "f0e253f82ef0d6c9e2321c0d4b32cfcd7f76ac2a487a91ebcaf751be368e8605",
+   "stats": {
+    "cells": 47,
+    "cells_with_links": 3,
+    "cells_with_runs": 4,
+    "folded_grids": 1,
+    "formulas": 3,
+    "grids": 7,
+    "images": 1,
+    "notes": 1
+   }
+  },
+  "imported_from_xml_examples/books": {
+   "bytes": 1318,
+   "format_version": 13,
+   "sha256": "0d0437a936a73ecb0b9772f6e3fcbd75b8da926afd22ee49e8c3ceaf79ad3065",
+   "stats": {
+    "cells": 73,
+    "grids": 1
+   }
+  },
+  "imported_from_xml_examples/cd_catalog": {
+   "bytes": 1053,
+   "format_version": 8,
+   "sha256": "b66f9d833e857997f697132ef4fad676928e2c59608ba7d99107ab50dbe8c510",
+   "stats": {
+    "cells": 157,
+    "grids": 1
+   }
+  },
+  "imported_from_xml_examples/menu": {
+   "bytes": 379,
+   "format_version": 13,
+   "sha256": "29a249c39a94f2acf7793e5803dbf6a24a4362c9d4bcf2ac474b3f4709b7fb70",
+   "stats": {
+    "cells": 21,
+    "grids": 1
+   }
+  },
+  "imported_from_xml_examples/plant_catalog": {
+   "bytes": 1222,
+   "format_version": 8,
+   "sha256": "5b1aee2d9f97f8af3c5b3b3e1819133d846fb36d0102a69426e9c0faea653726",
+   "stats": {
+    "cells": 217,
+    "grids": 1
+   }
+  },
+  "operation-reference": {
+   "bytes": 3150,
+   "format_version": 28,
+   "sha256": "c6fab7f22027e01832922df9687201b62c0dc1c31d44c18c00275385ad59d2dc",
+   "stats": {
+    "cells": 126,
+    "grids": 19,
+    "images": 1,
+    "operations": 45
+   }
+  },
+  "operation-reference-ko": {
+   "bytes": 3274,
+   "format_version": 28,
+   "sha256": "59f3ce288e6f5b325a860d13a8df7ca42e2f52c9f1aecae92a0a4e1d070c6aaf",
+   "stats": {
+    "cells": 126,
+    "grids": 19,
+    "images": 1,
+    "operations": 45
+   }
+  },
+  "personel_file": {
+   "bytes": 111934,
+   "format_version": 19,
+   "sha256": "adbe326872ddf864345928b82b2676d7ccd8bc421362477d1411c35be700e183",
+   "stats": {
+    "cells": 110,
+    "grids": 6,
+    "images": 19
+   }
+  },
+  "sales": {
+   "bytes": 218,
+   "format_version": 6,
+   "sha256": "879de3b9f4bd80089ddb9c5d680133947425fa8a298516622845dd32f8553e57",
+   "stats": {
+    "cells": 57,
+    "grids": 7,
+    "operations": 8
+   }
+  },
+  "simple_graph": {
+   "bytes": 173,
+   "format_version": 17,
+   "sha256": "dd53679024062b9175fe72a1130f94a375d335d508be59da988b74d77d7f5ace",
+   "stats": {
+    "cells": 18,
+    "grids": 3,
+    "operations": 2
+   }
+  },
+  "todo_calendar": {
+   "bytes": 28564,
+   "format_version": 19,
+   "sha256": "e82ac82ba5374e47488115c969185b998c84cff53ec3dcd6848fdff20400a5b6",
+   "stats": {
+    "cells": 80,
+    "grids": 17,
+    "images": 17
+   }
+  },
+  "tutorial": {
+   "bytes": 26436,
+   "format_version": 30,
+   "sha256": "e0e552901be27f6d91de4aed866667f5d2fb29ce0447957c41d0a5ac4c8205eb",
+   "stats": {
+    "cells": 391,
+    "folded_grids": 1,
+    "formulas": 15,
+    "grids": 104,
+    "images": 2,
+    "notes": 1,
+    "operations": 9,
+    "tags": 42
+   }
+  },
+  "tutorial-de": {
+   "bytes": 26227,
+   "format_version": 30,
+   "sha256": "cb6ba2b4a0de694b9d492d8b40c5bac9c739122e50784a58b1f2fa089d294111",
+   "stats": {
+    "cells": 382,
+    "folded_grids": 1,
+    "formulas": 15,
+    "grids": 101,
+    "images": 2,
+    "notes": 1,
+    "operations": 9,
+    "tags": 42
+   }
+  },
+  "tutorial-fr": {
+   "bytes": 26687,
+   "format_version": 30,
+   "sha256": "662e4c509708c7c6a47ace2680ef7ded730d2752814ce37864b23e282234aed0",
+   "stats": {
+    "cells": 388,
+    "folded_grids": 1,
+    "formulas": 15,
+    "grids": 102,
+    "images": 2,
+    "notes": 1,
+    "operations": 9,
+    "tags": 42
+   }
+  },
+  "tutorial-ja": {
+   "bytes": 24577,
+   "format_version": 30,
+   "sha256": "6c2301bd19ede88eaafa829e8720ccab9266d4c4ee35384e586a42999ab5dac6",
+   "stats": {
+    "cells": 391,
+    "folded_grids": 1,
+    "formulas": 15,
+    "grids": 104,
+    "images": 1,
+    "notes": 1,
+    "operations": 9
+   }
+  },
+  "tutorial-ko": {
+   "bytes": 27384,
+   "format_version": 30,
+   "sha256": "18ee4f7f8f313eebfa86f754f62a76b4d75c24a31c188c42d62efd698c03a74b",
+   "stats": {
+    "cells": 392,
+    "folded_grids": 1,
+    "formulas": 15,
+    "grids": 105,
+    "images": 2,
+    "notes": 2,
+    "operations": 9
+   }
+  },
+  "tutorial-pt_BR": {
+   "bytes": 27859,
+   "format_version": 30,
+   "sha256": "97d2e6ba27e351b519da9f51ecc88440afb900a30f1db2610a4b083e0cb6501b",
+   "stats": {
+    "cells": 414,
+    "folded_grids": 1,
+    "formulas": 15,
+    "grids": 117,
+    "images": 2,
+    "notes": 1,
+    "operations": 9,
+    "tags": 53
+   }
+  },
+  "tutorial-ru": {
+   "bytes": 31857,
+   "format_version": 30,
+   "sha256": "76b41da9016dccd459cec2f263911526e1999303c8598ee0dbb2062fee632a8e",
+   "stats": {
+    "cells": 398,
+    "folded_grids": 1,
+    "formulas": 15,
+    "grids": 104,
+    "images": 2,
+    "notes": 1,
+    "operations": 9,
+    "tags": 42
+   }
+  },
+  "tutorial-sp": {
+   "bytes": 27711,
+   "format_version": 30,
+   "sha256": "460c4c0194e21735b0d59e3a80c7f9bbd9021daea6eb00d49816fc33ee93a9a1",
+   "stats": {
+    "cells": 403,
+    "folded_grids": 1,
+    "formulas": 15,
+    "grids": 106,
+    "images": 2,
+    "notes": 1,
+    "operations": 9,
+    "tags": 19
+   }
+  },
+  "tutorial-vi": {
+   "bytes": 27663,
+   "format_version": 30,
+   "sha256": "c1094e2a7d0273890b63851f714cb865fd481dbbaf928f1f7c0a5882d35e0a7c",
+   "stats": {
+    "cells": 394,
+    "folded_grids": 1,
+    "formulas": 15,
+    "grids": 105,
+    "images": 2,
+    "notes": 1,
+    "operations": 9
+   }
+  },
+  "tutorial-zh": {
+   "bytes": 26381,
+   "format_version": 30,
+   "sha256": "cc44bf43a1cb2409dbda96322eeca122a96fc7f882bfed7e2d7e3ba88603afc9",
+   "stats": {
+    "cells": 391,
+    "folded_grids": 1,
+    "formulas": 15,
+    "grids": 104,
+    "images": 2,
+    "notes": 1,
+    "operations": 9
+   }
+  },
+  "tutorial-zh_TW": {
+   "bytes": 26611,
+   "format_version": 30,
+   "sha256": "5f1a42cc275b67754f233e9e8cfae9952b2defd25aa52ed61494a94f883ddabf",
+   "stats": {
+    "cells": 391,
+    "folded_grids": 1,
+    "formulas": 15,
+    "grids": 104,
+    "images": 2,
+    "notes": 1,
+    "operations": 9,
+    "tags": 42
+   }
+  },
+  "unicode_test": {
+   "bytes": 16649,
+   "format_version": 24,
+   "sha256": "966bb89eb76b31bc213aca30b623365e4b282d303434788a017cf710daab04f4",
+   "stats": {
+    "cells": 260,
+    "grids": 9
+   }
+  },
+  "unicode_test-ko": {
+   "bytes": 16660,
+   "format_version": 24,
+   "sha256": "edaaa484f003ee102761d5978c199e1a283c5846411d0bd28a088edfd8e27d33",
+   "stats": {
+    "cells": 260,
+    "grids": 9
+   }
+  },
+  "work_breakdown_structure": {
+   "bytes": 515,
+   "format_version": 19,
+   "sha256": "825116e70c688c0252a81d394f563a9f23237774f8aac823a2a9fcda0a6a588a",
+   "stats": {
+    "cells": 29,
+    "grids": 14,
+    "operations": 13
+   }
+  }
+ }
+}

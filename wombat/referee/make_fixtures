@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""Has the real TreeSheets build the .cts files in fixtures/ from their .lobster scripts.
+
+Usage: make_fixtures [NAME ...]
+
+Only needed when a script changes: the .cts files are checked in, since every run gives the
+cells new edit times, and so a different file.
+"""
+import os
+import shutil
+import sys
+import tempfile
+
+sys.dont_write_bytecode = True
+import referee  # noqa: E402
+
+FIXTURES = os.path.join(referee.HERE, "fixtures")
+# Any document will do to start the app with; the scripts make a new one.
+SEED = os.path.join(referee.REPO, "TS", "examples", "sales.cts")
+
+
+def main():
+    names = sys.argv[1:] or sorted(n[:-8] for n in os.listdir(FIXTURES) if n.endswith(".lobster"))
+    with referee.xvfb() as display:
+        for name in names:
+            with open(os.path.join(FIXTURES, name + ".lobster"), encoding="utf-8") as f:
+                code = f.read()
+            with tempfile.TemporaryDirectory(prefix="ts-fixture-") as tmp:
+                out = os.path.join(tmp, name + ".cts")
+                with referee.Instance(display, SEED) as ts:
+                    head = f'let out_path, repo_path = "{out}", "{referee.REPO}"\n'
+                    print(name + ": " + ts.eval(head + code))
+                shutil.copyfile(out, os.path.join(FIXTURES, name + ".cts"))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except referee.RefereeError as e:
+        sys.exit(f"error: {e}")

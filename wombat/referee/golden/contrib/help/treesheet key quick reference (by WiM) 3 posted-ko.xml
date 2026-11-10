@@ -1,0 +1,636 @@
+  <grid>
+  <row>
+  <cell>TreeSheet 키 빠른 참조
+  </cell>
+  <cell>버전 Nov 2 2014
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-4">이 참조 시트는 WiM The Hague NL 20141229에 의해 제작되었습니다
+  </cell>
+  <cell relsize="-2">http://strlen.com/treesheets
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-4">한국어 작성: 비너스걸
+  </cell>
+  <cell relsize="-2">
+  </cell>
+  </row>
+  <row>
+  <cell>
+    <grid>
+    <row>
+    <cell>셀 선택/이동
+      <grid>
+      <row>
+      <cell>첫 번째 자식 선택
+      </cell>
+      <cell>Shift-Enter
+      </cell>
+      </row>
+      <row>
+      <cell>한 단계 더 높은
+      </cell>
+      <cell>Esc
+      </cell>
+      </row>
+      <row>
+      <cell>끝에 한 단계 더 깊은 격자 삽입
+      </cell>
+      <cell>Insert/Ctrl+G
+      </cell>
+      </row>
+      <row>
+      <cell>다음 셀 동일 레벨
+      </cell>
+      <cell>Tab
+      </cell>
+      </row>
+      <row>
+      <cell>이전 셀 동일 레벨
+      </cell>
+      <cell>Shift-Tab
+      </cell>
+      </row>
+      <row>
+      <cell>왼쪽
+      </cell>
+      <cell>커서 왼쪽
+      </cell>
+      </row>
+      <row>
+      <cell>오른쪽
+      </cell>
+      <cell>커서 오른쪽
+      </cell>
+      </row>
+      <row>
+      <cell>위
+      </cell>
+      <cell>커서 위
+      </cell>
+      </row>
+      <row>
+      <cell>아래
+      </cell>
+      <cell>커서 아래
+      </cell>
+      </row>
+      <row>
+      <cell>인접 셀 선택
+      </cell>
+      <cell>Shift-커서
+      </cell>
+      </row>
+      <row>
+      <cell>모두 선택
+      </cell>
+      <cell>Ctrl+A
+      </cell>
+      </row>
+      <row>
+      <cell>다음 탭
+      </cell>
+      <cell>Ctrl+Tab
+      </cell>
+      </row>
+      <row>
+      <cell>이전 탭
+      </cell>
+      <cell>Shift-Ctrl+Tab
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>검색/바꾸기
+      <grid>
+      <row>
+      <cell>검색
+      </cell>
+      <cell>Ctrl+f
+      </cell>
+      </row>
+      <row>
+      <cell>다음 찾기
+      </cell>
+      <cell>F3
+      </cell>
+      </row>
+      <row>
+      <cell>일치하는 셀로 이동 (동일한 내용)
+      </cell>
+      <cell>F6
+      </cell>
+      </row>
+      <row>
+      <cell>바꾸기
+      </cell>
+      <cell>Ctrl+h
+      </cell>
+      </row>
+      <row>
+      <cell>현재 선택에서 바꾸기
+      </cell>
+      <cell>Ctrl+j
+      </cell>
+      </row>
+      <row>
+      <cell>모두 선택
+      </cell>
+      <cell>Alt+s a
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>편집
+      <grid>
+      <row>
+      <cell>아래에 셀 삽입
+      </cell>
+      <cell>Enter 입력
+      </cell>
+      </row>
+      <row>
+      <cell>
+      </cell>
+      <cell>Enter 및 내용 입력 시작
+      </cell>
+      </row>
+      <row>
+      <cell>인접 셀 삽입
+      </cell>
+      <cell>측면을 선택하고 텍스트 입력 누르기
+      </cell>
+      </row>
+      <row>
+      <cell>
+      </cell>
+      <cell>셀 측을 선택하고 입력 시작
+      </cell>
+      </row>
+      <row>
+      <cell>편집 선택
+      </cell>
+      <cell>F2
+      </cell>
+      </row>
+      <row>
+      <cell>복사 선택
+      </cell>
+      <cell>Ctrl+C
+      </cell>
+      </row>
+      <row>
+      <cell>붙여넣기 선택
+      </cell>
+      <cell>Ctrl+V
+      </cell>
+      </row>
+      <row>
+      <cell>셀 결합
+      </cell>
+      <cell>Alt+E, 연속 텍스트로 복사
+      </cell>
+      </row>
+      <row>
+      <cell>실행 취소
+      </cell>
+      <cell>Ctrl+Z
+      </cell>
+      </row>
+      <row>
+      <cell>다시 실행
+      </cell>
+      <cell>Ctrl+Y
+      </cell>
+      </row>
+      <row>
+      <cell>변경 사항 버리기
+      </cell>
+      <cell>Esc
+      </cell>
+      </row>
+      <row>
+      <cell>열의 너비 변경
+      </cell>
+      <cell>Alt+마우스 스크롤
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="1">굵게
+      </cell>
+      <cell>Ctrl+B
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="2">기울임꼴
+      </cell>
+      <cell>Ctrl+I
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="16">취소선
+      </cell>
+      <cell>Ctrl+T
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="8">밑줄
+      </cell>
+      <cell>Ctrl+U
+      </cell>
+      </row>
+      <row>
+      <cell relsize="2">큰 글꼴
+      </cell>
+      <cell>Shift-PgUp
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-1">작은 글꼴
+      </cell>
+      <cell>Shift-PgDn
+      </cell>
+      </row>
+      <row>
+      <cell colorfg="0xFF0000">내용을 태그 (파란색)로 변환
+      </cell>
+      <cell>Alt+e Up 오른쪽 입력
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell>
+    <grid>
+    <row>
+    <cell>계층
+      <grid>
+      <row>
+      <cell>한 단계 확대
+      </cell>
+      <cell>Ctrl+PgUp
+      </cell>
+      <cell>Ctrl+스크롤-위로
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>한 단계 축소
+      </cell>
+      <cell>Ctrl+PgDn
+      </cell>
+      <cell>Ctrl+스크롤-아래로
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>축소/확장/접기 전환
+      </cell>
+      <cell>F10/Shift-F10
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>선택 항목을 새 부모로 감싸기
+      </cell>
+      <cell>F9
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell colorfg="0xFF0000">내부/외부 스왑은 태그를 사용
+      </cell>
+      <cell>F8
+      </cell>
+      <cell>오른쪽 클릭, 격자 재구성..
+      </cell>
+      <cell>S
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>계층화
+      </cell>
+      <cell>
+      </cell>
+      <cell>오른쪽 클릭, 격자 재구성..
+      </cell>
+      <cell>H
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>순서 바꾸기
+      </cell>
+      <cell>
+      </cell>
+      <cell>오른쪽 클릭, 격자 재구성..
+      </cell>
+      <cell>T
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>평탄화
+      </cell>
+      <cell>Shift-Ctrl+T
+      </cell>
+      <cell>오른쪽 클릭, 격자 재구성..
+      </cell>
+      <cell>F
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>오름차순 정렬
+      </cell>
+      <cell>
+      </cell>
+      <cell>오른쪽 클릭, 격자 재구성..
+      </cell>
+      <cell>A
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>오름차순 정렬
+      </cell>
+      <cell>
+      </cell>
+      <cell>오른쪽 클릭, 격자 재구성..
+      </cell>
+      <cell>D
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>레이아웃/보기
+      <grid>
+      <row>
+      <cell>전체 화면
+      </cell>
+      <cell>F11
+      </cell>
+      </row>
+      <row>
+      <cell>가로 및 세로 계층 교체
+      </cell>
+      <cell>F7
+      </cell>
+      </row>
+      <row>
+      <cell>레이아웃 (레이아웃 렌더링 스타일을 오른쪽 클릭...)
+        <grid>
+        <row>
+        <cell relsize="1">격자스타일/스프레드시트/셀
+          <grid>
+          <row>
+          <cell colorbg="0xFFFF80" relsize="1">세로
+          </cell>
+          <cell colorbg="0xFFFF80" relsize="1">Alt+1
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">가로
+          </cell>
+          <cell relsize="1">Alt+4
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">격자스타일
+          </cell>
+          <cell relsize="1">Alt+7
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell relsize="1">F7&lt;-&gt;
+        </cell>
+        <cell relsize="1">격자스타일/스프레드시트/셀
+          <grid>
+          <row>
+          <cell relsize="1">세로
+          </cell>
+          <cell relsize="1">Alt+1
+          </cell>
+          </row>
+          <row>
+          <cell colorbg="0xFFFF80" relsize="1">가로
+          </cell>
+          <cell colorbg="0xFFFF80" relsize="1">Alt+4
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">격자스타일
+          </cell>
+          <cell relsize="1">Alt+7
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="1">마인드맵/선
+          <grid>
+          <row>
+          <cell colorbg="0x80FF80" relsize="1">세로 
+            <grid>
+            <row>
+            <cell colorbg="0x80FF80" relsize="1">Alt+3
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">가로
+            <grid>
+            <row>
+            <cell relsize="1">Alt+6
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">선 스타일/마인드맵
+            <grid>
+            <row>
+            <cell relsize="1">Alt+9
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell relsize="1">F7&lt;-&gt;
+        </cell>
+        <cell relsize="1">마인드멥/줄
+          <grid>
+          <row>
+          <cell relsize="1">세로 
+            <grid>
+            <row>
+            <cell relsize="1">Alt+3
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell colorbg="0x80FF80" relsize="1">가로
+            <grid>
+            <row>
+            <cell colorbg="0x80FF80" relsize="1">Alt+6
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">선 스타일/마인드맵
+            <grid>
+            <row>
+            <cell relsize="1">Alt+9
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="1">버블
+          <grid>
+          <row>
+          <cell colorbg="0xFF80FF" relsize="1">세로
+          </cell>
+          <cell colorbg="0xFF80FF" relsize="1">Alt+2
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">가로
+          </cell>
+          <cell relsize="1">Alt+5
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">버블
+          </cell>
+          <cell relsize="1">Alt+8
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell relsize="1">F7&lt;-&gt;
+        </cell>
+        <cell relsize="1">버블
+          <grid>
+          <row>
+          <cell relsize="1">세로
+          </cell>
+          <cell relsize="1">Alt+2
+          </cell>
+          </row>
+          <row>
+          <cell colorbg="0xFF80FF" relsize="1">가로
+          </cell>
+          <cell colorbg="0xFF80FF" relsize="1">Alt+5
+          </cell>
+          </row>
+          <row>
+          <cell relsize="1">버블
+          </cell>
+          <cell relsize="1">Alt+8
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      <row>
+      <cell> 편집 기간 또는 검색 항목만 보기
+        <grid>
+        <row>
+        <cell>Alt+보기
+        </cell>
+        <cell>필터
+        </cell>
+        <cell>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

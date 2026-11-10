@@ -1,0 +1,366 @@
+  <grid>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Empire Burlesque
+  </cell>
+  <cell stylebits="1">Bob Dylan
+  </cell>
+  <cell>USA
+  </cell>
+  <cell>Columbia
+  </cell>
+  <cell>10.90
+  </cell>
+  <cell>1985
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Hide your heart
+  </cell>
+  <cell stylebits="1">Bonnie Tyler
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>CBS Records
+  </cell>
+  <cell>9.90
+  </cell>
+  <cell>1988
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Greatest Hits
+  </cell>
+  <cell stylebits="1">Dolly Parton
+  </cell>
+  <cell>USA
+  </cell>
+  <cell>RCA
+  </cell>
+  <cell>9.90
+  </cell>
+  <cell>1982
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Still got the blues
+  </cell>
+  <cell stylebits="1">Gary Moore
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>Virgin records
+  </cell>
+  <cell>10.20
+  </cell>
+  <cell>1990
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Eros
+  </cell>
+  <cell stylebits="1">Eros Ramazzotti
+  </cell>
+  <cell>EU
+  </cell>
+  <cell>BMG
+  </cell>
+  <cell>9.90
+  </cell>
+  <cell>1997
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">One night only
+  </cell>
+  <cell stylebits="1">Bee Gees
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>Polydor
+  </cell>
+  <cell>10.90
+  </cell>
+  <cell>1998
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Sylvias Mother
+  </cell>
+  <cell stylebits="1">Dr.Hook
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>CBS
+  </cell>
+  <cell>8.10
+  </cell>
+  <cell>1973
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Maggie May
+  </cell>
+  <cell stylebits="1">Rod Stewart
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>Pickwick
+  </cell>
+  <cell>8.50
+  </cell>
+  <cell>1990
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Romanza
+  </cell>
+  <cell stylebits="1">Andrea Bocelli
+  </cell>
+  <cell>EU
+  </cell>
+  <cell>Polydor
+  </cell>
+  <cell>10.80
+  </cell>
+  <cell>1996
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">When a man loves a woman
+  </cell>
+  <cell stylebits="1">Percy Sledge
+  </cell>
+  <cell>USA
+  </cell>
+  <cell>Atlantic
+  </cell>
+  <cell>8.70
+  </cell>
+  <cell>1987
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Black angel
+  </cell>
+  <cell stylebits="1">Savage Rose
+  </cell>
+  <cell>EU
+  </cell>
+  <cell>Mega
+  </cell>
+  <cell>10.90
+  </cell>
+  <cell>1995
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">1999 Grammy Nominees
+  </cell>
+  <cell stylebits="1">Many
+  </cell>
+  <cell>USA
+  </cell>
+  <cell>Grammy
+  </cell>
+  <cell>10.20
+  </cell>
+  <cell>1999
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">For the good times
+  </cell>
+  <cell stylebits="1">Kenny Rogers
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>Mucik Master
+  </cell>
+  <cell>8.70
+  </cell>
+  <cell>1995
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Big Willie style
+  </cell>
+  <cell stylebits="1">Will Smith
+  </cell>
+  <cell>USA
+  </cell>
+  <cell>Columbia
+  </cell>
+  <cell>9.90
+  </cell>
+  <cell>1997
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Tupelo Honey
+  </cell>
+  <cell stylebits="1">Van Morrison
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>Polydor
+  </cell>
+  <cell>8.20
+  </cell>
+  <cell>1971
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Soulsville
+  </cell>
+  <cell stylebits="1">Jorn Hoel
+  </cell>
+  <cell>Norway
+  </cell>
+  <cell>WEA
+  </cell>
+  <cell>7.90
+  </cell>
+  <cell>1996
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">The very best of
+  </cell>
+  <cell stylebits="1">Cat Stevens
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>Island
+  </cell>
+  <cell>8.90
+  </cell>
+  <cell>1990
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Stop
+  </cell>
+  <cell stylebits="1">Sam Brown
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>A and M
+  </cell>
+  <cell>8.90
+  </cell>
+  <cell>1988
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Bridge of Spies
+  </cell>
+  <cell stylebits="1">T'Pau
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>Siren
+  </cell>
+  <cell>7.90
+  </cell>
+  <cell>1987
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Private Dancer
+  </cell>
+  <cell stylebits="1">Tina Turner
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>Capitol
+  </cell>
+  <cell>8.90
+  </cell>
+  <cell>1983
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Midt om natten
+  </cell>
+  <cell stylebits="1">Kim Larsen
+  </cell>
+  <cell>EU
+  </cell>
+  <cell>Medley
+  </cell>
+  <cell>7.80
+  </cell>
+  <cell>1983
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Pavarotti Gala Concert
+  </cell>
+  <cell stylebits="1">Luciano Pavarotti
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>DECCA
+  </cell>
+  <cell>9.90
+  </cell>
+  <cell>1991
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">The dock of the bay
+  </cell>
+  <cell stylebits="1">Otis Redding
+  </cell>
+  <cell>USA
+  </cell>
+  <cell>Atlantic
+  </cell>
+  <cell>7.90
+  </cell>
+  <cell>1987
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Picture book
+  </cell>
+  <cell stylebits="1">Simply Red
+  </cell>
+  <cell>EU
+  </cell>
+  <cell>Elektra
+  </cell>
+  <cell>7.20
+  </cell>
+  <cell>1985
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Red
+  </cell>
+  <cell stylebits="1">The Communards
+  </cell>
+  <cell>UK
+  </cell>
+  <cell>London
+  </cell>
+  <cell>7.80
+  </cell>
+  <cell>1987
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" stylebits="2">Unchain my heart
+  </cell>
+  <cell stylebits="1">Joe Cocker
+  </cell>
+  <cell>USA
+  </cell>
+  <cell>EMI
+  </cell>
+  <cell>8.20
+  </cell>
+  <cell>1987
+  </cell>
+  </row>
+  </grid>

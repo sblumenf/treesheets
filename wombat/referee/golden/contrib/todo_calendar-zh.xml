@@ -1,0 +1,310 @@
+  <grid>
+  <row>
+  <cell colorfg="0x000080" colorbg="0xC7D6E0" stylebits="1">日历（明确在某天，算日历）
+    <grid bordercolor="0x808080" outerspacing="5">
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="1">7月
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">11
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">周四
+    </cell>
+    <cell>翻译 TreeSheets 帮助文档
+    </cell>
+    </row>
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="1">7月
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">13
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">周六
+    </cell>
+    <cell>找师兄取印章
+      <grid>
+      <row>
+      <cell colorbg="0xE8E8E8">了解篆刻文化
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xE8E8E8">探讨文创专委会分享活动
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="1">8月
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">05
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">周一
+    </cell>
+    <cell>公司分享 VoiceNotes
+      <grid>
+      <row>
+      <cell colorbg="0xE8E8E8" stylebits="16">自己试用+付费注册
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xE8E8E8">微信群 微博分享
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xE8E8E8">协助翻译
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="1">9月
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">17
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">
+    </cell>
+    <cell>
+      <grid>
+      <row>
+      <cell colorbg="0x97B9FF">2pm
+      </cell>
+      <cell colorbg="0xE8E8E8">活动准备
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0x97B9FF">8pm
+      </cell>
+      <cell colorbg="0xE8E8E8">中秋晚会
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="1">10月
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">02
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">
+    </cell>
+    <cell>国庆接力跑
+    </cell>
+    </row>
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">12月
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">18
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">
+    </cell>
+    <cell>跑协年度总结会
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell colorfg="0x000080" colorbg="0x8080FF" stylebits="1">TODO（未来）
+    <grid bordercolor="0x808080" outerspacing="5">
+    <row>
+    <cell colorfg="0x0000FF">接待来访客人
+      <grid>
+      <row>
+      <cell>订酒店
+      </cell>
+      </row>
+      <row>
+      <cell>迪士尼或博物馆门票
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>实习生工作安排
+    </cell>
+    </row>
+    <row>
+    <cell>ISO 年度复审
+    </cell>
+    </row>
+    <row>
+    <cell>Mefo 分享会
+    </cell>
+    </row>
+    <row>
+    <cell>滴答清单 分享会
+    </cell>
+    </row>
+    <row>
+    <cell stylebits="16">语写分享
+    </cell>
+    </row>
+    <row>
+    <cell stylebits="16">科幻作品交流
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080" colorbg="0x8080FF" stylebits="1">项目管理（复杂+长期）
+    <grid bordercolor="0x808080" outerspacing="5">
+    <row>
+    <cell>项目管理是人类近百年重大发明，确保投入与产出的强相关
+      <grid>
+      <row>
+      <cell>公司项目管理，主要在时间、质量
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xD6C8AB" stylebits="7">公司工商变更
+      <grid>
+      <row>
+      <cell>召开股东会
+      </cell>
+      </row>
+      <row>
+      <cell>纪要签署
+      </cell>
+      </row>
+      <row>
+      <cell>提交工商材料
+      </cell>
+      </row>
+      <row>
+      <cell>等待新版营业执照
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xD6C8AB" stylebits="7">AI专利申请
+      <grid>
+      <row>
+      <cell>基本文档已经就绪，待与中介讨论
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xD6C8AB" stylebits="7">教育机顶盒项目
+      <grid>
+      <row>
+      <cell>产品定义
+      </cell>
+      </row>
+      <row>
+      <cell>教育资源规划、采购
+      </cell>
+      </row>
+      <row>
+      <cell>系统开发
+        <grid>
+        <row>
+        <cell stylebits="16">MY 产品经理
+        </cell>
+        </row>
+        <row>
+        <cell>@WX 测试+运维
+        </cell>
+        </row>
+        <row>
+        <cell>技术组增加2人
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell colorfg="0x000080" colorbg="0x8080FF" stylebits="1">研究工作（重在内容 而非时间）
+    <grid bordercolor="0x808080" outerspacing="5">
+    <row>
+    <cell>海外软件的中文世界推广
+      <grid>
+      <row>
+      <cell>文档发布需求
+        <grid>
+        <row>
+        <cell>国内外均方便访问
+        </cell>
+        </row>
+        <row>
+        <cell>更新和发布方便
+        </cell>
+        </row>
+        <row>
+        <cell>服务稳定 可持续
+        </cell>
+        </row>
+        <row>
+        <cell>能按项目组织
+        </cell>
+        </row>
+        <row>
+        <cell>最好方便协作（尽管未必发生）
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC7D6E0">备选方案
+        <grid>
+        <row>
+        <cell colorbg="0xE8E8E8">Github
+        </cell>
+        <cell colorbg="0xE8E8E8">如果软件本身开源，关联度高
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xE8E8E8">公众号
+        </cell>
+        <cell colorbg="0xE8E8E8">不利于系统化、不方便更新
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xE8E8E8">Obsidian Publish
+        </cell>
+        <cell colorbg="0xE8E8E8">以前续费过，性价比不高
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xE8E8E8" stylebits="16">xbeta blog
+        </cell>
+        <cell colorbg="0xE8E8E8">已放弃
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xE8E8E8">其他
+        </cell>
+        <cell colorbg="0xE8E8E8">
+          <grid>
+          <row>
+          <cell colorbg="0xE8E8E8">docsify\vue express...
+          </cell>
+          </row>
+          <row>
+          <cell colorbg="0xE8E8E8">notion, 语雀
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

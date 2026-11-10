@@ -1,0 +1,252 @@
+  
+    
+    weeks
+    
+    
+    
+    price
+    
+    
+    Destructuring
+    
+      widget A
+      widget B
+      widget C
+    
+      2
+      4
+      5
+      5
+      1
+      5
+      2
+      4
+      5
+      8
+      11
+      15
+    sum
+    
+      16
+      12
+      39
+    *
+    
+      2.99
+      12.99
+      1.99
+    
+      47.84
+      155.88
+      77.61
+    AllPrices
+    AllPrices2
+      widget price A
+      widget price B
+      widget price C
+    
+    sum
+    
+    
+    
+    
+    sum
+    
+    
+    
+    
+      8
+      17
+      18
+      24
+    Weeks
+    
+    
+    
+    281.33
+    PriceSumA
+    
+    
+    
+    
+    
+    
+    
+    PriceSumB
+    
+    
+    
+    
+      1
+      5
+      2
+      6
+      3
+      7
+      4
+      8
+    GridTest
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    Sub Variable Computation:
+    
+    
+    
+    
+    
+    
+    
+    
+    Foo
+      2
+      +
+      3
+    5
+    
+    Foo
+    5
+    
+    
+    
+    
+    Foo
+      2
+      +
+      3
+    5
+    
+    
+    
+    
+    
+  
+    
+      AllPrices
+      
+        47.84
+        155.88
+        77.61
+      H
+      
+      
+      
+      AllPrices
+      
+      V
+      
+      
+      
+      AllPrices2
+      
+        47.84
+        155.88
+        77.61
+      H
+      
+      
+      
+      AllPrices3
+      **Variable Load Error**
+      H
+    
+      widget price A
+      47.84
+      H
+      
+      
+      
+      widget price B
+      
+      V
+      
+      
+      
+      widget price C
+      77.61
+      H
+    
+      GridTest
+      
+        1
+        5
+        2
+        6
+        3
+        7
+        4
+        8
+      H
+      
+      
+      
+      GridTest
+      
+      V
+    
+      PriceSumA
+      281.33
+      H
+      
+      
+      
+      PriceSumA
+      
+      V
+      
+      
+      
+      PriceSumB
+      **Variable Load Error**
+      H
+      
+      
+      
+      PriceSumB
+      
+      V
+    
+      Weeks
+      
+        8
+        17
+        18
+        24
+      H
+      
+      
+      
+      Weeks
+      
+      V
+    
+      
+        widget price A
+        widget price B
+        widget price C
+        widget price D
+      
+        47.84
+        155.88
+        77.61
+        **Variable Load Error**
+      
+        47.84
+        155.88
+        77.61
+        **Variable Load Error**
+      

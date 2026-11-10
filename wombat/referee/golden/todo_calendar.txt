@@ -1,0 +1,79 @@
+  CALENDAR 
+    TUE
+    
+    
+    bring kids to school
+    TUE
+    
+    
+    lunch with fred 
+      invite him to project presentation
+      get his feedback on project C
+    WED
+    
+    
+    project A presentation 
+      add more pictures to PPT!!
+      inflate user numbers a bit
+      order donuts
+    MON
+    10
+    APR
+    
+      2pm
+      planning meeting for tokyo
+      5pm
+      doctor
+    TUE
+    18
+    APR
+    tokyo trip! 
+    
+    
+    DEC
+    conference? 
+  TODO 
+    book tokyo trip
+      rent kei car
+      make sure to pad some extra days
+    get car in for 30k service
+    make dentist appt for heidi
+    buy present for harry - something alcoholic
+    water plants
+    sell stock?
+  PROJECTS 
+    need to define project to make it look like we're doing web 3.0?
+      won't get round 2 financing without it!
+    Project A
+      work on server load balancing 
+      test in a high latency situation 
+      get bob to work on the db connection 
+      ask for time extension from client 
+    Project B
+      add some fluff to the UI to hide how behind we are 
+    Project C
+      get a feel for company support 
+      architect it right this time 
+      put good team together 
+        fred?
+        bruce - can do the grunt work
+        skip bob for this one
+  RESEARCH 
+    new lease car
+      wants
+        maybe get something that make me look environamentally conscious?
+        dvd screens for the kids?
+        8+ cupholders 
+        parking assist?
+        must be quicker than fred's 335i...
+      candidates
+        Audi S5
+        I'd rather have a beemer, but this will make me look like having good taste
+        BMW X6
+        does this have enough cupholders?
+        Porsche Cayenne
+        bit of a poser car, but I always wanted a real porsche
+        Merc CLS?
+        maybe out of fashion already?
+        Infiniti G35
+        gets good reviews, but it be a shame to not use up the full lease budget

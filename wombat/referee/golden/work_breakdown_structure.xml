@@ -1,0 +1,140 @@
+  <grid>
+  <row>
+  <cell colorbg="0xE8E8E8" stylebits="1">This is an example of how to represent a Work Breakdown Structure in TreeSheets
+    <grid>
+    <row>
+    <cell colorbg="0xE8E8E8" stylebits="2">https://en.wikipedia.org/wiki/Work_breakdown_structure
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xE8E8E8">Update any of the leaf values, and press Run (blue triangle above) to see all the sums update.. through any level of nesting!
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell>Main Project
+    <grid>
+    <row>
+    <cell>Sub Project 1
+      <grid>
+      <row>
+      <cell>
+        <grid>
+        <row>
+        <cell>Sub Task 1
+          <grid>
+          <row>
+          <cell type="5">10
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell>Sub Task 2
+          <grid>
+          <row>
+          <cell type="5">20
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell type="1">sum
+      </cell>
+      </row>
+      <row>
+      <cell type="5">30
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>Sub Project 2
+      <grid>
+      <row>
+      <cell>
+        <grid>
+        <row>
+        <cell>Sub Task 1
+          <grid>
+          <row>
+          <cell type="5">30
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell>Sub Task 2
+          <grid>
+          <row>
+          <cell>
+            <grid>
+            <row>
+            <cell>SubSub Task 1
+              <grid>
+              <row>
+              <cell type="5">15
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            <row>
+            <cell>SubSub Task 2
+              <grid>
+              <row>
+              <cell type="5">25
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell type="1">sum
+          </cell>
+          </row>
+          <row>
+          <cell type="5">40
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell type="1">sum
+      </cell>
+      </row>
+      <row>
+      <cell type="5">70
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell type="1">sum
+  </cell>
+  </row>
+  <row>
+  <cell type="5">100
+  </cell>
+  </row>
+  </grid>

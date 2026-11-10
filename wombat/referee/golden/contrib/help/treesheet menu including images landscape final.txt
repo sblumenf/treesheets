@@ -1,0 +1,341 @@
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    Treesheets menu reference 
+    http://www.strlen.com/treesheets
+    
+    
+    MENU
+      [F]ile [Alt+F]
+        N]ew
+        CTRL+n 
+        [O]pen...
+        CTRL+o 
+        [C]lose
+        CTRL+w 
+        [R]ecent files
+        
+        [S]ave
+        CTRL+s
+        Save [A]s...
+        
+        Page Setup...
+        
+        Set Print Scale...
+        
+        Print preview...
+        
+        [P]rint...
+        CTRL+p
+        Export [v]iew as
+          [X]ML...
+          [H]TML (Tables+Styling)...
+          HTML ([O]utline)...
+          Indented [t]ext... 
+          [C]omma delimited text (CSV)...   
+          [I]mage...
+        
+          
+          can be imported, no images
+          nested tables no images
+          msword outline
+          mindmanagers
+          spreadsheets, db
+          png image
+        Import file from
+          XML...
+          XML (attributes too, for OPML etc)...
+          Indented text...
+          Comma delimited text (CSV)...
+          Semi-Colon delimited text (CSV)...
+          Tab delimited text...
+        
+        [E]xit
+        CTRL+q
+      [E]dit
+        Cu[t]
+        CTRL+x
+        [C]opy
+        CTRL+c 
+        Copy As Continuous Text
+        
+        [P]aste
+        CTRL+v 
+        Paste Style Only
+        CTRL+SHIFT+v
+        ---
+        
+        Undo
+        CTRL+Z 
+        Redo
+        CTRL+Y
+        ---
+        
+        Delete After DEL
+        DEL
+        Delete Before BACK
+        BACK
+        ---
+        
+        [I]nsert New Grid
+        INS 
+        [W]rap in new parent
+        F9
+        ---
+        
+        Toggle Fold
+        F10
+        ---
+        
+        [S]election...
+        
+        [G]rid Reorganization...
+        
+        [L]ayout  Render Style...
+        
+        [I]mages...
+        
+        [B]rowsing...
+        
+        Text [E]diting...
+        
+        Text Sizing...
+        
+        Text Style...
+        
+        Set Grid Border Width...
+        
+        Tag...
+        
+    
+      [S]election...
+        Move to next cell               TAB
+        Move to previous cell         SHIFT+TAB
+        ---
+        Select [a]ll in current grid  CTRL+a
+        ---
+        Move Selection Left          LEFT
+        Move Selection Right        RIGHT
+        Move Selection Up            UP
+        Move Selection Down       DOWN
+        ---
+        Move Cells Left                CTRL+LEFT
+        Move Cells Right             CTRL+RIGHT
+        Move Cells Up                 CTRL+UP
+        Move Cells Down            CTRL+DOWN
+        ---
+        Extend Selection Left      SHIFT+LEFT
+        Extend Selection Right    SHIFT+RIGHT
+        Extend Selection Up        SHIFT+UP
+        Extend Selection Down    SHIFT+DOWN
+        Extend Selection Full Columns
+        Extend Selection Full Rows
+        ---
+        Select [P]arent                  ESC
+        Select First [C]hild            SHIFT+ENTER
+        ---
+        Go To [Matching Cell        F6
+      [G]rid Reorganization...
+        [t]ranspose /rotate SHIFT+CTRL+t
+        sort [A]scending (1xn or nx1)
+        sort [D]escending (1xn or nx1)
+        Hierarchy Swap       F8 (with parents)
+        [H]ierarchify (nxn to 1xn)
+        [F]latten (1xn or nx1 to nxn)
+      [L]ayout render Style...
+        Vertical Layout with Grid Style Rendering
+        AlT+1
+        Vertical Layout with Bubble Style Rendering
+        AlT+2
+        Vertical Layout with Line Style Rendering
+        ALT+3
+        ---
+        
+        Horizontal Layout with Grid Style Rendering
+        ALT+4
+        Horizontal Layout with Bubble Style Rendering
+        ALT+5
+        Horizontal Layout with Line Style Rendering
+        ALT+6
+        ---
+        
+        Grid Style Rendering
+        ALT+7
+        Bubble Style Rendering
+        ALT+8
+        Line Style Rendering
+        ALT+9
+        ---
+        
+        Toggle Vertical Layout
+        F7
+      [I]mages...
+        [A]dd Image 
+        [S]cale Image
+        [R]emove Image(s) from cell
+      [B]rowsing...
+        open file with default asociated program F4
+        open link in browser                              F5
+    
+    
+    
+    
+    
+    
+  
+    
+      
+      
+      Text [E]diting...
+        Cursor Left      LEFT
+        Cursor Right    RIGHT
+        Word Left         CTRL+LEFT
+        Word Right      CTRL+RIGHT
+        ---
+        Extend Selection Left               SHIFT+LEFT
+        Extend Selection Right            SHIFT+RIGHT
+        Extend Selection Word Left     SHIFT+CTRL+LEFT
+        Extend Selection Word Right   SHIFT+CTRL+RIGHT
+        Extend Selection to Start        SHIFT+HOME
+        Extend Selection to End         SHIFT+END
+        ---
+        Start of line of text    HOME
+        End of line of text      END
+        Start of text               CTRL+HOME
+        End of text                CTRL+END
+        ---
+        Enter/exit text edit mode    ENTER
+        Enter/exit text edit mode    F2
+        Cancel text edits                 ESC
+      Text Sizing...
+        [I]ncrease text size (SHIFT+mousewheel)    SHIFT+PGUP
+        [D]ecrease text size (SHIFT+mousewheel)    SHIFT+PGDN
+        [R]eset text sizes                                          SHIFT+CTRL+s
+        [S]hrink text of all sub-grids                       SHIFT+CTRL+m
+        ---
+        Increase column width (ALT+mousewheel)    ALT+PGUP
+        Decrease column width (ALT+mousewheel)   ALT+PGDN
+        Increase column width (no sub grids)          CTRL+ALT+PGUP
+        Decrease column width (no sub grids)        CTRL+ALT+PGDN
+        Reset column widths                                   SHIFT+CTRL+w
+      Text Style...
+        Toggle cell [B]OLD
+        CTRL+b
+        Toggle cell [I]TALIC
+        CTRL+i
+        Toggle cell [t]ypewriter
+        
+        Toggle cell [u]nderlined
+        CTRL+u
+        Toggle cell [s]trikethrough
+        CTRL+t
+        ---
+        
+        [R]eset text styles
+        SHIFT+CTRL+r
+        Reset [c]olors    
+        SHIFT+CTRL+c
+      Set Grid Border Width...
+        1,2,3,4,5
+      Tag...
+        [A]dd Cell Text as Tag
+        [R]emove Cell Text from Tags
+        [S]et celltext to tag (Hold CTRL while pressing right mouse button (RMB) to quickly set a tag for the current cell using a popup menu)
+      [H]elp
+        [A]bout...
+        Load interactive [t]utorial...    F1
+        View tutorial [w]eb page...
+        
+        
+  
+    
+    
+    [V]iew
+      Scroll Up (mousewheel)    PGUP
+      Scroll Up (mousewheel)    ALT+UP
+      Scroll Down (mousewheel)    PGDN
+      Scroll Down (mousewheel)    ALT+DOWN
+      Scroll Left    ALT+LEFT
+      Scroll Right    ALT+RIGHT
+      Zoom [I]n (CTRL+mousewheel)    CTRL+PGUP 
+      Zoom [O]ut (CTRL+mousewheel)    CTRL+PGDN 
+      Switch to [n]ext file/tab    CTRL+TAB
+      Switch to [p]revious file/tab    SHIFT+CTRL+TAB
+      Toggle [F]ullscreen View
+      Toggle [S]caled Presentation View 
+      Scroll Sheet...
+      Filter...
+        Turn filter [off]
+        Show only cells in current search
+        Show 5% of last edits
+        Show 10% of last edits
+        Show 20% of last edits
+        Show 50% of last edits
+        Show 1% more than the last filter
+        Show 1% less than the last filter
+    [S]earch
+      [S]earch
+      CTRL+f
+      [G]o To Next Search Result
+      F3
+      [R]eplace in Current Selection
+      CTRL+h
+      [R]eplace in Current Selection [J]ump Next
+      CTRL+j
+      Replace All
+      
+    [O]ptions
+      Pick Default Font...
+      Pick Custom [C]olor...
+      [S]et Custom Color From Cell BG
+      Pick Document Background...
+      ---
+      Show Statusbar
+      Show Toolbar
+      File Tabs on the bottom   
+      Minimize to tray                
+      Minimize on close 
+      Single click maximize from tray 
+      ---
+      Swap mousewheel scrolling and zooming
+      Navigate in between cells with cursor keys
+      ---
+      Create .bak files
+      Autosave to .tmp
+      ---
+      Render document centered
+      Faster line rendering 
+      black and white toolbar icons
+      [R]oundness of grid borders...
+        0,1,2,3,4,5,6
+  
+    
+    
+    [P]rogram
+      [R]un 
+      [M]ark as
+        [D]ata
+        [O]peration
+        Variable [A]ssign
+        Variable [R]ead
+        [H]orizontal View
+        [V]ertical View
+      [C]lear Views

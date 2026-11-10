@@ -1,0 +1,125 @@
+  Program Operation Reference
+  Run demo:
+    click toolbar button or 
+    select menu: Program > Run or
+    press shortcut: CTRL+ALT+F5
+  Field types:
+    data
+    operation
+    result (view)
+    variable (assign/read)
+  arithmetic
+    3
+    +
+    2
+    
+    3
+    -
+    2
+    
+    3
+    *
+    2
+    
+    3
+    /
+    2
+    
+  helpers
+    5
+    inc
+    
+    5
+    dec
+    
+    5
+    neg
+    
+  graphs
+    3
+    graph
+    
+    5
+    graph
+    
+    9
+    graph
+    
+  aggregates
+    
+      1
+      2
+      3
+    sum
+    
+    
+      4
+      1
+      7
+      2
+    min
+    
+    
+      4
+      1
+      7
+      2
+    max
+    
+    
+      4
+      1
+      7
+      2
+    avg
+    
+    
+      4
+      1
+      7
+      2
+    median
+    
+  matrix transpose
+    
+      A
+      B
+    transpose
+    
+    
+      1
+      2
+      3
+      4
+    transpose
+    
+  conditions
+    
+      if
+      5
+      >
+      5
+      
+      if
+      5
+      >
+      3
+      
+    
+      <
+      >
+      <=
+      >=
+      = or ==
+      != or <>
+  variables
+    assign:
+    2
+    inc
+    
+    three
+    read:
+    three
+    
+    
+    
