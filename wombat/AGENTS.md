@@ -14,10 +14,11 @@ memory: sessions do not remember each other, so anything agreed must be written 
 | `docs/DECISIONS.md` | Design decisions and deliberate departures from TreeSheets |
 | `docs/FILE_FORMAT.md` | Specification of the `.wombat` format, the image folder and the view-state file |
 | `docs/milestones/` | One summary per finished milestone |
-| `crates/wombat-core` | The core library: document model (`model.rs`), file format (`format.rs`), view state (`view.rs`), files and workspaces (`storage.rs`, `workspace.rs`); later commands, undo, links, formulas |
+| `crates/wombat-core` | The core library: document model (`model.rs`), commands, undo and redo (`edit/`: `mod.rs` the editor and the list of commands, `command.rs` what each does, `step.rs` the reversible steps), text rules (`text.rs`), the construction layer for building documents (`construct.rs`), file format (`format.rs`), view state (`view.rs`), files and workspaces (`storage.rs`, `workspace.rs`); later links, formulas |
 | `crates/wombat-cts` | Read-only importer of TreeSheets `.cts` files (all format versions up to 31), a testing tool; `tests/referee.rs` compares it with `referee/golden/`, `tests/quirks/` holds hand-built files with their own golden data |
-| `crates/wombat-cli` | The `wombat` command-line tool, a thin layer over the core |
+| `crates/wombat-cli` | The `wombat` command-line tool, a thin layer over the core; `edit.rs` reads the editing commands of `wombat edit`; `tests/ops.rs` compares commands with `referee/ops/` |
 | `referee/` | Scripts that drive the real TreeSheets app, and the reference ("golden") data it produced |
+| `referee/ops/` | Operation cases: one edit done by the real app (`cases/*.lobster`) and as Wombat commands (`cases/*.edit`) on `fixture.cts`, the app's result (`golden/`), and `make_ops` to regenerate |
 
 New crates (for example the `.cts` importer or the search service) go under `crates/` and are
 listed here when added.
@@ -39,7 +40,8 @@ CI (`.github/workflows/wombat.yml`) runs the same three on every push that touch
 - **The core has no interface code and no global state.** No printing, no reading the clock or
   random numbers except through values passed in, no file access outside the storage module.
 - **Documents change only through commands** addressed by cell ID. Every command is reversible and
-  returns what it changed (decisions A9, A10). Do not add a second way in.
+  returns what it changed (decisions A9, A10, A34, A35). Do not add a second way in. Building a
+  document that nobody edits yet (reader, importer, tests) uses `construct::Construct` (A31).
 - **No panics on bad input.** Library code does not use `unwrap`, `expect`, `panic!`, unchecked
   indexing or unchecked arithmetic on anything that came from a file or a caller. Return errors.
   `unsafe` is forbidden (`#![forbid(unsafe_code)]`).

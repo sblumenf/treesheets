@@ -1,0 +1,562 @@
+//! Editing: the only way to change a document (decisions A9, A10, A31-A39).
+//!
+//! An [`Editor`] owns a document. [`Editor::apply`] carries out a [`Command`], which names
+//! the cells it works on by ID; [`Editor::undo`] and [`Editor::redo`] walk the history. Each
+//! of the three returns [`Changes`]: exactly which cells, grids and tags are different
+//! afterwards. Commands, changes and errors are plain data with no references into the
+//! document, so they can cross a boundary to an interface written in another language.
+//!
+//! Inside, a command is carried out as a list of small steps, each of which knows how to
+//! undo itself exactly (`step.rs`). The history keeps those steps, not copies of the
+//! document. A command that fails has its steps undone before the error is returned, so the
+//! document is exactly as it was.
+//!
+//! **Adding a command** (what milestone 3b does): add a variant to [`Command`], and in
+//! `command.rs` a function that checks the request against the document and then calls
+//! `Tx::step` for each step. Undo, redo, grouping, the change report and roll-back on
+//! failure then work without more code. No new kind of step should be needed: `SetGrid`
+//! rearranges existing cells in any way, `AddCells` and `RemoveCells` make and drop cells.
+
+mod command;
+mod step;
+
+use crate::error::{refused, Error};
+use crate::id::{CellId, IdSource};
+use crate::model::{
+    CellKind, Color, Document, DrawStyle, ImageRef, LinkTarget, Style, TextAlign, VertAlign,
+};
+
+use step::{ChangeSet, Step};
+
+/// The smallest width of a column, as in TreeSheets.
+pub const MIN_COL_WIDTH: u32 = 5;
+
+/// A property of a cell with a new value, for [`Command::SetProps`].
+#[derive(Clone, PartialEq, Debug)]
+pub enum Prop {
+    /// The background colour. Stamps the last-edit time, as TreeSheets does.
+    CellColor(Color),
+    /// The colour of the text. As in TreeSheets this also removes the colours of the
+    /// cell's runs, so that the whole text has the new colour. Stamps the last-edit time.
+    TextColor(Color),
+    /// The text size relative to the default; positive is smaller.
+    RelSize(i32),
+    /// Horizontal alignment.
+    TextAlign(TextAlign),
+    /// Vertical alignment.
+    VertAlign(VertAlign),
+    /// What the cell is to the formula system.
+    Kind(CellKind),
+    /// The note.
+    Note(String),
+    /// How the cell's grid is drawn.
+    DrawStyle(DrawStyle),
+    /// The image shown in the cell, or `None` for no image.
+    Image(Option<ImageRef>),
+    /// The display scale of the cell's image; the cell must have one.
+    ImageScale(f64),
+    /// When the text was last edited, or `None` for unknown.
+    LastEdit(Option<i64>),
+    /// The border colour of the cell's grid; the cell must have one.
+    BorderColor(Color),
+    /// The outer spacing of the cell's grid; the cell must have one.
+    OuterSpacing(u32),
+    /// Whether the cell's grid is below its text (instead of beside it); the cell must
+    /// have a grid.
+    Vertical(bool),
+}
+
+/// A change to a document. Positions and lengths in text are in Unicode code points and
+/// must not cut a user-perceived character (see [`crate::text`]); rows and columns are
+/// counted from 0. A command that asks for nothing new (setting a colour a cell already
+/// has, inserting empty text) succeeds, changes nothing and leaves no entry in the history.
+#[derive(Clone, PartialEq, Debug)]
+pub enum Command {
+    /// Inserts text at a position. Stamps the last-edit time.
+    InsertText {
+        /// The cell.
+        cell: CellId,
+        /// Where to insert.
+        at: u32,
+        /// What to insert; control characters become spaces.
+        text: String,
+    },
+    /// Deletes a range of text. Stamps the last-edit time.
+    DeleteText {
+        /// The cell.
+        cell: CellId,
+        /// The first code point to delete.
+        start: u32,
+        /// How many code points to delete.
+        len: u32,
+    },
+    /// Replaces a range of text; the new text takes the style and link of the first
+    /// replaced character. Stamps the last-edit time.
+    ReplaceText {
+        /// The cell.
+        cell: CellId,
+        /// The first code point to replace.
+        start: u32,
+        /// How many code points to replace.
+        len: u32,
+        /// The new text; control characters become spaces.
+        text: String,
+    },
+    /// Replaces the whole text and, as TreeSheets does, drops all runs and links. Stamps the
+    /// last-edit time.
+    SetText {
+        /// The cell.
+        cell: CellId,
+        /// The new text; control characters become spaces.
+        text: String,
+    },
+    /// Switches style bits on and off for a range of text: the bits of `set` on, then the
+    /// bits of `clear` off, the others as they are.
+    SetRangeStyle {
+        /// The cell.
+        cell: CellId,
+        /// The first code point.
+        start: u32,
+        /// How many code points.
+        len: u32,
+        /// The bits to switch on.
+        set: Style,
+        /// The bits to switch off.
+        clear: Style,
+    },
+    /// Gives a range of text a colour, or with `None` the cell's text colour again.
+    SetRangeColor {
+        /// The cell.
+        cell: CellId,
+        /// The first code point.
+        start: u32,
+        /// How many code points.
+        len: u32,
+        /// The colour.
+        color: Option<Color>,
+    },
+    /// Makes a range of text a link to `target`, replacing any links it overlaps; `None`
+    /// removes the links from the range.
+    SetLink {
+        /// The cell.
+        cell: CellId,
+        /// The first code point.
+        start: u32,
+        /// How many code points.
+        len: u32,
+        /// Where the link goes: an external target or a cell.
+        target: Option<LinkTarget>,
+    },
+    /// Sets properties of one or more cells, as one undo unit. If any of it cannot be done
+    /// (a grid property on a cell without a grid, say), nothing is.
+    SetProps {
+        /// The cells.
+        cells: Vec<CellId>,
+        /// The properties with their new values.
+        props: Vec<Prop>,
+    },
+    /// Switches style bits on and off for whole cells: on the base style and, as TreeSheets
+    /// does, on every run. The bits of `set` on, then the bits of `clear` off.
+    SetStyle {
+        /// The cells.
+        cells: Vec<CellId>,
+        /// The bits to switch on.
+        set: Style,
+        /// The bits to switch off.
+        clear: Style,
+    },
+    /// Sets the width of one column of a cell's grid (at least [`MIN_COL_WIDTH`]; smaller
+    /// values become that).
+    SetColumnWidth {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The column.
+        column: u32,
+        /// The width.
+        width: u32,
+    },
+    /// Gives a cell that has no grid a grid of new empty cells. As in TreeSheets they take
+    /// the cell's colours, style, alignments, draw style and relative size, and the grid
+    /// takes the border colour and spacing of the grid the cell is in.
+    CreateGrid {
+        /// The cell.
+        cell: CellId,
+        /// The number of columns.
+        xs: u32,
+        /// The number of rows.
+        ys: u32,
+    },
+    /// Removes the grid of a cell with everything in it.
+    RemoveGrid {
+        /// The cell.
+        cell: CellId,
+    },
+    /// Inserts empty rows. As in TreeSheets each new cell takes the colours, style,
+    /// alignments, draw style and relative size of the cell above it (below it, for rows
+    /// inserted at the top).
+    InsertRows {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The row before which to insert; the number of rows appends.
+        at: u32,
+        /// How many rows.
+        count: u32,
+    },
+    /// Inserts empty columns; like [`Command::InsertRows`], taking after the cell to the
+    /// left (to the right, for columns inserted at the left edge).
+    InsertColumns {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The column before which to insert; the number of columns appends.
+        at: u32,
+        /// How many columns.
+        count: u32,
+    },
+    /// Deletes rows with everything in them. Deleting every row removes the grid, as in
+    /// TreeSheets; for the root cell that is refused.
+    DeleteRows {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The first row.
+        at: u32,
+        /// How many rows.
+        count: u32,
+    },
+    /// Deletes columns; see [`Command::DeleteRows`].
+    DeleteColumns {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The first column.
+        at: u32,
+        /// How many columns.
+        count: u32,
+    },
+    /// Empties cells, as TreeSheets' `Cell::Clear`: text, runs, links, image and grid go,
+    /// a formula cell becomes a data cell; colours, style, note and the rest stay.
+    ClearCells {
+        /// The cells.
+        cells: Vec<CellId>,
+    },
+    /// What the Delete key does to a selection of cells in TreeSheets: empties them, and
+    /// if that leaves the selected rows (or columns) of the grid entirely empty, deletes
+    /// those rows (or columns); if that would be every one, removes the grid from its cell
+    /// (except for the root, whose grid stays, emptied).
+    DeleteCells {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The first selected column.
+        x: u32,
+        /// The first selected row.
+        y: u32,
+        /// The number of selected columns, at least 1.
+        xs: u32,
+        /// The number of selected rows, at least 1.
+        ys: u32,
+    },
+    /// Moves rows within their grid.
+    MoveRows {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The first row to move.
+        from: u32,
+        /// How many rows.
+        count: u32,
+        /// The index the first moved row has afterwards.
+        to: u32,
+    },
+    /// Moves columns within their grid, with their widths.
+    MoveColumns {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The first column to move.
+        from: u32,
+        /// How many columns.
+        count: u32,
+        /// The index the first moved column has afterwards.
+        to: u32,
+    },
+    /// Makes two cells trade places, with everything in them; they may be in different
+    /// grids, but neither may be inside the other.
+    SwapCells {
+        /// One cell.
+        a: CellId,
+        /// The other.
+        b: CellId,
+    },
+    /// Moves a cell, with its text, properties, grid and ID, to where the empty cell `to`
+    /// is (which may be in another grid). The empty cell takes its old place. Refused if
+    /// `to` is not empty or is inside `from`.
+    MoveCell {
+        /// The cell to move.
+        from: CellId,
+        /// An empty cell (no text, image or grid) whose place it takes.
+        to: CellId,
+    },
+    /// The paste operation: makes `to` a copy of `from` with everything inside it. `to`
+    /// keeps its ID and place; what it held is lost; the cells of the copied grid get new
+    /// IDs, and links from inside the copy to cells inside `from` follow to the copies.
+    CopyCell {
+        /// The cell to copy.
+        from: CellId,
+        /// The cell that becomes the copy.
+        to: CellId,
+    },
+    /// Adds a tag to the document, or changes its colours. A cell has a tag when its
+    /// text is the tag's name.
+    SetTag {
+        /// The name; not empty, no control characters.
+        name: String,
+        /// The background colour of cells with the tag.
+        cell_color: Color,
+        /// The text colour of cells with the tag.
+        text_color: Color,
+    },
+    /// Removes a tag from the document.
+    RemoveTag {
+        /// The name.
+        name: String,
+    },
+}
+
+/// What a command, an undo or a redo changed. Everything not listed is exactly as it was.
+/// Each list is sorted by ID and has no duplicates.
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+pub struct Changes {
+    /// Cells that existed before and still exist, whose own content changed: text, runs,
+    /// links, any property, or a property of their grid (border, spacing, column widths;
+    /// so a cell whose grid gained, lost or reordered columns is here as well as in
+    /// `grids`, because its list of widths is different).
+    pub changed: Vec<CellId>,
+    /// Cells that did not exist before.
+    pub created: Vec<CellId>,
+    /// Cells that no longer exist.
+    pub removed: Vec<CellId>,
+    /// Cells that existed before and still exist, whose grid appeared, disappeared, changed
+    /// size or has a different list of cells. A cell that moved is found here through the
+    /// cell whose grid it left and the cell whose grid it entered.
+    pub grids: Vec<CellId>,
+    /// Names of document tags that were added, removed or changed.
+    pub tags: Vec<String>,
+}
+
+impl Changes {
+    /// Whether nothing changed.
+    pub fn is_empty(&self) -> bool {
+        self.changed.is_empty()
+            && self.created.is_empty()
+            && self.removed.is_empty()
+            && self.grids.is_empty()
+            && self.tags.is_empty()
+    }
+}
+
+/// A command in progress: applies steps and remembers how to undo them.
+pub(crate) struct Tx<'a> {
+    doc: &'a mut Document,
+    /// The undoing step of each step applied, in the order applied.
+    inverses: Vec<Step>,
+    seen: ChangeSet,
+}
+
+impl Tx<'_> {
+    pub(crate) fn doc(&self) -> &Document {
+        self.doc
+    }
+
+    /// Applies one step.
+    pub(crate) fn step(&mut self, step: Step) -> Result<(), Error> {
+        let inverse = step.apply(self.doc, &mut self.seen)?;
+        self.inverses.push(inverse);
+        Ok(())
+    }
+
+    /// Undoes every step applied so far.
+    fn roll_back(self) -> Result<(), Error> {
+        let mut seen = ChangeSet::default();
+        for step in self.inverses.into_iter().rev() {
+            step.apply(self.doc, &mut seen)?;
+        }
+        Ok(())
+    }
+}
+
+/// A document with its undo and redo history. See the module documentation.
+#[derive(Clone, Debug)]
+pub struct Editor {
+    doc: Document,
+    /// Each entry undoes one unit: its steps in the order to apply them.
+    undo: Vec<Vec<Step>>,
+    /// Each entry redoes one unit.
+    redo: Vec<Vec<Step>>,
+    /// The undo entries of the commands of the open group, oldest first.
+    group: Vec<Vec<Step>>,
+    group_depth: u32,
+    limit: Option<usize>,
+}
+
+impl Editor {
+    /// Starts editing a document, with an empty history. Refuses a document that breaks
+    /// the model's rules, so that every command starts from a valid one.
+    pub fn new(doc: Document) -> Result<Editor, Error> {
+        doc.validate()?;
+        Ok(Editor {
+            doc,
+            undo: Vec::new(),
+            redo: Vec::new(),
+            group: Vec::new(),
+            group_depth: 0,
+            limit: None,
+        })
+    }
+
+    /// The document as it is now, to read.
+    pub fn document(&self) -> &Document {
+        &self.doc
+    }
+
+    /// Ends editing and gives the document back; the history is dropped.
+    pub fn into_document(self) -> Document {
+        self.doc
+    }
+
+    /// Carries out a command. `now` is the time for commands that stamp a cell's last-edit
+    /// time (milliseconds since 1970 UTC), or `None` to stamp nothing; `ids` gives the IDs
+    /// of cells the command creates. On an error the document and the history are exactly
+    /// as before. A command that changes something becomes one unit of the undo history
+    /// (or part of the open group) and empties the redo history.
+    pub fn apply(
+        &mut self,
+        command: Command,
+        now: Option<i64>,
+        ids: &mut dyn IdSource,
+    ) -> Result<Changes, Error> {
+        let mut tx = Tx {
+            doc: &mut self.doc,
+            inverses: Vec::new(),
+            seen: ChangeSet::default(),
+        };
+        if let Err(error) = command::run(&mut tx, command, now, ids) {
+            tx.roll_back()?;
+            return Err(error);
+        }
+        let Tx { inverses, seen, .. } = tx;
+        if inverses.is_empty() {
+            return Ok(Changes::default());
+        }
+        let unit: Vec<Step> = inverses.into_iter().rev().collect();
+        self.redo.clear();
+        if self.group_depth > 0 {
+            self.group.push(unit);
+        } else {
+            self.push_undo(unit);
+        }
+        Ok(seen.finish(&self.doc))
+    }
+
+    fn push_undo(&mut self, unit: Vec<Step>) {
+        self.undo.push(unit);
+        if let Some(limit) = self.limit {
+            let over = self.undo.len().saturating_sub(limit);
+            self.undo.drain(..over);
+        }
+    }
+
+    /// Applies the steps of one history entry and returns the entry that reverses it.
+    fn play(doc: &mut Document, unit: Vec<Step>) -> Result<(Vec<Step>, Changes), Error> {
+        let mut tx = Tx {
+            doc,
+            inverses: Vec::with_capacity(unit.len()),
+            seen: ChangeSet::default(),
+        };
+        for step in unit {
+            if let Err(error) = tx.step(step) {
+                // Cannot happen while the history matches the document; if it does, at
+                // least leave the document as it was.
+                tx.roll_back()?;
+                return Err(error);
+            }
+        }
+        let Tx {
+            inverses,
+            seen,
+            doc,
+        } = tx;
+        Ok((inverses.into_iter().rev().collect(), seen.finish(doc)))
+    }
+
+    /// Undoes the latest unit of the history: one command, or one group. Returns what that
+    /// changed, or `None` if there is nothing to undo. Refused while a group is open.
+    pub fn undo(&mut self) -> Result<Option<Changes>, Error> {
+        if self.group_depth > 0 {
+            return refused("undo while a group of commands is open");
+        }
+        let Some(unit) = self.undo.pop() else {
+            return Ok(None);
+        };
+        let (reverse, changes) = Editor::play(&mut self.doc, unit)?;
+        self.redo.push(reverse);
+        Ok(Some(changes))
+    }
+
+    /// Redoes the unit that was undone last, giving created cells the IDs they had.
+    /// Returns what that changed, or `None` if there is nothing to redo.
+    pub fn redo(&mut self) -> Result<Option<Changes>, Error> {
+        if self.group_depth > 0 {
+            return refused("redo while a group of commands is open");
+        }
+        let Some(unit) = self.redo.pop() else {
+            return Ok(None);
+        };
+        let (reverse, changes) = Editor::play(&mut self.doc, unit)?;
+        self.push_undo(reverse);
+        Ok(Some(changes))
+    }
+
+    /// Opens a group: the commands applied until the matching [`Editor::end_group`] are
+    /// undone and redone as one unit. Groups may be nested; only the outermost counts.
+    pub fn begin_group(&mut self) {
+        self.group_depth = self.group_depth.saturating_add(1);
+    }
+
+    /// Closes a group. Without an open group this does nothing.
+    pub fn end_group(&mut self) {
+        if self.group_depth == 0 {
+            return;
+        }
+        self.group_depth -= 1;
+        if self.group_depth == 0 && !self.group.is_empty() {
+            // To undo the group, undo its commands from the newest to the oldest.
+            let unit = self.group.drain(..).rev().flatten().collect();
+            self.push_undo(unit);
+        }
+    }
+
+    /// The number of units that can be undone.
+    pub fn undo_len(&self) -> usize {
+        self.undo.len()
+    }
+
+    /// The number of units that can be redone.
+    pub fn redo_len(&self) -> usize {
+        self.redo.len()
+    }
+
+    /// Bounds the undo history to the `limit` newest units (`None`: no bound, the
+    /// default). Older units are forgotten: their changes stay, but cannot be undone.
+    pub fn set_history_limit(&mut self, limit: Option<usize>) {
+        self.limit = limit;
+        if let Some(limit) = limit {
+            let over = self.undo.len().saturating_sub(limit);
+            self.undo.drain(..over);
+        }
+    }
+
+    /// Forgets the whole history; the document stays as it is.
+    pub fn clear_history(&mut self) {
+        self.undo.clear();
+        self.redo.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests;

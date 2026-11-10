@@ -8,6 +8,7 @@
 
 use std::path::Path;
 use std::time::{Duration, Instant};
+use wombat_core::construct::Construct;
 
 use wombat_core::{format, storage, Document, Link, LinkTarget, Run, SeededIds, Style};
 

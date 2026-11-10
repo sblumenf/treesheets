@@ -410,3 +410,189 @@ fn copy_gives_new_ids_and_list_warns_of_files_copied_by_hand() {
         "{listed}"
     );
 }
+
+fn edit(dir: &Path, file: &str, script: &str) -> Output {
+    fs::write(dir.join("script.txt"), script).unwrap();
+    wombat(dir, &["edit", file, "--script", "script.txt"])
+}
+
+#[test]
+fn edit_runs_a_script_and_undoing_everything_gives_the_original_file() {
+    let dir = folder("edit");
+    fs::write(dir.join("outline.txt"), OUTLINE).unwrap();
+    wombat(&dir, &["new", "shop.wombat", "--from", "outline.txt"]);
+    let original = fs::read(dir.join("shop.wombat")).unwrap();
+
+    // A series of edits of every sort, saved.
+    let script = "\
+# cells by their place, as `show` prints it
+now 1700000000000
+text /1,2 \"Apple pie \\u{1F600}\"
+insert /1,2 0 \"An \"
+delete /1,2 0 3
+replace /1,2 0 5 \"Pear\"
+style /1,2 0 4 +bold +italic
+color /1,2 5 3 #ff0000
+link /1,2 0 4 url \"https://example.org/pear\"
+link /2,2 0 1 cell /1,2
+set /1,1 /2,1 color=#ffeecc align=center note=\"a note\"
+set / border=#0000ff spacing=5
+cell-style /1,1 /2,1 +underline
+width / 2 120
+grid /2,3 2 2
+text /2,3/1,1 \"inner\"
+insert-rows / 2 1
+insert-columns / 3 2
+move-rows / 1 1 4
+swap /1,1 /2,1
+move /2,4 /4,4
+copy /1,2 /3,1
+delete-rows / 2 1
+clear /4,1
+delete-cells / 1 2 2 1
+tag \"Pear\" #00ff00 #000000
+fold /3,1
+changes
+show
+check
+save
+";
+    let done = edit(&dir, "shop.wombat", script);
+    assert!(done.status.success(), "{}", stderr(&done));
+    let out = stdout(&done);
+    assert!(out.contains("tag \"Pear\"\n"), "{out}");
+    assert!(
+        out.contains("valid: ") && out.ends_with("saved shop.wombat\n"),
+        "{out}"
+    );
+    let edited = fs::read(dir.join("shop.wombat")).unwrap();
+    assert_ne!(edited, original);
+    let check = wombat(&dir, &["check", "shop.wombat"]);
+    assert!(check.status.success(), "{}", stderr(&check));
+    let shown = stdout(&wombat(&dir, &["show", "shop.wombat"]));
+    assert!(
+        shown.contains("(folded)") && shown.contains("\"red\""),
+        "{shown}"
+    );
+
+    // The same edits followed by `undo all` leave the file byte for byte as it was, and
+    // `redo all` after that gives the edited file again, same IDs included.
+    fs::write(dir.join("shop.wombat"), &original).unwrap();
+    let _ = fs::remove_dir_all(dir.join(".wombat-view"));
+    let body = script.replace("changes\nshow\ncheck\nsave\n", "");
+    let undone = edit(&dir, "shop.wombat", &format!("{body}undo all\nsave\n"));
+    assert!(undone.status.success(), "{}", stderr(&undone));
+    assert_eq!(fs::read(dir.join("shop.wombat")).unwrap(), original);
+    let redone = edit(
+        &dir,
+        "shop.wombat",
+        &format!("{body}undo all\nredo all\nundo 3\nredo 3\nsave\n"),
+    );
+    assert!(redone.status.success(), "{}", stderr(&redone));
+    let text = fs::read_to_string(dir.join("shop.wombat")).unwrap();
+    assert!(
+        text.contains("\"Pear") && text.contains("\"tags\""),
+        "{text}"
+    );
+
+    // A group undoes as one; the report of an undo names what came back.
+    fs::write(dir.join("shop.wombat"), &original).unwrap();
+    let grouped = edit(
+        &dir,
+        "shop.wombat",
+        "begin\ntext /1,1 \"a\"\ntext /2,1 \"b\"\nend\nundo\nchanges\nundo all\nsave\n",
+    );
+    let out = stdout(&grouped);
+    assert_eq!(out.matches("changed /").count(), 2, "{out}");
+    assert_eq!(fs::read(dir.join("shop.wombat")).unwrap(), original);
+}
+
+#[test]
+fn edit_stops_at_a_bad_line_and_writes_nothing() {
+    let dir = folder("edit-bad");
+    fs::write(dir.join("outline.txt"), OUTLINE).unwrap();
+    wombat(&dir, &["new", "shop.wombat", "--from", "outline.txt"]);
+    let original = fs::read(dir.join("shop.wombat")).unwrap();
+    let cases = [
+        (
+            "text /1,1 \"x\"\nfrobnicate /1,1\nsave\n",
+            "line 2: \"frobnicate\" is not a command",
+        ),
+        (
+            "text /9,9 \"x\"\nsave\n",
+            "line 1: \"/9,9\": there is no cell 9,9 there",
+        ),
+        ("text /0,1 \"x\"\n", "is not column,row from 1"),
+        ("text /1,1 \"unclosed\n", "a quote is not closed"),
+        ("insert /1,1 99 \"x\"\n", "outside the text"),
+        ("insert-rows /1,1 1 1\n", "has no grid"),
+        ("insert-rows / 0 1\n", "count from 1"),
+        ("set /1,1 colour=#fff\n", "is not a property"),
+        ("set /1,1 color=red\n", "is not a colour"),
+        ("style /1,1 0 1 bold\n", "write +bold or -bold"),
+        ("undo\n", "nothing to undo"),
+        (
+            "text 00000000-0000-0000-0000-000000000001 \"x\"\n",
+            "there is no cell",
+        ),
+        ("text /1,1 \"x\" extra\n", "unexpected"),
+        // A character made of two code points (e + combining accent) is not cut.
+        (
+            "text /1,1 \"e\\u{301}x\"\ndelete /1,1 0 1\n",
+            "would cut a character",
+        ),
+    ];
+    for (script, message) in cases {
+        let failed = edit(&dir, "shop.wombat", script);
+        assert_eq!(failed.status.code(), Some(1), "{script}");
+        assert!(
+            stderr(&failed).contains(message),
+            "{script}: {}",
+            stderr(&failed)
+        );
+        assert_eq!(
+            fs::read(dir.join("shop.wombat")).unwrap(),
+            original,
+            "{script}"
+        );
+    }
+    // Without `save` nothing is written, and the tool says so.
+    let unsaved = edit(&dir, "shop.wombat", "text /1,1 \"x\"\n");
+    assert!(unsaved.status.success());
+    assert!(stdout(&unsaved).contains("not saved"));
+    assert_eq!(fs::read(dir.join("shop.wombat")).unwrap(), original);
+    // Cells can be named by ID, and the script can come from standard input.
+    let shown = stdout(&wombat(&dir, &["show", "shop.wombat", "--ids"]));
+    let id = shown
+        .lines()
+        .find(|l| l.contains("\"Fruit\""))
+        .unwrap()
+        .rsplit('#')
+        .next()
+        .unwrap()
+        .to_string();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_wombat"))
+        .current_dir(&dir)
+        .args(["edit", "shop.wombat", "--script", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let script = format!("text #{id} \"Fruits\"\ntext {id} \"Fruit!\"\nchanges\nsave\n");
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(script.as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(
+        stdout(&output),
+        format!("changed /1,1 #{id}\nsaved shop.wombat\n")
+    );
+    assert!(fs::read_to_string(dir.join("shop.wombat"))
+        .unwrap()
+        .contains("\"Fruit!\""));
+    let help = wombat(&dir, &["edit", "--help"]);
+    assert!(stdout(&help).contains("delete-cells CELL COLUMN ROW COLUMNS ROWS"));
+}

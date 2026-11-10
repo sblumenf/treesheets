@@ -7,6 +7,7 @@
 )]
 
 use std::collections::BTreeMap;
+use wombat_core::construct::Construct;
 
 use proptest::collection::{btree_map, vec};
 use proptest::prelude::*;
@@ -51,6 +52,11 @@ fn text() -> impl Strategy<Value = String> {
         vec(any::<char>(), 0..10).prop_map(|c| c.into_iter().collect()),
         "[a-z \"\\\\\n\u{1F600}é]{0,10}",
     ]
+}
+
+/// Any text a cell or a tag name may have: no control characters (decision A32).
+fn cell_text() -> impl Strategy<Value = String> {
+    text().prop_map(|t| wombat_core::text::clean(&t))
 }
 
 /// Any valid image file name; the pattern alone also gives names such as `a.` and `NUL`.
@@ -159,7 +165,7 @@ fn pick<T: Copy + std::fmt::Debug + 'static>(all: &'static [T]) -> impl Strategy
 fn cell_spec() -> impl Strategy<Value = CellSpec> {
     let leaf = (
         (
-            text(),
+            cell_text(),
             prop_oneof![Just(String::new()), text()],
             pick(CellKind::ALL),
         ),
@@ -258,7 +264,7 @@ fn doc_spec() -> impl Strategy<Value = DocSpec> {
     (
         any::<u64>(),
         cell_spec(),
-        btree_map(text(), (color(), color(), extra()), 0..3),
+        btree_map(cell_text(), (color(), color(), extra()), 0..3),
         extra(),
     )
         .prop_map(|(seed, root, tags, extra)| DocSpec {
@@ -331,9 +337,9 @@ fn build(spec: &DocSpec) -> Document {
             text_color: *text_color,
             extra: extra.clone(),
         };
-        doc.tags.insert(name.clone(), tag);
+        doc.tags_mut().insert(name.clone(), tag);
     }
-    doc.extra = spec.extra.clone();
+    *doc.extra_mut() = spec.extra.clone();
     doc
 }
 

@@ -26,6 +26,7 @@ mod tests;
 use std::collections::BTreeSet;
 use std::fmt;
 use std::path::Path;
+use wombat_core::construct::Construct;
 
 use wombat_core::model::Extra;
 use wombat_core::{

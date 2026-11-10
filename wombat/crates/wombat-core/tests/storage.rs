@@ -8,6 +8,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use wombat_core::construct::Construct;
 
 use wombat_core::storage::{self, VIEW_DIR};
 use wombat_core::{

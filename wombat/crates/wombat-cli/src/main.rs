@@ -1,5 +1,6 @@
 //! The `wombat` command-line tool: a thin layer over the core.
 
+mod edit;
 mod outline;
 
 use std::io::{Read, Write};
@@ -23,6 +24,9 @@ Usage:
   wombat copy <file.wombat> <new.wombat>    save a copy that has its own document and cell
                                             IDs, with its images and view state (copying
                                             the file itself would duplicate the IDs)
+  wombat edit <file.wombat> --script <file> run editing commands, one per line (\"-\" reads
+                                            them from standard input); `wombat edit --help`
+                                            lists the commands
   wombat check <file.wombat>                check that the file is a valid document
   wombat list [<folder>] [--cells]          list the documents of a workspace folder and warn
                                             of files with the same document ID; --cells also
@@ -82,6 +86,10 @@ fn run(args: &[&str]) -> Result<String, Failure> {
         ["show", file] => show(file, false),
         ["show", file, "--ids"] | ["show", "--ids", file] => show(file, true),
         ["check", file] => check(file),
+        ["edit", "--help" | "-h" | "help"] => Ok(edit::HELP.to_string()),
+        ["edit", file, "--script", script] | ["edit", "--script", script, file] => {
+            edit(file, script)
+        }
         ["import", source, file] => import(source, file),
         ["copy", source, file] => copy(source, file),
         ["list"] => list(".", false),
@@ -224,11 +232,46 @@ fn load_for_show(file: &str) -> Result<(Document, Option<ViewState>), Failure> {
 
 fn show(file: &str, with_ids: bool) -> Result<String, Failure> {
     let (doc, view) = load_for_show(file)?;
+    Ok(show_document(&doc, view.as_ref(), with_ids))
+}
+
+/// A document as an indented outline.
+fn show_document(doc: &Document, view: Option<&ViewState>, with_ids: bool) -> String {
     let mut out = format!("document {} ({} cells)\n", doc.id(), doc.cell_count());
-    for tag in doc.tags.keys() {
+    for tag in doc.tags().keys() {
         out.push_str(&format!("tag {tag:?}\n"));
     }
-    show_cell(&doc, view.as_ref(), doc.root(), 0, "", with_ids, &mut out);
+    show_cell(doc, view, doc.root(), 0, "", with_ids, &mut out);
+    out
+}
+
+/// Runs a script of editing commands on a document. Output so far is printed even if a
+/// later line fails.
+fn edit(file: &str, script: &str) -> Result<String, Failure> {
+    let text = read_text(script)?;
+    let mut session = edit::Session::open(Path::new(file), os_ids()?)
+        .map_err(|e| Failure::Failed(format!("{file}: {e}")))?;
+    let mut out = String::new();
+    for (n, line) in text.lines().enumerate() {
+        match session.line(line) {
+            Ok(printed) => out.push_str(&printed),
+            Err(error) => {
+                let _ = std::io::stdout().lock().write_all(out.as_bytes());
+                let lost = if session.saved() {
+                    ""
+                } else {
+                    "; changes since the last save were not written"
+                };
+                return Err(Failure::Failed(format!(
+                    "{script} line {}: {error}{lost}",
+                    n.saturating_add(1)
+                )));
+            }
+        }
+    }
+    if !session.saved() {
+        out.push_str("not saved: the script changed the document after its last `save`\n");
+    }
     Ok(out)
 }
 

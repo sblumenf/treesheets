@@ -143,6 +143,88 @@ TreeSheets.
     and may not be a Windows device name (`CON`, `PRN`, `AUX`, `NUL`, `COM0`-`COM9`,
     `LPT0`-`LPT9`, in any case, alone or before the first dot). A document written on one
     system would otherwise name an image that cannot exist on another.
+31. **Two ways to write to a document, kept apart** (carries out A9). *Editing* is
+    `edit::Editor`: it owns the document, lends it out read-only, and changes it only through
+    commands, which are recorded and reported. *Construction* is the trait
+    `construct::Construct` (`cell_mut`, `add_grid`, `tags_mut`, `extra_mut`): unrestricted and
+    unrecorded, for code that builds a document before anyone edits it: the file reader, the
+    `.cts` importer, tests, `wombat new --from`. Its methods exist only for code that imports
+    the trait, and a document inside an editor cannot be reached by them, so no document with
+    a history can be changed behind the history's back. `Editor::new` validates what it is
+    given. Tags and unknown document fields are read through `tags()` and `extra()`.
+32. **Cell text holds no control characters** (replaces B12). A cell's text and a tag's name
+    have no character below U+0020: no line breaks or tabs. This is TreeSheets' rule (the lines
+    of a cell come from wrapping), the importer already produced only such text, and it keeps
+    "one cell, one line of text" true for search and export. Editing commands turn such
+    characters into spaces, one for one, as TreeSheets does on load and on `set_text`;
+    `validate`, and so loading and saving, refuses a document that has one. Notes may hold any
+    text. U+007F and the C1 controls are left alone, as in TreeSheets. This tightens format
+    version 1.0 in place instead of making a version 2 (which A18 would ask for), because no
+    Wombat files exist outside this repository yet; after a first release it could not be
+    done this way.
+33. **A command that would cut a user-perceived character is refused, not adjusted**
+    (carries out A11). Every position and range end of a text command must be on a boundary
+    between extended grapheme clusters (Unicode Annex 29, crate `unicode-segmentation`), or
+    the command fails with nothing changed. Refusing was chosen over moving the position
+    because a command must do what it says or nothing; `text::is_boundary`, `floor_boundary`
+    and `ceil_boundary` let an interface find the allowed places first. Limits of the
+    guarantee: runs and links that came from a file may already cut a character (TreeSheets
+    does not care, and files are not rejected for it); and inserting or deleting can make two
+    neighbouring characters join into one (a lone combining mark typed after a letter, two
+    half flags left next to each other), after which an old run or link end may lie inside
+    the new character. No command splits what was one character.
+34. **The command engine** (carries out A9). A command is a plain value (`edit::Command`)
+    naming cells by ID. It is carried out as steps of ten kinds: splice text, set one field of
+    a cell or its grid, set a tag, add cells, remove cells, insert lines (rows or columns),
+    remove lines, move lines, replace a cell's whole grid, and make two cells trade places.
+    Applying a step returns the step that undoes it exactly; the history keeps those steps
+    and never a copy of the document. A step holds only what it needs: a step that removes
+    cells necessarily holds the removed cells (that is the only place they still exist), a
+    text step holds the text it took out, and so on; nothing proportional to the rest of the
+    document. One command is one unit of undo; `begin_group`/`end_group` make several
+    commands one unit; a new command empties the redo history; `set_history_limit` bounds
+    the number of units (older ones are forgotten, their effects stay). A command that fails
+    part-way has its applied steps undone before the error is returned, so a refusal
+    (`Error::Refused`, `NotFound`, `Limit`) never leaves a trace. A command that asks for
+    nothing new succeeds with an empty report and no history entry. Milestone 3b adds
+    commands, not machinery: "replace a cell's whole grid" with add and remove expresses any
+    rearrangement of cells.
+35. **The change report** (carries out A10). Every command, undo and redo returns `Changes`:
+    `changed` (cells whose own content or properties differ, including their grid's border,
+    spacing and column widths), `created`, `removed`, `grids` (cells whose grid appeared,
+    disappeared, changed size or lists other cells) and `tags`. A cell that only moved is not
+    listed itself: the cells whose grids it left and entered are in `grids`. Inserting,
+    deleting or reordering columns puts the grid's cell in `changed` as well, because its
+    width list differs. For a single command the report is exact, tested both ways (nothing
+    unreported differs; nothing reported is the same). For a group, it is complete but may
+    name a cell that was changed and changed back.
+36. **New cells take their IDs from the `IdSource` passed to `Editor::apply`**, and an ID the
+    document already has, or one the source repeats, is refused. Undo keeps the removed cells
+    inside the undoing step, so redo puts back the very same cells with the same IDs, without
+    asking for new ones.
+37. **Last-edit times come from the caller.** `Editor::apply` takes `now` (milliseconds since
+    1970 UTC) or `None` for "do not stamp"; the core never reads a clock. Following TreeSheets
+    (`Text::WasEdited`), these stamp the cell: inserting, deleting, replacing and setting
+    text, setting the cell colour or text colour, and being created (by a new grid or an
+    inserted row or column). Styling, linking, clearing, moving and the other properties do
+    not. A copied cell keeps the time of the cell it was copied from. `Prop::LastEdit` sets a
+    time directly.
+38. **Folding is outside the document and its history** (carries out A8).
+    `ViewState::set_folded` folds and unfolds; it is not a command and cannot be undone.
+    After every command, undo and redo the interface calls `ViewState::apply_changes` with
+    the report, which drops folds, selection and zoom that name removed cells, and the fold
+    of a cell that lost its grid, at a cost that depends on the size of the change only. An
+    undo that brings a cell or grid back does not bring its fold back: it returns unfolded.
+    Keeping a memory of dropped view state was judged not worth the extra state.
+39. **Moving is trading places; copying is the only thing that makes new IDs.** `MoveCell`
+    takes a cell, with its ID and everything in it, to where an empty cell is, and the empty
+    cell takes its old place; `SwapCells` is the same without the "empty" condition. So a
+    link to a moved cell still points at it (B1). Neither is allowed between a cell and
+    something inside it. `CopyCell` makes the target an exact copy of the source: the target
+    keeps its own ID and place, the cells of the copied grid get new IDs, and links from
+    inside the copy to cells inside the source follow to the copies (the rule of A28). The
+    copy is taken before the target changes, so copying a cell into its own inside, or over
+    a cell it is inside of, is well defined. Copying between documents is not built.
 
 ## B. Deliberate departures from TreeSheets
 
@@ -183,3 +265,27 @@ TreeSheets.
     one is the first cell of the root's grid, and the zoom is the cell on the way to the
     selection at the saved depth (B13).
 17. **An image's display scale is TreeSheets' number, unchanged**: larger means drawn smaller.
+18. **B12 no longer holds:** cell text has no control characters, as in TreeSheets (A32).
+19. **Text commands refuse bad positions.** A position outside the text, or one that cuts a
+    character made of several code points, makes the command fail (A33). TreeSheets clamps
+    ranges to the text and cuts wherever the cursor is.
+20. **Colouring a cell never recolours a tag.** In TreeSheets, setting the colour of a cell
+    whose text is a tag changes the tag's colours instead of the cell's, and "add tag" takes
+    the colours of the selected cell. In Wombat `SetProps` always sets the cell, and tags
+    have their own commands (`SetTag` with explicit colours, `RemoveTag`).
+21. **Paste makes an exact copy** (A39). TreeSheets' paste keeps the target's text size and
+    alignment (it takes the size of a neighbouring cell), widens the target's column to the
+    source's, and when pasting a grid into a cell without text merges the grid's cells into
+    the surrounding grid. `CopyCell` does none of the three: the target becomes what the
+    source is. Seen in the real app with `referee/run_script`; the two paste cases that are
+    compared are ones where the difference does not show.
+22. **Deleting every row or column of the root's grid with `DeleteRows`/`DeleteColumns` is
+    refused.** TreeSheets silently does nothing. (`DeleteCells` on everything in the root
+    empties the cells and keeps the grid, as TreeSheets does; elsewhere both remove the
+    grid.)
+23. **Edit times are stamped only when the caller gives a time** (A37), and a new cell
+    without one has no time. TreeSheets stamps every new cell with the current time.
+24. **A new grid's "vertical" flag comes from the grid around it** (B10 moved the flag from
+    the cell to the grid). In TreeSheets a new cell inherits its parent cell's flag.
+25. **`SetRangeColor` with no colour** removes the colour from a range only. TreeSheets can
+    only remove the colours of a whole text.

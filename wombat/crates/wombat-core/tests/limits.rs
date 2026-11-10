@@ -9,6 +9,7 @@
 
 use proptest::prelude::*;
 use serde_json::Value;
+use wombat_core::construct::Construct;
 
 use wombat_core::limits::{
     MAX_CELLS, MAX_DEPTH, MAX_FILE_BYTES, MAX_IMAGE_NAME_BYTES, MAX_JSON_DEPTH,
@@ -338,7 +339,7 @@ fn put_unknown(doc: &mut Document, cell: CellId, slot: usize, value: Value) {
                 let parent = target.parent().unwrap_or(cell);
                 match doc.cell_mut(parent).unwrap().grid_mut() {
                     Some(grid) => grid.extra = extra,
-                    None => doc.extra = extra,
+                    None => *doc.extra_mut() = extra,
                 }
             }
         },
@@ -347,9 +348,9 @@ fn put_unknown(doc: &mut Document, cell: CellId, slot: usize, value: Value) {
                 extra,
                 ..Tag::default()
             };
-            doc.tags.insert("tag".into(), tag);
+            doc.tags_mut().insert("tag".into(), tag);
         }
-        _ => doc.extra = extra,
+        _ => *doc.extra_mut() = extra,
     }
 }
 

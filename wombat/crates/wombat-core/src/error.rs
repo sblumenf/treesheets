@@ -26,6 +26,10 @@ pub enum Error {
     },
     /// The document breaks a rule of the format or of the model (says which and where).
     Invalid(String),
+    /// A command cannot be carried out on the document as it is (says why): a position
+    /// outside the text, a cell without the grid the command needs, and the like. The
+    /// document is unchanged.
+    Refused(String),
     /// A size, count or depth is over a limit in [`crate::limits`].
     Limit(String),
     /// No document with this ID or name is in the workspace.
@@ -46,6 +50,7 @@ impl fmt::Display for Error {
                  to version {supported}; use a newer Wombat to open it"
             ),
             Error::Invalid(m) => write!(f, "invalid document: {m}"),
+            Error::Refused(m) => write!(f, "not possible: {m}"),
             Error::Limit(m) => write!(f, "over a limit: {m}"),
             Error::NotFound(m) => write!(f, "not found: {m}"),
             Error::AlreadyExists(p) => write!(f, "{} already exists", p.display()),
@@ -65,4 +70,9 @@ impl std::error::Error for Error {
 /// Shorthand for an [`Error::Invalid`].
 pub(crate) fn invalid<T>(message: impl Into<String>) -> Result<T, Error> {
     Err(Error::Invalid(message.into()))
+}
+
+/// Shorthand for an [`Error::Refused`].
+pub(crate) fn refused<T>(message: impl Into<String>) -> Result<T, Error> {
+    Err(Error::Refused(message.into()))
 }

@@ -7,6 +7,7 @@
 
 use std::collections::BTreeSet;
 
+use crate::edit::Changes;
 use crate::error::{invalid, Error};
 use crate::id::{CellId, DocId};
 use crate::json::{
@@ -97,6 +98,53 @@ impl ViewState {
         }
         if self.zoom.is_some_and(|id| doc.cell(id).is_none()) {
             self.zoom = None;
+        }
+    }
+
+    /// Folds or unfolds the grid of `cell`. Folding is view state, not content (decision
+    /// A8): it is not a command, is not in the undo history and does not change the
+    /// document. Returns whether anything changed; refused for a cell without a grid.
+    pub fn set_folded(
+        &mut self,
+        doc: &Document,
+        cell: CellId,
+        folded: bool,
+    ) -> Result<bool, Error> {
+        match doc.cell(cell) {
+            None => Err(Error::NotFound(format!("cell {cell}"))),
+            Some(c) if c.grid().is_none() => {
+                Err(Error::Refused(format!("cell {cell} has no grid to fold")))
+            }
+            Some(_) if folded => Ok(self.folded.insert(cell)),
+            Some(_) => Ok(self.folded.remove(&cell)),
+        }
+    }
+
+    /// Whether the grid of `cell` is folded.
+    pub fn is_folded(&self, cell: CellId) -> bool {
+        self.folded.contains(&cell)
+    }
+
+    /// Keeps the view state in step with the document after a command, an undo or a redo:
+    /// call it with the document as it is now and the [`Changes`] that were returned.
+    /// Whatever refers to a removed cell is dropped (fold, selection, zoom), and so is the
+    /// fold of a cell that lost its grid. Nothing is restored when an undo brings such a
+    /// cell or grid back: it returns unfolded (decision A38). The cost depends on the size
+    /// of the change, not of the document.
+    pub fn apply_changes(&mut self, doc: &Document, changes: &Changes) {
+        for id in &changes.removed {
+            self.folded.remove(id);
+            if self.selection.as_ref().is_some_and(|s| s.cell == *id) {
+                self.selection = None;
+            }
+            if self.zoom == Some(*id) {
+                self.zoom = None;
+            }
+        }
+        for id in &changes.grids {
+            if doc.cell(*id).is_none_or(|c| c.grid().is_none()) {
+                self.folded.remove(id);
+            }
         }
     }
 

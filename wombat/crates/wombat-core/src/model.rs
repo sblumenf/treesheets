@@ -5,10 +5,13 @@
 //! cell knows its parent, so finding a cell or its parent by ID does not depend on the size or
 //! depth of the document. A grid holds the IDs of its cells, not the cells themselves.
 //!
-//! The functions here that change a document ([`Document::add_grid`], [`Document::cell_mut`])
-//! are the **low-level layer**. From milestone 3 on, documents change only through commands
-//! built on top of it (decision A9); until then tests, the command-line tool and the importer
-//! use it directly to construct documents.
+//! A document is **changed** only through the commands of [`crate::edit`] (decision A9). The
+//! one other way to write to a document is the **construction layer**, the trait
+//! [`crate::construct::Construct`]: unrestricted, unrecorded access for code that builds a
+//! document before anyone edits it (the file reader, the `.cts` importer, tests). Its methods
+//! are only there for code that imports the trait, and an [`crate::edit::Editor`] owns its
+//! document and lends it out read-only, so nothing can reach the construction layer of a
+//! document that has an undo history (decision A31).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
@@ -307,7 +310,8 @@ pub struct Cell {
     pub(crate) id: CellId,
     pub(crate) parent: Option<CellId>,
     pub(crate) grid: Option<Grid>,
-    /// The text. For a formula cell this is the formula.
+    /// The text. For a formula cell this is the formula. No characters below U+0020
+    /// (decision A32).
     pub text: String,
     /// What the cell is to the formula system.
     pub kind: CellKind,
@@ -378,7 +382,8 @@ impl Cell {
         self.grid.as_ref()
     }
 
-    /// The grid, to change its properties (not its size or cells).
+    /// The grid, to change its properties (not its size or cells). Reachable only through
+    /// the construction layer ([`crate::construct::Construct`]).
     pub fn grid_mut(&mut self) -> Option<&mut Grid> {
         self.grid.as_mut()
     }
@@ -412,10 +417,8 @@ pub struct Document {
     pub(crate) minor: u32,
     pub(crate) root: CellId,
     pub(crate) cells: HashMap<CellId, Cell>,
-    /// The tags of the document, by name. A cell has a tag when its text is the tag's name.
-    pub tags: BTreeMap<String, Tag>,
-    /// Unrecognised document-level fields.
-    pub extra: Extra,
+    pub(crate) tags: BTreeMap<String, Tag>,
+    pub(crate) extra: Extra,
 }
 
 impl Document {
@@ -455,9 +458,17 @@ impl Document {
         self.cells.get(&id)
     }
 
-    /// Low-level layer: the cell with this ID, to set its text and properties. Call
-    /// [`Document::validate`] afterwards; saving does so and refuses an invalid document.
-    pub fn cell_mut(&mut self, id: CellId) -> Option<&mut Cell> {
+    /// The tags of the document, by name. A cell has a tag when its text is the tag's name.
+    pub fn tags(&self) -> &BTreeMap<String, Tag> {
+        &self.tags
+    }
+
+    /// Unrecognised document-level fields.
+    pub fn extra(&self) -> &Extra {
+        &self.extra
+    }
+
+    pub(crate) fn cell_mut(&mut self, id: CellId) -> Option<&mut Cell> {
         self.cells.get_mut(&id)
     }
 
@@ -476,8 +487,7 @@ impl Document {
         Some(depth)
     }
 
-    /// Low-level layer: gives a cell that has no grid a grid of `xs` by `ys` new empty cells.
-    pub fn add_grid(
+    pub(crate) fn add_grid(
         &mut self,
         cell: CellId,
         xs: u32,
@@ -550,6 +560,11 @@ impl Document {
     pub fn validate(&self) -> Result<(), Error> {
         check_extra(&self.extra, crate::format::DOCUMENT_KEYS, "the document")?;
         for (name, tag) in &self.tags {
+            if !crate::text::is_clean(name) {
+                return invalid(format!(
+                    "tag {name:?} has a control character (below U+0020) in its name"
+                ));
+            }
             check_extra(
                 &tag.extra,
                 crate::format::TAG_KEYS,
@@ -775,6 +790,11 @@ fn validate_cell(cell: &Cell) -> Result<(), Error> {
         return Err(Error::Limit(format!(
             "{place}: text or note longer than {MAX_TEXT_CODE_POINTS} code points"
         )));
+    }
+    if !crate::text::is_clean(&cell.text) {
+        return invalid(format!(
+            "{place}: the text has a control character (below U+0020)"
+        ));
     }
     check_ranges(cell.runs.iter().map(|r| (r.start, r.len)), len, "run", id)?;
     check_ranges(cell.links.iter().map(|l| (l.start, l.len)), len, "link", id)?;

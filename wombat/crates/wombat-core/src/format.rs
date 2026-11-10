@@ -578,7 +578,9 @@ mod tests {
         let c = doc.child(root, 0, 1).unwrap();
         {
             let cell = doc.cell_mut(root).unwrap();
-            cell.text = "Plan \"A\"\n\ttab \u{1} \\ \u{1F600}".into();
+            cell.text = "Plan \"A\" \\ \u{1F600}".into();
+            // Control characters may only be in notes (decision A32).
+            cell.note = "two\n\tlines \u{1}".into();
             cell.draw_style = DrawStyle::Lines;
             let grid = cell.grid_mut().unwrap();
             grid.border_color = Color::rgb(1, 2, 3);
@@ -671,7 +673,7 @@ mod tests {
  "done": {"color": "#008000"},
  "todo": {"text_color": "#ff0000"}
 },
-"root": {"id": "ID2", "text": "Plan \"A\"\n\ttab \u0001 \\ 😀", "draw": "lines", "grid": {"xs": 2, "ys": 2, "border": "#010203", "spacing": 0, "vertical": false, "widths": [80, 20], "cells": [
+"root": {"id": "ID2", "text": "Plan \"A\" \\ 😀", "draw": "lines", "note": "two\n\tlines \u0001", "grid": {"xs": 2, "ys": 2, "border": "#010203", "spacing": 0, "vertical": false, "widths": [80, 20], "cells": [
  {"id": "ID3", "text": "bold and link", "kind": "code", "color": "#ffeedd", "text_color": "#000080", "align": "center", "valign": "bottom", "size": -2, "italic": true, "fixed": true, "runs": [{"start": 0, "len": 4, "bold": true, "underline": true, "strike": true}, {"start": 9, "len": 4, "color": "#0000ff"}], "links": [{"start": 0, "len": 4, "url": "https://example.org/?a=\"b\""}, {"start": 5, "len": 3, "cell": "ID4"}, {"start": 9, "len": 4, "cell": "ID5", "doc": "ID77"}], "note": "a note", "edited": 1731234567890},
  {"id": "ID4", "text": "=SUM(Expenses)", "kind": "formula", "image": {"file": "cat.png", "scale": 0.5}},
  {"id": "ID5", "image": {"file": "dog.jpg"}, "grid": {"xs": 1, "ys": 1, "cells": [

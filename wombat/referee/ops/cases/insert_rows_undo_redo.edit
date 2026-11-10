@@ -1,0 +1,6 @@
+begin
+insert-rows / 2 1
+insert-columns / 2 1
+end
+undo
+redo

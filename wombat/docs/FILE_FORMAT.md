@@ -3,7 +3,7 @@
 This describes the files Wombat reads and writes, precisely enough to write another reader or
 writer. The implementation is `crates/wombat-core/src/format.rs` (documents), `view.rs` (view
 state) and `storage.rs` (where files go). The reasons are in `DECISIONS.md` (A7, A8, A12, A16-A22,
-A26-A30).
+A26-A30, A32).
 
 ## 1. Files on disk
 
@@ -133,7 +133,8 @@ cells take more than 32 MiB; it bounds documents built in memory.
 | `tags` | object | empty | The document's tags: tag name → tag object. |
 | `root` | cell object | required | The root cell. |
 
-**Tag object.** A cell "has" a tag when its text equals the tag's name (as in TreeSheets).
+**Tag object.** A cell "has" a tag when its text equals the tag's name (as in TreeSheets). A
+tag's name, like a cell's text, has no characters below U+0020.
 
 | Field | Type | Default | Meaning |
 | ---- | ---- | ---- | ---- |
@@ -145,7 +146,7 @@ cells take more than 32 MiB; it bounds documents built in memory.
 | Field | Type | Default | Meaning |
 | ---- | ---- | ---- | ---- |
 | `id` | ID | required | The cell's ID. |
-| `text` | string | `""` | The text. For a formula cell, the formula (for example `=SUM(Expenses)`). |
+| `text` | string | `""` | The text. For a formula cell, the formula (for example `=SUM(Expenses)`). No characters below U+0020: no line breaks, tabs or other control characters (decision A32). |
 | `kind` | string | `"data"` | `data`, `code` (operation), `var_assign`, `var_read`, `view_h`, `view_v` or `formula`. |
 | `color` | colour | `#ffffff` | Background colour. |
 | `text_color` | colour | `#000000` | Colour of text outside coloured runs. |
@@ -210,7 +211,8 @@ refused.
 A reader refuses the whole file (it does not repair or skip) when: a required field is missing; a
 known field has the wrong type or an unlisted value; an ID is not in canonical form; two cells
 have the same ID, or a cell has the document's ID; `cells` does not hold exactly `xs` × `ys`
-cells; `widths` does not hold `xs` numbers; runs or links break their rules; an image name or
+cells; `widths` does not hold `xs` numbers; runs or links break their rules; a cell's text or a
+tag's name has a character below U+0020 (a note may); an image name or
 scale is invalid (section 5); an object repeats a key; or a limit is exceeded.
 
 ## 4. Canonical form (what Wombat writes)

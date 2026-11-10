@@ -454,6 +454,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
+name = "unicode-segmentation"
+version = "1.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8"
+
+[[package]]
 name = "wait-timeout"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -506,6 +512,7 @@ name = "wombat-cli"
 version = "0.0.0"
 dependencies = [
  "getrandom 0.3.4",
+ "serde_json",
  "wombat-core",
  "wombat-cts",
 ]
@@ -517,6 +524,7 @@ dependencies = [
  "proptest",
  "serde_core",
  "serde_json",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -526,6 +534,7 @@ dependencies = [
  "miniz_oxide",
  "proptest",
  "serde_json",
+ "unicode-segmentation",
  "wombat-core",
 ]
 

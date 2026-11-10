@@ -6,6 +6,7 @@
 //! indented under it, that line is the root cell; otherwise the root cell is empty and
 //! holds the top-level rows.
 
+use wombat_core::construct::Construct;
 use wombat_core::limits::MAX_DEPTH;
 use wombat_core::{CellId, Document, Error, IdSource};
 

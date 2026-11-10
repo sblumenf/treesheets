@@ -578,8 +578,8 @@ fn every_version_reads_exactly_the_fields_it_has() {
         );
 
         if since(11) {
-            assert_eq!(doc.tags.len(), 1);
-            let tag = &doc.tags["x"];
+            assert_eq!(doc.tags().len(), 1);
+            let tag = &doc.tags()["x"];
             let colors = if since(24) {
                 (Color::rgb(0, 0xff, 0), Color::rgb(0x33, 0x22, 0x11))
             } else {
@@ -587,7 +587,7 @@ fn every_version_reads_exactly_the_fields_it_has() {
             };
             assert_eq!((tag.cell_color, tag.text_color), colors);
         } else {
-            assert!(doc.tags.is_empty());
+            assert!(doc.tags().is_empty());
         }
     }
 }
@@ -619,13 +619,13 @@ fn tags_may_end_with_the_file_instead_of_an_empty_name() {
     file.tags = vec![("a", 0xff_0000, 0), ("b\nc", 1, 2)];
     file.tags_end = false;
     let doc = file.import().unwrap().document;
-    assert_eq!(doc.tags.keys().collect::<Vec<_>>(), ["a", "b c"]);
-    assert_eq!(doc.tags["a"].cell_color, Color::rgb(0, 0, 0xff));
+    assert_eq!(doc.tags().keys().collect::<Vec<_>>(), ["a", "b c"]);
+    assert_eq!(doc.tags()["a"].cell_color, Color::rgb(0, 0, 0xff));
     // A repeated name keeps the last colours, as TreeSheets' map does.
     let mut file = cts(31, t("").grid(1, vec![t("a")]));
     file.tags = vec![("a", 1, 1), ("a", 2, 2)];
     assert_eq!(
-        file.import().unwrap().document.tags["a"].text_color,
+        file.import().unwrap().document.tags()["a"].text_color,
         Color::rgb(2, 0, 0)
     );
 }

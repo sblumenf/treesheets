@@ -375,7 +375,7 @@ impl Compare<'_> {
         self.report.check(
             "is_tag",
             place,
-            doc.tags.contains_key(&cell.text),
+            doc.tags().contains_key(&cell.text),
             theirs["is_tag"].as_bool().unwrap(),
         );
         assert!(!theirs["filtered"].as_bool().unwrap());

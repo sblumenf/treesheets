@@ -6,6 +6,7 @@
 //! stack, so nesting depth costs heap, not stack.
 
 use std::collections::BTreeMap;
+use wombat_core::construct::Construct;
 
 use wombat_core::limits::MAX_TEXT_CODE_POINTS;
 use wombat_core::model::{code_points, Extra};
@@ -159,7 +160,7 @@ pub(crate) fn parse(
         text_links,
         ..
     } = tree;
-    document.tags = tags;
+    *document.tags_mut() = tags;
     let undecodable = undecodable.saturating_add(r.undecodable);
     Ok(Parsed {
         version,
