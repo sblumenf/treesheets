@@ -46,7 +46,7 @@ CI (`.github/workflows/wombat.yml`) runs the same three on every push that touch
 - **Deterministic output.** Saving, exporting and iteration order never depend on hash-map order,
   the clock or the machine.
 - **Dependencies are a cost.** Add one only when it clearly earns its place, prefer widely used
-  crates, and check that it can compile to WebAssembly and for phones, since the core must.
+  crates, and check that it compiles for phones and desktops (iOS, Android, macOS, Windows, Linux).
 - **Keep it small.** No speculative features, options or abstractions. Three layers is enough.
 - **Public items have a doc comment** that says what they do. Comments explain why, not what.
 

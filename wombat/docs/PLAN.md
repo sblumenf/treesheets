@@ -8,8 +8,8 @@ existing users to migrate.
 link, search and save nested-grid documents. It is proven by automated tests and usable from a
 small command-line tool.
 
-The long-term aim is an app that is first-class on both desktop and mobile. The core is written so
-that any interface (web technology or fully native) can sit on top of it later.
+The long-term aim is an app that is first-class on both desktop and mobile, in the app stores. The
+interface will be built with Flutter on top of the core (decision A16).
 
 ## Milestones
 
@@ -39,8 +39,8 @@ and a summary is added under `docs/milestones/`.
 
 - **Milestone 3 is the largest** and may be split in two.
 - **Milestone 5 is the riskiest**, because the formula system is intricate.
-- **Milestone 6 has an open question:** whether the Tantivy search library suits phones and web
-  interfaces. It gets tested first, with a simpler purpose-built index as the fallback.
+- **Milestone 6 has an open question:** whether the Tantivy search library suits phones. It gets
+  tested first, with a simpler purpose-built index as the fallback.
 - **No engineer reviews the code.** The tests and the comparisons against TreeSheets are the main
   safeguard. They reduce this risk without removing it.
 - **Nothing here is visual.** The proof of concept shows the foundation is sound, not that the
@@ -56,8 +56,8 @@ and a summary is added under `docs/milestones/`.
 
 ## Future list
 
-- The interface, starting with a phone sketch to test nested grids on a small screen.
-- Native apps, which the Rust core keeps possible.
+- The Flutter interface, starting with a phone sketch on a real iPhone that tests nested grids on
+  a small screen and typing into cells.
 - Sync between devices.
 - A spreadsheet import/export wizard: a single Excel workbook with linked sheets, ready-made
   XLOOKUP formulas, and flattening of any number of tables.
