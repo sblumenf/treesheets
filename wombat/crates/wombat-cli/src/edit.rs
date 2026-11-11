@@ -44,6 +44,12 @@ Text
   link CELL POSITION LENGTH none      make a range a link (to a web page or file, to a
                                       cell, to a cell of the document in FILE), or remove
                                       its links
+  replace-all \"text\" \"with\" [case] [CELL]
+                                      replace the text wherever it is found in the texts
+                                      of cells (of CELL and the cells inside it), as one
+                                      unit of undo; case: only exactly these characters
+  find \"query\" [next|prev CELL]       print the cells that match a search (the syntax of
+                                      `wombat search`), or the next or previous one from CELL
   resolve-unknown                     give a target to the links imported from TreeSheets
                                       without one, where exactly one cell now has the
                                       text they named
@@ -511,6 +517,63 @@ impl<'a> Session<'a> {
                     len,
                     target,
                 })?;
+            }
+            "replace-all" => {
+                let text = next(args, "the text to find")?.to_string();
+                let with = next(args, "the replacement")?.to_string();
+                let mut term = wombat_search::Term::new(text);
+                let mut scope = wombat_search::replace::Scope::Document;
+                for (word, _) in args {
+                    match word.as_str() {
+                        "case" => term.exact = true,
+                        word => scope = wombat_search::replace::Scope::Branch(self.cell(word)?),
+                    }
+                }
+                let (now, ids) = (self.now, &mut self.ids);
+                let done = wombat_search::replace::replace(
+                    &mut self.editor,
+                    &term,
+                    &with,
+                    scope,
+                    now,
+                    ids,
+                )
+                .map_err(|e| e.to_string())?;
+                out = format!("{} places in {} cells\n", done.places, done.cells);
+                self.changed(done.changes);
+            }
+            "find" => {
+                let query = next(args, "a query")?.to_string();
+                let from = match args.next().map(|(word, _)| word.as_str()) {
+                    None => None,
+                    Some(way @ ("next" | "prev")) => {
+                        Some((self.next_cell(args, "a cell")?, way == "prev"))
+                    }
+                    Some(word) => return Err(format!("unexpected: {word:?}")),
+                };
+                done(args)?;
+                let parsed = wombat_search::parse(&query, self.now.unwrap_or(0))
+                    .map_err(|e| e.to_string())?;
+                let mut index = wombat_search::SearchIndex::new();
+                index.insert_document(self.doc(), "");
+                let hits = match from {
+                    Some((cell, reverse)) => {
+                        let hit =
+                            index.next_match(&parsed.query, self.doc().id(), Some(cell), reverse);
+                        hit.map_err(|e| e.to_string())?.into_iter().collect()
+                    }
+                    None => {
+                        let order = parsed.order.unwrap_or(wombat_search::Order::Document);
+                        let options = wombat_search::Options::all(order);
+                        let found = index.search(&parsed.query, &options);
+                        found.map_err(|e| e.to_string())?.hits
+                    }
+                };
+                for hit in &hits {
+                    let marked = crate::search::marked(&hit.snippet);
+                    out.push_str(&format!("{} {marked}\n", self.place(hit.cell)));
+                }
+                out.push_str(&format!("{} found\n", hits.len()));
             }
             "resolve-unknown" => {
                 done(args)?;

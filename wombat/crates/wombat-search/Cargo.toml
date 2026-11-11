@@ -1,0 +1,21 @@
+[package]
+name = "wombat-search"
+description = "The Wombat search service: an index over a workspace, queries, ranking and replace"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+wombat-core = { path = "../wombat-core" }
+# User-perceived characters, so that a highlighted range never cuts one (decision A11).
+unicode-segmentation = "1.13.3"
+# Unicode normalisation (NFKD, NFC) for folding text: pure Rust, tables only.
+unicode-normalization = { version = "0.1.24", default-features = false }
+
+[dev-dependencies]
+proptest = "1"
+wombat-cts = { path = "../wombat-cts" }

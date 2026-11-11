@@ -618,10 +618,6 @@ fn the_summary_of_a_document_reads_back_from_its_cache_form() {
         assert_eq!(DocLinks::decode(&value), Some(summary.clone()));
         assert_eq!(value, DocLinks::of(&doc.clone()).encode());
         assert_eq!(summary.cell_count(), doc.cell_count());
-        // Through text, as the cache file holds it.
-        let text = serde_json::to_string(&value).unwrap();
-        let back: Value = serde_json::from_str(&text).unwrap();
-        assert_eq!(DocLinks::decode(&back), Some(summary));
     }
     let hints: Vec<_> = DocLinks::of(&notes)
         .links_of(first)
@@ -630,33 +626,31 @@ fn the_summary_of_a_document_reads_back_from_its_cache_form() {
         .collect();
     assert_eq!(hints, [None, None, Some("gone".to_string()), None]);
 
-    // Anything else is not a summary.
+    // Anything else is not a summary: bytes cut short or with more after them are
+    // refused, and bytes with one byte changed are refused or are, exactly, the bytes
+    // of another summary (which the checksum of a cache entry tells apart).
     let good = DocLinks::of(&notes).encode();
-    let spoil = |change: &dyn Fn(&mut Value)| {
-        let mut value = good.clone();
-        change(&mut value);
-        DocLinks::decode(&value)
-    };
-    assert_eq!(DocLinks::decode(&Value::Null), None);
-    assert_eq!(spoil(&|v| v["id"] = "12".into()), None);
-    assert_eq!(spoil(&|v| v["extra"] = 1.into()), None);
-    assert_eq!(spoil(&|v| v["cells"] = "abc".into()), None);
-    assert_eq!(spoil(&|v| v["cells"] = "G".repeat(32).into()), None);
-    assert_eq!(spoil(&|v| v["links"][0][0] = "0".repeat(32).into()), None);
-    assert_eq!(spoil(&|v| v["links"][0][1] = (-1).into()), None);
-    assert_eq!(spoil(&|v| v["links"][0][4] = "x".into()), None);
-    assert_eq!(spoil(&|v| v["links"][2][1] = 0.into()), None);
-    assert_eq!(
-        spoil(&|v| v["links"][0].as_array_mut().unwrap().push(1.into())),
-        None
-    );
-    assert_eq!(
-        spoil(&|v| {
-            let cells = v["cells"].as_str().unwrap().to_string();
-            v["cells"] = format!("{cells}{}", &cells[..32]).into();
-        }),
-        None
-    );
+    assert_eq!(DocLinks::decode(&[]), None);
+    for cut in 0..good.len() {
+        assert_eq!(DocLinks::decode(&good[..cut]), None, "cut at {cut}");
+    }
+    assert_eq!(DocLinks::decode(&[good.as_slice(), &[0]].concat()), None);
+    let mut refused = 0;
+    for at in 0..good.len() {
+        for flip in [0x01, 0x80, 0xff] {
+            let mut bytes = good.clone();
+            bytes[at] ^= flip;
+            match DocLinks::decode(&bytes) {
+                None => refused += 1,
+                Some(other) => assert_eq!(other.encode(), bytes, "byte {at} ^ {flip}"),
+            }
+        }
+    }
+    assert!(refused > good.len() / 4, "only {refused} refused");
+    // A count that the bytes could not hold is refused before anything is allocated.
+    let mut huge = good[..16].to_vec();
+    huge.extend_from_slice(&[0xff, 0xff, 0xff, 0xff, 0x0f]);
+    assert_eq!(DocLinks::decode(&huge), None);
 }
 
 #[test]

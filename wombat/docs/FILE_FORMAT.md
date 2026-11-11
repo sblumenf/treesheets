@@ -14,7 +14,7 @@ folder/
   notes.wombat                    the document (section 3)
   notes.wombat.images/            its images, one ordinary image file each (section 5)
   .wombat-view/<document id>.json its view state on this device (section 6)
-  .wombat-index/<kind>.idx        a cache of an index over the folder (section 7)
+  .wombat-index/<kind>/           a cache of an index over the folder (section 7)
 ```
 
 - A **workspace** is a folder; its documents are the files directly in it whose names end in
@@ -316,24 +316,27 @@ layout is as in the example: line 2 the header, then `selection`, `zoom`, unknow
 
 ## 7. Index caches
 
-An index over a workspace (of links; later of words for search) can be kept in
-`.wombat-index/<kind>.idx` so that unchanged documents need not be read again (decisions A53,
-A54). It is **not part of the format**: it holds nothing that is not in the documents, may be
-deleted at any time, differs per device and should be left out of sync and backups, and a
-reader that does not know it loses nothing. Its layout may change with any version of Wombat.
-For the record, the current one:
+An index over a workspace (of links, of words for search) can be kept in
+`.wombat-index/<kind>/`, one file per document, so that unchanged documents need not be read
+again (decisions A53, A71). It is **not part of the format**: it holds nothing that is not in
+the documents, may be deleted at any time, differs per device and should be left out of sync
+and backups, and a reader that does not know it loses nothing. Its layout may change with any
+version of Wombat. For the record, the current one:
 
-- The first line is `wombat-index <kind> <version> <length> <checksum>` and a newline: the
-  kind of index (`links`), the version of its layout (1), and the length in bytes and the
-  checksum of everything after the line. The checksum is 128-bit FNV-1a, 32 lower-case
-  hexadecimal digits.
-- The rest is one JSON object. Each key is `<length>-<checksum>` of the bytes of a document
-  file; its value is the index's summary of that document. For `links`:
-  `{"id": D, "cells": C, "links": [...]}` where `D` is the document ID as 32 hexadecimal
-  digits, `C` the IDs of all its cells in that form, sorted and run together, and each link is
-  `[cell, start, len, text, "u", target]`, `[cell, start, len, text, "c", target cell]` with
-  the target's document appended when the link names one, or `[cell, start, len, text, "?"]`
-  with the `cts_target` text appended when there is one.
-- A reader ignores the whole file unless the first line is exactly what it would write for
-  the rest, and reads a document again whenever no entry has the length and checksum of its
-  file. A file over 256 MiB is neither read nor written.
+- The entry of `notes.wombat` is `.wombat-index/<kind>/notes.wombat.idx`. The kinds are
+  `links` (the link index alone) and `search` (words and links together).
+- The first line is `wombat-index <kind> <version> <rules> <length> <time> <checksum>
+  <body length> <body checksum>` and a newline: the kind of index; the version of its layout;
+  a number (16 hexadecimal digits) for the rules the index was made by; the length in bytes
+  of the document file, its modification time in nanoseconds since 1970 (or `-`), and the
+  checksum of its bytes; the length and the checksum of everything after the line. A
+  checksum is 32 lower-case hexadecimal digits (`summary::digest`).
+- The rest is the index's summary of the document as bytes: numbers of 7 bits a byte, low
+  bits first; texts with their length in bytes first; IDs as 16 bytes. What they hold is
+  described at `DocLinks::encode` and `DocSearch::encode`.
+- A reader ignores an entry unless its first line is exactly what the reader would write for
+  the rest and for the document file as it is, and then reads the document instead. A reader
+  may take the file to be unchanged by its length and time alone, if the entry was written
+  at least two seconds after that time. An entry over 64 MiB is neither read nor written,
+  and neither is anything under `.wombat-index` that is a symbolic link or reached through
+  one.

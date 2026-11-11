@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use wombat_core::construct::Construct;
 use wombat_core::links::{Broken, DocLinks, Resolved};
-use wombat_core::scan::{self, CacheUse, WorkspaceLinks};
+use wombat_core::scan::{self, CacheMode, CacheUse, WorkspaceLinks};
 use wombat_core::{
     storage, CellId, Command, Document, Editor, Link, LinkTarget, SeededIds, Workspace,
 };
@@ -76,11 +76,11 @@ fn workspace(test: &str) -> (Workspace, [Document; 3]) {
 }
 
 /// The index with the cache, which must be the index without it.
-fn checked(ws: &Workspace) -> WorkspaceLinks {
-    let plain = scan::link_index(ws, false).unwrap();
+fn checked_with(ws: &Workspace, mode: CacheMode) -> WorkspaceLinks {
+    let plain = scan::link_index(ws, CacheMode::Off).unwrap();
     assert_eq!(plain.cache, CacheUse::Off);
     assert!(!plain.cache_written && plain.reused == 0);
-    let cached = scan::link_index(ws, true).unwrap();
+    let cached = scan::link_index(ws, mode).unwrap();
     assert!(cached.index == plain.index, "the cache gave another index");
     assert_eq!(cached.names, plain.names);
     assert_eq!(cached.duplicates, plain.duplicates);
@@ -88,15 +88,43 @@ fn checked(ws: &Workspace) -> WorkspaceLinks {
     cached
 }
 
-fn cache_file(ws: &Workspace) -> PathBuf {
-    scan::cache_path::<DocLinks>(ws)
+fn checked(ws: &Workspace) -> WorkspaceLinks {
+    checked_with(ws, CacheMode::Verify)
+}
+
+fn cache_file(ws: &Workspace, name: &str) -> PathBuf {
+    scan::cache_path::<DocLinks>(ws, name)
+}
+
+/// The names and bytes of all cache entries.
+fn cache_files(ws: &Workspace) -> Vec<(String, Vec<u8>)> {
+    let mut files: Vec<_> = fs::read_dir(scan::cache_dir::<DocLinks>(ws))
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            let name = entry.file_name().into_string().unwrap();
+            (name, fs::read(entry.path()).unwrap())
+        })
+        .collect();
+    files.sort();
+    files
+}
+
+/// Gives a file a modification time `seconds` before now.
+fn age(path: &Path, seconds: u64) {
+    let time = std::time::SystemTime::now() - std::time::Duration::from_secs(seconds);
+    let file = fs::File::options().write(true).open(path).unwrap();
+    file.set_modified(time).unwrap();
 }
 
 #[test]
 fn the_workspace_index_knows_documents_that_are_not_open() {
     let (ws, [a, b, c]) = workspace("closed");
-    let links = scan::link_index(&ws, false).unwrap();
-    assert!(!cache_file(&ws).exists(), "no cache was asked for");
+    let links = scan::link_index(&ws, CacheMode::Off).unwrap();
+    assert!(
+        !ws.dir().join(scan::CACHE_DIR).exists(),
+        "no cache was asked for"
+    );
     assert_eq!(links.parsed, 3);
     assert_eq!(links.names[&a.id()], "a.wombat");
     assert_eq!(links.index.broken().len(), 0);
@@ -108,7 +136,7 @@ fn the_workspace_index_knows_documents_that_are_not_open() {
     // Deleting a document: the warning beforehand, and broken links afterwards.
     assert_eq!(links.index.would_break_document(c.id()).len(), 1);
     fs::remove_file(ws.dir().join("c.wombat")).unwrap();
-    let links = scan::link_index(&ws, false).unwrap();
+    let links = scan::link_index(&ws, CacheMode::Off).unwrap();
     let broken = links.index.broken();
     assert_eq!(broken.len(), 1);
     assert_eq!(broken[0].doc, b.id());
@@ -118,9 +146,34 @@ fn the_workspace_index_knows_documents_that_are_not_open() {
     );
     // A document is found by its ID wherever its file is.
     fs::rename(ws.dir().join("b.wombat"), ws.dir().join("renamed.wombat")).unwrap();
-    let links = scan::link_index(&ws, false).unwrap();
+    let links = scan::link_index(&ws, CacheMode::Off).unwrap();
     assert_eq!(links.names[&b.id()], "renamed.wombat");
     assert_eq!(links.index.backlinks(b.id(), cell(&b, 1)).len(), 1);
+}
+
+/// Saves `a` with its first link going elsewhere, in a file of the same length and with
+/// the same modification time as before.
+fn change_in_place(ws: &Workspace, a: &Document, b: &Document) {
+    let path = ws.dir().join("a.wombat");
+    let time = fs::metadata(&path).unwrap().modified().unwrap();
+    let old_len = fs::metadata(&path).unwrap().len();
+    let mut editor = Editor::new(a.clone()).unwrap();
+    let relink = Command::SetLink {
+        cell: cell(a, 0),
+        start: 0,
+        len: 1,
+        target: Some(LinkTarget::Cell {
+            doc: Some(b.id()),
+            cell: cell(b, 0),
+        }),
+    };
+    editor
+        .apply(relink, None, &mut SeededIds::from_u64(1))
+        .unwrap();
+    ws.save(editor.document(), "a.wombat").unwrap();
+    assert_eq!(fs::metadata(&path).unwrap().len(), old_len);
+    let file = fs::File::options().write(true).open(&path).unwrap();
+    file.set_modified(time).unwrap();
 }
 
 #[test]
@@ -129,85 +182,155 @@ fn the_cache_is_used_only_for_files_that_are_unchanged() {
     let first = checked(&ws);
     assert_eq!(first.cache, CacheUse::Missing);
     assert!(first.cache_written && first.parsed == 3 && first.reused == 0);
-    let bytes = fs::read(cache_file(&ws)).unwrap();
+    let files = cache_files(&ws);
+    let names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
+    assert_eq!(names, ["a.wombat.idx", "b.wombat.idx", "c.wombat.idx"]);
 
     // Nothing changed: all from the cache, which is not written again.
     let second = checked(&ws);
     assert_eq!(second.cache, CacheUse::Read);
     assert_eq!((second.parsed, second.reused), (0, 3));
-    assert!(!second.cache_written);
-    assert_eq!(fs::read(cache_file(&ws)).unwrap(), bytes);
+    assert!(!second.cache_written && second.rejected == 0);
+    assert_eq!(cache_files(&ws), files);
 
     // One document changes, with a file of the same length and the same modification
-    // time as before: it is still noticed, because the bytes are read.
-    let path = ws.dir().join("a.wombat");
-    let time = fs::metadata(&path).unwrap().modified().unwrap();
-    let old_len = fs::metadata(&path).unwrap().len();
-    let mut editor = Editor::new(a.clone()).unwrap();
-    let relink = Command::SetLink {
-        cell: cell(&a, 0),
-        start: 0,
-        len: 1,
-        target: Some(LinkTarget::Cell {
-            doc: Some(b.id()),
-            cell: cell(&b, 0),
-        }),
-    };
-    editor
-        .apply(relink, None, &mut SeededIds::from_u64(1))
-        .unwrap();
-    ws.save(editor.document(), "a.wombat").unwrap();
-    assert_eq!(fs::metadata(&path).unwrap().len(), old_len);
-    fs::File::options()
-        .write(true)
-        .open(&path)
-        .unwrap()
-        .set_modified(time)
-        .unwrap();
+    // time as before: it is still noticed, because the bytes are read. Only its entry
+    // is written again.
+    change_in_place(&ws, &a, &b);
     let third = checked(&ws);
     assert_eq!((third.parsed, third.reused), (1, 2));
-    assert!(third.cache_written);
+    assert!(third.cache_written && third.rejected == 1);
     assert_eq!(third.index.backlinks(b.id(), cell(&b, 0)).len(), 1);
     assert_eq!(third.index.backlinks(b.id(), cell(&b, 1)).len(), 0);
+    let now = cache_files(&ws);
+    assert_ne!(now[0], files[0]);
+    assert_eq!(now[1..], files[1..]);
 
-    // A renamed file is the same bytes: nothing is parsed, the name follows.
-    fs::rename(&path, ws.dir().join("z.wombat")).unwrap();
+    // A renamed file is parsed again (an entry goes by the name of its file), and the
+    // entry under the old name is removed.
+    fs::rename(ws.dir().join("a.wombat"), ws.dir().join("z.wombat")).unwrap();
     let fourth = checked(&ws);
-    assert_eq!((fourth.parsed, fourth.reused), (0, 3));
+    assert_eq!((fourth.parsed, fourth.reused), (1, 2));
     assert_eq!(fourth.names[&a.id()], "z.wombat");
+    assert!(!cache_file(&ws, "a.wombat").exists() && cache_file(&ws, "z.wombat").exists());
 
     // A deleted document leaves the index, and its entry leaves the cache.
     fs::remove_file(ws.dir().join("c.wombat")).unwrap();
     let fifth = checked(&ws);
     assert_eq!(fifth.index.documents().count(), 2);
     assert!(fifth.cache_written);
-    assert!(fs::read(cache_file(&ws)).unwrap().len() < bytes.len());
+    assert!(!cache_file(&ws, "c.wombat").exists());
     // A new document is parsed, the others are not.
     let new = doc(&mut SeededIds::from_u64(77), &["new"]);
     ws.save(&new, "new.wombat").unwrap();
     let sixth = checked(&ws);
     assert_eq!((sixth.parsed, sixth.reused), (1, 2));
+    // What a failed write left behind is swept away; other files are left alone.
+    let dir = scan::cache_dir::<DocLinks>(&ws);
+    fs::write(dir.join("b.wombat.idx.tmp"), "left over").unwrap();
+    fs::write(dir.join("readme.txt"), "not ours").unwrap();
+    assert!(checked(&ws).cache_written);
+    assert!(!dir.join("b.wombat.idx.tmp").exists() && dir.join("readme.txt").exists());
+}
+
+#[test]
+fn the_fast_cache_goes_by_length_and_time_and_only_for_files_that_have_settled() {
+    let (ws, [a, b, _]) = workspace("fast");
+    let fast = |ws: &Workspace| checked_with(ws, CacheMode::Fast);
+    let first = fast(&ws);
+    assert_eq!((first.parsed, first.reused), (3, 0));
+    // The documents were written a moment before their entries: a change within the
+    // same tick of the clock could go unseen, so they are read and compared, and the
+    // entries are written again to say when that was.
+    let second = fast(&ws);
+    assert_eq!((second.parsed, second.reused), (0, 3));
+    assert!(
+        second.cache_written,
+        "files that had not settled are checked"
+    );
+    // Such a change is indeed seen.
+    change_in_place(&ws, &a, &b);
+    let third = fast(&ws);
+    assert_eq!((third.parsed, third.reused), (1, 2));
+    assert_eq!(third.index.backlinks(b.id(), cell(&b, 0)).len(), 1);
+
+    // Documents last modified well before their entries were written are believed by
+    // length and time alone: they are not read, shown here by making them unreadable
+    // as documents in a way that keeps both.
+    for name in ["a.wombat", "b.wombat", "c.wombat"] {
+        age(&ws.dir().join(name), 3600);
+    }
+    let settle = fast(&ws);
+    assert_eq!((settle.parsed, settle.reused), (0, 3));
+    assert!(settle.cache_written, "the entries now record the new times");
+    let files = cache_files(&ws);
+    let fourth = fast(&ws);
+    assert_eq!((fourth.parsed, fourth.reused), (0, 3));
+    assert!(!fourth.cache_written && cache_files(&ws) == files);
+
+    // The stated limit of the fast way: a file changed with its length and its exact
+    // time kept is not noticed. The checking way notices it, and repairs the entry.
+    let path = ws.dir().join("c.wombat");
+    let time = fs::metadata(&path).unwrap().modified().unwrap();
+    let good = fs::read(&path).unwrap();
+    fs::write(&path, vec![b'x'; good.len()]).unwrap();
+    let file = fs::File::options().write(true).open(&path).unwrap();
+    file.set_modified(time).unwrap();
+    drop(file);
+    let unseen = scan::link_index(&ws, CacheMode::Fast).unwrap();
+    assert_eq!(
+        (unseen.parsed, unseen.reused, unseen.failed.len()),
+        (0, 3, 0)
+    );
+    let seen = scan::link_index(&ws, CacheMode::Verify).unwrap();
+    assert_eq!((seen.reused, seen.failed.len()), (2, 1));
+    // Any other change is seen by the fast way: another length, or another time.
+    fs::write(&path, &good).unwrap();
+    age(&path, 1800);
+    let back = fast(&ws);
+    assert_eq!((back.parsed, back.reused), (0, 3));
+    fs::write(&path, [good.as_slice(), b"\n"].concat()).unwrap();
+    age(&path, 1800);
+    assert_eq!(fast(&ws).rejected, 1);
+    change_in_place(&ws, &a, &b);
+    age(&ws.dir().join("a.wombat"), 900);
+    let last = fast(&ws);
+    assert_eq!(
+        (last.parsed, last.reused),
+        (0, 3),
+        "same bytes, new time: reused"
+    );
+    assert!(last.cache_written);
 }
 
 #[test]
 fn a_deleted_or_damaged_cache_is_rebuilt_and_never_believed() {
     let (ws, _) = workspace("damaged");
     let good = checked(&ws);
-    let path = cache_file(&ws);
+    let files = cache_files(&ws);
+    let path = cache_file(&ws, "b.wombat");
     let bytes = fs::read(&path).unwrap();
-    let rebuilt = |what: &str, state: CacheUse| {
-        let links = checked(&ws);
-        assert_eq!(links.cache, state, "{what}");
-        assert_eq!((links.parsed, links.reused), (3, 0), "{what}");
-        assert!(links.index == good.index, "{what}");
-        // And it wrote a good cache again.
-        assert_eq!(fs::read(&path).unwrap(), bytes, "{what}");
+    let rebuilt = |what: &str, state: CacheUse, parsed: usize, damage: &dyn Fn()| {
+        for mode in [CacheMode::Fast, CacheMode::Verify] {
+            damage();
+            let links = checked_with(&ws, mode);
+            assert_eq!(links.cache, state, "{what}");
+            assert_eq!((links.parsed, links.reused), (parsed, 3 - parsed), "{what}");
+            assert!(links.index == good.index, "{what}");
+            // And it wrote good entries again.
+            assert_eq!(cache_files(&ws), files, "{what}");
+        }
     };
-    // Deleted: the file, or the whole folder.
-    fs::remove_file(&path).unwrap();
-    rebuilt("deleted file", CacheUse::Missing);
-    fs::remove_dir_all(path.parent().unwrap()).unwrap();
-    rebuilt("deleted folder", CacheUse::Missing);
+    // Deleted: one entry, the folder of the kind, or the whole folder.
+    rebuilt("deleted file", CacheUse::Read, 1, &|| {
+        fs::remove_file(&path).unwrap()
+    });
+    rebuilt("deleted folder of the kind", CacheUse::Missing, 3, &|| {
+        fs::remove_dir_all(path.parent().unwrap()).unwrap()
+    });
+    rebuilt("deleted folder", CacheUse::Missing, 3, &|| {
+        fs::remove_dir_all(ws.dir().join(scan::CACHE_DIR)).unwrap()
+    });
     // Damaged in every way that comes to mind.
     let header_end = bytes.iter().position(|b| *b == b'\n').unwrap();
     let header = String::from_utf8(bytes[..header_end].to_vec()).unwrap();
@@ -218,6 +341,13 @@ fn a_deleted_or_damaged_cache_is_rebuilt_and_never_believed() {
         out.extend_from_slice(body);
         out
     };
+    let word = |h: &str, n: usize, new: &str| {
+        let mut words: Vec<&str> = h.split(' ').collect();
+        words[n] = new;
+        words.join(" ")
+    };
+    assert_eq!(header.split(' ').count(), 9);
+    let other = fs::read(cache_file(&ws, "a.wombat")).unwrap();
     let cases: Vec<(&str, Vec<u8>)> = vec![
         ("empty", Vec::new()),
         ("cut short", bytes[..bytes.len() / 2].to_vec()),
@@ -227,13 +357,19 @@ fn a_deleted_or_damaged_cache_is_rebuilt_and_never_believed() {
         ("no header", body.to_vec()),
         ("rubbish", b"\x00\xff rubbish \n {".to_vec()),
         ("not text", vec![0xff; 4096]),
+        ("the entry of another document", other),
+        ("another kind", with_header(&|h| word(h, 1, "words"))),
+        ("another version", with_header(&|h| word(h, 2, "2"))),
         (
-            "another kind",
-            with_header(&|h| h.replace(" links ", " words ")),
+            "other rules",
+            with_header(&|h| word(h, 3, "0000000000000001")),
         ),
+        ("another length", with_header(&|h| word(h, 4, "1"))),
+        ("no time", with_header(&|h| word(h, 5, "-"))),
+        ("another time", with_header(&|h| word(h, 5, "1"))),
         (
-            "another version",
-            with_header(&|h| h.replace(" links 1 ", " links 2 ")),
+            "another document checksum",
+            with_header(&|h| word(h, 6, &"0".repeat(32))),
         ),
         (
             "another checksum",
@@ -246,23 +382,89 @@ fn a_deleted_or_damaged_cache_is_rebuilt_and_never_believed() {
     ];
     for (what, damaged) in cases {
         assert_ne!(damaged, bytes, "{what}");
-        fs::write(&path, damaged).unwrap();
-        rebuilt(what, CacheUse::Damaged);
+        // "No time" and "another time" are entries of the same bytes: they are not
+        // believed by the fast way, found good by reading, and brought up to date.
+        let parsed = usize::from(!what.ends_with(" time"));
+        rebuilt(what, CacheUse::Read, parsed, &|| {
+            fs::write(&path, &damaged).unwrap()
+        });
     }
     // Any single byte changed anywhere: never a wrong index.
-    for at in (0..bytes.len()).step_by(3) {
+    for at in 0..bytes.len() {
         let mut damaged = bytes.clone();
         damaged[at] ^= 0x21;
         fs::write(&path, &damaged).unwrap();
-        rebuilt(&format!("byte {at} changed"), CacheUse::Damaged);
+        let links = checked(&ws);
+        assert!(links.index == good.index, "byte {at} changed");
+        assert_eq!(cache_files(&ws), files, "byte {at} changed");
     }
     assert!(checked(&ws).cache == CacheUse::Read);
+    // An entry too large to be one is not read.
+    let huge = fs::File::create(&path).unwrap();
+    huge.set_len(scan::MAX_ENTRY_BYTES + 1).unwrap();
+    drop(huge);
+    assert_eq!(checked(&ws).rejected, 1);
+    assert_eq!(cache_files(&ws), files);
     // A cache in a folder that cannot be written is not an error.
-    fs::remove_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(path.parent().unwrap(), "a file where the folder should be").unwrap();
-    let links = scan::link_index(&ws, true).unwrap();
-    assert!(!links.cache_written && links.index == good.index);
-    assert_eq!(links.cache, CacheUse::Missing);
+    let top = ws.dir().join(scan::CACHE_DIR);
+    fs::remove_dir_all(&top).unwrap();
+    fs::write(&top, "a file where the folder should be").unwrap();
+    for mode in [CacheMode::Fast, CacheMode::Verify] {
+        let links = scan::link_index(&ws, mode).unwrap();
+        assert!(!links.cache_written && links.index == good.index);
+        assert_eq!(links.cache, CacheUse::Unusable);
+    }
+    assert_eq!(
+        fs::read_to_string(&top).unwrap(),
+        "a file where the folder should be"
+    );
+}
+
+/// Found in review of milestone 4: the cache was written through symbolic links.
+#[cfg(unix)]
+#[test]
+fn nothing_is_read_or_written_through_a_symbolic_link() {
+    use std::os::unix::fs::symlink;
+    let (ws, _) = workspace("symlinks");
+    let good = scan::link_index(&ws, CacheMode::Off).unwrap();
+    let outside = folder("symlinks-outside");
+    let precious = outside.join("important.txt");
+    let top = ws.dir().join(scan::CACHE_DIR);
+    let kind = scan::cache_dir::<DocLinks>(&ws);
+    let entry = cache_file(&ws, "a.wombat");
+    let temp = kind.join("a.wombat.idx.tmp");
+    // A good entry of another content, to see that a linked entry is not read either.
+    let (other, _) = workspace("symlinks-other");
+    scan::link_index(&other, CacheMode::Verify).unwrap();
+    let lure = fs::read(cache_file(&other, "b.wombat")).unwrap();
+    for (link, to_dir, state) in [
+        (&top, true, CacheUse::Unusable),
+        (&kind, true, CacheUse::Unusable),
+        (&entry, false, CacheUse::Read),
+        (&temp, false, CacheUse::Read),
+    ] {
+        let _ = fs::remove_dir_all(&top);
+        let _ = fs::remove_file(&top);
+        let _ = fs::remove_dir_all(&outside);
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(&precious, &lure).unwrap();
+        fs::create_dir_all(link.parent().unwrap()).unwrap();
+        symlink(if to_dir { &outside } else { &precious }, link).unwrap();
+        for mode in [CacheMode::Verify, CacheMode::Fast, CacheMode::Verify] {
+            let links = scan::link_index(&ws, mode).unwrap();
+            assert_eq!(links.cache, state, "{}", link.display());
+            assert!(links.index == good.index);
+            assert_eq!(fs::read(&precious).unwrap(), lure, "{}", link.display());
+            assert_eq!(fs::read_dir(&outside).unwrap().count(), 1);
+        }
+        // A link where the temporary file goes is replaced, not followed.
+        assert_eq!(
+            fs::symlink_metadata(link).is_ok_and(|found| found.is_symlink()),
+            link != &temp,
+            "{}",
+            link.display()
+        );
+    }
 }
 
 #[test]

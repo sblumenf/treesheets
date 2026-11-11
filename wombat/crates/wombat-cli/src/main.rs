@@ -3,6 +3,7 @@
 mod edit;
 mod links;
 mod outline;
+mod search;
 
 use std::io::{Read, Write};
 use std::path::Path;
@@ -45,6 +46,14 @@ Usage:
   wombat move-cell <from.wombat> <CELL> <to.wombat> <EMPTY-CELL>
                                             move a cell with all in it to another document,
                                             keeping its IDs so that links to it survive
+  wombat search <folder|file> <query...>    search all documents of a folder, best matches
+                                            first, with where each is; `wombat search --help`
+                                            has the query syntax and the options
+  wombat replace <folder|file> <text> <replacement>
+                                            find and replace in the texts of cells;
+                                            `wombat replace --help` has the options
+  wombat import-all <folder> <new-folder>   convert every TreeSheets file under a folder into
+                                            one workspace folder
   wombat help                               show this text
 
 Outline format: one line per row of a grid, cells separated by \" | \"; lines indented
@@ -116,6 +125,11 @@ fn run(args: &[&str]) -> Result<String, Failure> {
         }
         ["copy-cell", from, cell, to, place] => links::transfer(from, cell, to, place, false),
         ["move-cell", from, cell, to, place] => links::transfer(from, cell, to, place, true),
+        ["search", "--help" | "-h" | "help"] => Ok(search::HELP.to_string()),
+        ["search", rest @ ..] => search::search(rest),
+        ["replace", "--help" | "-h" | "help"] => Ok(search::REPLACE_HELP.to_string()),
+        ["replace", rest @ ..] => search::replace_all(rest),
+        ["import-all", source, folder] => search::import_all(source, folder),
         ["list"] => list(".", false),
         ["list", "--cells"] => list(".", true),
         ["list", folder, "--cells"] | ["list", "--cells", folder] => list(folder, true),

@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 93c84efefd1abda515f9e3d24ee8474b976c70773f365c8e01d8e346af426194 # shrinks to specs = [(0, [([], 0, 0)]), (0, [([], 0, 0)])], acts = [Apply(0, Op { kind: 0, n: [0, 0, 0, 0, 0], clusters: [0], raw: false, color: (0, 0, 0) })], seed = 422804
+cc 53371b4dc3c726c6ebddd8c3ee03d0abba40be5dcaf6a931d1f6f3eb6bf5ca64 # shrinks to spec = (13619200271831439020, [([], 0, 0), ([], 1, 1), ([], 0, 0), ([5], 2, 2)]), acts = [Link(0, [2451330090, 0, 0, 0]), Undo(0), Redo(0)], seed = 1757869750451248568
+cc 9dc4a032c36c2b8eeb07b6b61f30da7f93ab6549613ad32d7a73f166c44cfe28 # shrinks to spec = (13903671941427218882, [([], 0, 0)]), acts = [Apply(0, Op { kind: 6, n: [3012559538, 0, 0, 2118610022, 1406091], clusters: [], raw: false, color: (0, 0, 0) }), Apply(0, Op { kind: 37, n: [1477829201, 0, 0, 0, 0], clusters: [], raw: false, color: (0, 0, 0) }), Link(0, [67775911, 0, 0, 0]), Paste(0, 0, [5692713, 3004931473]), Redo(0)], seed = 10637373818927773872

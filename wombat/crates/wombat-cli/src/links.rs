@@ -77,7 +77,12 @@ impl Folder {
             dir
         };
         let workspace = Workspace::open(dir)?;
-        let links = scan::link_index(&workspace, cache)?;
+        let mode = if cache {
+            scan::CacheMode::Fast
+        } else {
+            scan::CacheMode::Off
+        };
+        let links = scan::link_index(&workspace, mode)?;
         Ok(Folder {
             workspace,
             links,

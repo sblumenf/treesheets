@@ -146,7 +146,7 @@ fn two_hundred_documents_and_one_edit_in_a_large_one() {
     let before = memory();
     let limit = Duration::from_secs(if slow { 120 } else { 30 });
     let (first, cold) = timed("build, reading every document", limit, || {
-        scan::link_index(&ws, true).unwrap()
+        scan::link_index(&ws, scan::CacheMode::Verify).unwrap()
     });
     let after = memory();
     assert_eq!((first.parsed, first.reused), (DOCS as usize, 0));
@@ -169,13 +169,14 @@ fn two_hundred_documents_and_one_edit_in_a_large_one() {
         assert!(kept < 64 * 1024, "the index takes {kept} KiB");
         assert!(peak.saturating_sub(rss0) < 160 * 1024, "peak {peak} KiB");
     }
-    let cache = fs::metadata(scan::cache_path::<DocLinks>(&ws))
+    let cache: u64 = fs::read_dir(scan::cache_dir::<DocLinks>(&ws))
         .unwrap()
-        .len();
-    println!("links at size: cache file: {cache} bytes");
+        .map(|entry| entry.unwrap().metadata().unwrap().len())
+        .sum();
+    println!("links at size: cache files: {cache} bytes");
 
     let (second, warm) = timed("build again, from the cache", limit, || {
-        scan::link_index(&ws, true).unwrap()
+        scan::link_index(&ws, scan::CacheMode::Verify).unwrap()
     });
     assert_eq!((second.parsed, second.reused), (0, DOCS as usize));
     assert!(second.index == first.index);
@@ -187,11 +188,11 @@ fn two_hundred_documents_and_one_edit_in_a_large_one() {
     let changed = document(999, doc_id(7), doc_id(8), OUTER);
     ws.save(&changed, "doc007.wombat").unwrap();
     let (third, _) = timed("build again after one document changed", limit, || {
-        scan::link_index(&ws, true).unwrap()
+        scan::link_index(&ws, scan::CacheMode::Verify).unwrap()
     });
     assert_eq!((third.parsed, third.reused), (1, DOCS as usize - 1));
     let (plain, _) = timed("build without the cache", limit, || {
-        scan::link_index(&ws, false).unwrap()
+        scan::link_index(&ws, scan::CacheMode::Off).unwrap()
     });
     assert!(plain.index == third.index);
     let target = third.index.outgoing(doc_id(0))[0].clone();

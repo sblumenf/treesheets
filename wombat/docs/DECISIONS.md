@@ -436,6 +436,152 @@ TreeSheets.
     import (B1), and not again: on a document that has since been edited, "nearest"
     would be a guess. Any `SetLink` on the range converts the link by hand.
 
+70. **The search engine is a small index of Wombat's own, not Tantivy** (milestone 6;
+    numbers A70-A79 and B60-B69 are this milestone's, A57-A69 are not used; settles the
+    open question of the plan). Tantivy 0.24 was tried with its default features off:
+    - *It does not build for the web as it is.* `cargo check --target
+      wasm32-unknown-unknown` fails in `getrandom` and then in `uuid`: both need their
+      `js` feature, which ties the build to a browser's JavaScript, and its writer wants
+      threads and its index a directory.
+    - *It does not build for phones without a C toolchain.* `aarch64-linux-android` and
+      `aarch64-apple-ios` fail in `zstd-sys` (C code, pulled in by its sstable crate even
+      with default features off). With the NDK and Xcode it presumably builds; the core
+      would then no longer be Rust alone.
+    - *It is large.* 119 crates (127 for the web) against 2 here (`unicode-normalization`
+      and its `tinyvec`); 19 s to check on four cores; a program that indexes one
+      sentence is 4.2 MB stripped, against 2.3 MB for the whole `wombat` tool with search.
+    - *It does not fit the task.* It is made for documents of words in a language with
+      spaces, committed in segments. What is needed here is a match on any part of a
+      word while it is typed, in Chinese, Japanese and Korean too (which needs n-grams
+      whatever the library), and an index that follows one keystroke in a cell in
+      microseconds without a commit. That is most of the work either way.
+    So the fallback of the plan is the engine: `crates/wombat-search`, which builds for
+    `wasm32-unknown-unknown`, `aarch64-linux-android` and `aarch64-apple-ios`, with file
+    access only through `wombat_core::scan`.
+71. **The cache of an index is one entry per document, believed only when it proves
+    itself, and never reached through a link** (replaces the layout and the rule of
+    A54; found in review of milestone 4).
+    - *Layout:* `.wombat-index/<kind>/<document file name>.idx`, so a changed document
+      costs the rewriting of its own entry, and nothing is loaded that is not needed.
+      An entry is a first line (kind, version of the layout, a number for the rules the
+      index was made by, the document file's length, time and checksum, the length and
+      checksum of the rest) and the summary as compact bytes (`summary::Writer`), not
+      JSON. An entry is good exactly if its first line is the one this version would
+      write for its body and its document file; anything else counts as missing.
+    - *Memory:* an entry over twice the largest document file (64 MiB) is not read, and
+      reading one takes memory in proportion to its size: a count read from it is
+      refused if the bytes left could not hold that many items. (The JSON cache of
+      milestone 4 took over ten times its size as a tree, and was one file for all.)
+    - *Two ways to tell that a document is unchanged* (`scan::CacheMode`). `Verify`
+      reads every document file and compares a checksum of its bytes: nothing escapes
+      it. `Fast` goes by the file's length and modification time and does not read it,
+      which is what makes opening a large workspace quick. **What `Fast` gives up:** a
+      file whose content changed while its length and its exact time stayed the same
+      (a tool that restores times, or a deliberate act) is not noticed until something
+      else changes; `Verify` notices and repairs. To leave no smaller hole, a file is
+      believed by length and time only if it was last modified at least two seconds
+      before its entry was written (the coarsest time stamps of common file systems);
+      otherwise it is read and compared, and the entry written again, so that a change
+      within the same tick of the clock cannot hide. A file that changes while it is
+      being read gets no time at all. The command-line tool's `--cache` is `Fast`,
+      `--cache=verify` is `Verify`. A renamed file is parsed again (entries go by
+      name); entries of files that are gone are removed.
+    - *Links:* the cache folders and files must be real folders and files
+      (`symlink_metadata`), or the cache is neither read nor written. An entry is
+      written to a new temporary file and renamed into place, which replaces a link
+      instead of following it. Before this, a `.wombat-index/links.idx` that was a
+      symbolic link made `--cache` overwrite the file it pointed at.
+    - *The rules:* `Summary::fingerprint` is in every first line: for search, a number
+      computed by folding fixed samples, so that an index made under other rules of
+      folding cannot be believed even if nobody remembered to raise a version. (The
+      search summaries do not hold folded text at all, only the texts as they are; the
+      folded forms and the table are made when an entry is read.)
+    - The checksum is now a fast one of 128 bits over eight bytes at a time
+      (`summary::digest`), still no proof against forgery (A54). Entries are not synced
+      to disk: one cut short by a crash fails its checksum and is made again.
+72. **Text is compared in a folded form** (`wombat-search/src/fold.rs`). Case is ignored
+    by Unicode's full case mappings applied lower, upper, lower (`ß` = `SS` = `ss`, `Σ`
+    = `σ` = `ς`). The four Turkish i's (`I`, `i`, `İ`, `ı`) are one letter: right for
+    everyone but a Turkish reader who wants `ı` and `i` apart, and `case:` is there for
+    that. Compatibility forms are ignored (NFKD: full-width `Ａ` is `a`, half-width
+    `ｶﾞ` is `ガ`, `ﬁ` is `fi`). Accents are ignored only for Latin and Greek letters and
+    only where Unicode holds them as separate marks (`é` = `e`; `ø` and `ł` stay
+    letters of their own); other scripts keep their marks in composed form (NFC), so
+    Japanese `が` is not `か` and Russian `й` is not `и` (and `ё` is not `е`, which a
+    Russian reader may miss). Every kind of space and control character is one space;
+    soft hyphens, zero-width spaces and variation selectors vanish. Folding is done
+    one user-perceived character at a time, so a match in folded text is always whole
+    characters of the original (A11): a match of `s` in `ß` highlights the `ß`.
+73. **The index** (`index.rs`, `engine.rs`; carries out A13 and A53 for search). Per
+    document: every cell's ID, the cell it is in and its place there, its texts as they
+    are and folded, and the properties filters ask about; and a table from every pair
+    of neighbouring folded characters (and every single character of a script written
+    without spaces) to the cells that have it. **The table only proposes cells; whether
+    a cell matches is always decided by looking at its text.** So the table may name
+    too many cells and never too few, and nothing about it can make a result wrong:
+    - an edit only adds to it (what it makes stale is counted, and the table is built
+      again when half of it is stale: work that the edits before it pay for);
+    - a key that more than an eighth of a document's cells have gets no list at all,
+      and a search made of such keys only looks at every cell, which it nearly did
+      anyway; this halves the table;
+    - a word that must match exactly (`case:`) is looked for in every cell.
+    The index holds where cells are (parent and place), unlike the link index (A53),
+    because results of documents that are not open need their location trails and
+    "within a branch" needs ancestors. Following a change report therefore costs in
+    proportion to the cells it names **plus the cells directly inside a grid that
+    gained, lost or reordered cells** (their places are read again); measured 2.5 µs
+    per edit in a workspace of 100,000 cells. **Trails, depths and the order of the
+    document are not stored per cell:** a trail is read off the parents when a result
+    is made (so renaming or moving a cell changes the trails of everything inside it
+    at no cost), and the order of a document is worked out when a search first needs
+    it after cells moved (about a millisecond for 5,000 cells) and kept until they
+    move again.
+74. **What matches, and in what order** (`engine.rs` has the rule in full). A word
+    matches a cell if it is found anywhere in the folded text, note, image file name or
+    link target of the cell, or in the text of a cell that one of its links leads to.
+    Anywhere, not only at the start of a word: that is what TreeSheets does, it is what
+    text without spaces needs, and it makes every prefix a match while typing; how
+    good the match is goes into the order instead. Points per word: 4 x field (text 0,
+    displayed result 1, note 2, linked cell's text 3, image name 4, link target 5) +
+    kind (whole field 0, whole word 1, start of a word 2, inside a word 3); a word
+    that is absent (possible under OR) 32; added up; then shorter text, smaller
+    depth, document name, document order. Recency only when asked (`sort:`). No
+    statistics of the collection (how rare a word is) take part: the order of results
+    for a query depends on the matching cells alone, so it does not shift when other
+    documents change, and it can be explained to a person.
+75. **A query is a value; the text syntax is one way to make it** (`query.rs`). Words,
+    filters, and, or, not. Limits, so that no query can take unbounded time or memory:
+    4,096 bytes of text, 64 words and filters, nesting 16, 1,024 bytes a word. Finding
+    is plain substring search; there is no pattern language and so nothing that can
+    blow up. The parser never fails on punctuation (a quote or bracket left open is
+    closed at the end, as when typing); it fails when a known filter has a value that
+    means nothing, saying what would. A word with a colon that is not a filter
+    (`https://...`, `12:30`) is a word.
+76. **What of a cell is searched comes through one function**
+    (`wombat_search::index::searchable`), used by the index and by the reference
+    scanner alike. It returns the text, the note, the image name, the link targets,
+    and `shown`: what the cell displays where that is not its stored text, which is
+    `None` until milestone 5 computes formula results. The field is built all the way
+    through (indexed, ranked just after the text, written to the cache, highlighted)
+    and tested with a stand-in. For it to stay right under editing, the change report
+    must name every cell whose displayed result changed, not only the cells that were
+    edited.
+77. **Replace is `ReplaceText` commands in one group** (`replace.rs`). Every place where
+    the word is found in a cell's text is replaced, left to right, no place overlapping
+    another; notes are not touched (as in TreeSheets). One call is one unit of undo for
+    the document. If any command is refused (a replacement that would join up with
+    the text beside it into one user-perceived character, A33), all are put back.
+78. **No tolerance for typing mistakes, no search by meaning, nothing inside images.**
+    Typo tolerance was tried on paper only: with matching anywhere in a word it would
+    make most short queries match most cells, and doing it well (by edit distance on
+    whole words, ranked below exact matches) needs a list of the words of the
+    workspace that the index does not otherwise need. It stays on the future list.
+79. **The speed target is asserted.** `tests/large.rs` builds a workspace of 100,000
+    cells in a release build (20,000 in a debug build) and fails if the median query
+    takes over 10 ms or the worst over 50 ms (ten times that in a debug build), if
+    following one edit takes over 0.5 ms, or if the index takes over 16 times the
+    text. The measured numbers are in `milestones/M6.md`.
+
 ## B. Deliberate departures from TreeSheets
 
 1. **Links point at cell IDs**, not at "the nearest cell with this text". Renaming or moving a cell
@@ -555,3 +701,32 @@ TreeSheets.
     Wombat it is a broken link, listed as such (A55).
 43. **Cells can move between documents and keep their identity** (A51). TreeSheets
     moves cells between files only by cut and paste, which makes new cells.
+60. **A filter is part of a query, not a state of the document** (milestone 6; numbers
+    B44-B59 are not used). TreeSheets' filters
+    mark cells as hidden until the filter is turned off, and three settings say how
+    (show whole rows, show sub-grids, keep previous matches). In Wombat a filter is a
+    condition in a search that returns cells; nothing is hidden and nothing is kept.
+    Showing the row or the grid around a result is the interface's choice; "keep
+    previous matches" is `OR`.
+61. **"Show N% of last edits" includes ties, and counts per document.** TreeSheets
+    sorts the cells by edit time and shows the first (cells x N / 100) + 1, whichever
+    order equal times happen to come in. `recent:N%` is every cell edited at or after
+    the time of the cell at that position; cells without a time count as oldest.
+62. **Replace covers the cell it starts from, and finds folded text.** TreeSheets'
+    "replace all" leaves the text of the root (or of the cell the view is zoomed into)
+    alone and replaces inside it; Wombat's scope is the cell and everything inside it,
+    the same cells that a search within that branch finds. A word that is not marked
+    exact also finds accented and full-width forms, which TreeSheets' lower-casing
+    does not.
+63. **"Go to matching cell" has no preference for looks** (settles B41). TreeSheets'
+    F6 and F7 go to the next cell with the same text or image, preferring one whose
+    style and colours differ from the current cell's. In Wombat it is "next match" of
+    the query `text:"..."` or `image:...`: the next such cell in document order.
+64. **"Next match" does not skip folded grids.** TreeSheets, with "restrict to view"
+    on, skips what is inside folded cells. Folding is view state (A8), which the core's
+    search does not see; "restrict to view" is otherwise `in:` with the cell the view
+    shows.
+65. **Search finds a word in any field of any document, folded** (B3 in detail). TreeSheets looks in the text of the cells of one document, by lower-casing
+    or exactly (one switch, exact by default). Wombat looks in text, note, image name,
+    link targets and linked cells' texts of every document of the workspace, ignoring
+    case, accents and width (A72) unless the word says `case:`.

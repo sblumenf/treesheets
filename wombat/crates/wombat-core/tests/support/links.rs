@@ -175,9 +175,36 @@ fn check_survival(
     }
 }
 
+/// Something else that follows the same edits (the search index of milestone 6, tested in
+/// `wombat-search`): it is told of every change report, and asked to check itself after
+/// every step.
+pub trait Hook {
+    /// A command, undo, redo or group changed `doc`.
+    fn changed(&mut self, doc: &Document, changes: &Changes);
+    /// A step is over; `editors` hold the documents as they are now.
+    fn step(&mut self, editors: &[Editor], what: &str);
+}
+
+struct NoHook;
+
+impl Hook for NoHook {
+    fn changed(&mut self, _: &Document, _: &Changes) {}
+    fn step(&mut self, _: &[Editor], _: &str) {}
+}
+
+fn follow(index: &mut LinkIndex, hook: &mut dyn Hook, doc: &Document, changes: &Changes) {
+    index.apply(doc, changes);
+    hook.changed(doc, changes);
+}
+
 /// Runs the steps on the documents, with every check after each. At the end everything is
 /// undone, and the index must have followed that too.
 pub fn run(docs: Vec<Document>, acts: &[Act]) -> Stats {
+    run_with(docs, acts, &mut NoHook)
+}
+
+/// [`run`], with something else following along.
+pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats {
     let mut ids = SeededIds::from_u64(4242);
     let mut editors: Vec<Editor> = docs.into_iter().map(|d| Editor::new(d).unwrap()).collect();
     let count = editors.len();
@@ -200,17 +227,17 @@ pub fn run(docs: Vec<Document>, acts: &[Act]) -> Stats {
                 if changes.is_empty() {
                     continue;
                 }
-                index.apply(editors[d].document(), &changes);
+                follow(&mut index, hook, editors[d].document(), &changes);
                 check(&editors, &index, &what);
                 check_survival(&before, &editors, &index, id, &changes, &mut stats, &what);
                 stats.applied += 1;
                 // Undo mends what the command broke; redo breaks it again, the same way.
                 let new = index.clone();
                 let back = editors[d].undo().unwrap().unwrap();
-                index.apply(editors[d].document(), &back);
+                follow(&mut index, hook, editors[d].document(), &back);
                 assert!(index == old, "undo of {what}");
                 let again = editors[d].redo().unwrap().unwrap();
-                index.apply(editors[d].document(), &again);
+                follow(&mut index, hook, editors[d].document(), &again);
                 assert!(index == new, "redo of {what}");
             }
             Act::Link(d, n) => {
@@ -254,7 +281,7 @@ pub fn run(docs: Vec<Document>, acts: &[Act]) -> Stats {
                     target: Some(target),
                 };
                 if let Ok(changes) = editors[d].apply(command, None, &mut ids) {
-                    index.apply(editors[d].document(), &changes);
+                    follow(&mut index, hook, editors[d].document(), &changes);
                 }
             }
             Act::Group(d, ops) => {
@@ -265,18 +292,18 @@ pub fn run(docs: Vec<Document>, acts: &[Act]) -> Stats {
                     let _ = editors[d].apply(command, None, &mut ids);
                 }
                 let changes = editors[d].end_group();
-                index.apply(editors[d].document(), &changes);
+                follow(&mut index, hook, editors[d].document(), &changes);
             }
             Act::Undo(d) => {
                 let d = d % count;
                 if let Some(changes) = editors[d].undo().unwrap() {
-                    index.apply(editors[d].document(), &changes);
+                    follow(&mut index, hook, editors[d].document(), &changes);
                 }
             }
             Act::Redo(d) => {
                 let d = d % count;
                 if let Some(changes) = editors[d].redo().unwrap() {
-                    index.apply(editors[d].document(), &changes);
+                    follow(&mut index, hook, editors[d].document(), &changes);
                 }
             }
             Act::Paste(from, to, n) => {
@@ -292,7 +319,7 @@ pub fn run(docs: Vec<Document>, acts: &[Act]) -> Stats {
                     // As for every command: an exact report, and a size bound that holds.
                     support::check_report(&before, editors[to].document(), &changes, &what);
                     support::check_bound(&editors[to], &what);
-                    index.apply(editors[to].document(), &changes);
+                    follow(&mut index, hook, editors[to].document(), &changes);
                     stats.pastes += usize::from(!changes.is_empty());
                 }
             }
@@ -324,8 +351,8 @@ pub fn run(docs: Vec<Document>, acts: &[Act]) -> Stats {
                 };
                 match move_between(source, cell, target, place, None, &mut ids) {
                     Ok(moved) => {
-                        index.apply(source.document(), &moved.source);
-                        index.apply(target.document(), &moved.target);
+                        follow(&mut index, hook, source.document(), &moved.source);
+                        follow(&mut index, hook, target.document(), &moved.target);
                         let (old_source, old_target) = (before.0.document(), before.1.document());
                         support::check_report_loose(old_source, source.document(), &moved.source);
                         support::check_report_loose(old_target, target.document(), &moved.target);
@@ -351,7 +378,7 @@ pub fn run(docs: Vec<Document>, acts: &[Act]) -> Stats {
                 for command in commands {
                     match editors[d].apply(command, None, &mut ids) {
                         Ok(changes) => {
-                            index.apply(editors[d].document(), &changes);
+                            follow(&mut index, hook, editors[d].document(), &changes);
                             stats.repairs += 1;
                         }
                         Err(_) => all = false,
@@ -368,6 +395,7 @@ pub fn run(docs: Vec<Document>, acts: &[Act]) -> Stats {
             }
         }
         check(&editors, &index, &what);
+        hook.step(&editors, &what);
         for editor in &editors {
             editor.document().validate().unwrap();
         }
@@ -376,10 +404,11 @@ pub fn run(docs: Vec<Document>, acts: &[Act]) -> Stats {
     }
     for editor in &mut editors {
         while let Some(changes) = editor.undo().unwrap() {
-            index.apply(editor.document(), &changes);
+            follow(&mut index, hook, editor.document(), &changes);
         }
     }
     check(&editors, &index, "undoing everything");
+    hook.step(&editors, "undoing everything");
     // Copies and moves between documents are undone like everything else.
     for (editor, original) in editors.iter().zip(&originals) {
         assert!(editor.document() == original, "undoing everything");

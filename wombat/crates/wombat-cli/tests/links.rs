@@ -135,7 +135,8 @@ fn a_link_survives_renaming_moving_and_restructuring_its_target() {
             back
         );
     }
-    assert!(dir.join(".wombat-index").join("links.idx").is_file());
+    let entry = dir.join(".wombat-index/links/shop.wombat.idx");
+    assert!(entry.is_file(), "one cache entry per document");
     // The index folder is not taken for a document.
     assert_eq!(ok(&dir, &["list", "."]).lines().count(), 2);
 }
@@ -291,4 +292,41 @@ fn an_imported_treesheets_link_without_a_target_can_be_given_one_later() {
         "{links}"
     );
     assert!(!fs::read_to_string(&path).unwrap().contains("cts_target"));
+}
+
+/// Found in review of milestone 4: the cache was written through symbolic links, so a
+/// folder that came from elsewhere could make `--cache` overwrite any file of the user.
+#[cfg(unix)]
+#[test]
+fn a_cache_that_is_a_symbolic_link_is_never_written_through() {
+    use std::os::unix::fs::symlink;
+    let plant = |test: &str, link: &str, to_dir: bool| {
+        let dir = two(test);
+        let outside = folder(&format!("{test}-outside"));
+        let precious = outside.join("important.txt");
+        fs::write(&precious, "do not touch").unwrap();
+        let link = dir.join(link);
+        fs::create_dir_all(link.parent().unwrap()).unwrap();
+        symlink(if to_dir { &outside } else { &precious }, &link).unwrap();
+        for _ in 0..2 {
+            let out = ok(&dir, &["broken", ".", "--cache"]);
+            assert!(out.contains("0 links pointing at nothing"), "{out}");
+        }
+        assert_eq!(fs::read_to_string(&precious).unwrap(), "do not touch");
+        let listed: Vec<_> = fs::read_dir(&outside).unwrap().collect();
+        assert_eq!(listed.len(), 1, "{test}: something was written outside");
+        // (A link where the temporary file goes is replaced, not followed.)
+        let still = fs::symlink_metadata(&link).is_ok_and(|found| found.is_symlink());
+        assert_eq!(still, !link.ends_with("shop.wombat.idx.tmp"), "{test}");
+    };
+    // The cache file of milestone 4, the folder, and the folders and files of now.
+    plant("link-old-file", ".wombat-index/links.idx", false);
+    plant("link-top", ".wombat-index", true);
+    plant("link-kind", ".wombat-index/links", true);
+    plant("link-entry", ".wombat-index/links/shop.wombat.idx", false);
+    plant(
+        "link-temp",
+        ".wombat-index/links/shop.wombat.idx.tmp",
+        false,
+    );
 }

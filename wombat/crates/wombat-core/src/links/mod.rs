@@ -28,7 +28,7 @@ use serde_json::Value;
 use crate::edit::{Changes, Command};
 use crate::id::{CellId, DocId};
 use crate::model::{Cell, CellKind, Document, Link, LinkTarget};
-use crate::summary::{id_from_hex, id_to_hex, Summary};
+use crate::summary::{Reader, Summary, Writer};
 
 pub use transfer::{copy_between, move_between, Moved};
 
@@ -210,118 +210,117 @@ impl Summary for DocLinks {
         self.follow(None, doc, changes);
     }
 
-    /// `{"id": hex, "cells": all cell IDs as hex, sorted, in one string, "links": [[cell,
-    /// start, length, text, kind, ...]]}` with kind `"u"` and the target, `"c"` and the
-    /// cell and, if named, the document, or `"?"` and, if there is one, the hint.
-    fn encode(&self) -> Value {
-        let mut id = String::new();
-        id_to_hex(self.id.0, &mut id);
+    /// The document ID; the number of cells and their IDs, ascending; the number of cells
+    /// with links and for each its ID (ascending), the number of its links and for each
+    /// the start, the length, the text, and a byte for the kind of target: `u` and the
+    /// target, `c` and the cell, `d` and the cell and the document, `?`, or `h` and the
+    /// hint.
+    fn encode(&self) -> Vec<u8> {
+        let mut out = Writer::new();
+        out.id(self.id.0);
         let mut sorted: Vec<CellId> = self.cells.iter().copied().collect();
         sorted.sort_unstable();
-        let mut cells = String::with_capacity(sorted.len().saturating_mul(32));
+        out.num(sorted.len() as u64);
         for cell in sorted {
-            id_to_hex(cell.0, &mut cells);
+            out.id(cell.0);
         }
-        let mut links = Vec::new();
+        out.num(self.links.len() as u64);
         for (cell, list) in &self.links {
-            let mut from = String::new();
-            id_to_hex(cell.0, &mut from);
+            out.id(cell.0);
+            out.num(list.len() as u64);
             for entry in list {
-                let mut item = vec![
-                    Value::from(from.clone()),
-                    Value::from(entry.start),
-                    Value::from(entry.len),
-                    Value::from(entry.text.clone()),
-                ];
-                match &entry.target {
-                    LinkTarget::External(target) => {
-                        item.push("u".into());
-                        item.push(target.clone().into());
+                out.num(u64::from(entry.start));
+                out.num(u64::from(entry.len));
+                out.text(&entry.text);
+                match (&entry.target, &entry.hint) {
+                    (LinkTarget::External(target), _) => {
+                        out.byte(b'u');
+                        out.text(target);
                     }
-                    LinkTarget::Cell { doc, cell } => {
-                        item.push("c".into());
-                        let mut hex = String::new();
-                        id_to_hex(cell.0, &mut hex);
-                        item.push(hex.into());
-                        if let Some(doc) = doc {
-                            let mut hex = String::new();
-                            id_to_hex(doc.0, &mut hex);
-                            item.push(hex.into());
-                        }
+                    (LinkTarget::Cell { doc: None, cell }, _) => {
+                        out.byte(b'c');
+                        out.id(cell.0);
                     }
-                    LinkTarget::Unknown => {
-                        item.push("?".into());
-                        if let Some(hint) = &entry.hint {
-                            item.push(hint.clone().into());
-                        }
+                    (
+                        LinkTarget::Cell {
+                            doc: Some(doc),
+                            cell,
+                        },
+                        _,
+                    ) => {
+                        out.byte(b'd');
+                        out.id(cell.0);
+                        out.id(doc.0);
+                    }
+                    (LinkTarget::Unknown, None) => out.byte(b'?'),
+                    (LinkTarget::Unknown, Some(hint)) => {
+                        out.byte(b'h');
+                        out.text(hint);
                     }
                 }
-                links.push(Value::Array(item));
             }
         }
-        serde_json::json!({"id": id, "cells": cells, "links": links})
+        out.finish()
     }
 
-    fn decode(value: &Value) -> Option<DocLinks> {
-        let object = value.as_object()?;
-        if object.len() != 3 {
-            return None;
-        }
-        let id = DocId(id_from_hex(object.get("id")?.as_str()?)?);
-        let hex = object.get("cells")?.as_str()?;
-        if !hex.is_ascii() || hex.len() % 32 != 0 {
-            return None;
-        }
-        let mut cells = HashSet::with_capacity(hex.len() / 32);
-        let mut rest = hex;
-        while !rest.is_empty() {
-            let (one, more) = rest.split_at_checked(32)?;
-            if !cells.insert(CellId(id_from_hex(one)?)) {
+    fn decode(bytes: &[u8]) -> Option<DocLinks> {
+        let mut read = Reader::new(bytes);
+        let id = DocId(read.id()?);
+        let count = read.count(16)?;
+        let mut cells = HashSet::with_capacity(count);
+        let mut last = None;
+        for _ in 0..count {
+            let cell = CellId(read.id()?);
+            // Ascending, as `encode` writes them, and so without repeats.
+            if last.is_some_and(|last| last >= cell) {
                 return None;
             }
-            rest = more;
+            last = Some(cell);
+            cells.insert(cell);
         }
         let mut links: BTreeMap<CellId, Vec<LinkEntry>> = BTreeMap::new();
-        for item in object.get("links")?.as_array()? {
-            let item = item.as_array()?;
-            let text_at = |n: usize| item.get(n).and_then(Value::as_str);
-            let number_at = |n: usize| {
-                let number = item.get(n).and_then(Value::as_u64)?;
-                u32::try_from(number).ok()
-            };
-            let from = CellId(id_from_hex(text_at(0)?)?);
-            let (target, hint, used) = match (text_at(4)?, item.len()) {
-                ("u", 6) => (LinkTarget::External(text_at(5)?.to_owned()), None, 6),
-                ("c", 6 | 7) => {
-                    let cell = CellId(id_from_hex(text_at(5)?)?);
-                    let doc = match item.get(6) {
-                        Some(doc) => Some(DocId(id_from_hex(doc.as_str()?)?)),
-                        None => None,
-                    };
-                    (LinkTarget::Cell { doc, cell }, None, item.len())
+        for _ in 0..read.count(21)? {
+            let from = CellId(read.id()?);
+            let after_last = links.last_key_value().is_none_or(|(last, _)| *last < from);
+            let count = read.count(4)?;
+            if !after_last || count == 0 || !cells.contains(&from) {
+                return None;
+            }
+            let mut list: Vec<LinkEntry> = Vec::with_capacity(count);
+            for _ in 0..count {
+                let start = read.num32()?;
+                let len = read.num32()?;
+                let text = read.text()?.to_owned();
+                let (target, hint) = match read.byte()? {
+                    b'u' => (LinkTarget::External(read.text()?.to_owned()), None),
+                    b'c' => {
+                        let cell = CellId(read.id()?);
+                        (LinkTarget::Cell { doc: None, cell }, None)
+                    }
+                    b'd' => {
+                        let cell = CellId(read.id()?);
+                        let doc = Some(DocId(read.id()?));
+                        (LinkTarget::Cell { doc, cell }, None)
+                    }
+                    b'?' => (LinkTarget::Unknown, None),
+                    b'h' => (LinkTarget::Unknown, Some(read.text()?.to_owned())),
+                    _ => return None,
+                };
+                // In the order of the text, as `entries` gives them.
+                if list.last().is_some_and(|last| last.start >= start) {
+                    return None;
                 }
-                ("?", 5) => (LinkTarget::Unknown, None, 5),
-                ("?", 6) => (LinkTarget::Unknown, Some(text_at(5)?.to_owned()), 6),
-                _ => return None,
-            };
-            if used != item.len() || !cells.contains(&from) {
-                return None;
+                list.push(LinkEntry {
+                    start,
+                    len,
+                    text,
+                    target,
+                    hint,
+                });
             }
-            let entry = LinkEntry {
-                start: number_at(1)?,
-                len: number_at(2)?,
-                text: text_at(3)?.to_owned(),
-                target,
-                hint,
-            };
-            let list = links.entry(from).or_default();
-            // In the order of the text, as `entries` gives them.
-            if list.last().is_some_and(|last| last.start >= entry.start) {
-                return None;
-            }
-            list.push(entry);
+            links.insert(from, list);
         }
-        Some(DocLinks { id, cells, links })
+        read.is_empty().then_some(DocLinks { id, cells, links })
     }
 }
 
@@ -453,6 +452,23 @@ impl LinkIndex {
     /// reported as ambiguous instead of resolved to whichever file was read.
     pub fn mark_ambiguous(&mut self, doc: DocId) {
         self.ambiguous.insert(doc);
+    }
+
+    /// Takes back [`LinkIndex::mark_ambiguous`], once only one file has the document ID.
+    pub fn unmark_ambiguous(&mut self, doc: DocId) {
+        self.ambiguous.remove(&doc);
+    }
+
+    /// The cells that have a link naming the cell with this ID, whatever document the link
+    /// says and wherever it resolves: more than [`LinkIndex::backlinks`] gives, and
+    /// cheaper. For the search index, which looks at each of them itself.
+    pub fn sources(&self, cell: CellId) -> impl Iterator<Item = (DocId, CellId)> + '_ {
+        self.back.get(&cell).into_iter().flatten().copied()
+    }
+
+    /// Whether any link in the index names a cell.
+    pub fn has_cell_links(&self) -> bool {
+        !self.back.is_empty()
     }
 
     /// The documents in the index, by ID.
