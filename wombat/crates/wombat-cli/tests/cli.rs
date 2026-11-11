@@ -596,3 +596,81 @@ fn edit_stops_at_a_bad_line_and_writes_nothing() {
     let help = wombat(&dir, &["edit", "--help"]);
     assert!(stdout(&help).contains("delete-cells CELL COLUMN ROW COLUMNS ROWS"));
 }
+
+#[test]
+fn edit_restructures_and_undoing_everything_gives_the_original_file() {
+    let dir = folder("edit-restructure");
+    let outline = "Shop\n  Fruit | Apple | 10\n  Veg | Leek | 9\n  Fruit | Pear | 100\n  \
+                   Fruit | apple | 9\n";
+    fs::write(dir.join("outline.txt"), outline).unwrap();
+    wombat(&dir, &["new", "shop.wombat", "--from", "outline.txt"]);
+    let original = fs::read(dir.join("shop.wombat")).unwrap();
+    // Every restructuring command once; the help names each of them.
+    let help = stdout(&wombat(&dir, &["edit", "--help"]));
+    let script = "\
+sort / 3 1 4
+show
+sort / 2 1 4 desc
+transpose /
+transpose / /1,1
+hierarchify /
+show
+flatten /
+hierarchify /
+hierarchy-swap /1,1/1,1
+show
+wrap / 1 1 1 2
+collapse /1,1 1 1 1 2
+split /1,1/1,1 5
+tag-cells /1,2 /1,1/1,1
+untag-cells /1,2
+size-by -2 deep /1,1
+size-by 1 /1,1
+width-by / 1 1 15 deep
+toggle-check /1,2 /1,2/1,1
+check
+show
+undo all
+save
+";
+    for line in script.lines() {
+        let verb = line.split(' ').next().unwrap();
+        assert!(
+            help.contains(&format!("\n  {verb} ")),
+            "{verb} is not in the help"
+        );
+    }
+    let done = edit(&dir, "shop.wombat", script);
+    assert!(done.status.success(), "{}", stderr(&done));
+    let out = stdout(&done);
+    // Numbers sort as text, without regard to case in the second key.
+    assert!(
+        out.contains("[1,1] \"Fruit\"\n  [2,1] \"Apple\"\n  [3,1] \"10\"\n  [1,2] \"Fruit\"\n  [2,2] \"Pear\"\n  [3,2] \"100\""),
+        "{out}"
+    );
+    assert!(out.contains("[1,1] \"Fruit\"\n    grid 1 x 3"), "{out}");
+    assert!(out.contains("\u{2610} "), "{out}");
+    assert_eq!(fs::read(dir.join("shop.wombat")).unwrap(), original);
+    for (bad, message) in [
+        ("sort / 9 1 2\n", "cannot sort"),
+        ("sort / 1 1 2 up\n", "unexpected"),
+        ("hierarchify /1,1\n", "has no grid"),
+        ("flatten /1,1\n", "has no grid"),
+        ("hierarchy-swap /1,1\n", "cannot move up"),
+        ("wrap / 1 1 9 1\n", "no cells 9 by 1"),
+        ("collapse / 1 1 1 1\n", "more than one cell"),
+        ("split /1,1 99\n", "outside the text"),
+        ("size-by big /1,1\n", "is not a whole number"),
+        ("width-by / 9 1 5\n", "no 1 columns from 8"),
+        ("transpose\n", "missing: a cell"),
+    ] {
+        let failed = edit(&dir, "shop.wombat", &format!("{bad}save\n"));
+        assert!(!failed.status.success(), "{bad}");
+        assert!(
+            stderr(&failed).contains(message),
+            "{bad}: {}",
+            stderr(&failed)
+        );
+    }
+    assert_eq!(fs::read(dir.join("shop.wombat")).unwrap(), original);
+}

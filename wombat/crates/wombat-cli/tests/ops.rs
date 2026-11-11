@@ -4,6 +4,10 @@
 //! `referee/ops/golden/NAME.json` is the document it had afterwards. Here the fixture is
 //! imported, `cases/NAME.edit` (the same operation as `wombat edit` commands) is run by the
 //! `wombat` program, and the saved result is compared cell by cell. The app is not needed.
+//!
+//! `referee/ops/ui/` has the same for the menu actions that no script function reaches
+//! (sort, transpose, hierarchy swap, ...): there `cases/NAME.ui` says which keys were pressed
+//! in the real app, on `ui/fixture.cts`.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -122,6 +126,7 @@ fn compare(doc: &Document, id: CellId, golden: &Value, case: &str) -> usize {
         "fg": hex(cell.text_color), "relsize": -cell.rel_size, "stylebits": bits(cell.style),
         "align": cell.text_align.as_str(), "valign": cell.vert_align.as_str(),
         "render_style": draw, "has_image": cell.image.is_some(),
+        "is_tag": doc.tags().contains_key(&cell.text),
     });
     for (key, value) in ours.as_object().unwrap() {
         assert_eq!(*value, golden[key], "{place}: {key}");
@@ -179,19 +184,20 @@ fn compare(doc: &Document, id: CellId, golden: &Value, case: &str) -> usize {
 }
 
 /// Parses a golden file: the header line, then the root cell.
-fn golden(name: &str) -> Value {
-    let text = fs::read_to_string(ops().join("golden").join(format!("{name}.json"))).unwrap();
+fn golden(set: &Path, name: &str) -> Value {
+    let text = fs::read_to_string(set.join("golden").join(format!("{name}.json"))).unwrap();
     let value: Value = serde_json::from_str(&text).unwrap();
     value["root"].clone()
 }
 
-#[test]
-fn operations_give_what_the_real_treesheets_gave() {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("ops");
+/// Runs every case of a set (a folder with `fixture.cts`, `cases/` and `golden/`), whose
+/// cases have a file with the extension `how` saying how the real app was driven.
+fn run_set(set: &Path, how: &str, tmp: &str, at_least: usize) {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(tmp);
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
-    let fixture = ops().join("fixture.cts");
-    let mut names: Vec<String> = fs::read_dir(ops().join("cases"))
+    let fixture = set.join("fixture.cts");
+    let mut names: Vec<String> = fs::read_dir(set.join("cases"))
         .unwrap()
         .filter_map(|entry| {
             let name = entry.unwrap().file_name().into_string().unwrap();
@@ -199,13 +205,13 @@ fn operations_give_what_the_real_treesheets_gave() {
         })
         .collect();
     names.sort();
-    assert!(names.len() >= 40, "only {} cases found", names.len());
+    assert!(names.len() >= at_least, "only {} cases found", names.len());
     let mut cells = 0;
     let mut failed = Vec::new();
     for name in &names {
         let file = format!("{name}.wombat");
         wombat(&dir, &["import", fixture.to_str().unwrap(), &file]);
-        let script = fs::read_to_string(ops().join("cases").join(format!("{name}.edit"))).unwrap();
+        let script = fs::read_to_string(set.join("cases").join(format!("{name}.edit"))).unwrap();
         let script_file = dir.join(format!("{name}.edit"));
         fs::write(&script_file, format!("{script}check\nsave\n")).unwrap();
         wombat(
@@ -214,7 +220,7 @@ fn operations_give_what_the_real_treesheets_gave() {
         );
         let doc = storage::load_document(&dir.join(&file)).unwrap();
         // Go on after a mismatch, so that one run shows every case that differs.
-        match std::panic::catch_unwind(|| compare(&doc, doc.root(), &golden(name), name)) {
+        match std::panic::catch_unwind(|| compare(&doc, doc.root(), &golden(set, name), name)) {
             Ok(count) => cells += count,
             Err(_) => failed.push(name.as_str()),
         }
@@ -224,9 +230,9 @@ fn operations_give_what_the_real_treesheets_gave() {
         "cases that differ from TreeSheets: {failed:?}"
     );
     println!("{} operation cases, {cells} cells compared", names.len());
-    // Every case has a Lobster script and golden data, and the other way round.
+    // Every case says how the app was driven and has golden data, and the other way round.
     for kind in ["cases", "golden"] {
-        for entry in fs::read_dir(ops().join(kind)).unwrap() {
+        for entry in fs::read_dir(set.join(kind)).unwrap() {
             let name = entry.unwrap().file_name().into_string().unwrap();
             let stem = name.split('.').next().unwrap().to_string();
             assert!(
@@ -235,4 +241,20 @@ fn operations_give_what_the_real_treesheets_gave() {
             );
         }
     }
+    for name in &names {
+        for file in [format!("cases/{name}.{how}"), format!("golden/{name}.json")] {
+            assert!(set.join(&file).is_file(), "{file} is missing");
+        }
+    }
+}
+
+#[test]
+fn operations_give_what_the_real_treesheets_gave() {
+    run_set(&ops(), "lobster", "ops", 40);
+}
+
+/// The menu actions, which the real app carried out on key presses.
+#[test]
+fn menu_actions_give_what_the_real_treesheets_gave() {
+    run_set(&ops().join("ui"), "ui", "ops-ui", 1);
 }

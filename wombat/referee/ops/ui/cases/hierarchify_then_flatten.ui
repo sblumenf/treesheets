@@ -1,0 +1,4 @@
+select / 1 2 1 1
+action hierarchify
+select / 1 2 1 1
+action flatten

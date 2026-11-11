@@ -1,0 +1,5 @@
+select /1,3/1,1 1 1 1 1
+action hierarchy-swap
+# And back: Fruit, now inside Apple, moves up again.
+select /1,3/1,4 1 1 1 1
+action hierarchy-swap

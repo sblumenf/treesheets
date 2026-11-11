@@ -225,6 +225,52 @@ TreeSheets.
     inside the copy to cells inside the source follow to the copies (the rule of A28). The
     copy is taken before the target changes, so copying a cell into its own inside, or over
     a cell it is inside of, is well defined. Copying between documents is not built.
+40. **The restructuring commands are TreeSheets' menu actions, one command each**
+    (milestone 3b): `SortRows`, `Transpose`, `HierarchySwap`, `Hierarchify`, `Flatten`,
+    `Wrap`, `Collapse`, `SplitCell`, `TagCells`, `UntagCells`, `AdjustRelSize`,
+    `AdjustColumnWidths`, `ToggleCheck`. Each takes as parameters what TreeSheets takes from
+    the selection (the cell that has the grid and a block, a list of cells, one cell, a
+    text position) and does to the document what the action does, found by reading the C++
+    and compared with the running app (`referee/ops/ui/`). An action that is the same as
+    one or a few commands that already exist got no command of its own; the table in
+    `milestones/M3b.md` places every one of TreeSheets' 265 actions. The three commands
+    that rearrange a whole subtree (hierarchify, flatten, hierarchy swap) work on a private
+    copy of that subtree, in the way TreeSheets works on its tree, and then turn the
+    difference between the copy and the document into ordinary steps; so their cost is that
+    of the subtree, never of the document, and undo, redo and the change report need
+    nothing new.
+41. **Who keeps the ID when cells are restructured.** A cell that survives keeps its ID
+    wherever it goes, so that links to it survive (B1). Where TreeSheets copies cells and
+    destroys the originals, the copy that stands for the original is the original:
+    - *Sort, transpose:* all cells keep their IDs.
+    - *Hierarchify:* all cells keep their IDs; the first cells of rows that repeat an
+      earlier first cell are removed (the earlier one stays). No cell is created.
+    - *Flatten:* every cell that was inside keeps its ID: a cell without a grid on its
+      row, a cell that had a grid on the first of the rows it now stands on. Its repeats
+      on the following rows, and the empty cells that fill short rows, are new.
+    - *Hierarchy swap:* the swapped cells and the cells they held keep their IDs. When
+      cells with the same text merge, the one that was there first keeps its ID and the
+      other is removed. The copy of a parent that goes inside the swapped cell is a new
+      cell while the parent stays where it was (it still holds other cells); if the swap
+      leaves the parent empty, so that it disappears, the copy takes its ID: the parent
+      has moved.
+    - *Wrap:* the wrapped cells keep their IDs inside the new cell. The new cell is new,
+      and so are the empty cells left where wrapped cells were.
+    - *Collapse:* the first cell keeps its ID and gets the texts; the others are emptied
+      in place (or deleted with their rows or columns).
+    - *Split:* the cell keeps its ID and place and becomes the holder; the two parts are
+      new cells. The cells of a grid it had keep their IDs.
+42. **An eleventh kind of step: giving cells back to their parents** (corrects A34; found
+    in review of milestone 3a). The steps "replace a cell's grid" and "insert lines" make
+    the cells they list children of the grid's cell. Undoing them did not give those cells
+    back to the parents they had, which nothing in 3a noticed because its commands only
+    listed cells that were new or already children. A command that failed half-way, or the
+    undo of one that moved cells between grids, could leave a cell naming a parent that
+    does not list it. Now the undoing step carries the previous parents of the cells that
+    were taken (`Step::Reparented`, which wraps the plain undoing step) and puts them back.
+    Tested: every kind of step followed by its inverse gives the identical document, and
+    the inverse of the inverse the changed one, starting from cells that are children of
+    other cells.
 
 ## B. Deliberate departures from TreeSheets
 
@@ -289,3 +335,30 @@ TreeSheets.
     the cell to the grid). In TreeSheets a new cell inherits its parent cell's flag.
 25. **`SetRangeColor` with no colour** removes the colour from a range only. TreeSheets can
     only remove the colours of a whole text.
+26. **Sorting names its column and rows.** TreeSheets sorts by the selection (one column
+    wide and several rows high) and refuses other shapes with a message. `SortRows` is
+    given the column and the rows, so there is nothing to refuse but numbers out of range;
+    fewer than two rows is not an error and changes nothing. The order is TreeSheets'
+    (text without regard to case, numbers as text, ties by the next columns, stable).
+    Letter case is folded one code point at a time by Unicode's lower-case mapping where
+    that is one code point; TreeSheets uses the C library's `towlower`, which gave the same
+    in the cases compared but can differ for rare letters and between systems.
+27. **New grids made by restructuring have the "vertical" flag of the grid around them**
+    (B24 again): the grids that hierarchify, wrap, split and hierarchy swap make. In
+    TreeSheets the flag is the cell's own. Flatten keeps the flag of the grid it replaces.
+28. **Flatten gives new columns the default width of 80.** TreeSheets uses its "default
+    column width" setting, which Wombat does not have.
+29. **A square grid does not remember whether it was a row.** Where hierarchy swap adds a
+    cell to a grid, TreeSheets adds a column to a row and a row to a column, and a grid
+    that has become square (one cell) counts as what it was before, for as long as the app
+    runs; the file does not keep that. Wombat remembers it within one command only (which
+    is what the compared cases need); between commands a square grid counts as a column,
+    as it does in TreeSheets after loading.
+30. **Relative sizes stop at -32 and 8.** TreeSheets widens these limits by the depth the
+    view is zoomed to; `AdjustRelSize` has no view. `SetProps` can still set any size.
+31. **A checkbox that is part of a longer character is not cut off it.** `ToggleCheck` is
+    refused for a text that starts with U+2611 followed by a variation selector (the emoji
+    form), by A33; TreeSheets cuts. The mouse form of the action (a click on a ticked box
+    unticks it) is not a command: it is `ReplaceText` of one character.
+32. **Restructuring is refused where it would nest grids deeper than 32** (A20);
+    TreeSheets has no such limit when editing.

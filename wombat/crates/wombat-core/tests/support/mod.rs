@@ -38,6 +38,9 @@ pub const CLUSTERS: &[&str] = &[
     "\u{1F1EB}\u{1F1F7}",
     "\u{D55C}",
     "\u{1100}\u{1161}\u{11A8}",
+    // The to-do checkboxes that `ToggleCheck` writes.
+    "\u{2610}",
+    "\u{2611}",
 ];
 
 /// A random command before it is fitted to a document: a kind and raw numbers.
@@ -51,7 +54,7 @@ pub struct Op {
     pub color: (u8, u8, u8),
 }
 
-pub const KINDS: u8 = 25;
+pub const KINDS: u8 = 38;
 
 pub fn op() -> impl Strategy<Value = Op> {
     (
@@ -132,7 +135,27 @@ pub fn command(doc: &Document, op: &Op) -> Command {
         (a.min(b), a.max(b))
     };
     let color = Color::rgb(op.color.0, op.color.1, op.color.2);
-    let grid_cell = pick(&with_grid, n0).unwrap_or(cell);
+    // Moving lines needs two of them, wrapping and collapsing are mostly about several
+    // cells: for those, a grid that has them, if there is one.
+    let sized = |fits: &dyn Fn(u32, u32) -> bool| -> Vec<CellId> {
+        let fits = |c: &&CellId| cell_of(c).grid().is_some_and(|g| fits(g.xs(), g.ys()));
+        with_grid.iter().filter(fits).copied().collect()
+    };
+    let roomy = match op.kind {
+        18 => sized(&|_, ys| ys > 1),
+        19 => sized(&|xs, _| xs > 1),
+        26 | 30 => sized(&|xs, ys| xs * ys > 1),
+        // Collapsing needs a text in the block as well.
+        31 => sized(&|xs, ys| xs * ys > 1)
+            .into_iter()
+            .filter(|c| {
+                let grid = cell_of(c).grid().unwrap();
+                grid.cells().iter().any(|k| !cell_of(k).text.is_empty())
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    let grid_cell = pick(&roomy, n0).or(pick(&with_grid, n0)).unwrap_or(cell);
     let (xs, ys) = cell_of(&grid_cell)
         .grid()
         .map_or((1, 1), |g| (g.xs(), g.ys()));
@@ -281,18 +304,34 @@ pub fn command(doc: &Document, op: &Op) -> Command {
             xs: (1 - sloppy) + n3 % (xs - n1 % xs + sloppy),
             ys: (1 - sloppy) + n4 / 8 % (ys - n2 % ys + sloppy),
         },
-        18 => Command::MoveRows {
-            cell: grid_cell,
-            from: n1 % (ys + sloppy),
-            count: 1 + n2 % 2,
-            to: n3 % (ys + sloppy),
-        },
-        19 => Command::MoveColumns {
-            cell: grid_cell,
-            from: n1 % (xs + sloppy),
-            count: 1 + n2 % 2,
-            to: n3 % (xs + sloppy),
-        },
+        18 | 19 => {
+            // Lines that exist, to a place that exists, unless sloppy.
+            let along = if op.kind == 18 { ys } else { xs };
+            let from = n1 % (along + sloppy);
+            let count = 1 + n2 % (along - from.min(along - 1)).min(2) + sloppy * (n2 % 2);
+            let places = along.saturating_sub(count) + 1 + sloppy;
+            // Mostly to another place than where they are.
+            let to = if places > 1 && n4 % 7 != 0 {
+                (from + 1 + n3 % (places - 1)) % places
+            } else {
+                n3 % places
+            };
+            if op.kind == 18 {
+                Command::MoveRows {
+                    cell: grid_cell,
+                    from,
+                    count,
+                    to,
+                }
+            } else {
+                Command::MoveColumns {
+                    cell: grid_cell,
+                    from,
+                    count,
+                    to,
+                }
+            }
+        }
         20 => Command::SwapCells {
             a: cell,
             b: pick(&all, n1).unwrap(),
@@ -329,9 +368,155 @@ pub fn command(doc: &Document, op: &Op) -> Command {
             cell_color: color,
             text_color: Color::rgb(op.color.2, op.color.1, op.color.0),
         },
-        _ => Command::RemoveTag {
+        24 => Command::RemoveTag {
             name: format!("tag{}", n1 % 4),
         },
+        25 => {
+            // Mostly by a column that has a text in it, or there is nothing to sort by.
+            let in_rows: Vec<CellId> = wordy
+                .iter()
+                .copied()
+                .filter(|c| {
+                    let parent = cell_of(c).parent().map(|p| cell_of(&p));
+                    parent.and_then(Cell::grid).is_some_and(|g| g.ys() > 1)
+                })
+                .collect();
+            let keyed = pick(&in_rows, n1).and_then(|c| {
+                let parent = cell_of(&c).parent()?;
+                let grid = cell_of(&parent).grid()?;
+                let index = grid.cells().iter().position(|k| *k == c)?;
+                Some((parent, index as u32 % grid.xs(), grid.ys()))
+            });
+            let (owner, column, rows) = match keyed {
+                Some(keyed) if n4 % 5 != 0 => keyed,
+                _ => (grid_cell, n1 % (xs + sloppy), ys),
+            };
+            let row = if n3 % 4 == 0 { n2 % rows } else { 0 };
+            Command::SortRows {
+                cell: owner,
+                column,
+                row,
+                count: rows - row + sloppy,
+                descending: n2 % 2 == 0,
+            }
+        }
+        26 => Command::Transpose {
+            cells: if n4 % 4 == 0 {
+                several()
+            } else {
+                vec![grid_cell]
+            },
+        },
+        27 => {
+            // Mostly a cell that can be swapped: with text, two levels down, in lines.
+            let line = |c: &Cell| c.grid().is_some_and(|g| g.xs() == 1 || g.ys() == 1);
+            let fit: Vec<CellId> = wordy
+                .iter()
+                .copied()
+                .filter(|c| {
+                    let parent = cell_of(c).parent().map(|p| cell_of(&p));
+                    let base = parent.and_then(Cell::parent).map(|p| cell_of(&p));
+                    parent.is_some_and(line) && base.is_some_and(line)
+                })
+                .collect();
+            Command::HierarchySwap {
+                cell: if n4 % 5 == 0 {
+                    cell
+                } else {
+                    pick(&fit, n1).unwrap_or(cell)
+                },
+            }
+        }
+        28 => {
+            let is_table = |c: &CellId| {
+                let grid = cell_of(c).grid().unwrap();
+                grid.cells().iter().all(|k| cell_of(k).grid().is_none())
+            };
+            let tables: Vec<CellId> = with_grid.iter().copied().filter(is_table).collect();
+            // Mostly a table with something to do: several columns.
+            let wide: Vec<CellId> = tables
+                .iter()
+                .copied()
+                .filter(|c| cell_of(c).grid().unwrap().xs() > 1)
+                .collect();
+            Command::Hierarchify {
+                cell: if n4 % 5 == 0 {
+                    cell
+                } else {
+                    pick(&wide, n1).or(pick(&tables, n1)).unwrap_or(cell)
+                },
+            }
+        }
+        29 => Command::Flatten {
+            // A flattened hierarchy can be many times its size: only while small.
+            cell: if all.len() > 300 || n4 % 7 == 0 {
+                cell
+            } else {
+                grid_cell
+            },
+        },
+        30 | 31 => {
+            let (mut x, mut y) = (n1 % (xs + sloppy), n2 % (ys + sloppy));
+            let (mut bxs, mut bys) = (
+                (1 - sloppy) + n3 % (xs - n1 % xs + sloppy),
+                (1 - sloppy) + n4 / 8 % (ys - n2 % ys + sloppy),
+            );
+            // Collapsing takes two cells or more: mostly up to the end of the grid.
+            if op.kind == 31 && sloppy == 0 && n4 % 4 != 0 {
+                if n4 % 3 != 0 {
+                    (x, y) = (0, 0);
+                }
+                (bxs, bys) = (xs - x, ys - y);
+            }
+            if op.kind == 30 {
+                Command::Wrap {
+                    cell: grid_cell,
+                    x,
+                    y,
+                    xs: bxs,
+                    ys: bys,
+                }
+            } else {
+                Command::Collapse {
+                    cell: grid_cell,
+                    x,
+                    y,
+                    xs: bxs,
+                    ys: bys,
+                }
+            }
+        }
+        32 => Command::SplitCell {
+            cell: text_cell,
+            at: start,
+        },
+        33 => Command::TagCells { cells: several() },
+        34 => {
+            let tagged: Vec<CellId> = all
+                .iter()
+                .copied()
+                .filter(|c| doc.tags().contains_key(&cell_of(c).text))
+                .collect();
+            let mut cells = several();
+            cells.extend(pick(&tagged, n1));
+            Command::UntagCells { cells }
+        }
+        35 => Command::AdjustRelSize {
+            cells: several(),
+            delta: n1 as i32 % 5 - 2,
+            recursive: n2 % 2 == 0,
+        },
+        36 => {
+            let column = n1 % (xs + sloppy);
+            Command::AdjustColumnWidths {
+                cell: grid_cell,
+                column,
+                count: 1 + n2 % (xs - column.min(xs - 1)) + sloppy,
+                delta: (n3 as i32 % 7 - 3) * 5,
+                recursive: n4 % 2 == 0,
+            }
+        }
+        _ => Command::ToggleCheck { cells: several() },
     }
 }
 

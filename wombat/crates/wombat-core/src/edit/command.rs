@@ -15,38 +15,38 @@ use crate::model::{
 use crate::text;
 
 use super::step::{Axis, Field, Step};
-use super::{Command, Prop, Tx, MIN_COL_WIDTH};
+use super::{restructure, Command, Prop, Tx, MIN_COL_WIDTH};
 
-fn cell(doc: &Document, id: CellId) -> Result<&Cell, Error> {
+pub(super) fn cell(doc: &Document, id: CellId) -> Result<&Cell, Error> {
     doc.cell(id)
         .ok_or_else(|| Error::NotFound(format!("cell {id}")))
 }
 
-fn grid(doc: &Document, id: CellId) -> Result<&Grid, Error> {
+pub(super) fn grid(doc: &Document, id: CellId) -> Result<&Grid, Error> {
     cell(doc, id)?
         .grid()
         .ok_or_else(|| Error::Refused(format!("cell {id} has no grid")))
 }
 
-fn set(tx: &mut Tx, cell: CellId, field: Field) -> Result<(), Error> {
+pub(super) fn set(tx: &mut Tx, cell: CellId, field: Field) -> Result<(), Error> {
     tx.step(Step::Set { cell, field })
 }
 
 /// Stamps the last-edit time, if the caller gave one.
-fn stamp(tx: &mut Tx, id: CellId, now: Option<i64>) -> Result<(), Error> {
+pub(super) fn stamp(tx: &mut Tx, id: CellId, now: Option<i64>) -> Result<(), Error> {
     if now.is_some() && cell(tx.doc(), id)?.last_edit != now {
         set(tx, id, Field::LastEdit(now))?;
     }
     Ok(())
 }
 
-fn len32(text: &str) -> Result<u32, Error> {
+pub(super) fn len32(text: &str) -> Result<u32, Error> {
     u32::try_from(code_points(text)).map_err(|_| Error::Limit("text too long".into()))
 }
 
 /// Checks that `start..start + len` is inside the text of `c` and cuts no user-perceived
 /// character; returns the end of the range.
-fn check_range(c: &Cell, start: u32, len: u32) -> Result<u32, Error> {
+pub(super) fn check_range(c: &Cell, start: u32, len: u32) -> Result<u32, Error> {
     let id = c.id();
     let end = start.checked_add(len);
     let inside = |pos: u32| text::is_boundary(&c.text, pos);
@@ -62,7 +62,7 @@ fn check_range(c: &Cell, start: u32, len: u32) -> Result<u32, Error> {
 }
 
 /// The steps that put new runs and links in place, where they differ from the old.
-fn set_runs_links(
+pub(super) fn set_runs_links(
     tx: &mut Tx,
     id: CellId,
     runs: Option<Vec<Run>>,
@@ -77,7 +77,7 @@ fn set_runs_links(
     Ok(())
 }
 
-fn replace_text(
+pub(super) fn replace_text(
     tx: &mut Tx,
     id: CellId,
     start: u32,
@@ -282,7 +282,7 @@ fn set_style(tx: &mut Tx, id: CellId, on: Style, off: Style) -> Result<(), Error
 }
 
 /// The cells inside `id` (not `id` itself), in document order.
-fn descendants(doc: &Document, id: CellId) -> Vec<CellId> {
+pub(super) fn descendants(doc: &Document, id: CellId) -> Vec<CellId> {
     let mut out = Vec::new();
     let mut stack: Vec<CellId> = Vec::new();
     let push = |stack: &mut Vec<CellId>, id: CellId| {
@@ -299,7 +299,7 @@ fn descendants(doc: &Document, id: CellId) -> Vec<CellId> {
 }
 
 /// How many levels of grids are inside `id`: 0 for a cell without a grid.
-fn height(doc: &Document, id: CellId) -> u32 {
+pub(super) fn height(doc: &Document, id: CellId) -> u32 {
     let mut deepest = 0;
     let mut stack = vec![(id, 0u32)];
     while let Some((next, level)) = stack.pop() {
@@ -311,7 +311,7 @@ fn height(doc: &Document, id: CellId) -> u32 {
     deepest
 }
 
-fn depth(doc: &Document, id: CellId) -> Result<u32, Error> {
+pub(super) fn depth(doc: &Document, id: CellId) -> Result<u32, Error> {
     doc.depth(id)
         .ok_or_else(|| Error::NotFound(format!("cell {id}")))
 }
@@ -328,7 +328,7 @@ fn is_inside(doc: &Document, inner: CellId, outer: CellId) -> bool {
     false
 }
 
-fn check_depth(doc: &Document, place: CellId, content: CellId) -> Result<(), Error> {
+pub(super) fn check_depth(doc: &Document, place: CellId, content: CellId) -> Result<(), Error> {
     if depth(doc, place)?.saturating_add(height(doc, content)) > MAX_DEPTH {
         return Err(Error::Limit(format!(
             "grids nested deeper than {MAX_DEPTH}"
@@ -337,7 +337,7 @@ fn check_depth(doc: &Document, place: CellId, content: CellId) -> Result<(), Err
     Ok(())
 }
 
-fn check_room(doc: &Document, more: usize) -> Result<(), Error> {
+pub(super) fn check_room(doc: &Document, more: usize) -> Result<(), Error> {
     match doc.cell_count().checked_add(more) {
         Some(total) if total <= MAX_CELLS => Ok(()),
         _ => Err(Error::Limit(format!("more than {MAX_CELLS} cells"))),
@@ -345,13 +345,13 @@ fn check_room(doc: &Document, more: usize) -> Result<(), Error> {
 }
 
 /// Hands out IDs for new cells, refusing a source that repeats itself.
-struct Fresh<'a> {
+pub(super) struct Fresh<'a> {
     ids: &'a mut dyn IdSource,
     given: HashSet<CellId>,
 }
 
 impl Fresh<'_> {
-    fn next(&mut self, doc: &Document) -> Result<CellId, Error> {
+    pub(super) fn next(&mut self, doc: &Document) -> Result<CellId, Error> {
         let id = CellId(self.ids.next_id());
         if id.0 == doc.id().0 || doc.cell(id).is_some() || !self.given.insert(id) {
             return refused(format!("the ID source repeated the ID {id}"));
@@ -361,7 +361,7 @@ impl Fresh<'_> {
 }
 
 /// A new empty cell that takes after `like`, as TreeSheets' new cells do.
-fn new_cell(id: CellId, parent: CellId, like: &Cell, now: Option<i64>) -> Cell {
+pub(super) fn new_cell(id: CellId, parent: CellId, like: &Cell, now: Option<i64>) -> Cell {
     let mut c = Cell::new(id, Some(parent));
     c.cell_color = like.cell_color;
     c.text_color = like.text_color;
@@ -376,7 +376,7 @@ fn new_cell(id: CellId, parent: CellId, like: &Cell, now: Option<i64>) -> Cell {
 
 /// The width of the column that `id` is in, which TreeSheets gives to the columns of a
 /// grid made or widened inside `id`.
-fn col_width_of(doc: &Document, id: CellId) -> u32 {
+pub(super) fn col_width_of(doc: &Document, id: CellId) -> u32 {
     let width = || {
         let parent = doc.cell(doc.cell(id)?.parent()?)?.grid()?;
         let index = parent.cells().iter().position(|c| *c == id)?;
@@ -386,6 +386,25 @@ fn col_width_of(doc: &Document, id: CellId) -> u32 {
             .copied()
     };
     width().unwrap_or(Grid::DEFAULT_COL_WIDTH)
+}
+
+/// A grid for the cell `id`, which has none, as TreeSheets' `Cell::AddGrid` makes it:
+/// columns as wide as the column the cell is in, border colour and spacing (and here the
+/// vertical flag, decision B24) of the grid around the cell.
+pub(super) fn fresh_grid(doc: &Document, id: CellId, xs: u32, ys: u32, cells: Vec<CellId>) -> Grid {
+    let mut new = Grid::new(xs, ys, cells);
+    new.col_widths = vec![col_width_of(doc, id); xs as usize];
+    let around = doc
+        .cell(id)
+        .and_then(Cell::parent)
+        .and_then(|p| doc.cell(p))
+        .and_then(Cell::grid);
+    if let Some(around) = around {
+        new.border_color = around.border_color;
+        new.outer_spacing = around.outer_spacing;
+        new.vertical = around.vertical;
+    }
+    new
 }
 
 fn create_grid(
@@ -417,17 +436,7 @@ fn create_grid(
     for _ in 0..count {
         cells.push(new_cell(fresh.next(doc)?, id, owner, now));
     }
-    let mut new = Grid::new(xs, ys, cells.iter().map(Cell::id).collect());
-    new.col_widths = vec![col_width_of(doc, id); xs as usize];
-    if let Some(around) = owner
-        .parent()
-        .and_then(|p| doc.cell(p))
-        .and_then(Cell::grid)
-    {
-        new.border_color = around.border_color;
-        new.outer_spacing = around.outer_spacing;
-        new.vertical = around.vertical;
-    }
+    let new = fresh_grid(doc, id, xs, ys, cells.iter().map(Cell::id).collect());
     tx.step(Step::AddCells(cells))?;
     tx.step(Step::SetGrid {
         cell: id,
@@ -565,16 +574,21 @@ fn delete_lines(tx: &mut Tx, id: CellId, axis: Axis, at: u32, count: u32) -> Res
 }
 
 /// TreeSheets' `Cell::Clear`.
-fn clear_cell(tx: &mut Tx, id: CellId) -> Result<(), Error> {
+pub(super) fn clear_cell(tx: &mut Tx, id: CellId) -> Result<(), Error> {
+    if cell(tx.doc(), id)?.grid().is_some() {
+        remove_grid(tx, id)?;
+    }
+    clear_own(tx, id)
+}
+
+/// `Cell::Clear` without the grid: text, runs, links and image go, a formula cell becomes a
+/// data cell.
+pub(super) fn clear_own(tx: &mut Tx, id: CellId) -> Result<(), Error> {
     let c = cell(tx.doc(), id)?;
-    let (has_grid, has_image, has_text) =
-        (c.grid().is_some(), c.image.is_some(), !c.text.is_empty());
+    let (has_image, has_text) = (c.image.is_some(), !c.text.is_empty());
     let del = len32(&c.text)?;
     if c.kind == CellKind::Formula {
         set(tx, id, Field::Kind(CellKind::Data))?;
-    }
-    if has_grid {
-        remove_grid(tx, id)?;
     }
     if has_text {
         tx.step(Step::Splice {
@@ -591,7 +605,7 @@ fn clear_cell(tx: &mut Tx, id: CellId) -> Result<(), Error> {
     Ok(())
 }
 
-fn clear_cells(tx: &mut Tx, cells: &[CellId]) -> Result<(), Error> {
+pub(super) fn clear_cells(tx: &mut Tx, cells: &[CellId]) -> Result<(), Error> {
     for id in cells {
         cell(tx.doc(), *id)?;
     }
@@ -604,12 +618,19 @@ fn clear_cells(tx: &mut Tx, cells: &[CellId]) -> Result<(), Error> {
     Ok(())
 }
 
-fn has_content(c: &Cell) -> bool {
+pub(super) fn has_content(c: &Cell) -> bool {
     !c.text.is_empty() || c.image.is_some() || c.grid().is_some()
 }
 
 /// TreeSheets' `Grid::MultiCellDeleteSub`.
-fn delete_cells(tx: &mut Tx, id: CellId, x: u32, y: u32, xs: u32, ys: u32) -> Result<(), Error> {
+pub(super) fn delete_cells(
+    tx: &mut Tx,
+    id: CellId,
+    x: u32,
+    y: u32,
+    xs: u32,
+    ys: u32,
+) -> Result<(), Error> {
     let g = grid(tx.doc(), id)?;
     let (gxs, gys) = (g.xs(), g.ys());
     let inside = |from: u32, size: u32, all: u32| {
@@ -731,6 +752,41 @@ fn move_cell(tx: &mut Tx, from: CellId, to: CellId) -> Result<(), Error> {
     swap_cells(tx, from, to)
 }
 
+/// The steps that make the own content of the cell `id` (its text and every property, but
+/// not its grid or its place) equal to that of `like`.
+pub(super) fn sync_cell(tx: &mut Tx, id: CellId, like: &Cell) -> Result<(), Error> {
+    let target = cell(tx.doc(), id)?;
+    let del = len32(&target.text)?;
+    let fields = [
+        (target.kind != like.kind).then_some(Field::Kind(like.kind)),
+        (target.cell_color != like.cell_color).then_some(Field::CellColor(like.cell_color)),
+        (target.text_color != like.text_color).then_some(Field::TextColor(like.text_color)),
+        (target.draw_style != like.draw_style).then_some(Field::DrawStyle(like.draw_style)),
+        (target.note != like.note).then(|| Field::Note(like.note.clone())),
+        (target.text_align != like.text_align).then_some(Field::TextAlign(like.text_align)),
+        (target.vert_align != like.vert_align).then_some(Field::VertAlign(like.vert_align)),
+        (target.rel_size != like.rel_size).then_some(Field::RelSize(like.rel_size)),
+        (target.style != like.style).then_some(Field::Style(like.style)),
+        (target.runs != like.runs).then(|| Field::Runs(like.runs.clone())),
+        (target.links != like.links).then(|| Field::Links(like.links.clone())),
+        (target.last_edit != like.last_edit).then_some(Field::LastEdit(like.last_edit)),
+        (target.image != like.image).then(|| Field::Image(like.image.clone())),
+        (target.extra != like.extra).then(|| Field::Extra(like.extra.clone())),
+    ];
+    if target.text != like.text {
+        tx.step(Step::Splice {
+            cell: id,
+            at: 0,
+            del,
+            ins: like.text.clone(),
+        })?;
+    }
+    for field in fields.into_iter().flatten() {
+        set(tx, id, field)?;
+    }
+    Ok(())
+}
+
 fn copy_cell(tx: &mut Tx, from: CellId, to: CellId, fresh: &mut Fresh) -> Result<(), Error> {
     let doc = tx.doc();
     let source = cell(doc, from)?.clone();
@@ -789,38 +845,9 @@ fn copy_cell(tx: &mut Tx, from: CellId, to: CellId, fresh: &mut Fresh) -> Result
     let mut top = source;
     rename(&mut top);
 
-    let target = cell(tx.doc(), to)?;
-    let del = len32(&target.text)?;
-    let fields = [
-        (target.kind != top.kind).then_some(Field::Kind(top.kind)),
-        (target.cell_color != top.cell_color).then_some(Field::CellColor(top.cell_color)),
-        (target.text_color != top.text_color).then_some(Field::TextColor(top.text_color)),
-        (target.draw_style != top.draw_style).then_some(Field::DrawStyle(top.draw_style)),
-        (target.note != top.note).then(|| Field::Note(top.note.clone())),
-        (target.text_align != top.text_align).then_some(Field::TextAlign(top.text_align)),
-        (target.vert_align != top.vert_align).then_some(Field::VertAlign(top.vert_align)),
-        (target.rel_size != top.rel_size).then_some(Field::RelSize(top.rel_size)),
-        (target.style != top.style).then_some(Field::Style(top.style)),
-        (target.runs != top.runs).then(|| Field::Runs(top.runs.clone())),
-        (target.links != top.links).then(|| Field::Links(top.links.clone())),
-        (target.last_edit != top.last_edit).then_some(Field::LastEdit(top.last_edit)),
-        (target.image != top.image).then(|| Field::Image(top.image.clone())),
-        (target.extra != top.extra).then(|| Field::Extra(top.extra.clone())),
-    ];
-    let same_text = target.text == top.text;
-    let had_grid = target.grid().is_some();
+    let had_grid = cell(tx.doc(), to)?.grid().is_some();
     let replaced = descendants(tx.doc(), to);
-    if !same_text {
-        tx.step(Step::Splice {
-            cell: to,
-            at: 0,
-            del,
-            ins: top.text.clone(),
-        })?;
-    }
-    for field in fields.into_iter().flatten() {
-        set(tx, to, field)?;
-    }
+    sync_cell(tx, to, &top)?;
     if top.grid.is_some() {
         tx.step(Step::AddCells(copies))?;
     }
@@ -834,7 +861,7 @@ fn copy_cell(tx: &mut Tx, from: CellId, to: CellId, fresh: &mut Fresh) -> Result
     Ok(())
 }
 
-fn set_tag(tx: &mut Tx, name: String, tag: Option<Tag>) -> Result<(), Error> {
+pub(super) fn set_tag(tx: &mut Tx, name: String, tag: Option<Tag>) -> Result<(), Error> {
     let old = tx.doc().tags().get(&name);
     match &tag {
         None if old.is_none() => {
@@ -970,5 +997,36 @@ pub(super) fn run(
             set_tag(tx, name, Some(tag))
         }
         Command::RemoveTag { name } => set_tag(tx, name, None),
+        Command::SortRows {
+            cell,
+            column,
+            row,
+            count,
+            descending,
+        } => restructure::sort_rows(tx, cell, column, row, count, descending),
+        Command::Transpose { cells } => restructure::transpose(tx, &cells),
+        Command::HierarchySwap { cell } => restructure::hierarchy_swap(tx, cell, now, &mut fresh),
+        Command::Hierarchify { cell } => restructure::hierarchify(tx, cell),
+        Command::Flatten { cell } => restructure::flatten(tx, cell, now, &mut fresh),
+        Command::Wrap { cell, x, y, xs, ys } => {
+            restructure::wrap(tx, cell, (x, y, xs, ys), now, &mut fresh)
+        }
+        Command::Collapse { cell, x, y, xs, ys } => restructure::collapse(tx, cell, (x, y, xs, ys)),
+        Command::SplitCell { cell, at } => restructure::split_cell(tx, cell, at, now, &mut fresh),
+        Command::TagCells { cells } => restructure::tag_cells(tx, &cells),
+        Command::UntagCells { cells } => restructure::untag_cells(tx, &cells),
+        Command::AdjustRelSize {
+            cells,
+            delta,
+            recursive,
+        } => restructure::adjust_rel_size(tx, &cells, delta, recursive),
+        Command::AdjustColumnWidths {
+            cell,
+            column,
+            count,
+            delta,
+            recursive,
+        } => restructure::adjust_column_widths(tx, cell, column, count, delta, recursive),
+        Command::ToggleCheck { cells } => restructure::toggle_check(tx, &cells, now),
     }
 }

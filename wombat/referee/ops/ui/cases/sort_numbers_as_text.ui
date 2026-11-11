@@ -1,0 +1,3 @@
+# The second column holds numbers: they sort as text.
+select /1,1 2 1 1 8
+action sort

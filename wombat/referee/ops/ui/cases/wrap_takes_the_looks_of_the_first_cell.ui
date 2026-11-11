@@ -1,0 +1,3 @@
+# The new parent takes the looks of the first cell of the block.
+select /1,4 3 2 1 2
+action wrap

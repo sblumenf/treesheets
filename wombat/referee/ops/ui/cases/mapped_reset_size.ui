@@ -1,0 +1,3 @@
+# Reset text sizes is SetProps on the selected cells and those inside.
+select / 1 4 1 3
+action reset-size

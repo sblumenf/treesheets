@@ -1,0 +1,7 @@
+# A row of two cells with the widths 80 and 40: as a column it has one width, 80, and turned
+# back both columns have that.
+lobster ts.goto_column_row(0, 3) ; ts.goto_column_row(1, 2) ; ts.goto_column_row(1, 0) ; ts.set_column_width(40)
+select /1,4/2,3 1 1 2 1
+action transpose
+select /1,4/2,3 1 1 1 2
+action transpose

@@ -149,6 +149,14 @@ pub(crate) enum Step {
     /// Makes two cells trade places, each going where the other was (possibly in another
     /// grid), with everything inside them.
     Swap { a: CellId, b: CellId },
+    /// Applies `step` and then gives the listed cells the parents they are listed with.
+    /// Never asked for by a command: it is the inverse of a [`Step::SetGrid`] or
+    /// [`Step::InsertLines`] that took cells which were children of other cells, and gives
+    /// them back.
+    Reparented {
+        step: Box<Step>,
+        parents: Vec<(CellId, Option<CellId>)>,
+    },
 }
 
 /// What the steps applied so far have touched.
@@ -231,16 +239,35 @@ fn grid_of_mut(doc: &mut Document, owner: CellId) -> Result<&mut Grid, Error> {
         .ok_or_else(|| Error::Refused(format!("cell {owner} has no grid")))
 }
 
-fn set_parents(doc: &mut Document, ids: &[CellId], parent: CellId) -> Result<(), Error> {
+/// Makes `parent` the parent of `ids`; returns the cells that had another, with it.
+fn set_parents(
+    doc: &mut Document,
+    ids: &[CellId],
+    parent: CellId,
+) -> Result<Vec<(CellId, Option<CellId>)>, Error> {
     if let Some(id) = ids.iter().find(|id| !doc.cells.contains_key(id)) {
         return Err(missing(*id));
     }
+    let mut previous = Vec::new();
     for id in ids {
         if let Some(cell) = doc.cells.get_mut(id) {
-            cell.parent = Some(parent);
+            if cell.parent != Some(parent) {
+                previous.push((*id, cell.parent.replace(parent)));
+            }
         }
     }
-    Ok(())
+    Ok(previous)
+}
+
+/// The inverse `step`, which also gives back the cells that the step it undoes took.
+fn giving_back(step: Step, parents: Vec<(CellId, Option<CellId>)>) -> Step {
+    if parents.is_empty() {
+        return step;
+    }
+    Step::Reparented {
+        step: Box::new(step),
+        parents,
+    }
 }
 
 /// The cells of a grid as rows.
@@ -345,7 +372,7 @@ impl Step {
                 if count == 0 || count * across != ids.len() || at as usize > along || !widths_fit {
                     return refused(format!("cell {owner}: rows or columns that do not fit"));
                 }
-                set_parents(doc, &ids, owner)?;
+                let previous = set_parents(doc, &ids, owner)?;
                 let grid = grid_of_mut(doc, owner)?;
                 match axis {
                     Axis::Rows => {
@@ -370,12 +397,13 @@ impl Step {
                     }
                 }
                 seen.grids.insert(owner);
-                Ok(Step::RemoveLines {
+                let inverse = Step::RemoveLines {
                     owner,
                     axis,
                     at,
                     count: count32,
-                })
+                };
+                Ok(giving_back(inverse, previous))
             }
             Step::RemoveLines {
                 owner,
@@ -486,6 +514,7 @@ impl Step {
                 if !doc.cells.contains_key(&cell) {
                     return Err(missing(cell));
                 }
+                let mut previous = Vec::new();
                 if let Some(grid) = &grid {
                     let count = (grid.xs as usize).checked_mul(grid.ys as usize);
                     if grid.xs == 0
@@ -495,7 +524,7 @@ impl Step {
                     {
                         return refused(format!("cell {cell}: a grid of the wrong size"));
                     }
-                    set_parents(doc, &grid.cells, cell)?;
+                    previous = set_parents(doc, &grid.cells, cell)?;
                 }
                 let c = doc.cells.get_mut(&cell).ok_or_else(|| missing(cell))?;
                 let old = mem::replace(&mut c.grid, grid);
@@ -505,7 +534,7 @@ impl Step {
                     .entry(cell)
                     .or_insert_with(|| old.as_ref().map(grid_properties));
                 seen.grids.insert(cell);
-                Ok(Step::SetGrid { cell, grid: old })
+                Ok(giving_back(Step::SetGrid { cell, grid: old }, previous))
             }
             Step::Swap { a, b } => {
                 let parent = |id: CellId| {
@@ -539,6 +568,20 @@ impl Step {
                 seen.grids.insert(pa);
                 seen.grids.insert(pb);
                 Ok(Step::Swap { a, b })
+            }
+            Step::Reparented { step, parents } => {
+                if let Some((id, _)) = parents.iter().find(|(id, _)| !doc.cells.contains_key(id)) {
+                    return Err(missing(*id));
+                }
+                // Undoing this takes the cells again, which is what the inner step's
+                // inverse does: the cells are in the grid or lines it puts back.
+                let inverse = step.apply(doc, seen)?;
+                for (id, parent) in parents {
+                    if let Some(cell) = doc.cells.get_mut(&id) {
+                        cell.parent = parent;
+                    }
+                }
+                Ok(inverse)
             }
         }
     }

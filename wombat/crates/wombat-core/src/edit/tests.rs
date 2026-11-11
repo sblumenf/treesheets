@@ -9,6 +9,7 @@
 use super::step::{ChangeSet, Step};
 use super::*;
 use crate::construct::Construct;
+use crate::id::IdSource;
 use crate::id::{DocId, Id, SeededIds};
 use crate::limits::MAX_DEPTH;
 use crate::model::{Cell, Extra, Grid, Link, Run};
@@ -1979,3 +1980,176 @@ fn run_and_link_fields_keep_unknown_fields_apart() {
     assert_eq!((c.runs.len(), c.links.len()), (2, 2));
     assert_eq!(c.runs[1].extra, extra);
 }
+
+/// A grid of the root with the given cells in one row.
+fn row_of(cells: &[CellId]) -> Option<Grid> {
+    Some(Grid::new(cells.len() as u32, 1, cells.to_vec()))
+}
+
+/// Found in review of milestone 3a: a step that makes a cell the child of another cell must
+/// give it back to its old parent when undone, whatever the steps around it do.
+#[test]
+fn rolling_back_an_adoption_gives_the_cell_back() {
+    let (e, mut ids, cells) = editor(2, 1);
+    let mut doc = e.into_document();
+    let original = doc.clone();
+    let wrapper = Cell::new(CellId(ids.next_id()), Some(doc.root()));
+    let id = wrapper.id();
+    let mut seen = ChangeSet::default();
+    let undo_add = Step::AddCells(vec![wrapper])
+        .apply(&mut doc, &mut seen)
+        .unwrap();
+    let undo_grid = Step::SetGrid {
+        cell: id,
+        grid: row_of(&cells[..1]),
+    }
+    .apply(&mut doc, &mut seen)
+    .unwrap();
+    // The command fails here: its steps are undone, newest first.
+    for step in [undo_grid, undo_add] {
+        step.apply(&mut doc, &mut seen).unwrap();
+    }
+    assert_eq!(doc, original);
+    doc.validate().unwrap();
+}
+
+#[test]
+fn a_cell_adopted_from_a_removed_cell_returns_to_it_on_undo() {
+    let (mut e, mut ids, cells) = editor(2, 1);
+    e.apply(
+        Command::CreateGrid {
+            cell: cells[1],
+            xs: 1,
+            ys: 1,
+        },
+        None,
+        &mut ids,
+    )
+    .unwrap();
+    let mut doc = e.into_document();
+    let original = doc.clone();
+    let root = doc.root();
+    let inner = doc.child(cells[1], 0, 0).unwrap();
+    let mut seen = ChangeSet::default();
+    // Flatten-like: the inner cell moves up, the cell it was in goes, still listing it.
+    let steps = [
+        Step::SetGrid {
+            cell: root,
+            grid: row_of(&[cells[0], inner]),
+        },
+        Step::RemoveCells(vec![cells[1]]),
+    ];
+    let mut undo = Vec::new();
+    for step in steps {
+        undo.push(step.apply(&mut doc, &mut seen).unwrap());
+    }
+    doc.validate().unwrap();
+    let changed = doc.clone();
+    let mut redo = Vec::new();
+    for step in undo.into_iter().rev() {
+        redo.push(step.apply(&mut doc, &mut seen).unwrap());
+    }
+    assert_eq!(doc, original);
+    doc.validate().unwrap();
+    for step in redo.into_iter().rev() {
+        step.apply(&mut doc, &mut seen).unwrap();
+    }
+    assert_eq!(doc, changed);
+}
+
+/// Every kind of step followed by its inverse gives the identical document, and the
+/// inverse of the inverse the changed one again: also where the step takes cells that are
+/// children of other cells.
+#[test]
+fn every_step_and_its_inverse_cancel_exactly() {
+    use super::step::{Axis, Field};
+    let (mut e, mut ids, cells) = editor(2, 2);
+    for cell in [cells[0], cells[3]] {
+        e.apply(Command::CreateGrid { cell, xs: 2, ys: 2 }, None, &mut ids)
+            .unwrap();
+    }
+    let doc = e.into_document();
+    let root = doc.root();
+    let a = doc.cell(cells[0]).unwrap().grid().unwrap().cells().to_vec();
+    let b = doc.cell(cells[3]).unwrap().grid().unwrap().cells().to_vec();
+    let lone = Cell::new(CellId(ids.next_id()), Some(root));
+    let steps = [
+        Step::Splice {
+            cell: cells[1],
+            at: 0,
+            del: 1,
+            ins: "xy".into(),
+        },
+        Step::Set {
+            cell: cells[1],
+            field: Field::Note("n".into()),
+        },
+        Step::Tag {
+            name: "t".into(),
+            tag: Some(Tag::default()),
+        },
+        Step::AddCells(vec![lone]),
+        // Cells of the grid of one cell become the grid of another, or rows and columns
+        // of it, while their old parent still lists them.
+        Step::SetGrid {
+            cell: cells[1],
+            grid: row_of(&a[..2]),
+        },
+        Step::SetGrid {
+            cell: cells[3],
+            grid: row_of(&a),
+        },
+        Step::SetGrid {
+            cell: cells[3],
+            grid: None,
+        },
+        Step::InsertLines {
+            owner: cells[3],
+            axis: Axis::Rows,
+            at: 1,
+            ids: a[..2].to_vec(),
+            widths: vec![],
+        },
+        Step::InsertLines {
+            owner: cells[3],
+            axis: Axis::Columns,
+            at: 2,
+            ids: a[2..].to_vec(),
+            widths: vec![33],
+        },
+        Step::RemoveLines {
+            owner: cells[3],
+            axis: Axis::Columns,
+            at: 0,
+            count: 1,
+        },
+        Step::MoveLines {
+            owner: root,
+            axis: Axis::Rows,
+            from: 0,
+            count: 1,
+            to: 1,
+        },
+        Step::Swap { a: a[0], b: b[3] },
+    ];
+    for step in steps {
+        let mut work = doc.clone();
+        let mut seen = ChangeSet::default();
+        let what = format!("{step:?}");
+        let inverse = step.apply(&mut work, &mut seen).unwrap();
+        let changed = work.clone();
+        assert_ne!(changed, doc, "{what}");
+        let again = inverse.apply(&mut work, &mut seen).unwrap();
+        assert_eq!(work, doc, "undo of {what}");
+        again.apply(&mut work, &mut seen).unwrap();
+        assert_eq!(work, changed, "redo of {what}");
+    }
+    // Removing cells is the inverse of adding them.
+    let mut work = doc.clone();
+    let mut seen = ChangeSet::default();
+    let back = Step::RemoveCells(b.clone()).apply(&mut work, &mut seen);
+    back.unwrap().apply(&mut work, &mut seen).unwrap();
+    assert_eq!(work, doc);
+}
+
+mod restructure;

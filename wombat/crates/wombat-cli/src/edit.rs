@@ -70,9 +70,36 @@ Structure (CELL is the cell that has the grid)
   move CELL EMPTY-CELL                move a cell to where an empty cell is
   copy CELL CELL                      make the second cell a copy of the first (paste)
 
+Restructuring (as the TreeSheets menu actions of the same names)
+  sort CELL COLUMN ROW COUNT [desc]   sort COUNT rows from ROW on by the text in COLUMN,
+                                      then by the columns after it; text order without
+                                      regard to case (\"10\" before \"9\"), equal rows keep
+                                      their order
+  transpose CELL...                   rows become columns in the grids of the cells
+  hierarchify CELL                    turn a table into a hierarchy: rows that start with
+                                      the same text are merged under one cell
+  flatten CELL                        turn a hierarchy into a table: one row per innermost
+                                      cell, with the cells it was inside of to its left
+  hierarchy-swap CELL                 the cells with the text of CELL move up one level and
+                                      take their parents inside them
+  wrap CELL COLUMN ROW COLUMNS ROWS   move a block of cells into a new cell in its place
+  collapse CELL COLUMN ROW COLUMNS ROWS
+                                      join the texts of a block into its first cell
+  split CELL POSITION                 cut the text in two cells inside the cell
+
+Sizes and checkboxes
+  size-by DELTA [deep] CELL...        add DELTA to the size (negative is bigger), within
+                                      -32..8; deep: also the cells inside
+  width-by CELL COLUMN COUNT DELTA [deep]
+                                      add DELTA to the widths of COUNT columns; deep: also
+                                      all columns of the grids inside them
+  toggle-check CELL...                add to-do checkboxes, tick them, or remove them
+
 Tags
   tag \"name\" #rrggbb #rrggbb          add a tag (cell colour, text colour) or recolour it
   untag \"name\"                        remove a tag
+  tag-cells CELL...                   make the texts of cells tags, with their colours
+  untag-cells CELL...                 remove the tags that the texts of cells name
 
 View (not part of the document, not undone)
   fold CELL / unfold CELL             hide or show a cell's grid
@@ -185,6 +212,21 @@ fn index(args: &mut Args, what: &str) -> Result<u32, String> {
     number(args, what)?
         .checked_sub(1)
         .ok_or_else(|| format!("{what}: columns and rows count from 1"))
+}
+
+fn signed(args: &mut Args, what: &str) -> Result<i32, String> {
+    let word = next(args, what)?;
+    word.parse()
+        .map_err(|_| format!("{what}: {word:?} is not a whole number"))
+}
+
+/// Takes the word `deep` if it is next.
+fn deep(args: &mut Args) -> bool {
+    let found = args.clone().next().is_some_and(|(word, _)| word == "deep");
+    if found {
+        args.next();
+    }
+    found
 }
 
 fn color(word: &str) -> Result<Color, String> {
@@ -617,6 +659,93 @@ impl<'a> Session<'a> {
                 let name = next(args, "a name")?.to_string();
                 done(args)?;
                 self.apply(Command::RemoveTag { name })?;
+            }
+            "sort" => {
+                let cell = self.next_cell(args, "a cell")?;
+                let (column, row) = (index(args, "a column")?, index(args, "a row")?);
+                let count = number(args, "a count")?;
+                let descending = match args.next().map(|(word, _)| word.as_str()) {
+                    None => false,
+                    Some("desc") => true,
+                    Some(word) => return Err(format!("unexpected: {word:?}")),
+                };
+                done(args)?;
+                self.apply(Command::SortRows {
+                    cell,
+                    column,
+                    row,
+                    count,
+                    descending,
+                })?;
+            }
+            "transpose" | "tag-cells" | "untag-cells" | "toggle-check" => {
+                let cells = args
+                    .map(|(word, _)| self.cell(word))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if cells.is_empty() {
+                    return Err("missing: a cell".into());
+                }
+                self.apply(match verb.as_str() {
+                    "transpose" => Command::Transpose { cells },
+                    "tag-cells" => Command::TagCells { cells },
+                    "untag-cells" => Command::UntagCells { cells },
+                    _ => Command::ToggleCheck { cells },
+                })?;
+            }
+            "hierarchify" | "flatten" | "hierarchy-swap" => {
+                let cell = self.next_cell(args, "a cell")?;
+                done(args)?;
+                self.apply(match verb.as_str() {
+                    "hierarchify" => Command::Hierarchify { cell },
+                    "flatten" => Command::Flatten { cell },
+                    _ => Command::HierarchySwap { cell },
+                })?;
+            }
+            "wrap" | "collapse" => {
+                let cell = self.next_cell(args, "a cell")?;
+                let (x, y) = (index(args, "a column")?, index(args, "a row")?);
+                let (xs, ys) = (number(args, "columns")?, number(args, "rows")?);
+                done(args)?;
+                self.apply(if verb == "wrap" {
+                    Command::Wrap { cell, x, y, xs, ys }
+                } else {
+                    Command::Collapse { cell, x, y, xs, ys }
+                })?;
+            }
+            "split" => {
+                let cell = self.next_cell(args, "a cell")?;
+                let at = number(args, "a position")?;
+                done(args)?;
+                self.apply(Command::SplitCell { cell, at })?;
+            }
+            "size-by" => {
+                let delta = signed(args, "a change of size")?;
+                let recursive = deep(args);
+                let cells = args
+                    .map(|(word, _)| self.cell(word))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if cells.is_empty() {
+                    return Err("missing: a cell".into());
+                }
+                self.apply(Command::AdjustRelSize {
+                    cells,
+                    delta,
+                    recursive,
+                })?;
+            }
+            "width-by" => {
+                let cell = self.next_cell(args, "a cell")?;
+                let (column, count) = (index(args, "a column")?, number(args, "a count")?);
+                let delta = signed(args, "a change of width")?;
+                let recursive = deep(args);
+                done(args)?;
+                self.apply(Command::AdjustColumnWidths {
+                    cell,
+                    column,
+                    count,
+                    delta,
+                    recursive,
+                })?;
             }
             "fold" | "unfold" => {
                 let cell = self.next_cell(args, "a cell")?;

@@ -1,0 +1,5 @@
+# A row of two cells; q is inside the first. The row loses that cell and gets q at its end:
+# as a column, not as a row below, because the grid was a row before.
+lobster ts.goto_column_row(0, 3) ; ts.goto_column_row(1, 2) ; ts.goto_column_row(0, 0) ; ts.create_grid(1, 1) ; ts.goto_child(0) ; ts.set_text("q")
+select /1,4/2,3/1,1 1 1 1 1
+action hierarchy-swap

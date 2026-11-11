@@ -14,11 +14,12 @@ memory: sessions do not remember each other, so anything agreed must be written 
 | `docs/DECISIONS.md` | Design decisions and deliberate departures from TreeSheets |
 | `docs/FILE_FORMAT.md` | Specification of the `.wombat` format, the image folder and the view-state file |
 | `docs/milestones/` | One summary per finished milestone |
-| `crates/wombat-core` | The core library: document model (`model.rs`), commands, undo and redo (`edit/`: `mod.rs` the editor and the list of commands, `command.rs` what each does, `step.rs` the reversible steps), text rules (`text.rs`), the construction layer for building documents (`construct.rs`), file format (`format.rs`), view state (`view.rs`), files and workspaces (`storage.rs`, `workspace.rs`); later links, formulas |
+| `crates/wombat-core` | The core library: document model (`model.rs`), commands, undo and redo (`edit/`: `mod.rs` the editor and the list of commands, `command.rs` what each does, `restructure.rs` the same for sort, transpose, hierarchify, flatten, hierarchy swap, wrap and the like, `step.rs` the reversible steps), text rules (`text.rs`), the construction layer for building documents (`construct.rs`), file format (`format.rs`), view state (`view.rs`), files and workspaces (`storage.rs`, `workspace.rs`); later links, formulas |
 | `crates/wombat-cts` | Read-only importer of TreeSheets `.cts` files (all format versions up to 31), a testing tool; `tests/referee.rs` compares it with `referee/golden/`, `tests/quirks/` holds hand-built files with their own golden data |
 | `crates/wombat-cli` | The `wombat` command-line tool, a thin layer over the core; `edit.rs` reads the editing commands of `wombat edit`; `tests/ops.rs` compares commands with `referee/ops/` |
 | `referee/` | Scripts that drive the real TreeSheets app, and the reference ("golden") data it produced |
 | `referee/ops/` | Operation cases: one edit done by the real app (`cases/*.lobster`) and as Wombat commands (`cases/*.edit`) on `fixture.cts`, the app's result (`golden/`), and `make_ops` to regenerate |
+| `referee/ops/ui/` | The same for menu actions that no script function reaches: `cases/*.ui` says which keys were pressed in the real app (`referee/ui.py`, `make_ui_ops`), on its own `fixture.cts` |
 
 New crates (for example the `.cts` importer or the search service) go under `crates/` and are
 listed here when added.

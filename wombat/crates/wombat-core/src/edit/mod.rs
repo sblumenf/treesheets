@@ -18,6 +18,7 @@
 //! rearranges existing cells in any way, `AddCells` and `RemoveCells` make and drop cells.
 
 mod command;
+mod restructure;
 mod step;
 
 use crate::error::{refused, Error};
@@ -30,6 +31,12 @@ use step::{ChangeSet, Step};
 
 /// The smallest width of a column, as in TreeSheets.
 pub const MIN_COL_WIDTH: u32 = 5;
+
+/// The smallest relative size (the biggest text) that [`Command::AdjustRelSize`] goes to, as
+/// TreeSheets' text size actions.
+pub const MIN_REL_SIZE: i32 = -32;
+/// The largest relative size (the smallest text) that [`Command::AdjustRelSize`] goes to.
+pub const MAX_REL_SIZE: i32 = 8;
 
 /// A property of a cell with a new value, for [`Command::SetProps`].
 #[derive(Clone, PartialEq, Debug)]
@@ -315,6 +322,141 @@ pub enum Command {
     RemoveTag {
         /// The name.
         name: String,
+    },
+    /// TreeSheets' Sort: reorders whole rows of a grid by the text of their cells in one
+    /// column; rows equal there are ordered by the next columns in turn, wrapping round to
+    /// the first, and rows equal in all columns keep their order (also when descending).
+    /// Texts compare as text without regard to case: "10" comes before "9". Fewer than two
+    /// rows is not an error and changes nothing. Cells keep their IDs.
+    SortRows {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The column to sort by first.
+        column: u32,
+        /// The first row that takes part.
+        row: u32,
+        /// How many rows take part.
+        count: u32,
+        /// From high to low instead of from low to high.
+        descending: bool,
+    },
+    /// TreeSheets' Transpose: in the grid of every listed cell that has one, rows become
+    /// columns. Column widths stay with their position; new columns take the width of the
+    /// last old one. Cells keep their IDs.
+    Transpose {
+        /// The cells whose grids are transposed; those without a grid are passed over.
+        cells: Vec<CellId>,
+    },
+    /// TreeSheets' Hierarchy Swap: every cell with the text of `cell` found below the grid
+    /// two levels above it moves up into that grid and takes copies of the cells it was
+    /// inside of with it, as a chain inside itself; cells with the same text merge into
+    /// one, and parents left empty disappear. Refused unless the cell has text, a cell two
+    /// levels up exists, and both the grid it is in and the grid it moves into have one
+    /// column or one row. The swapped cells keep their IDs; the copy of a parent takes the
+    /// parent's ID if the parent disappears, and is a new cell otherwise.
+    HierarchySwap {
+        /// The cell whose text is swapped upwards.
+        cell: CellId,
+    },
+    /// TreeSheets' Hierarchify: turns the grid of `cell`, a table whose cells have no grids
+    /// themselves, into a hierarchy: rows that start with the same text are merged under
+    /// the first cell with that text, which gets a grid of the remaining columns, and so
+    /// on for those. All cells keep their IDs; the first cells of repeated rows are removed.
+    Hierarchify {
+        /// The cell that has the table.
+        cell: CellId,
+    },
+    /// TreeSheets' Flatten: replaces the grid of `cell` by a table with one row per cell
+    /// inside it that has no grid, and one column per level: the cells it was inside of,
+    /// then the cell itself, then empty cells. Only text (with styles, links, size, image)
+    /// is carried over. Every cell keeps its ID where it first stands; repeats of a parent
+    /// on later rows and the empty cells are new.
+    Flatten {
+        /// The cell whose grid is flattened.
+        cell: CellId,
+    },
+    /// TreeSheets' Wrap in new parent: a block of cells moves into the grid of a new empty
+    /// cell that takes the place of the block's first cell; rows and columns that this
+    /// leaves empty are deleted. The cells of the block keep their IDs.
+    Wrap {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The first column of the block.
+        x: u32,
+        /// The first row of the block.
+        y: u32,
+        /// The number of columns, at least 1.
+        xs: u32,
+        /// The number of rows, at least 1.
+        ys: u32,
+    },
+    /// TreeSheets' Collapse Cells: the texts of a block of two or more cells, and of the
+    /// cells inside them, are appended to the block's first cell, each after a space; the
+    /// other cells are emptied, and rows or columns left empty are deleted.
+    Collapse {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The first column of the block.
+        x: u32,
+        /// The first row of the block.
+        y: u32,
+        /// The number of columns.
+        xs: u32,
+        /// The number of rows.
+        ys: u32,
+    },
+    /// TreeSheets' Split cell at the cursor: the text before and after `at` become the two
+    /// cells of a new grid inside the cell, which is emptied. A grid the cell already has
+    /// is kept beside them. The cell keeps its ID; the two parts are new cells.
+    SplitCell {
+        /// The cell.
+        cell: CellId,
+        /// Where to cut the text.
+        at: u32,
+    },
+    /// TreeSheets' Add Cell Text as Tag: the text of each listed cell that has text
+    /// becomes a tag with the cell's colours.
+    TagCells {
+        /// The cells.
+        cells: Vec<CellId>,
+    },
+    /// TreeSheets' Remove Cell Text from Tags: removes the tags named by the texts of the
+    /// listed cells; texts that are no tags are passed over.
+    UntagCells {
+        /// The cells.
+        cells: Vec<CellId>,
+    },
+    /// TreeSheets' Increase / Decrease text size: adds `delta` to the relative size of the
+    /// cells (negative makes the text bigger), keeping each between [`MIN_REL_SIZE`] and
+    /// [`MAX_REL_SIZE`].
+    AdjustRelSize {
+        /// The cells.
+        cells: Vec<CellId>,
+        /// What to add; TreeSheets adds 1 or -1.
+        delta: i32,
+        /// Also the cells inside the listed ones.
+        recursive: bool,
+    },
+    /// TreeSheets' Increase / Decrease column width: adds `delta` to the widths of columns,
+    /// none becoming smaller than [`MIN_COL_WIDTH`].
+    AdjustColumnWidths {
+        /// The cell that has the grid.
+        cell: CellId,
+        /// The first column.
+        column: u32,
+        /// How many columns.
+        count: u32,
+        /// What to add; TreeSheets adds 5 or -5.
+        delta: i32,
+        /// Also every column of every grid inside the cells of those columns.
+        recursive: bool,
+    },
+    /// TreeSheets' Toggle to-do checkbox: cells without a checkbox (U+2610 or U+2611 at
+    /// the start of the text) get an open one; if all have one they become ticked; if all
+    /// are ticked the checkboxes are removed. Stamps the last-edit time.
+    ToggleCheck {
+        /// The cells.
+        cells: Vec<CellId>,
     },
 }
 
