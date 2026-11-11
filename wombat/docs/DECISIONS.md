@@ -686,7 +686,132 @@ numbers of its own (A50 on and B40 on for milestone 4, A60 on and B50 on for mil
     following one edit takes over 0.5 ms, or if the index takes over 16 times the
     text. The measured numbers are in `milestones/M6.md`.
 
-Numbers 80 to 89 are not used: 90 on are where milestones 4, 5 and 6, built apart, meet.
+Numbers 80 to 89 are from the review of milestones 4 and 5 (they stand before 90 on, which
+are where milestones 4, 5 and 6, built apart, meet).
+
+80. **A text that a formula makes is at most 1 MiB** (adds to A67; found in review of
+    milestone 5). Texts had no bound: `SUBSTITUTE` seven deep on 32 characters, or 41
+    cells that each join the one before to itself, asked for gigabytes, and the process
+    was aborted, also when such a document was only loaded. Now every text value of a
+    formula (what `&`, `SUBSTITUTE`, `UPPER`, `LEFT` and the like make, a literal, and
+    the text of a cell that a name or `SUBSET` stands for) is at most
+    `eval::MAX_TEXT_BYTES` = 1,048,576 bytes: a sixteenth of the 16,777,216 code points
+    that the text of a cell may have (A20). A cell can hold a pasted document; a
+    calculated text is for showing, and each one a formula holds while it is worked out
+    counts. A longer one is `#LIMIT!`, an error like `#NUM!` that carries over to
+    whoever reads it; the length is worked out before anything is allocated. And making
+    text is work (A81): 16 bytes count as one cell read, so that all the texts of one
+    recalculation, results included, stay under 32 MB. Running the program does not
+    join texts; there the bytes of copied texts count as steps (16 bytes as one) and
+    `graph` counts its bars four times.
+81. **What a recalculation may cost: 2,000,000 units of work, each formula's cost the
+    same however it is reached** (replaces the 50,000,000 cells of A67, and how A63
+    decides between part and all; found in review). Measured, 45,000,000 cell reads
+    took 13 seconds; a part of the formulas was tried and thrown away first (30
+    seconds); and an edit of a cell that no formula reads worked everything out, because
+    the check on the total came after the attempt and did not ask whether anything had
+    been done. Now:
+    - *Work* (`eval::MAX_WORK`) is: one per cell of a grid that is read (all inside it
+      for `TREE`), counted when the reading starts, so that it is the same whether the
+      reading ends early at an error; one for a grid that was read before in the same
+      recalculation (its contents are shared between the formulas, and each aggregate
+      of it is worked out once), unless the formula is inside that grid, since its own
+      cell does not count for it; one per 16 bytes of text made; 6 per formula and one
+      per 32 bytes of its text (finding it, reading it and keeping its result takes as
+      long as reading six cells); and at every name, once more what the texts made so
+      far cost and a sixteenth of the position in the formula, which is what reading
+      the formula again from its start costs if that name has to wait for another
+      formula. Measured, a unit is at most about 0.45 microseconds, so the limit is 0.9
+      seconds on this machine; `Calc::stats().work` says what the last update took.
+      (3,000,000 was tried first and took 1.3 seconds.)
+    - *What a formula costs does not depend on who waited for whom*: while an attempt
+      only looks for the formulas it has to wait for, nothing is counted, and it is
+      counted when the attempt is made again. So "over the limit" is a property of the
+      document, and keeping results up to date gives what working everything out gives
+      at any limit (tested with limits of 10 to 410 units on random documents).
+    - *A change that no formula reads works nothing out*, whatever the total; when
+      the total is over half the limit, everything is worked out straight away, once.
+      Circles and `#LIMIT!` still mean everything after every change (A63).
+    - Beside the limit stands the time that does not depend on what the formulas do:
+      before everything is worked out, the document is walked once to know what names
+      mean, 0.8 microseconds per cell (0.55 seconds for the 700,000 cells a document may
+      have; it was two walks and 1.1 microseconds), and a formula that is over the
+      limit still takes 0.6 microseconds to say so. `milestones/M5.md` has the worst
+      case measured.
+82. **A run holds at most twice a document** (adds to A67; found in review). The
+    20,000,000 steps of A67 let one row with a grid of 100,000 cells and 150
+    variable-assign cells copy 15 million cells into variables: 2.5 GB, which the
+    editor then kept. The cells that a run holds in its copy of the document, in what
+    its views were filled with, and in its variables may together be at most
+    `eval::MAX_RUN_CELLS` = 1,400,000 (twice A43's limit) with at most
+    `eval::MAX_RUN_TEXT` = 64 MiB of text; it is asked before a value is copied into a
+    view or a variable, and the run is refused with nothing changed. Variables are still
+    copies, not shared: a value in hand is changed in place by the operations after it,
+    and sharing would need every such place to copy first. What the editor keeps after
+    a run (the variables, and the value of the root cell) is within the same bound.
+83. **Hierarchify, flatten, collapse and hierarchy swap go by what cells show**
+    (completes A66; the real app was asked, `referee/ops/ui`). Hierarchify groups rows
+    by what their first cells show. Flatten leaves, for a formula cell, a data cell with
+    its result; so does the copy of a parent in a hierarchy swap, which finds cells by
+    what they show. Collapse appends what the cells show; if the first cell of the block
+    is a formula cell, it stays as it is and the other texts are gone (TreeSheets
+    appends them to the result and then works the formula out again, which comes to
+    the same). And `EnterText` with the text that the cell has already (typed with the
+    text commands, A65) leaves it alone, styles and links included, unless the cell is
+    a formula cell now: TreeSheets changes only the kind when typing ends. Found by
+    typing into the real app.
+84. **A moved cell can come back** (replaces the last rule of A52; found in review of
+    milestone 4). `AdoptCells` refused an ID that the history of the document held, so
+    a cell moved from A to B could not move back to A, or on to C and back to B, until
+    the history was cleared. The refusal protected nothing: IDs are never given twice
+    (A5, A36, A48), so an ID in the history is that of the very cell that arrives, and
+    the unit that holds it is older than the command that brings it in. Undo is last
+    in, first out: it reaches the older unit only after the newer one took the cell
+    out again, so the cell is never in the document twice. `AdoptCells` now refuses only
+    an ID that is in the document. The editor counts how often each ID is held, since
+    two units can hold one cell now. Tested for A to B to A and A to B to C to B, with
+    undo and redo in every order of the editors.
+85. **Links are corrected in place** (replaces the last sentence of A51; found in
+    review). A new command, `RetargetLinks`, changes the document that links to given
+    cells name and nothing else; `move_between` and `LinkIndex::repairs` use it where
+    they made new links with `SetLink` before, which lost unknown fields and joined two
+    neighbouring links to one cell into one. 45 commands now, with `Import` of milestone 7. `resolve_unknown` still
+    makes a new link: it gives a target to a link that had none.
+86. **What "nothing is lost" means after a move undone on one side** (corrects A52).
+    Undone in the document the cells arrived in, the cells are in neither document;
+    they are in that document's redo and in the other's undo. A new command in the first
+    document ends its redo, and then the cells exist only in the history of the
+    document they left, until that is undone, forgotten or closed. `Editor::holds(cell)`
+    says that a cell is in an editor's history and not in its document, so that an
+    interface can warn before such a history goes; the core does not know which
+    editors are open together, and warns of nothing itself.
+87. **Nothing is written through a link at a name the program chose** (adds to A27;
+    the second finding of this kind). A27 lets a save follow a link at the document's
+    own path, because someone put it there on purpose. Every other name is the
+    program's: temporary and backup files, the image folder and the files in it, the
+    folder of view states and its files. A link at such a name is planted: files are
+    written beside it and renamed over it (`storage::write_own`), and a folder that is a
+    link is refused. An image that is a link in the source's folder is not copied out as
+    if it were the file. Names that come from a document cannot leave its folder
+    (A30). The cache of an index is not covered here (it is reworked in milestone 6).
+88. **Images, tags and folds go with cells between documents** (adds to A51; found in
+    review). `storage::carry_images` copies the image files that a clip's cells show
+    into the image folder of the other document: used as it is if the same bytes are
+    there under the name, under a new name if another picture has the name (and the
+    clip is changed to say so), refused with nothing copied if a file is missing, since
+    after a move the picture would be gone for good. The tags that the cells have are
+    added to the other document if it lacks them (B70). On a move the folds of the
+    cells go to the other document's view state; a copy has new cells and no folds,
+    as a copy within a document. `storage::transfer_cell` does all of it for two files
+    and then removes from the source's image folder what nothing there shows any more;
+    `links::paste_clip` and `links::move_clip` are the same for editors.
+89. **Two documents are saved together** (`storage::save_two`; found in review). Both
+    are written beside their files first; the old first file is kept under a second
+    name; then each is put in place. If the second cannot be, the first is put back, and
+    both are as they were. If that fails too, the error (`Error::HalfSaved`) names the
+    file that is new, the one that is old, and where the old content of the first is.
+    Between the two renames a crash leaves the first new and the second old, with the
+    backup beside them: two files cannot be replaced in one step.
 
 90. **An index gets formula results from the editor, and works them out itself for a
     document that nobody edits** (A61, A76; `Summary` in `summary.rs`). Results are
@@ -714,7 +839,7 @@ Numbers 80 to 89 are not used: 90 on are where milestones 4, 5 and 6, built apar
       holds for a scan as for an editor, so that a document is indexed the same open
       or not: a document made to reach the limit costs a scan what it costs an editor
       to open (4.9 s at the limit of 50 million cells; the limit is the place to
-      change that).
+      change that, and A81 did: under a second since).
     - *Variables of a run* are in the editor's results and in no file, so a formula
       that reads one is indexed by its number while the document is open and by `#N/A`
       after it was saved and scanned, as it shows in each case.
@@ -1066,8 +1191,22 @@ Numbers 44 to 49 are not used.
     link targets and linked cells' texts of every document of the workspace, ignoring
     case, accents and width (A72) unless the word says `case:`.
 
+Numbers 66 to 69 are not used. 70 to 79 are from the review of milestones 4 and 5.
+
+70. **Tags go with cells to another document** (A88). TreeSheets keeps tags per document
+    and has no rule for pasting between documents: a pasted cell is a tag only if the
+    document it arrives in has a tag of its text. Wombat adds the tags that the copied or
+    moved cells have to the other document, with their colours, if it has none of that
+    name, so that a tagged cell stays tagged.
+71. **Limits on calculating, tightened** (A80 to A82; changes B52 and B53). A text that a
+    formula makes is at most 1 MiB; one recalculation is at most 2,000,000 units of work,
+    of which every formula takes at least 6, so a document cannot have more than about
+    330,000 formula cells that are worked out; a run holds at most twice a
+    document in views and variables. TreeSheets has none of these and would run out of
+    memory or time.
+
 80. **Exported CSV is made for spreadsheets, not for TreeSheets' bytes** (milestone 7;
-    numbers B66 to B79 are not used here). TreeSheets quotes every field, ends rows with
+    numbers B66 to B69 are not used; B70 to B79 are from the review of milestones 4 and 5). TreeSheets quotes every field, ends rows with
     the system's line end, writes no byte-order mark and exports text as it is. Wombat by
     default quotes where needed, writes CR LF and the mark (A97), and guards text that a
     spreadsheet would run (A98). `--treesheets` gives the bytes TreeSheets writes on

@@ -3,12 +3,10 @@
 //! An [`Editor`] edits one document, so a move between documents is two changes: one in
 //! each document's history. [`move_between`] makes both, or neither.
 
-use std::collections::HashSet;
-
 use crate::edit::{Changes, Clip, Command, Editor};
 use crate::error::{refused, Error};
-use crate::id::{CellId, DocId, IdSource};
-use crate::model::{Document, LinkTarget};
+use crate::id::{CellId, IdSource};
+use crate::model::Document;
 
 /// Makes the cell `to` of the document in `target` a copy of the cell `cell` of `source`
 /// with everything inside it ([`Command::PasteCells`]). The copies inside get new IDs;
@@ -21,8 +19,61 @@ pub fn copy_between(
     to: CellId,
     ids: &mut dyn IdSource,
 ) -> Result<Changes, Error> {
-    let clip = Clip::of(source, cell)?;
-    target.apply(Command::PasteCells { to, clip }, None, ids)
+    paste_clip(source, Clip::of(source, cell)?, target, to, ids)
+}
+
+/// As [`copy_between`] with the clip already taken from `source`, for a caller that had to
+/// change it first: [`crate::storage::carry_images`] gives images other file names where
+/// the target's image folder has other files of the same name. The tags that the copied
+/// cells have in `source` and that `target` lacks are added to it, in the same unit of
+/// its history (decision B70).
+pub fn paste_clip(
+    source: &Document,
+    clip: Clip,
+    target: &mut Editor,
+    to: CellId,
+    ids: &mut dyn IdSource,
+) -> Result<Changes, Error> {
+    if clip.source() != source.id() {
+        return refused("the cells were not taken from that document");
+    }
+    let mut commands = tags_for(source, &clip, target.document());
+    let paste = Command::PasteCells { to, clip };
+    if commands.is_empty() {
+        return target.apply(paste, None, ids);
+    }
+    if target.in_group() {
+        // Part of the caller's unit, which reports the tags when it ends.
+        for command in commands {
+            target.apply(command, None, ids)?;
+        }
+        return target.apply(paste, None, ids);
+    }
+    commands.push(paste);
+    apply_all(target, commands, None, ids)
+}
+
+/// The commands that give `target` the tags that cells of `clip` have in `source` and that
+/// it does not have. A tag that it has keeps its colours.
+fn tags_for(source: &Document, clip: &Clip, target: &Document) -> Vec<Command> {
+    if source.id() == target.id() {
+        return Vec::new();
+    }
+    let mut names: Vec<&str> = clip
+        .texts()
+        .filter(|text| source.tags().contains_key(*text) && !target.tags().contains_key(*text))
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    let tag = |name: &str| {
+        let tag = source.tags().get(name)?;
+        Some(Command::SetTag {
+            name: name.to_string(),
+            cell_color: tag.cell_color,
+            text_color: tag.text_color,
+        })
+    };
+    names.into_iter().filter_map(tag).collect()
 }
 
 /// What [`move_between`] changed in each of the two documents.
@@ -32,38 +83,6 @@ pub struct Moved {
     pub source: Changes,
     /// What changed in the document the cells arrived in.
     pub target: Changes,
-}
-
-/// The commands that make the links of `doc` to any of `cells`, which name the document
-/// `from` (`None`: no document, the cells were its own), name the document `to` instead.
-/// Reads the whole document.
-fn retarget(
-    doc: &Document,
-    cells: &HashSet<CellId>,
-    from: Option<DocId>,
-    to: DocId,
-) -> Vec<Command> {
-    let mut out = Vec::new();
-    for id in doc.cells_in_order() {
-        let Some(found) = doc.cell(id) else { continue };
-        for link in &found.links {
-            match link.target {
-                LinkTarget::Cell { doc: named, cell } if named == from && cells.contains(&cell) => {
-                    out.push(Command::SetLink {
-                        cell: id,
-                        start: link.start,
-                        len: link.len,
-                        target: Some(LinkTarget::Cell {
-                            doc: Some(to),
-                            cell,
-                        }),
-                    });
-                }
-                _ => {}
-            }
-        }
-    }
-    out
 }
 
 /// Applies commands as one group; on an error the group is taken back.
@@ -130,8 +149,9 @@ fn take_back(editor: &mut Editor) -> Result<(), Error> {
 /// with both documents as they were (what `target` could redo before is forgotten).
 ///
 /// Refused if the documents are the same (use [`Command::MoveCell`]), if `cell` is the
-/// root, if `to` is not empty, if an ID of the moved cells is in use in `target` or its
-/// history, or while a group is open in either editor. Reads both documents whole once,
+/// root, if `to` is not empty, if an ID of the moved cells is in use in `target`, or while
+/// a group is open in either editor. Cells can move back to a document they left, also
+/// while its history still holds them (decision A84). Reads both documents whole once,
 /// to find the links to correct.
 pub fn move_between(
     source: &mut Editor,
@@ -141,6 +161,25 @@ pub fn move_between(
     now: Option<i64>,
     ids: &mut dyn IdSource,
 ) -> Result<Moved, Error> {
+    let clip = Clip::of(source.document(), cell)?;
+    move_clip(source, clip, target, to, now, ids)
+}
+
+/// As [`move_between`] with the clip already taken from the document in `source`, for a
+/// caller that had to change the names of image files in it first (see [`paste_clip`]).
+/// Refused if the clip is anything else than its top cell as `source` has it now. The
+/// tags that the moved cells have in `source` and that `target` lacks are added to it.
+pub fn move_clip(
+    source: &mut Editor,
+    clip: Clip,
+    target: &mut Editor,
+    to: CellId,
+    now: Option<i64>,
+    ids: &mut dyn IdSource,
+) -> Result<Moved, Error> {
+    let Some(cell) = clip.top() else {
+        return refused("nothing to move");
+    };
     let (from_doc, to_doc) = (source.document().id(), target.document().id());
     if from_doc == to_doc {
         return refused("both are the same document; move cells within it with MoveCell");
@@ -151,17 +190,35 @@ pub fn move_between(
     if cell == source.document().root() {
         return refused("the root cell cannot leave its document");
     }
-    let clip = Clip::of(source.document(), cell)?;
-    let moved: HashSet<CellId> = clip.cell_ids().collect();
+    if !clip.is_of(source.document(), cell) {
+        return refused("the cells to move are not as the document has them");
+    }
+    let moved: Vec<CellId> = clip.cell_ids().collect();
 
     // The links of the target are corrected first: afterwards the moved cells' own links
-    // would be found among them.
-    let mut commands = retarget(target.document(), &moved, Some(from_doc), to_doc);
-    commands.push(Command::AdoptCells { to, clip });
+    // would be found among them. In place, so that a link keeps its range, its unknown
+    // fields and its neighbours (decision A85).
+    let mut commands = tags_for(source.document(), &clip, target.document());
+    commands.extend([
+        Command::RetargetLinks {
+            cells: moved.clone(),
+            from: Some(from_doc),
+            to: Some(to_doc),
+        },
+        Command::AdoptCells { to, clip },
+    ]);
     let arrived = apply_all(target, commands, now, ids)?;
 
-    let mut commands = vec![Command::ReleaseCell { cell }];
-    commands.extend(retarget_after_release(source.document(), &moved, to_doc));
+    // In the source the release comes first: the links of the cells that leave are gone
+    // by then, and only those of the cells that stay are corrected.
+    let commands = vec![
+        Command::ReleaseCell { cell },
+        Command::RetargetLinks {
+            cells: moved,
+            from: None,
+            to: Some(to_doc),
+        },
+    ];
     match apply_all(source, commands, now, ids) {
         Ok(left) => Ok(Moved {
             source: left,
@@ -172,15 +229,4 @@ pub fn move_between(
             Err(error)
         }
     }
-}
-
-/// As [`retarget`] for the document the cells leave, without the links of the cells that
-/// leave (the release comes first in the group, and they are gone by then).
-fn retarget_after_release(doc: &Document, moved: &HashSet<CellId>, to: DocId) -> Vec<Command> {
-    let mut commands = retarget(doc, moved, None, to);
-    commands.retain(|command| match command {
-        Command::SetLink { cell, .. } => !moved.contains(cell),
-        _ => true,
-    });
-    commands
 }

@@ -86,6 +86,25 @@ impl ViewState {
         }
     }
 
+    /// After cells moved from the document of `source` into this one's, keeping their IDs
+    /// ([`crate::links::move_between`]): the folds of the cells `moved` go with them, from
+    /// `source` to here. A copy does not take folds along: its cells are new ones
+    /// (decision A88). Returns how many folds moved.
+    pub fn take_folds(
+        &mut self,
+        source: &mut ViewState,
+        moved: impl IntoIterator<Item = CellId>,
+    ) -> usize {
+        let mut count = 0usize;
+        for cell in moved {
+            if source.folded.remove(&cell) {
+                self.folded.insert(cell);
+                count = count.saturating_add(1);
+            }
+        }
+        count
+    }
+
     /// Forgets everything that refers to a cell that is not in `doc`.
     pub fn retain_existing(&mut self, doc: &Document) {
         self.folded.retain(|id| doc.cell(*id).is_some());

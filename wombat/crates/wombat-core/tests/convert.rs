@@ -108,6 +108,145 @@ fn a_grid_exports_as_one_line_per_row_with_only_the_text_of_cells_that_have_grid
     );
 }
 
+/// Where the milestones meet: Flatten and Hierarchify go by what formula cells show (A83,
+/// since the review of milestone 5), and so does the flattened export (A96), so the
+/// export of an outline, of the table that Flatten makes of it, and of the outline that
+/// Hierarchify makes of that table are the same lines.
+#[test]
+fn the_flattened_export_and_the_commands_agree_on_what_formula_cells_show() {
+    let with_grid = |text: &str, cells: Vec<_>| convert_support::Spec {
+        formula: true,
+        ..grid(text, 1, cells)
+    };
+    let doc = build(
+        &grid(
+            "",
+            1,
+            vec![
+                with_grid("=1+2", vec![cell("x"), formula("=2*5")]),
+                grid("3", 1, vec![formula("='a' & 'b'")]),
+                formula("=7*1"),
+            ],
+        ),
+        1,
+    );
+    let root = doc.root();
+    let shown = "3,x\n3,10\n3,ab\n7,\n";
+    let flat =
+        |doc: &Document, options: &ExportOptions| export(doc, |s| flat_csv(s, doc.root(), options));
+    assert_eq!(flat(&doc, &plain()), shown);
+    // Only the option `formulas` shows the formulas, and only the export has it.
+    let formulas = ExportOptions {
+        formulas: true,
+        ..plain()
+    };
+    assert_eq!(
+        flat(&doc, &formulas),
+        "=1+2,x\n=1+2,=2*5\n3,='a' & 'b'\n=7*1,\n"
+    );
+
+    let mut ids = SeededIds::from_u64(2);
+    let mut editor = Editor::new(doc).unwrap();
+    editor
+        .apply(Command::Flatten { cell: root }, None, &mut ids)
+        .unwrap();
+    let table = editor.document().clone();
+    assert_eq!(export(&table, |s| grid_csv(s, root, &plain())), shown);
+    // The table holds the results as data, so nothing differs with the option.
+    assert_eq!(export(&table, |s| grid_csv(s, root, &formulas)), shown);
+
+    // Back to an outline: the rows of "=1+2" and of "3" showed the same, so they are one.
+    editor
+        .apply(Command::Hierarchify { cell: root }, None, &mut ids)
+        .unwrap();
+    assert_eq!(flat(editor.document(), &plain()), shown);
+
+    // Hierarchify on formula cells themselves groups by what they show, as the export
+    // of the table shows them.
+    let doc = build(
+        &grid(
+            "",
+            2,
+            vec![
+                formula("=1+2"),
+                cell("x"),
+                cell("3"),
+                formula("=2*5"),
+                formula("=7*1"),
+                cell("z"),
+            ],
+        ),
+        1,
+    );
+    let root = doc.root();
+    let rows = export(&doc, |s| grid_csv(s, root, &plain()));
+    assert_eq!(rows, "3,x\n3,10\n7,z\n");
+    let mut editor = Editor::new(doc).unwrap();
+    editor
+        .apply(Command::Hierarchify { cell: root }, None, &mut ids)
+        .unwrap();
+    assert_eq!(flat(editor.document(), &plain()), rows);
+    let top = editor.document().cell(root).unwrap().grid().unwrap();
+    assert_eq!((top.xs(), top.ys()), (1, 2));
+}
+
+/// Where the milestones meet: a formula over the limits on calculating (A80, A81, from
+/// the review of milestone 5) exports as the `#LIMIT!` that it shows, in every layout, the
+/// guard leaves that alone, and the document is exported in no time.
+#[test]
+fn a_formula_over_the_limits_exports_as_the_error_it_shows() {
+    // A text that would be 32^8 characters long.
+    let mut bomb = String::from("'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'");
+    for _ in 0..7 {
+        bomb = format!("SUBSTITUTE({bomb},'a','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')");
+    }
+    let bomb = format!("=LEN({bomb})");
+    let doc = build(
+        &grid(
+            "",
+            2,
+            vec![cell("big"), formula(&bomb), cell("small"), formula("=1+2")],
+        ),
+        1,
+    );
+    let root = doc.root();
+    let started = std::time::Instant::now();
+    let calc = Calc::new(&doc);
+    let shown = calc.shown(&doc, doc.child(root, 1, 0).unwrap()).unwrap();
+    assert_eq!(shown, "#LIMIT!");
+    assert!(!is_risky(shown));
+    let guarded = ExportOptions {
+        guard: true,
+        ..plain()
+    };
+    let table = "big,#LIMIT!\nsmall,3\n";
+    assert_eq!(
+        grid_csv(source(&doc, &calc), root, &guarded).unwrap(),
+        table
+    );
+    assert_eq!(
+        flat_csv(source(&doc, &calc), root, &guarded).unwrap(),
+        table
+    );
+    assert_eq!(
+        outline(source(&doc, &calc), root, false, false).unwrap(),
+        "  big\n  #LIMIT!\n  small\n  3\n"
+    );
+    let files = lookup::export(
+        source(&doc, &calc),
+        root,
+        &guarded,
+        LookupOptions::default(),
+    )
+    .unwrap();
+    assert!(files.iter().any(|f| f.text.contains(",#LIMIT!")));
+    assert!(started.elapsed() < std::time::Duration::from_secs(2));
+    // It comes back as that text, not as a formula.
+    let back = parse_table(table, Delimiter::Comma, true).unwrap();
+    assert_eq!(rows(&back)[0], ["big", "#LIMIT!"]);
+    assert!(back.cells().iter().all(|entry| !entry.is_formula()));
+}
+
 #[test]
 fn fields_are_quoted_only_where_delimited_text_needs_it() {
     let doc = build(
@@ -1471,12 +1610,14 @@ proptest! {
     }
 
     /// Where every grid has one column, the flattened export is the table that the
-    /// Flatten command makes (which was compared with the real TreeSheets in 3b).
+    /// Flatten command makes (which was compared with the real TreeSheets in 3b). Both go
+    /// by what formula cells show (A83, A96): the command since the review of milestone
+    /// 5, before which this test compared the formulas themselves.
     #[test]
     fn flattening_an_outline_is_what_the_flatten_command_makes(spec in spec(1)) {
         let doc = build(&spec, 3);
         let calc = Calc::new(&doc);
-        let options = ExportOptions { formulas: true, ..plain() };
+        let options = plain();
         let text = flat_csv(source(&doc, &calc), doc.root(), &options).unwrap();
         let mut editor = Editor::new(doc.clone()).unwrap();
         let root = doc.root();

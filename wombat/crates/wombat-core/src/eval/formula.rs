@@ -10,13 +10,23 @@
 //! The first thing that goes wrong decides the error, and reading carries on after it, as
 //! in TreeSheets, so every name in the formula is looked at whatever came before.
 
-use super::num::{is_name_char, is_space, lower, num_text, strict_num, trim, trim_end, upper};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use super::num::{
+    is_letter, is_name_char, is_space, lower, num_text, strict_num, trim, trim_end, upper,
+};
 
 /// Deepest nesting of parentheses and function calls in one formula. TreeSheets has no
 /// limit and would run out of stack instead (decision B52).
 pub const MAX_NESTING: u32 = 64;
 /// Longest formula that is worked out, in code points (decision B52).
 pub const MAX_FORMULA_LEN: usize = 4096;
+/// Longest text that a formula may make or pass on, in bytes: a sixteenth of the code
+/// points that the text of a cell may have (decision A80). Beyond it: `#LIMIT!`.
+pub const MAX_TEXT_BYTES: usize = crate::limits::MAX_TEXT_CODE_POINTS / 16;
+/// The bytes of text made that count as much work as one cell read (decision A80).
+const TEXT_BYTES_PER_WORK: u64 = 16;
 
 /// What a name or a `SUBSET()` gave: `FormulaEvaluator::Contents`.
 #[derive(Clone, Debug)]
@@ -28,6 +38,21 @@ pub(crate) struct Contents<N> {
     /// The last cell with other text, and how many there were.
     pub(crate) text: Option<N>,
     pub(crate) texts: u32,
+    /// The aggregates of the numbers that were asked for before, so that a table that many
+    /// formulas read is added up once.
+    done: RefCell<Vec<(&'static str, f64)>>,
+}
+
+impl<N> Contents<N> {
+    /// The aggregate `f`, called `name`, of the numbers.
+    fn aggregate(&self, name: &'static str, f: Aggregate) -> f64 {
+        if let Some((_, d)) = self.done.borrow().iter().find(|(n, _)| *n == name) {
+            return *d;
+        }
+        let d = f(&self.numbers);
+        self.done.borrow_mut().push((name, d));
+        d
+    }
 }
 
 impl<N> Default for Contents<N> {
@@ -37,6 +62,7 @@ impl<N> Default for Contents<N> {
             number: None,
             text: None,
             texts: 0,
+            done: RefCell::new(Vec::new()),
         }
     }
 }
@@ -70,32 +96,31 @@ pub(crate) trait Env {
         sub: bool,
         into: &mut Contents<Self::Node>,
     ) -> Check;
-    /// Adds the contents of the cells of the grid of `node` (`Collect` for a grid).
-    fn collect_grid(
-        &mut self,
-        node: Self::Node,
-        tree: bool,
-        into: &mut Contents<Self::Node>,
-    ) -> Check;
+    /// The contents of the cells of the grid of `node` (`Collect` for a grid). Shared, not
+    /// copied: many formulas read the same tables.
+    fn collect_grid(&mut self, node: Self::Node, tree: bool) -> Collected<Self::Node>;
     /// Notes that the formula read the cells of the grid of `node`.
     fn read_grid(&mut self, node: Self::Node);
     /// The text a cell shows.
-    fn text(&self, node: Self::Node) -> String;
+    fn text(&self, node: Self::Node) -> &str;
     /// Whether the evaluation has to stop and wait for other formulas.
     fn waiting(&self) -> bool;
     /// The work done so far, for the memory of finished calls.
     fn work(&self) -> u64;
-    /// Adds work that a remembered call stands for.
-    fn add_work(&mut self, work: u64);
+    /// Adds work: what a remembered call stands for, or a text about to be made. False if
+    /// the work allowed is used up.
+    fn add_work(&mut self, work: u64) -> bool;
 }
+
+/// What a call into the [`Env`] gave: the contents, shared, or an error value.
+pub(crate) type Collected<N> = Result<Rc<Contents<N>>, String>;
 
 /// A call into the [`Env`] that was finished in an earlier attempt at the same formula, so
 /// that an attempt after waiting does not repeat it.
 #[derive(Clone, Debug)]
 pub(crate) struct Memo<N> {
     end: usize,
-    contents: Contents<N>,
-    error: Option<String>,
+    result: Collected<N>,
     work: u64,
 }
 
@@ -238,6 +263,8 @@ struct Parser<'a, E: Env> {
     depth: u32,
     memo: &'a mut Vec<Memo<E::Node>>,
     calls: usize,
+    /// The work that the texts made so far in this attempt stand for.
+    text_work: u64,
 }
 
 /// A range of columns, rows or levels, both ends included.
@@ -288,14 +315,36 @@ impl<E: Env> Parser<'_, E> {
         }
     }
 
-    fn str(&mut self, v: &Val) -> String {
+    fn str(&mut self, v: Val) -> String {
         if !v.text && !v.d.is_finite() {
             self.fail("#NUM!");
         }
         if v.text || !v.t.is_empty() {
-            v.t.clone()
+            v.t
         } else {
             num_text(v.d)
+        }
+    }
+
+    /// Whether a text of `bytes` bytes may be made: not if it is longer than a text may
+    /// be, or if the work of this recalculation is used up. Asked before the text is made,
+    /// so that nothing larger is ever allocated (decision A80).
+    fn room(&mut self, bytes: usize) -> bool {
+        let work = (bytes as u64 / TEXT_BYTES_PER_WORK).saturating_add(1);
+        if bytes > MAX_TEXT_BYTES || !self.env.add_work(work) {
+            self.fail("#LIMIT!");
+            return false;
+        }
+        self.text_work = self.text_work.saturating_add(work);
+        true
+    }
+
+    /// A text that was made from texts already counted and is no longer than they were.
+    fn made(&mut self, t: String) -> Val {
+        if self.room(t.len()) {
+            Val::text(t)
+        } else {
+            Val::num(0.0)
         }
     }
 
@@ -308,9 +357,15 @@ impl<E: Env> Parser<'_, E> {
     fn concat(&mut self) -> Result<Val, Wait> {
         let mut v = self.expr()?;
         while self.eat('&') {
-            let left = self.str(&v);
+            let mut left = self.str(v);
             let right = self.expr()?;
-            v = Val::text(left + &self.str(&right));
+            let right = self.str(right);
+            v = if self.room(left.len().saturating_add(right.len())) {
+                left.push_str(&right);
+                Val::text(left)
+            } else {
+                Val::num(0.0)
+            };
         }
         Ok(v)
     }
@@ -443,8 +498,8 @@ impl<E: Env> Parser<'_, E> {
         }
         let function: String = name.chars().map(upper).collect();
         if is_subset(&function) {
-            let (contents, e) = self.subset(false, &function)?;
-            return Ok(self.one(e, &contents));
+            let contents = self.subset(false, &function)?;
+            return Ok(self.one(contents));
         }
         if let Some((_, args)) = TEXT_FUNCTIONS.iter().find(|(n, _)| *n == function) {
             return self.text_function(&function, *args);
@@ -453,12 +508,11 @@ impl<E: Env> Parser<'_, E> {
             Some(rest) => (true, rest),
             None => (false, function.as_str()),
         };
-        let Some(f) = aggregate(function) else {
+        let Some((name, f)) = FUNCTIONS.iter().find(|(n, _)| *n == function).copied() else {
             return Ok(self.fail_val("#NAME?"));
         };
-        let (contents, e) = self.argument(tree)?;
-        Ok(match e {
-            Ok(()) => Val::num(f(&contents.numbers)),
+        Ok(match self.argument(tree)? {
+            Ok(contents) => Val::num(contents.aggregate(name, f)),
             Err(e) => self.fail_val(&e),
         })
     }
@@ -474,7 +528,7 @@ impl<E: Env> Parser<'_, E> {
                 t.push('\'');
                 self.i = self.i.saturating_add(1);
             } else {
-                return Val::text(t);
+                return self.made(t);
             }
         }
         self.fail_val("#ERROR!")
@@ -492,41 +546,50 @@ impl<E: Env> Parser<'_, E> {
         if !self.eat(')') || a.len() != nargs {
             return Ok(self.fail_val("#ERROR!"));
         }
-        let arg = |n: usize| a.get(n).cloned().unwrap_or_else(|| Val::num(0.0));
-        let t = self.str(&arg(0));
-        let chars: Vec<char> = t.chars().collect();
-        let part = |from: usize, len: usize| -> String {
-            chars.iter().skip(from).take(len).collect::<String>()
-        };
+        let mut a = a.into_iter();
+        let mut arg = || a.next().unwrap_or_else(|| Val::num(0.0));
+        let (first, second, third) = (arg(), arg(), arg());
+        let t = self.str(first);
+        let part = |from: usize, len: usize| -> String { t.chars().skip(from).take(len).collect() };
         Ok(match function {
             #[allow(clippy::cast_precision_loss)]
-            "LEN" => Val::num(chars.len() as f64),
-            "UPPER" => Val::text(chars.iter().copied().map(upper).collect()),
-            "LOWER" => Val::text(chars.iter().copied().map(lower).collect()),
-            "TRIM" => Val::text(trim(&t).to_string()),
+            "LEN" => Val::num(t.chars().count() as f64),
+            "UPPER" => self.made(t.chars().map(upper).collect()),
+            "LOWER" => self.made(t.chars().map(lower).collect()),
+            "TRIM" => self.made(trim(&t).to_string()),
             "LEFT" => {
-                let n = self.count(&arg(1));
-                Val::text(part(0, n))
+                let n = self.count(&second);
+                self.made(part(0, n))
             }
             "RIGHT" => {
-                let n = self.count(&arg(1));
-                Val::text(part(chars.len().saturating_sub(n), n))
+                let n = self.count(&second);
+                self.made(part(t.chars().count().saturating_sub(n), n))
             }
             "MID" => {
-                let start = self.count(&arg(1));
+                let start = self.count(&second);
                 if start < 1 {
                     return Ok(self.fail_val("#VALUE!"));
                 }
-                let n = self.count(&arg(2));
-                Val::text(part(start.saturating_sub(1), n))
+                let n = self.count(&third);
+                self.made(part(start.saturating_sub(1), n))
             }
             _ => {
-                let old = self.str(&arg(1));
+                let old = self.str(second);
                 if old.is_empty() {
                     Val::text(t)
                 } else {
-                    let new = self.str(&arg(2));
-                    Val::text(t.replace(&old, &new))
+                    let new = self.str(third);
+                    // How long the result will be, before it is made.
+                    let found = t.matches(old.as_str()).count();
+                    let len = t
+                        .len()
+                        .saturating_sub(found.saturating_mul(old.len()))
+                        .saturating_add(found.saturating_mul(new.len()));
+                    if self.room(len) {
+                        Val::text(t.replace(&old, &new))
+                    } else {
+                        Val::num(0.0)
+                    }
                 }
             }
         })
@@ -546,73 +609,76 @@ impl<E: Env> Parser<'_, E> {
     /// Runs one call into the environment, or takes its result from an earlier attempt.
     fn call(
         &mut self,
-        run: impl FnOnce(&mut Self, &mut Contents<E::Node>) -> Check,
-    ) -> Result<(Contents<E::Node>, Check), Wait> {
+        run: impl FnOnce(&mut Self) -> Collected<E::Node>,
+    ) -> Result<Collected<E::Node>, Wait> {
         let index = self.calls;
         self.calls = self.calls.saturating_add(1);
+        // If this call has to wait, the formula is read again from its start, and the texts
+        // made so far are made again: that is counted here, once, whether it happens or
+        // not, so that what a formula costs does not depend on who had to wait for whom.
+        let again = (self.i as u64 / TEXT_BYTES_PER_WORK).saturating_add(self.text_work);
+        self.env.add_work(again);
         if let Some(memo) = self.memo.get(index) {
             self.i = memo.end;
             self.env.add_work(memo.work);
-            let error = memo.error.clone().map_or(Ok(()), Err);
-            return Ok((memo.contents.clone(), error));
+            return Ok(memo.result.clone());
         }
         let before = self.env.work();
-        let mut contents = Contents::default();
-        let e = run(self, &mut contents);
+        let result = run(self);
         if self.env.waiting() {
             return Err(Wait);
         }
         self.memo.push(Memo {
             end: self.i,
-            contents: contents.clone(),
-            error: e.clone().err(),
+            result: result.clone(),
             work: self.env.work().saturating_sub(before),
         });
-        Ok((contents, e))
+        Ok(result)
     }
 
     /// The contents of the cell named `name`: of its grid, or its own if it has none
     /// (`FormulaEvaluator::Collect` by name).
-    fn collect_name(&mut self, name: &str, tree: bool) -> Result<(Contents<E::Node>, Check), Wait> {
-        self.call(|p, contents| {
+    fn collect_name(&mut self, name: &str, tree: bool) -> Result<Collected<E::Node>, Wait> {
+        self.call(|p| {
             let node = p.env.named(name)?;
             if p.env.size(node).is_some() {
-                p.env.collect_grid(node, tree, contents)
+                p.env.collect_grid(node, tree)
             } else {
-                p.env.collect(node, tree, false, contents)
+                let mut contents = Contents::default();
+                p.env.collect(node, tree, false, &mut contents)?;
+                Ok(Rc::new(contents))
             }
         })
     }
 
     fn one_named(&mut self, name: &str) -> Result<Val, Wait> {
-        let (contents, e) = self.collect_name(name, false)?;
-        Ok(self.one(e, &contents))
+        let contents = self.collect_name(name, false)?;
+        Ok(self.one(contents))
     }
 
     /// The contents of the parentheses of a function: the name of a grid, or a `SUBSET()`.
-    fn argument(&mut self, tree: bool) -> Result<(Contents<E::Node>, Check), Wait> {
+    fn argument(&mut self, tree: bool) -> Result<Collected<E::Node>, Wait> {
         self.space();
         let start = self.i;
-        while self.at(self.i).is_some_and(|c| c.is_ascii_alphabetic()) {
+        while self.at(self.i).is_some_and(is_letter) {
             self.i = self.i.saturating_add(1);
         }
         let function: String = self.mid(start, self.i).chars().map(upper).collect();
         if is_subset(&function) && self.eat('(') {
-            let (contents, e) = self.subset(tree, &function)?;
-            let e = e.and_then(|()| {
+            let contents = self.subset(tree, &function)?;
+            return Ok(contents.and_then(|contents| {
                 if self.eat(')') {
-                    Ok(())
+                    Ok(contents)
                 } else {
                     Err("#ERROR!".to_string())
                 }
-            });
-            return Ok((contents, e));
+            }));
         }
         self.i = start;
         let name = self.name(')');
         match name {
             Some(name) if self.eat(')') => self.collect_name(&name, tree),
-            _ => Ok((Contents::default(), Err("#ERROR!".to_string()))),
+            _ => Ok(Err("#ERROR!".to_string())),
         }
     }
 
@@ -632,34 +698,40 @@ impl<E: Env> Parser<'_, E> {
     }
 
     /// The one number of a name or `SUBSET()` on its own, or else its one text.
-    fn one(&mut self, e: Check, contents: &Contents<E::Node>) -> Val {
-        if let Err(e) = e {
-            return self.fail_val(&e);
+    fn one(&mut self, contents: Collected<E::Node>) -> Val {
+        let contents = match contents {
+            Ok(contents) => contents,
+            Err(e) => return self.fail_val(&e),
+        };
+        let (node, d) = match (contents.numbers.as_slice(), contents.number, contents.text) {
+            ([d], Some(node), _) => (node, Some(*d)),
+            ([], _, Some(node)) if contents.texts == 1 => (node, None),
+            _ => return self.fail_val("#VALUE!"),
+        };
+        if !self.room(self.env.text(node).len()) {
+            return Val::num(0.0);
         }
-        match (contents.numbers.as_slice(), contents.number, contents.text) {
-            ([d], Some(node), _) => Val {
-                d: *d,
-                t: self.env.text(node),
-                text: false,
-            },
-            ([], _, Some(node)) if contents.texts == 1 => Val::text(self.env.text(node)),
-            _ => self.fail_val("#VALUE!"),
+        let t = self.env.text(node).to_string();
+        match d {
+            Some(d) => Val { d, t, text: false },
+            None => Val::text(t),
         }
     }
 
     /// The rest of `SUBSET(name, columns, rows)` or `TREESUBSET(name, columns, rows,
     /// levels)`; with `tree` also what is inside the cells, which adds nothing to
     /// `TREESUBSET`.
-    fn subset(&mut self, tree: bool, function: &str) -> Result<(Contents<E::Node>, Check), Wait> {
+    fn subset(&mut self, tree: bool, function: &str) -> Result<Collected<E::Node>, Wait> {
         let function = function.to_string();
-        self.call(move |p, contents| {
+        self.call(move |p| {
             let mut cells = Vec::new();
             p.cells(&mut cells, &function, 0)?;
+            let mut contents = Contents::default();
             for (cell, sub) in cells {
                 p.env
-                    .collect(cell, tree && function != "TREESUBSET", sub, contents)?;
+                    .collect(cell, tree && function != "TREESUBSET", sub, &mut contents)?;
             }
-            Ok(())
+            Ok(Rc::new(contents))
         })
     }
 
@@ -675,7 +747,7 @@ impl<E: Env> Parser<'_, E> {
         let mut grids = Vec::new();
         self.space();
         let start = self.i;
-        while self.at(self.i).is_some_and(|c| c.is_ascii_alphabetic()) {
+        while self.at(self.i).is_some_and(is_letter) {
             self.i = self.i.saturating_add(1);
         }
         let inner: String = self.mid(start, self.i).chars().map(upper).collect();
@@ -835,6 +907,7 @@ pub(crate) fn evaluate<E: Env>(
         depth: 0,
         memo,
         calls: 0,
+        text_work: 0,
     };
     let v = p.concat()?;
     p.space();

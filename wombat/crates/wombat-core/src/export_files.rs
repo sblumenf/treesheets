@@ -12,13 +12,14 @@
 //!   are the user's own.)
 //! - **A file is complete or absent.** The bytes go to a temporary file that is created
 //!   new beside the target (anything at that name is removed first, never opened), which
-//!   is then renamed over the target. Renaming replaces a name; it does not follow a link
+//!   is then renamed over the target (`storage::write_own`, as for every other file at a
+//!   name where no link is followed). Renaming replaces a name; it does not follow a link
 //!   that might have appeared there meanwhile.
 //! - **Names in a folder are plain names.** A name with a path separator, `.`, `..` or
 //!   nothing in it is refused, whatever made it.
 
-use std::fs::{self, OpenOptions};
-use std::io::{ErrorKind, Write};
+use std::fs;
+use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 
 use crate::error::{invalid, Error};
@@ -46,37 +47,11 @@ fn is_link(path: &Path) -> Error {
     ))
 }
 
-/// Puts `bytes` at `path` by way of a new temporary file and a rename.
+/// Puts `bytes` at `path` by way of a new temporary file and a rename: the one way in
+/// which the storage layer writes a file at a name where no link is to be followed
+/// ([`crate::storage::write_own`], decision A87).
 fn replace(path: &Path, bytes: &[u8]) -> Result<(), Error> {
-    let Some(name) = path.file_name() else {
-        return invalid(format!("{} is not a file name", path.display()));
-    };
-    let mut temp_name = std::ffi::OsString::from(".");
-    temp_name.push(name);
-    temp_name.push(".tmp");
-    let temp = path.with_file_name(temp_name);
-    let mut created = false;
-    let written = (|| {
-        match fs::remove_file(&temp) {
-            Err(error) if error.kind() != ErrorKind::NotFound => return Err(error),
-            _ => {}
-        }
-        // `create_new` fails if anything is there, link or not, instead of following it.
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp)?;
-        created = true;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        fs::rename(&temp, path)
-    })();
-    written.map_err(|source| {
-        if created {
-            let _ = fs::remove_file(&temp);
-        }
-        io(path)(source)
-    })
+    crate::storage::write_own(path, bytes)
 }
 
 /// Writes one exported file. See the module documentation for what is refused.

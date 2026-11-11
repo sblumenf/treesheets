@@ -69,7 +69,11 @@ pub(super) fn enter_text(
     text: &str,
     now: Option<i64>,
 ) -> Result<(), Error> {
-    command::set_text(tx, id, text, now)?;
+    // The text as it is already (typed with the text commands, decision A65) keeps its
+    // styles and links, as in TreeSheets, where the end of typing changes only the kind.
+    if cell(tx.doc(), id)?.text != crate::text::clean(text) {
+        command::set_text(tx, id, text, now)?;
+    }
     let c = cell(tx.doc(), id)?;
     let kind = match c.kind {
         CellKind::Data | CellKind::Formula if is_formula_text(&c.text) => CellKind::Formula,
@@ -78,6 +82,10 @@ pub(super) fn enter_text(
     };
     if kind != c.kind {
         set(tx, id, Field::Kind(kind))?;
+    }
+    if kind == CellKind::Formula {
+        // What a formula cell shows is not the text that the ranges were for.
+        command::set_runs_links(tx, id, Some(Vec::new()), Some(Vec::new()))?;
     }
     Ok(())
 }
@@ -175,12 +183,20 @@ pub(super) fn run_program(tx: &mut Tx, now: Option<i64>, fresh: &mut Fresh) -> R
             .map(|(text, _)| text.to_string())
     };
     let doc = tx.doc();
-    let outcome = eval::run(doc, &shown).map_err(|_| {
-        Error::Limit(format!(
-            "the program nests values deeper than {} or takes more than {} steps",
-            eval::MAX_VALUE_DEPTH,
-            eval::MAX_RUN_WORK
-        ))
+    let outcome = eval::run(doc, &shown).map_err(|limit| {
+        Error::Limit(match limit {
+            eval::OverLimit::Work => format!(
+                "the program nests values deeper than {} or takes more than {} steps",
+                eval::MAX_VALUE_DEPTH,
+                eval::MAX_RUN_WORK
+            ),
+            eval::OverLimit::Held => format!(
+                "the views and variables of the program would hold more than {} cells or \
+                 {} bytes of text with the document",
+                eval::MAX_RUN_CELLS,
+                eval::MAX_RUN_TEXT
+            ),
+        })
     })?;
     // Everything is made from the document as it is, before any of it changes: a view can
     // show a copy of a cell that another view overwrites.

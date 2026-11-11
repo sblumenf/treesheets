@@ -1,0 +1,5 @@
+# Typed into cells with the keyboard: a text that starts with = makes a formula cell.
+type /1,4/1,1 "=1+1"
+type /1,4/2,1 "=SUM(sort) / 2"
+type /1,4/3,1 "plain"
+type /1,4/2,2 "=b1 & 1"

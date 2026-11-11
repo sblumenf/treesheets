@@ -8,7 +8,7 @@ use std::path::Path;
 use wombat_core::eval::Calc;
 use wombat_core::links::{self, Broken, LinkEntry, Resolved};
 use wombat_core::scan::{self, WorkspaceLinks};
-use wombat_core::{storage, CellId, DocId, Document, Editor, LinkTarget, Workspace};
+use wombat_core::{storage, CellId, DocId, Document, LinkTarget, Workspace};
 
 use crate::Failure;
 
@@ -328,23 +328,37 @@ pub fn transfer(
     let cell = find_cell(&source, cell).map_err(|e| Failure::Failed(format!("{from}: {e}")))?;
     let place = find_cell(&target, place).map_err(|e| Failure::Failed(format!("{to}: {e}")))?;
     let mut ids = crate::os_ids()?;
-    let mut target = Editor::new(target)?;
-    if !moving {
-        let changes = links::copy_between(&source, cell, &mut target, place, &mut ids)?;
-        storage::save_document(target.document(), to_path)?;
-        return Ok(format!(
+    // All of it is the library's: image files, tags, folds, and saving both or neither.
+    let done = storage::transfer_cell(from_path, cell, to_path, place, moving, &mut ids)?;
+    let copied = done.images.copied.len();
+    let mut out = if moving {
+        format!(
+            "moved {} cells from {from} to {to}; they keep their IDs, so links to them still \
+             lead to them\n",
+            done.cells
+        )
+    } else {
+        format!(
             "copied {} cells from {from} into {to}; the copies inside have new IDs\n",
-            changes.created.len().saturating_add(1)
+            done.cells
+        )
+    };
+    if copied > 0 || !done.images.reused.is_empty() {
+        out.push_str(&format!(
+            "{copied} image file{} copied into the image folder of {to}\n",
+            if copied == 1 { "" } else { "s" }
         ));
     }
-    let mut source = Editor::new(source)?;
-    let moved = links::move_between(&mut source, cell, &mut target, place, None, &mut ids)?;
-    // The target first: if the second save fails, the cells are in both files, not in none.
-    storage::save_document(target.document(), to_path)?;
-    storage::save_document(source.document(), from_path)?;
-    Ok(format!(
-        "moved {} cells from {from} to {to}; they keep their IDs, so links to them still \
-         lead to them\n",
-        moved.target.created.len()
-    ))
+    for (old, new) in &done.images.renamed {
+        out.push_str(&format!(
+            "the image {old} is called {new} there: {to} has another image called {old}\n"
+        ));
+    }
+    for name in &done.removed_images {
+        out.push_str(&format!(
+            "the image file {name} was removed from the image folder of {from}, where no \
+             cell shows it any more\n"
+        ));
+    }
+    Ok(out)
 }

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 430855eb93c24ca96e33dac491dc90abbda86fbc0cdba25ac0b385101fe0a4b4 # shrinks to spec = Spec { text: "", formula: false, note: "", grid: Some((1, [Spec { text: "", formula: false, note: "", grid: None }, Spec { text: "", formula: false, note: "", grid: None }, Spec { text: "=1+2", formula: true, note: "", grid: None }])) }

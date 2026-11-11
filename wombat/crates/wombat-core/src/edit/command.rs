@@ -415,7 +415,7 @@ pub(super) struct Fresh<'a> {
     ids: &'a mut dyn IdSource,
     given: HashSet<CellId>,
     /// The IDs of cells that are not in the document but that undo or redo can bring back.
-    held: &'a HashSet<CellId>,
+    held: &'a HashMap<CellId, u32>,
 }
 
 impl Fresh<'_> {
@@ -424,7 +424,7 @@ impl Fresh<'_> {
         if id.0 == doc.id().0 || doc.cell(id).is_some() || !self.given.insert(id) {
             return refused(format!("the ID source repeated the ID {id}"));
         }
-        if self.held.contains(&id) {
+        if self.held.contains_key(&id) {
             return refused(format!(
                 "the ID source gave the ID {id} of a cell that undo or redo can bring back"
             ));
@@ -1133,5 +1133,6 @@ pub(super) fn run(
         Command::AdoptCells { to, clip } => super::paste::adopt(tx, to, clip),
         Command::ReleaseCell { cell } => super::paste::release(tx, cell, now, &mut fresh),
         Command::Import { cell, table } => super::import::import(tx, cell, &table, now, &mut fresh),
+        Command::RetargetLinks { cells, from, to } => super::paste::retarget(tx, &cells, from, to),
     }
 }

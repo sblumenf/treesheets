@@ -10,6 +10,8 @@
     clippy::indexing_slicing
 )]
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use proptest::prelude::*;
 use wombat_core::eval::Calc;
 use wombat_core::links::{move_between, Resolved};
@@ -39,6 +41,10 @@ pub enum Act {
     /// Types a formula or a number into a cell, or runs the program (milestone 5): links
     /// and formulas have to hold together.
     Formula(usize, [u32; 3]),
+    /// Makes links of a document that name one document name another, in place (the
+    /// command `RetargetLinks`, with which moves and repairs correct links; here also
+    /// where nothing moved, so that the links end up wrong).
+    Retarget(usize, [u32; 3]),
 }
 
 pub fn act() -> impl Strategy<Value = Act> {
@@ -53,6 +59,7 @@ pub fn act() -> impl Strategy<Value = Act> {
         4 => (doc(), doc(), any::<[u32; 2]>()).prop_map(|(a, b, n)| Act::Move(a, b, n)),
         1 => doc().prop_map(Act::Repair),
         6 => (doc(), any::<[u32; 3]>()).prop_map(|(d, n)| Act::Formula(d, n)),
+        2 => (doc(), any::<[u32; 3]>()).prop_map(|(d, n)| Act::Retarget(d, n)),
     ]
 }
 
@@ -67,7 +74,11 @@ pub struct Stats {
     pub broken: usize,
     pub pastes: usize,
     pub moves: usize,
+    /// Links that led to the same cell after a copy or a move between documents as before.
+    pub kept: usize,
     pub repairs: usize,
+    /// `RetargetLinks` commands given directly that changed links.
+    pub retargets: usize,
     /// Formulas and numbers entered, and runs of the program.
     pub formulas: usize,
     /// The most formula cells that the documents held at one time.
@@ -83,7 +94,9 @@ impl Stats {
         self.broken += other.broken;
         self.pastes += other.pastes;
         self.moves += other.moves;
+        self.kept += other.kept;
         self.repairs += other.repairs;
+        self.retargets += other.retargets;
         self.formulas += other.formulas;
         self.formula_cells = self.formula_cells.max(other.formula_cells);
         self.links = self.links.max(other.links);
@@ -219,6 +232,123 @@ fn follow(index: &mut LinkIndex, hook: &mut dyn Hook, editor: &Editor, changes: 
     hook.changed(editor, changes);
 }
 
+/// What every link that leads to a cell leads to: by the document and cell that have the
+/// link and its range, the document and cell it resolves to, and whether that cell was
+/// found by its ID alone, in another document than the link says ("moved").
+type Meaning = BTreeMap<(DocId, CellId, u32, u32), (DocId, CellId, bool)>;
+
+fn meaning(index: &LinkIndex) -> Meaning {
+    let ids: Vec<DocId> = index.documents().map(|d| d.id()).collect();
+    let mut out = Meaning::new();
+    for id in ids {
+        for link in index.outgoing(id) {
+            if let Resolved::Cell { doc, cell, moved } = link.resolved {
+                out.insert(
+                    (id, link.cell, link.link.start, link.link.len),
+                    (doc, cell, moved),
+                );
+            }
+        }
+    }
+    out
+}
+
+/// In how many of the documents a cell with this ID is. More than one after a move that
+/// was undone on one side only: then where a link leads is another matter (decision A50).
+fn homes(editors: &[Editor], cell: CellId) -> usize {
+    editors
+        .iter()
+        .filter(|e| e.document().cell(cell).is_some())
+        .count()
+}
+
+/// After the cells `moved` went from the document `from` to `to`: every link that led to
+/// a cell before still leads to that cell, wherever link and cell are now; and a link of
+/// the two documents that named the right document before names the right one now (found
+/// in review of milestone 4: nothing checked that the links are corrected on a move).
+#[allow(clippy::too_many_arguments)]
+fn check_moved(
+    before: &Meaning,
+    homes_before: &dyn Fn(CellId) -> usize,
+    editors: &[Editor],
+    index: &LinkIndex,
+    (from, to): (DocId, DocId),
+    moved: &BTreeSet<CellId>,
+    stats: &mut Stats,
+    what: &str,
+) {
+    let after = meaning(index);
+    for ((source, cell, start, len), (doc, target, by_id)) in before {
+        if homes_before(*target) != 1 || homes(editors, *target) != 1 {
+            continue;
+        }
+        let went = |doc: DocId, cell: &CellId| {
+            if doc == from && moved.contains(cell) {
+                to
+            } else {
+                doc
+            }
+        };
+        let now = after.get(&(went(*source, cell), *cell, *start, *len));
+        let Some((now_doc, now_cell, now_by_id)) = now else {
+            panic!("a link no longer leads to a cell after {what}");
+        };
+        assert!(
+            (*now_doc, *now_cell) == (went(*doc, target), *target),
+            "a link leads to another cell after {what}"
+        );
+        if !by_id && (*source == from || *source == to) {
+            assert!(!now_by_id, "a link was not corrected by {what}");
+        }
+        stats.kept += 1;
+    }
+}
+
+/// After the cells of `clip` (from the document `from`) were pasted over `place` in the
+/// document `to`: a link in a copy leads where the link of the original led: to the copy
+/// of a cell that was copied with it, and else to the very same cell.
+#[allow(clippy::too_many_arguments)]
+fn check_pasted(
+    before: &Meaning,
+    homes_before: &dyn Fn(CellId) -> usize,
+    editors: &[Editor],
+    index: &LinkIndex,
+    (from, to): (DocId, DocId),
+    originals: &[CellId],
+    copies: &[CellId],
+    stats: &mut Stats,
+    what: &str,
+) {
+    assert_eq!(originals.len(), copies.len(), "{what}");
+    let copy_of: BTreeMap<CellId, CellId> = originals
+        .iter()
+        .copied()
+        .zip(copies.iter().copied())
+        .collect();
+    let after = meaning(index);
+    for ((source, cell, start, len), (doc, target, by_id)) in before {
+        let Some(copy) = copy_of.get(cell).filter(|_| *source == from) else {
+            continue;
+        };
+        // A link that found its cell by ID alone keeps saying what it said.
+        if *by_id || homes_before(*target) != 1 {
+            continue;
+        }
+        let want = match copy_of.get(target).filter(|_| *doc == from) {
+            Some(copied) => (to, *copied),
+            // The cell it led to may be among those that the paste replaced.
+            None if homes(editors, *target) != 1 => continue,
+            None => (*doc, *target),
+        };
+        let now = after.get(&(to, *copy, *start, *len));
+        assert!(
+            now == Some(&(want.0, want.1, false)),
+            "the copy of a link leads elsewhere after {what}: {now:?}, not {want:?}"
+        );
+        stats.kept += 1;
+    }
+}
+
 /// Runs the steps on the documents, with every check after each. At the end everything is
 /// undone, and the index must have followed that too.
 pub fn run(docs: Vec<Document>, acts: &[Act]) -> Stats {
@@ -335,14 +465,59 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                 let Some(place) = pick(editors[to].document(), n[1], not_root) else {
                     continue;
                 };
+                let originals: Vec<CellId> = clip.cell_ids().collect();
+                let from_id = source.id();
                 let paste = Command::PasteCells { to: place, clip };
                 let before = editors[to].document().clone();
+                let (links, held_before, old) = (meaning(&index), held(&index), index.clone());
+                let all_before: Vec<Editor> = editors.clone();
                 if let Ok(changes) = editors[to].apply(paste, None, &mut ids) {
                     // As for every command: an exact report, and a size bound that holds.
                     support::check_report(&before, editors[to].document(), &changes, &what);
                     support::check_bound(&editors[to], &what);
                     follow(&mut index, hook, &editors[to], &changes);
                     stats.pastes += usize::from(!changes.is_empty());
+                    if changes.is_empty() {
+                        continue;
+                    }
+                    // The links: those of the copies, and everybody else's.
+                    let doc = editors[to].document();
+                    let mut copies = vec![place];
+                    let inside = |c: &CellId| {
+                        let mut at = doc.cell(*c).and_then(|c| c.parent());
+                        while let Some(up) = at {
+                            if up == place {
+                                return true;
+                            }
+                            at = doc.cell(up).and_then(|c| c.parent());
+                        }
+                        false
+                    };
+                    copies.extend(doc.cells_in_order().into_iter().filter(inside));
+                    let to_id = doc.id();
+                    check_pasted(
+                        &links,
+                        &|cell| homes(&all_before, cell),
+                        &editors,
+                        &index,
+                        (from_id, to_id),
+                        &originals,
+                        &copies,
+                        &mut stats,
+                        &what,
+                    );
+                    let mut ignored = Stats::default();
+                    let seen = (&held_before, &editors[..], &index);
+                    check_survival(seen.0, seen.1, seen.2, to_id, &changes, &mut ignored, &what);
+                    // Undo and redo give the links before and after, exactly.
+                    let new = index.clone();
+                    let back = editors[to].undo().unwrap().unwrap();
+                    follow(&mut index, hook, &editors[to], &back);
+                    assert!(index == old, "undo of {what}");
+                    assert!(*editors[to].document() == before, "undo of {what}");
+                    let again = editors[to].redo().unwrap().unwrap();
+                    follow(&mut index, hook, &editors[to], &again);
+                    assert!(index == new, "redo of {what}");
                 }
             }
             Act::Move(from, to, n) => {
@@ -364,6 +539,14 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                     continue;
                 };
                 let before = (editors[from].clone(), editors[to].clone());
+                let (links, old) = (meaning(&index), index.clone());
+                let all_before: Vec<Editor> = editors.clone();
+                let moving: BTreeSet<CellId> = Clip::of(editors[from].document(), cell)
+                    .unwrap()
+                    .cell_ids()
+                    .collect();
+                let (from_id, to_id) = (editors[from].document().id(), editors[to].document().id());
+                let mut done = false;
                 let (source, target) = if from < to {
                     let (a, b) = editors.split_at_mut(to);
                     (&mut a[from], &mut b[0])
@@ -384,6 +567,7 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                         assert!(source.document().cell(cell).is_none());
                         assert!(target.document().cell(cell).is_some());
                         stats.moves += 1;
+                        done = true;
                     }
                     Err(_) => {
                         assert!(*source.document() == *before.0.document(), "{what}");
@@ -391,6 +575,39 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                         assert_eq!(source.undo_len(), before.0.undo_len());
                         assert_eq!(target.undo_len(), before.1.undo_len());
                     }
+                }
+                if done {
+                    check_moved(
+                        &links,
+                        &|cell| homes(&all_before, cell),
+                        &editors,
+                        &index,
+                        (from_id, to_id),
+                        &moving,
+                        &mut stats,
+                        &what,
+                    );
+                    // Undone in both documents, in either order, everything is as it was,
+                    // the links too; and redone, as after the move.
+                    let new = index.clone();
+                    let order = if n[0] % 2 == 0 {
+                        [from, to]
+                    } else {
+                        [to, from]
+                    };
+                    for d in order {
+                        let back = editors[d].undo().unwrap().unwrap();
+                        follow(&mut index, hook, &editors[d], &back);
+                        editors[d].document().validate().unwrap();
+                    }
+                    assert!(index == old, "undo of {what}");
+                    assert!(*editors[from].document() == *before.0.document(), "{what}");
+                    assert!(*editors[to].document() == *before.1.document(), "{what}");
+                    for d in order {
+                        let again = editors[d].redo().unwrap().unwrap();
+                        follow(&mut index, hook, &editors[d], &again);
+                    }
+                    assert!(index == new, "redo of {what}");
                 }
             }
             Act::Formula(d, n) => {
@@ -425,6 +642,36 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                     follow(&mut index, hook, &editors[d], &changes);
                     stats.formulas += 1;
                 }
+            }
+            Act::Retarget(d, n) => {
+                let d = d % count;
+                let doc = editors[d].document();
+                // The cells that links of this document lead to, by the document named.
+                let mut named: BTreeMap<Option<DocId>, Vec<CellId>> = BTreeMap::new();
+                for id in doc.cells_in_order() {
+                    for link in &doc.cell(id).unwrap().links {
+                        if let LinkTarget::Cell { doc, cell } = &link.target {
+                            named.entry(*doc).or_default().push(*cell);
+                        }
+                    }
+                }
+                let Some((from, cells)) = named.into_iter().nth(n[0] as usize % 3) else {
+                    continue;
+                };
+                // All of them, or every other one.
+                let cells: Vec<CellId> = cells.into_iter().step_by(1 + n[1] as usize % 2).collect();
+                let to = match n[2] as usize % (count + 2) {
+                    0 => None,
+                    1 => Some(DocId(Id::from_u128(u128::from(n[2])))),
+                    other => Some(editors[other - 2].document().id()),
+                };
+                let before = doc.clone();
+                let command = Command::RetargetLinks { cells, from, to };
+                let changes = editors[d].apply(command, None, &mut ids).unwrap();
+                support::check_report(&before, editors[d].document(), &changes, &what);
+                support::check_bound(&editors[d], &what);
+                follow(&mut index, hook, &editors[d], &changes);
+                stats.retargets += usize::from(!changes.is_empty());
             }
             Act::Repair(d) => {
                 let d = d % count;

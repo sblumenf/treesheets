@@ -817,7 +817,10 @@ pub fn check_report(before: &Document, after: &Document, changes: &Changes, what
 /// Checks what must hold for every document a command leaves behind: it is valid (which
 /// covers runs and links being sorted, apart and inside the text, and no control characters)
 /// and it saves and loads back equal. With `whole_clusters`, also that every text is still
-/// made of whole characters from [`CLUSTERS`].
+/// made of whole characters from [`CLUSTERS`], or of the characters of the error values
+/// that a formula cell can show (`#NAME?` and the like, all capitals and signs, none of
+/// them part of a longer character): flatten, collapse and hierarchy swap put what a
+/// formula cell shows into the text of a data cell (decision A83).
 pub fn check_document(doc: &Document, whole_clusters: bool) {
     doc.validate().unwrap();
     if whole_clusters {
@@ -825,7 +828,8 @@ pub fn check_document(doc: &Document, whole_clusters: bool) {
             let text = &doc.cell(id).unwrap().text;
             for cluster in text.graphemes(true) {
                 assert!(
-                    CLUSTERS.contains(&cluster),
+                    CLUSTERS.contains(&cluster)
+                        || (cluster.len() == 1 && "#NAME?VLU!DI/0ROCYT".contains(cluster)),
                     "{text:?} has the piece {cluster:?}"
                 );
             }

@@ -1,0 +1,9 @@
+# Views of a cell with a to-do box, of a cell with an image, of a cell with a grid (b3), and of
+# what an operation made (5 inc), in a cell that was blue.
+lobster ts.goto_column_row(0, 5) ; ts.goto_column_row(2, 0) ; ts.set_cell_type(3)
+lobster ts.goto_column_row(0, 5) ; ts.goto_column_row(2, 1) ; ts.set_cell_type(3)
+lobster ts.goto_column_row(0, 3) ; ts.goto_column_row(2, 2) ; ts.set_cell_type(3)
+lobster ts.goto_column_row(0, 3) ; ts.goto_column_row(0, 1) ; ts.set_text("5")
+lobster ts.goto_column_row(0, 3) ; ts.goto_column_row(1, 1) ; ts.set_text("inc") ; ts.set_cell_type(1)
+lobster ts.goto_column_row(0, 3) ; ts.goto_column_row(2, 1) ; ts.set_cell_type(3)
+action run

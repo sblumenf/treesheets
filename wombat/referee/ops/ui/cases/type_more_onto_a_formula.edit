@@ -1,0 +1,7 @@
+enter /1,4/2,1 "=1+1"
+enter /1,4/2,1 "=1+1+5"
+enter /1,4/3,1 "=2"
+enter /1,4/3,1 "=2*Missing"
+# Typed at the end of a plain text: the text commands, and enter when the typing ends.
+insert /1,4/1,1 2 "=1"
+enter /1,4/1,1 "a1=1"

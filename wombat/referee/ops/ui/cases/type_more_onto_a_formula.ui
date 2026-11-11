@@ -1,0 +1,6 @@
+# F2 on a formula cell shows its formula; what is typed is added to it.
+type /1,4/2,1 "=1+1"
+retype /1,4/2,1 "+5"
+type /1,4/3,1 "=2"
+retype /1,4/3,1 "*Missing"
+retype /1,4/1,1 "=1"

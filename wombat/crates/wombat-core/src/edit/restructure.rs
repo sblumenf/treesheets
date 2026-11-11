@@ -385,7 +385,8 @@ impl Scratch {
 // ---- Hierarchify --------------------------------------------------------------------------
 
 /// TreeSheets' `Grid::Hierarchify`: turns a table (a grid none of whose cells has a grid)
-/// into a hierarchy. The rows are grouped by the text of their first cell: the first row
+/// into a hierarchy. The rows are grouped by what their first cell shows (its text; of a
+/// formula cell its result, as in TreeSheets, where that is its text): the first row
 /// with a text keeps its first cell, which gets a grid holding the rest of that row and of
 /// every later row that starts with the same text, one row each; the first cells of those
 /// later rows are dropped. The table is left with one column, and the same is done to
@@ -419,7 +420,8 @@ pub(super) fn hierarchify(tx: &mut Tx, id: CellId) -> Result<(), Error> {
             let Some((first, rest)) = row.split_first() else {
                 continue;
             };
-            let text = s.get(*first)?.text.clone();
+            // By what the cell shows: of a formula cell its result (decision A66).
+            let text = tx.shown(*first).to_string();
             match first_with.get(&text) {
                 Some(earlier) => {
                     if let Some(sub) = s.get_mut(*earlier)?.grid.as_mut() {
@@ -458,7 +460,8 @@ pub(super) fn hierarchify(tx: &mut Tx, id: CellId) -> Result<(), Error> {
 /// per cell inside it that has no grid (a leaf), in document order, and one column per
 /// level: the leaf stands in the column of its level, and to its left stand the cells it
 /// was inside of, outermost first. As in TreeSheets a cell of the table has only the text
-/// of the cell it comes from, with its styles, links, relative size, image and edit time;
+/// of the cell it comes from (of a formula cell what it shows, and so it is a data cell
+/// like the others), with its styles, links, relative size, image and edit time;
 /// colours, note, alignments and kind are not carried over, cells right of a leaf are
 /// empty, and the table has the default column widths, border and spacing.
 ///
@@ -522,9 +525,14 @@ pub(super) fn flatten(
                     let first_use = used.insert(*from);
                     let mut new =
                         Cell::new(if first_use { *from } else { fresh.next(doc)? }, Some(id));
-                    new.text.clone_from(&source.text);
-                    new.runs.clone_from(&source.runs);
-                    new.links.clone_from(&source.links);
+                    // A formula cell leaves what it shows, as a data cell (A66).
+                    if source.kind == CellKind::Formula {
+                        new.text = tx.shown(*from).to_string();
+                    } else {
+                        new.text.clone_from(&source.text);
+                        new.runs.clone_from(&source.runs);
+                        new.links.clone_from(&source.links);
+                    }
                     new.rel_size = source.rel_size;
                     new.style = source.style;
                     new.image.clone_from(&source.image);
@@ -581,6 +589,9 @@ struct Swap<'a, 'b> {
     fresh: &'a mut Fresh<'b>,
     /// Whether a grid that changed during the swap counts as a row (see [`Swap::shaped`]).
     rows: HashMap<CellId, bool>,
+    /// What the formula cells show: the swap goes by that, as TreeSheets does, where the
+    /// text of a formula cell is its result (decision A66).
+    results: HashMap<CellId, String>,
 }
 
 impl Swap<'_, '_> {
@@ -596,13 +607,22 @@ impl Swap<'_, '_> {
         *row
     }
 
-    /// The first cell with the text `tag` inside the grid of `owner`, in document order.
+    /// What a cell shows.
+    fn shown(&self, id: CellId) -> &str {
+        match self.s.cells.get(&id) {
+            Some(c) if c.kind == CellKind::Formula => self.results.get(&id).map_or("", |t| t),
+            Some(c) => &c.text,
+            None => "",
+        }
+    }
+
+    /// The first cell that shows `tag` inside the grid of `owner`, in document order.
     fn find_exact(&self, owner: CellId, tag: &str) -> Option<CellId> {
         let mut stack = self.s.kids(owner);
         stack.reverse();
         while let Some(id) = stack.pop() {
             let found = self.s.cells.get(&id)?;
-            if found.text == tag {
+            if self.shown(id) == tag {
                 return Some(id);
             }
             if let Some(g) = &found.grid {
@@ -720,9 +740,9 @@ impl Swap<'_, '_> {
     /// the other's grid in the same way (or the grid moves over, if the other has none).
     /// Otherwise `f` is added at the end.
     fn merge(&mut self, owner: CellId, f: CellId) -> Result<(), Error> {
-        let text = self.s.get(f)?.text.clone();
+        let text = self.shown(f).to_string();
         let kids = self.s.kids(owner);
-        let same = |c: &&CellId| self.s.cells.get(c).is_some_and(|c| c.text == text);
+        let same = |c: &&CellId| self.shown(**c) == text;
         let Some(into) = kids.iter().find(same).copied() else {
             return self.add(owner, f);
         };
@@ -764,7 +784,8 @@ impl Swap<'_, '_> {
 /// where it is, gets a copy of each cell it was inside of as a chain of grids of one cell
 /// (outermost first, the innermost holding what the cell held), and is put directly into
 /// that grid, merged with a cell of the same text if one is there already. A parent left
-/// without cells disappears.
+/// without cells disappears. Texts are what the cells show: a formula cell is found by its
+/// result, and the copy of a parent that is a formula cell is a data cell with its result.
 ///
 /// IDs: the swapped cells keep their IDs, as do the cells they hold; when two cells with
 /// the same text merge, the one that was put there first keeps its ID and the other's is
@@ -785,7 +806,8 @@ pub(super) fn hierarchy_swap(
             "cell {id} cannot move up in the hierarchy: it has no cell two levels above it"
         ));
     };
-    if selected.text.is_empty() {
+    let tag = tx.shown(id).to_string();
+    if tag.is_empty() {
         return refused("only a cell that has text can be swapped");
     }
     let line = |c: &Cell| c.grid().is_some_and(|g| g.xs() == 1 || g.ys() == 1);
@@ -795,13 +817,21 @@ pub(super) fn hierarchy_swap(
     if !line(parent) {
         return refused("the cell can only move out of a grid of one column or one row");
     }
-    let (tag, base) = (selected.text.clone(), base.id());
+    let base = base.id();
+    let s = Scratch::load(doc, base)?;
+    let results = s
+        .cells
+        .values()
+        .filter(|c| c.kind == CellKind::Formula)
+        .map(|c| (c.id, tx.shown(c.id).to_string()))
+        .collect();
     let mut swap = Swap {
-        s: Scratch::load(doc, base)?,
+        s,
         doc,
         now,
         fresh,
         rows: HashMap::new(),
+        results,
     };
     // Which new cell is a copy of which parent.
     let mut copies: Vec<(CellId, CellId)> = Vec::new();
@@ -818,14 +848,21 @@ pub(super) fn hierarchy_swap(
         // A copy of every cell it is inside of goes inside it.
         let mut above = swap.s.get(f)?.parent;
         while let Some(p) = above.filter(|p| *p != base) {
-            let original = swap.s.get(p)?;
             // A parent with the same text would be found and swapped again, forever.
-            done |= original.text == tag;
+            done |= swap.shown(p) == tag;
+            let shown = swap.shown(p).to_string();
+            let original = swap.s.get(p)?;
             let vertical = original.grid.as_ref().is_none_or(|g| g.vertical);
             above = original.parent;
             let mut copy = original.clone();
             copy.id = swap.fresh.next(doc)?;
             copy.parent = Some(f);
+            if copy.kind == CellKind::Formula {
+                // The copy is a data cell with what the formula cell shows.
+                copy.text = shown;
+                copy.runs.clear();
+                copy.links.clear();
+            }
             copy.kind = CellKind::Data;
             copy.extra = Extra::new();
             copy.grid = swap.s.get_mut(f)?.grid.take();
@@ -961,7 +998,9 @@ pub(super) fn wrap(
 /// the Delete key rows or columns left empty are deleted (looking, as TreeSheets does, only
 /// at the block without its first row and first column). The first cell keeps its grid,
 /// though the texts in it were appended too. Styles and links of the appended texts are
-/// lost; the first cell's stay where they are.
+/// lost; the first cell's stay where they are. A formula cell gives what it shows; if the
+/// first cell is a formula cell it stays as it is and the other texts are lost, as in
+/// TreeSheets (which appends them to the result, and then works the formula out again).
 pub(super) fn collapse(
     tx: &mut Tx,
     id: CellId,
@@ -981,7 +1020,8 @@ pub(super) fn collapse(
     for top in &selected {
         let inside = descendants(doc, *top);
         for from in std::iter::once(top).chain(&inside) {
-            let text = &cell(doc, *from)?.text;
+            // What the cell shows: of a formula cell its result (decision A66).
+            let text = tx.shown(*from);
             if from != first && !text.is_empty() {
                 more.push(' ');
                 more.push_str(text);
@@ -991,6 +1031,11 @@ pub(super) fn collapse(
     let target = cell(doc, *first)?;
     if !has_content(target) && more.is_empty() {
         return refused("there is no content to collapse");
+    }
+    if target.kind == CellKind::Formula {
+        // TreeSheets appends to the result, which the formula then replaces again: the
+        // first cell stays as it is and the other texts are gone.
+        more.clear();
     }
     let end = len32(&target.text)?;
     if code_points(&target.text).saturating_add(code_points(&more)) > MAX_TEXT_CODE_POINTS {

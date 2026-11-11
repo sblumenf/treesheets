@@ -1,0 +1,7 @@
+# Two cells show "2", a formula cell with a grid and a plain one; the formula cell is inside
+# a formula cell that shows "7". Swapping on the plain one takes both.
+lobster ts.goto_column_row(0, 4) ; ts.goto_column_row(0, 0) ; ts.goto_column_row(0, 0) ; ts.goto_column_row(0, 0) ; ts.set_formula("=1+1")
+lobster ts.goto_column_row(0, 4) ; ts.goto_column_row(0, 1) ; ts.goto_column_row(0, 0) ; ts.set_text("2")
+lobster ts.goto_column_row(0, 4) ; ts.goto_column_row(0, 0) ; ts.goto_column_row(0, 0) ; ts.set_formula("=3+4")
+select /1,5/1,2 1 1 1 1
+action hierarchy-swap
