@@ -32,7 +32,7 @@ use super::num::{num_text, stream_num, strict_num, x86};
 /// Deepest nesting of a value that a run makes (decision B53).
 pub const MAX_VALUE_DEPTH: u32 = 64;
 /// Deepest nesting at which a run still works a grid through.
-const MAX_RUN_DEPTH: u32 = 96;
+const MAX_RUN_DEPTH: u32 = 64;
 /// Most cells that one run may visit and copy together (decision B53).
 pub const MAX_RUN_WORK: u64 = 20_000_000;
 
@@ -108,8 +108,11 @@ impl ValueGrid {
         if x >= self.xs || y >= self.ys {
             return None;
         }
-        self.cells
-            .get((y as usize).checked_mul(self.xs as usize)?.checked_add(x as usize)?)
+        self.cells.get(
+            (y as usize)
+                .checked_mul(self.xs as usize)?
+                .checked_add(x as usize)?,
+        )
     }
 
     fn index(&self, x: u32, y: u32) -> usize {
@@ -209,7 +212,12 @@ impl Value {
             }
             out.push('\n');
             if let Some(grid) = &cell.grid {
-                todo.extend(grid.cells.iter().rev().map(|c| (c, indent.saturating_add(2))));
+                todo.extend(
+                    grid.cells
+                        .iter()
+                        .rev()
+                        .map(|c| (c, indent.saturating_add(2))),
+                );
             }
         }
         out
@@ -265,7 +273,8 @@ impl Value {
         grid.outer_spacing = own.outer_spacing;
         grid.vertical = own.vertical;
         grid.col_widths.clone_from(&own.col_widths);
-        grid.col_widths.resize(own.xs as usize, Grid::DEFAULT_COL_WIDTH);
+        grid.col_widths
+            .resize(own.xs as usize, Grid::DEFAULT_COL_WIDTH);
         Some(grid)
     }
 
@@ -607,11 +616,7 @@ impl Runner {
         let (xs, ys) = grid.size();
         let i = grid.index(at.0, at.1);
         let ct = grid.cells.get(i)?.kind;
-        *alldata = *alldata
-            && matches!(
-                ct,
-                CellKind::Data | CellKind::VarRead | CellKind::Formula
-            );
+        *alldata = *alldata && matches!(ct, CellKind::Data | CellKind::VarRead | CellKind::Formula);
         self.vert = vert;
         match ct {
             CellKind::VarAssign => {
@@ -858,7 +863,9 @@ fn transpose(grid: &mut ValueGrid) {
     for y in 0..ys {
         for x in 0..xs {
             let from = grid.index(x, y);
-            let to = (x as usize).saturating_mul(ys as usize).saturating_add(y as usize);
+            let to = (x as usize)
+                .saturating_mul(ys as usize)
+                .saturating_add(y as usize);
             if let (Some(c), Some(slot)) = (grid.cells.get_mut(from), cells.get_mut(to)) {
                 *slot = std::mem::replace(c, Value::fresh(0));
             }
@@ -867,7 +874,11 @@ fn transpose(grid: &mut ValueGrid) {
     grid.cells = cells;
     grid.xs = ys;
     grid.ys = xs;
-    let width = grid.col_widths.last().copied().unwrap_or(Grid::DEFAULT_COL_WIDTH);
+    let width = grid
+        .col_widths
+        .last()
+        .copied()
+        .unwrap_or(Grid::DEFAULT_COL_WIDTH);
     grid.col_widths.resize(ys as usize, width);
 }
 

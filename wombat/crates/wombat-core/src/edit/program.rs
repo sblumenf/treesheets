@@ -169,7 +169,10 @@ fn already(doc: &Document, id: CellId, value: &Value) -> bool {
 /// gave them. A view cell keeps its ID; the cells of a grid it gets are new.
 pub(super) fn run_program(tx: &mut Tx, now: Option<i64>, fresh: &mut Fresh) -> Result<(), Error> {
     let calc = tx.ext.calc;
-    let shown = |id: CellId| calc.and_then(|c| c.result(id)).map(|(text, _)| text.to_string());
+    let shown = |id: CellId| {
+        calc.and_then(|c| c.result(id))
+            .map(|(text, _)| text.to_string())
+    };
     let doc = tx.doc();
     let outcome = eval::run(doc, &shown).map_err(|_| {
         Error::Limit(format!(

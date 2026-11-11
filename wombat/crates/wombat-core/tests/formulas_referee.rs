@@ -9,11 +9,13 @@
     clippy::indexing_slicing
 )]
 
+mod formula_support;
+
 use std::fs;
 use std::path::PathBuf;
 
+use formula_support::{build, kind};
 use serde_json::Value;
-use wombat_core::construct::Construct;
 use wombat_core::eval::Calc;
 use wombat_core::{CellId, CellKind, Command, Document, Editor, Prop, SeededIds};
 
@@ -26,43 +28,6 @@ fn golden(name: &str) -> Vec<Value> {
         .lines()
         .map(|line| serde_json::from_str(line).unwrap())
         .collect()
-}
-
-fn kind(number: &Value) -> CellKind {
-    match number.as_u64().unwrap() {
-        0 => CellKind::Data,
-        1 => CellKind::Code,
-        2 => CellKind::VarAssign,
-        3 => CellKind::ViewH,
-        4 => CellKind::VarRead,
-        5 => CellKind::ViewV,
-        6 => CellKind::Formula,
-        other => panic!("kind {other}"),
-    }
-}
-
-fn fill(doc: &mut Document, id: CellId, spec: &Value, ids: &mut SeededIds) {
-    let cell = doc.cell_mut(id).unwrap();
-    // Control characters become spaces, as in TreeSheets.
-    cell.text = wombat_core::text::clean(spec[0].as_str().unwrap());
-    cell.kind = kind(&spec[1]);
-    if let Some(cells) = spec.get(4) {
-        let (xs, ys) = (spec[2].as_u64().unwrap() as u32, spec[3].as_u64().unwrap() as u32);
-        doc.add_grid(id, xs, ys, ids).unwrap();
-        let children = doc.cell(id).unwrap().grid().unwrap().cells().to_vec();
-        for (child, spec) in children.into_iter().zip(cells.as_array().unwrap()) {
-            fill(doc, child, spec, ids);
-        }
-    }
-}
-
-/// The document of a case (see `referee/formulas/app.py` for how it is written).
-fn build(spec: &Value, ids: &mut SeededIds) -> Document {
-    let mut doc = Document::new(ids);
-    let root = doc.root();
-    fill(&mut doc, root, spec, ids);
-    doc.validate().unwrap();
-    doc
 }
 
 #[derive(Default)]
@@ -87,13 +52,21 @@ fn compare(doc: &Document, calc: &Calc, id: CellId, theirs: &Value, place: &str,
         ));
     }
     let size = cell.grid().map(|g| (u64::from(g.xs()), u64::from(g.ys())));
-    let their_size = theirs.get(4).map(|_| (theirs[2].as_u64().unwrap(), theirs[3].as_u64().unwrap()));
+    let their_size = theirs
+        .get(4)
+        .map(|_| (theirs[2].as_u64().unwrap(), theirs[3].as_u64().unwrap()));
     if size != their_size {
-        r.bad.push(format!("{place}: grid {size:?}, TreeSheets {their_size:?}"));
+        r.bad
+            .push(format!("{place}: grid {size:?}, TreeSheets {their_size:?}"));
         return;
     }
     if let Some(grid) = cell.grid() {
-        for (n, (child, theirs)) in grid.cells().iter().zip(theirs[4].as_array().unwrap()).enumerate() {
+        for (n, (child, theirs)) in grid
+            .cells()
+            .iter()
+            .zip(theirs[4].as_array().unwrap())
+            .enumerate()
+        {
             let n = n as u32;
             let place = format!("{place}/{},{}", n % grid.xs(), n / grid.xs());
             compare(doc, calc, *child, theirs, &place, r);
@@ -121,7 +94,14 @@ fn formulas_match_treesheets() {
         let doc = build(&case["doc"], &mut ids);
         let editor = Editor::new(doc).unwrap();
         let name = case["name"].as_str().unwrap();
-        compare(editor.document(), editor.calc(), editor.document().root(), &case["shown"], name, &mut r);
+        compare(
+            editor.document(),
+            editor.calc(),
+            editor.document().root(),
+            &case["shown"],
+            name,
+            &mut r,
+        );
     }
     println!("{} documents", cases.len());
     check(&r, "formulas", 10_000);
@@ -135,7 +115,14 @@ fn formula_cells_with_grids_match_treesheets() {
         let mut ids = SeededIds::from_u64(1);
         let editor = Editor::new(build(&case["doc"], &mut ids)).unwrap();
         let name = case["name"].as_str().unwrap();
-        compare(editor.document(), editor.calc(), editor.document().root(), &case["shown"], name, &mut r);
+        compare(
+            editor.document(),
+            editor.calc(),
+            editor.document().root(),
+            &case["shown"],
+            name,
+            &mut r,
+        );
     }
     check(&r, "formula cells with grids", 10);
 }
@@ -151,18 +138,39 @@ fn programs_match_treesheets() {
         let mut editor = Editor::new(doc).unwrap();
         let name = case["name"].as_str().unwrap();
         let root = editor.document().root();
-        compare(editor.document(), editor.calc(), root, &case["shown"], name, &mut r);
+        compare(
+            editor.document(),
+            editor.calc(),
+            root,
+            &case["shown"],
+            name,
+            &mut r,
+        );
         editor.apply(Command::Run, None, &mut ids).unwrap();
         editor.document().validate().unwrap();
         // `ts.evaluate` does not keep the variables for the formulas as the menu item
         // does, so the formulas are shown as they are without them.
         let calc = Calc::new(editor.document());
-        compare(editor.document(), &calc, root, &case["after"], &format!("{name} (run)"), &mut r);
+        compare(
+            editor.document(),
+            &calc,
+            root,
+            &case["after"],
+            &format!("{name} (run)"),
+            &mut r,
+        );
         let run = editor.calc().last_run().unwrap();
-        let ours = run.result.as_ref().map(|v| v.to_text(editor.document())).unwrap_or_default();
+        let ours = run
+            .result
+            .as_ref()
+            .map(|v| v.to_text(editor.document()))
+            .unwrap_or_default();
         results += 1;
         if ours != case["result"].as_str().unwrap() {
-            r.bad.push(format!("{name}: result {ours:?}, TreeSheets {}", case["result"]));
+            r.bad.push(format!(
+                "{name}: result {ours:?}, TreeSheets {}",
+                case["result"]
+            ));
         }
     }
     println!("{} documents, {results} results of runs", cases.len());
@@ -172,7 +180,13 @@ fn programs_match_treesheets() {
 fn at(doc: &Document, path: &Value) -> CellId {
     let mut id = doc.root();
     for step in path.as_array().unwrap() {
-        id = doc.child(id, step[0].as_u64().unwrap() as u32, step[1].as_u64().unwrap() as u32).unwrap();
+        id = doc
+            .child(
+                id,
+                step[0].as_u64().unwrap() as u32,
+                step[1].as_u64().unwrap() as u32,
+            )
+            .unwrap();
     }
     id
 }
@@ -184,11 +198,11 @@ fn step(editor: &mut Editor, step: &Value, ids: &mut SeededIds) {
     let doc = editor.document();
     // Where Wombat refuses (a row inserted into a cell without a grid, rows to sort that
     // are not there), the script functions and menu items of TreeSheets do nothing.
-    let apply = |editor: &mut Editor, command: Command, ids: &mut SeededIds| {
-        match editor.apply(command, None, ids) {
-            Ok(_) | Err(wombat_core::Error::Refused(_)) => {}
-            Err(other) => panic!("{other:?}"),
-        }
+    let apply = |editor: &mut Editor, command: Command, ids: &mut SeededIds| match editor
+        .apply(command, None, ids)
+    {
+        Ok(_) | Err(wombat_core::Error::Refused(_)) => {}
+        Err(other) => panic!("{other:?}"),
     };
     match step[0].as_str().unwrap() {
         // ts.set_text: the text, and a formula cell becomes a data cell.
@@ -196,9 +210,23 @@ fn step(editor: &mut Editor, step: &Value, ids: &mut SeededIds) {
             let cell = at(doc, &step[1]);
             let formula = doc.cell(cell).unwrap().kind == CellKind::Formula;
             editor.begin_group();
-            apply(editor, Command::SetText { cell, text: step[2].as_str().unwrap().into() }, ids);
+            apply(
+                editor,
+                Command::SetText {
+                    cell,
+                    text: step[2].as_str().unwrap().into(),
+                },
+                ids,
+            );
             if formula {
-                apply(editor, Command::SetProps { cells: vec![cell], props: vec![Prop::Kind(CellKind::Data)] }, ids);
+                apply(
+                    editor,
+                    Command::SetProps {
+                        cells: vec![cell],
+                        props: vec![Prop::Kind(CellKind::Data)],
+                    },
+                    ids,
+                );
             }
             editor.end_group();
         }
@@ -206,8 +234,22 @@ fn step(editor: &mut Editor, step: &Value, ids: &mut SeededIds) {
         "formula" => {
             let cell = at(doc, &step[1]);
             editor.begin_group();
-            apply(editor, Command::SetText { cell, text: step[2].as_str().unwrap().into() }, ids);
-            apply(editor, Command::SetProps { cells: vec![cell], props: vec![Prop::Kind(CellKind::Formula)] }, ids);
+            apply(
+                editor,
+                Command::SetText {
+                    cell,
+                    text: step[2].as_str().unwrap().into(),
+                },
+                ids,
+            );
+            apply(
+                editor,
+                Command::SetProps {
+                    cells: vec![cell],
+                    props: vec![Prop::Kind(CellKind::Formula)],
+                },
+                ids,
+            );
             editor.end_group();
         }
         // ts.set_cell_type. In TreeSheets the text of a formula cell is its result, which
@@ -216,27 +258,71 @@ fn step(editor: &mut Editor, step: &Value, ids: &mut SeededIds) {
         "kind" => {
             let cell = at(doc, &step[1]);
             let new = kind(&step[2]);
-            let result = (doc.cell(cell).unwrap().kind == CellKind::Formula && new != CellKind::Formula)
+            let result = (doc.cell(cell).unwrap().kind == CellKind::Formula
+                && new != CellKind::Formula)
                 .then(|| editor.shown(cell).unwrap().to_string());
             editor.begin_group();
             if let Some(text) = result {
                 apply(editor, Command::SetText { cell, text }, ids);
             }
-            apply(editor, Command::SetProps { cells: vec![cell], props: vec![Prop::Kind(new)] }, ids);
+            apply(
+                editor,
+                Command::SetProps {
+                    cells: vec![cell],
+                    props: vec![Prop::Kind(new)],
+                },
+                ids,
+            );
             editor.end_group();
         }
-        "insert-row" => apply(editor, Command::InsertRows { cell: at(doc, &step[1]), at: n(2), count: 1 }, ids),
+        "insert-row" => apply(
+            editor,
+            Command::InsertRows {
+                cell: at(doc, &step[1]),
+                at: n(2),
+                count: 1,
+            },
+            ids,
+        ),
         "insert-column" => {
-            apply(editor, Command::InsertColumns { cell: at(doc, &step[1]), at: n(2), count: 1 }, ids);
+            apply(
+                editor,
+                Command::InsertColumns {
+                    cell: at(doc, &step[1]),
+                    at: n(2),
+                    count: 1,
+                },
+                ids,
+            );
         }
         "delete" => {
             let cell = at(doc, &step[1]);
-            apply(editor, Command::DeleteCells { cell, x: n(2), y: n(3), xs: n(4), ys: n(5) }, ids);
+            apply(
+                editor,
+                Command::DeleteCells {
+                    cell,
+                    x: n(2),
+                    y: n(3),
+                    xs: n(4),
+                    ys: n(5),
+                },
+                ids,
+            );
         }
         "sort" => {
             let cell = at(doc, &step[1]);
             let descending = step[5].as_bool().unwrap();
-            apply(editor, Command::SortRows { cell, column: n(2), row: n(3), count: n(4), descending }, ids);
+            apply(
+                editor,
+                Command::SortRows {
+                    cell,
+                    column: n(2),
+                    row: n(3),
+                    count: n(4),
+                    descending,
+                },
+                ids,
+            );
         }
         "run" => apply(editor, Command::Run, ids),
         "undo" => {
@@ -259,13 +345,27 @@ fn sequences_of_edits_match_treesheets() {
         let doc = build(&case["doc"], &mut ids);
         let mut editor = Editor::new(doc).unwrap();
         let name = case["name"].as_str().unwrap();
-        compare(editor.document(), editor.calc(), editor.document().root(), &case["shown"], name, &mut r);
+        compare(
+            editor.document(),
+            editor.calc(),
+            editor.document().root(),
+            &case["shown"],
+            name,
+            &mut r,
+        );
         for (n, s) in case["steps"].as_array().unwrap().iter().enumerate() {
             step(&mut editor, &s["do"], &mut ids);
             editor.document().validate().unwrap();
             steps += 1;
             let place = format!("{name} step {} {}", n + 1, s["do"]);
-            compare(editor.document(), editor.calc(), editor.document().root(), &s["shown"], &place, &mut r);
+            compare(
+                editor.document(),
+                editor.calc(),
+                editor.document().root(),
+                &s["shown"],
+                &place,
+                &mut r,
+            );
             // Keeping up to date after each step gives what working everything out gives.
             let full = Calc::with_variables(editor.document(), editor.calc().variables().clone());
             assert_eq!(editor.calc().results(), full.results(), "{place}");

@@ -78,7 +78,9 @@ impl Index {
             ..Index::default()
         };
         for (n, id) in order.iter().enumerate() {
-            index.place.insert(*id, u32::try_from(n).unwrap_or(u32::MAX));
+            index
+                .place
+                .insert(*id, u32::try_from(n).unwrap_or(u32::MAX));
         }
         for (n, id) in order.iter().enumerate() {
             let Some(cell) = doc.cell(*id) else { continue };
@@ -114,13 +116,15 @@ impl Index {
                 }
             }
             if cell.grid().is_some() {
-                index
-                    .grid_cells
-                    .insert(*id, (cell.text.clone(), cell.kind));
+                index.grid_cells.insert(*id, (cell.text.clone(), cell.kind));
                 match cell.kind {
                     CellKind::VarAssign => {}
                     CellKind::Formula => index.fgrid.push(here),
-                    _ => index.by_text.entry(cell.text.clone()).or_default().push(here),
+                    _ => index
+                        .by_text
+                        .entry(cell.text.clone())
+                        .or_default()
+                        .push(here),
                 }
             }
         }
@@ -803,9 +807,8 @@ impl Calc {
             self.index = None;
             return;
         }
-        let structural = !changes.created.is_empty()
-            || !changes.removed.is_empty()
-            || !changes.grids.is_empty();
+        let structural =
+            !changes.created.is_empty() || !changes.removed.is_empty() || !changes.grids.is_empty();
         if variables_changed
             || structural
             || self.tainted

@@ -86,7 +86,11 @@ fn compare_cells(
         let cells = golden["grid"]["cells"].as_array().unwrap();
         assert_eq!(cells.len(), grid.cells().len(), "{place}");
         for (n, (child, theirs)) in grid.cells().iter().zip(cells).enumerate() {
-            let place = format!("{place}/{},{}", n as u32 % grid.xs() + 1, n as u32 / grid.xs() + 1);
+            let place = format!(
+                "{place}/{},{}",
+                n as u32 % grid.xs() + 1,
+                n as u32 / grid.xs() + 1
+            );
             compare_cells(editor, *child, theirs, &place, counts, bad);
         }
     }
@@ -126,8 +130,8 @@ fn running_the_program_of_every_example_matches_treesheets() {
         let Ok(theirs) = fs::read_to_string(&golden) else {
             continue;
         };
-        let result = fs::read_to_string(golden.with_extension("").with_extension("run-result.txt"))
-            .unwrap();
+        let result =
+            fs::read_to_string(golden.with_extension("").with_extension("run-result.txt")).unwrap();
         let mut ids = SeededIds::from_u64(5);
         let imported = import(&fs::read(cts_path(&name)).unwrap(), &mut ids).unwrap();
         let mut editor = Editor::new(imported.document).unwrap();
@@ -167,9 +171,16 @@ fn running_the_program_of_every_example_matches_treesheets() {
         if editor.undo_len() > 0 {
             editor.undo().unwrap();
         }
-        assert_eq!(format::to_string(editor.document()).unwrap(), before, "{name}");
+        assert_eq!(
+            format::to_string(editor.document()).unwrap(),
+            before,
+            "{name}"
+        );
     }
-    println!("{files} documents run, {lines} lines compared, {} mismatches", bad.len());
+    println!(
+        "{files} documents run, {lines} lines compared, {} mismatches",
+        bad.len()
+    );
     assert!(bad.is_empty(), "{}", bad.join("\n"));
     assert_eq!(files, 18);
 }

@@ -18,8 +18,7 @@ pub use calc::{Calc, RunReport, Stats, MAX_WORK};
 pub use formula::{formula_of, is_formula_text, MAX_FORMULA_LEN, MAX_NESTING};
 pub use num::{is_name_char, is_space, lower, num_text, stream_num, strict_num, upper};
 pub use run::{
-    is_operation, Failure, FailureKind, Value, ValueGrid, Variables, MAX_RUN_WORK,
-    MAX_VALUE_DEPTH,
+    is_operation, Failure, FailureKind, Value, ValueGrid, Variables, MAX_RUN_WORK, MAX_VALUE_DEPTH,
 };
 
 pub(crate) use run::run;

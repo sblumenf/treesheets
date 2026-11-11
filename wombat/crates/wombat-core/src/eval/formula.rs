@@ -573,11 +573,7 @@ impl<E: Env> Parser<'_, E> {
 
     /// The contents of the cell named `name`: of its grid, or its own if it has none
     /// (`FormulaEvaluator::Collect` by name).
-    fn collect_name(
-        &mut self,
-        name: &str,
-        tree: bool,
-    ) -> Result<(Contents<E::Node>, Check), Wait> {
+    fn collect_name(&mut self, name: &str, tree: bool) -> Result<(Contents<E::Node>, Check), Wait> {
         self.call(|p, contents| {
             let node = p.env.named(name)?;
             if p.env.size(node).is_some() {
@@ -654,11 +650,7 @@ impl<E: Env> Parser<'_, E> {
     /// The rest of `SUBSET(name, columns, rows)` or `TREESUBSET(name, columns, rows,
     /// levels)`; with `tree` also what is inside the cells, which adds nothing to
     /// `TREESUBSET`.
-    fn subset(
-        &mut self,
-        tree: bool,
-        function: &str,
-    ) -> Result<(Contents<E::Node>, Check), Wait> {
+    fn subset(&mut self, tree: bool, function: &str) -> Result<(Contents<E::Node>, Check), Wait> {
         let function = function.to_string();
         self.call(move |p, contents| {
             let mut cells = Vec::new();
@@ -674,12 +666,7 @@ impl<E: Env> Parser<'_, E> {
     /// The cells of the rest of a `SUBSET()` or `TREESUBSET()`, and whether each is in a
     /// grid inside the named one. Instead of a name it can take another of the two, whose
     /// cells' grids it then uses.
-    fn cells(
-        &mut self,
-        cells: &mut Vec<(E::Node, bool)>,
-        function: &str,
-        nesting: u32,
-    ) -> Check {
+    fn cells(&mut self, cells: &mut Vec<(E::Node, bool)>, function: &str, nesting: u32) -> Check {
         let error = || Err("#ERROR!".to_string());
         if self.depth.saturating_add(nesting) >= MAX_NESTING {
             self.i = self.s.len();
@@ -830,7 +817,10 @@ pub(crate) fn evaluate<E: Env>(
     env: &mut E,
     memo: &mut Vec<Memo<E::Node>>,
 ) -> Result<Outcome, Wait> {
-    let s: Vec<char> = formula.chars().take(MAX_FORMULA_LEN.saturating_add(1)).collect();
+    let s: Vec<char> = formula
+        .chars()
+        .take(MAX_FORMULA_LEN.saturating_add(1))
+        .collect();
     if s.len() > MAX_FORMULA_LEN {
         return Ok(Outcome {
             text: "#ERROR!".to_string(),
