@@ -1,0 +1,42 @@
+[package]
+# With an underscore, unlike the other crates: the build of the app (cargokit, in
+# `app/rust_builder`) looks for a library with the name of the package.
+name = "wombat_bridge"
+description = "The bridge between the Wombat core and an interface written in Flutter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# `lib` for the tests, the other two for the app: a shared library on Android and
+# desktops, a static one on iOS.
+crate-type = ["lib", "cdylib", "staticlib"]
+
+# The workspace's lints, written out because a crate cannot take them over and change one:
+# here `unsafe_code` is denied instead of forbidden, so that the one generated file, which
+# has to call into Dart, can be let off (`src/lib.rs`, decision A122).
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+indexing_slicing = "warn"
+
+[dependencies]
+wombat-core = { path = "../wombat-core" }
+# The exact version of the Dart package `flutter_rust_bridge` in `app/pubspec.yaml` and of
+# the generator that wrote `src/frb_generated.rs`: the three only work together.
+flutter_rust_bridge = "=2.13.0"
+# The serialised form of commands and change reports.
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+# Operating system randomness, to seed the generator of permanent IDs.
+getrandom = "0.3"
+
+[dev-dependencies]
+proptest = "1"
