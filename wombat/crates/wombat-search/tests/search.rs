@@ -1377,6 +1377,9 @@ fn many_matches_and_many_words() {
             "a-a-a-a xa-a-a",
             "Two, one; FIVE",
             "seven",
+            // Here the second `a-a` would be a whole word, but it starts inside the
+            // first, which is not one: places of one word do not overlap.
+            "xa-a-a",
         ],
     );
     doc.cell_mut(cells[1]).unwrap().note = "six and seven\nthree".into();
@@ -1427,6 +1430,8 @@ fn many_matches_and_many_words() {
         "-one -two -three -four -five -six",
         "o on one ne e tw two",
         "a-a OR a OR - OR xa OR a-a-a",
+        "a OR - OR xa OR a-a OR a-a-a",
+        "x a - a-a",
         "a-a a - xa b",
         "seven six five OR four three OR two one zero",
         "on ne tw wo th hr re ee fo ou ur fi iv ve si ix se ev en",

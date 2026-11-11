@@ -622,7 +622,7 @@ fn the_hostile_alphabet_is_what_its_table_says() {
 
 #[test]
 fn formula_cells_are_left_alone_unless_asked_for() {
-    let (mut doc, outer, _) = document(&["=SUM(A1)", "the sum is ours", "=1+1"], &[]);
+    let (mut doc, outer, _) = document(&["=SUM(A1)+SUM(A1)", "the sum is ours", "=1+1"], &[]);
     doc.cell_mut(outer[0]).unwrap().kind = CellKind::Formula;
     doc.cell_mut(outer[2]).unwrap().kind = CellKind::Formula;
     let term = Term::new("s");
@@ -634,7 +634,7 @@ fn formula_cells_are_left_alone_unless_asked_for() {
             dry.counts.formula_cells,
             dry.counts.formula_places
         ),
-        (1, 3, 1, 1)
+        (1, 3, 1, 2)
     );
     assert!(!dry.counts.formulas_included);
     let mut ids = SeededIds::from_u64(1);
@@ -655,7 +655,7 @@ fn formula_cells_are_left_alone_unless_asked_for() {
     );
     assert_eq!(
         texts(editor.document())[1..],
-        ["=SUM(A1)", "the Xum iX ourX", "=1+1"]
+        ["=SUM(A1)+SUM(A1)", "the Xum iX ourX", "=1+1"]
     );
     assert_eq!(done.changes.changed, [outer[1]]);
     // Asked for: the formula text is replaced like any text.
@@ -678,7 +678,7 @@ fn formula_cells_are_left_alone_unless_asked_for() {
             done.counts.formula_cells,
             done.counts.formula_places
         ),
-        (2, 4, 1, 1)
+        (2, 5, 1, 2)
     );
     assert!(done.counts.formulas_included);
     assert_eq!(
@@ -687,7 +687,7 @@ fn formula_cells_are_left_alone_unless_asked_for() {
     );
     assert_eq!(
         texts(editor.document())[1..],
-        ["=XUM(A1)", "the Xum iX ourX", "=1+1"]
+        ["=XUM(A1)+XUM(A1)", "the Xum iX ourX", "=1+1"]
     );
     assert_eq!(
         editor.document().cell(outer[0]).unwrap().kind,

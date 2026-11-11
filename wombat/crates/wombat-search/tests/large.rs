@@ -661,3 +661,29 @@ fn an_edit_in_a_long_cell() {
         "{follow_time:?}"
     );
 }
+
+/// One document of 32 MB of varied text (the review measured about 0.8 GB for it).
+#[test]
+#[ignore = "takes a few hundred megabytes; run by hand in a release build"]
+fn a_document_of_32_megabytes_of_varied_text() {
+    let doc = varied(27_000, 400, 3);
+    let before = memory();
+    let (index, time) = timed(|| {
+        let mut index = SearchIndex::new();
+        index.insert_document(&doc, &Calc::new(&doc), "big.wombat");
+        index
+    });
+    let after = memory();
+    let (counted, text) = (index.memory_bytes(), index.text_bytes());
+    let grew = match (before, after) {
+        (Some((a, _)), Some((b, _))) => b.saturating_sub(a) * 1024,
+        _ => 0,
+    };
+    println!(
+        "32 megabytes: {text} bytes of text indexed in {}: {counted} bytes counted ({:.1} times), the process grew by {grew} ({:.1} times)",
+        ms(time),
+        counted as f64 / text as f64,
+        grew as f64 / text as f64
+    );
+    assert!(counted < text * 3);
+}
