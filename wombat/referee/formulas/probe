@@ -7,7 +7,8 @@ A tool for whoever works on the evaluator. See app.py for how a document is writ
 import json
 import sys
 
-import app
+sys.dont_write_bytecode = True
+import app  # noqa: E402
 from app import referee
 
 

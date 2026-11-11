@@ -177,7 +177,31 @@ fn cell(r: &mut Rng, depth: u32) -> Value {
 fn document(seed: u64, ids: &mut SeededIds) -> Document {
     let mut r = Rng(seed | 1);
     let (xs, ys) = (1 + r.below(3), 2 + r.below(4));
-    let cells: Vec<Value> = (0..xs * ys).map(|_| cell(&mut r, 1)).collect();
+    let mut cells: Vec<Value> = (0..xs * ys).map(|_| cell(&mut r, 1)).collect();
+    // Always a chain: numbers, formulas that read them, and formulas that read those, so
+    // that a changed number has to travel.
+    let number = |r: &mut Rng| json!([r.pick(&["1", "2", "3.5", "10"]), 0]);
+    let chain = [
+        json!([
+            "Chain",
+            0,
+            1,
+            3,
+            [number(&mut r), number(&mut r), number(&mut r)]
+        ]),
+        json!([
+            "Sums",
+            0,
+            2,
+            1,
+            [["=SUM(Chain)", 6], ["=MAX(Chain) & '!'", 6]]
+        ]),
+        json!(["Top", 0, 1, 1, [["=SUM(Sums) * 2", 6]]]),
+        json!(["=SUM(Top) + TREECOUNT(Chain)", 6]),
+    ];
+    for (n, link) in chain.into_iter().enumerate() {
+        cells[n % (xs * ys)] = link;
+    }
     build(&json!(["", 0, xs, ys, cells]), ids)
 }
 
@@ -238,7 +262,18 @@ fn command(r: &mut Rng, doc: &Document) -> Command {
         let g = doc.cell(id).unwrap().grid().unwrap();
         (g.xs() as usize, g.ys() as usize)
     };
-    match r.below(16) {
+    // Often a cell of the first table in the document: the start of the chain, if it is
+    // still there.
+    let first = |r: &mut Rng| {
+        let table = grids.get(1).copied().unwrap_or(doc.root());
+        let cells = doc.cell(table).unwrap().grid().unwrap().cells();
+        cells[r.below(cells.len())]
+    };
+    match r.below(18) {
+        16..=17 => Command::EnterText {
+            cell: first(r),
+            text: r.pick(&["4", "5", "0.5", "x"]).into(),
+        },
         0..=2 => Command::EnterText {
             cell: any(r),
             text: r.pick(DATA).into(),
@@ -313,6 +348,27 @@ fn command(r: &mut Rng, doc: &Document) -> Command {
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(300))]
+
+    /// Any text read as a number, and any number written as text.
+    #[test]
+    fn numbers_are_read_and_written_without_panic(
+        text in "[ +\\-0-9a-fxXpPeE.infaN]{0,24}",
+        bits in any::<u64>(),
+    ) {
+        use wombat_core::eval::{num_text, stream_num, strict_num};
+        if let Some(d) = strict_num(&text) {
+            prop_assert!(d.is_finite());
+        }
+        let _ = stream_num(&text);
+        let d = f64::from_bits(bits);
+        let written = num_text(d);
+        prop_assert!(!written.is_empty() && !written.contains('e'));
+        // What is written is read back as a number near the same, unless it is not finite.
+        if d.is_finite() {
+            let back = strict_num(&written);
+            prop_assert!(back.is_some_and(|b| (b - d).abs() <= 1e-10 || b == d), "{}", written);
+        }
+    }
 
     /// Any document: worked out without panic, soon, and to the same results every time;
     /// its program runs or is refused.

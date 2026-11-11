@@ -5,7 +5,9 @@
 //! cell that holds the grid the linking cell is in, and then each cell around that one in
 //! turn, it searches that cell and everything inside it breadth first (the cell itself, then
 //! the cells of its grid row by row, then the cells of their grids, and so on) for the first
-//! cell, other than the linking cell and the root, whose text is the target.
+//! cell, other than the linking cell and the root, whose text is the target. The text of a
+//! formula cell is there what it shows: its result, which the core works out
+//! (`wombat_core::eval::Calc`).
 //!
 //! Searching like that for every link would take time proportional to links times cells,
 //! which a hostile file could make very long. [`Resolver`] gives the same answers from an
@@ -14,7 +16,8 @@
 
 use std::collections::HashMap;
 
-use wombat_core::{CellId, CellKind, Document};
+use wombat_core::eval::Calc;
+use wombat_core::{CellId, Document};
 
 /// Answers "which cell does a link in this cell to this text go to?" for one document.
 pub(crate) struct Resolver<'a> {
@@ -87,8 +90,13 @@ impl Candidates {
 }
 
 impl<'a> Resolver<'a> {
-    /// Indexes `document` for links to the given texts.
-    pub(crate) fn new(document: &'a Document, wanted: &[&'a str]) -> Resolver<'a> {
+    /// Indexes `document` for links to the given texts. `calc` has what its formula cells
+    /// show; it is needed only if there are texts to find.
+    pub(crate) fn new(
+        document: &'a Document,
+        wanted: &[&'a str],
+        calc: Option<&Calc>,
+    ) -> Resolver<'a> {
         let order = document.cells_in_order();
         let count = u32::try_from(order.len()).unwrap_or(u32::MAX);
         let place: HashMap<CellId, u32> = order.iter().copied().zip(0..count).collect();
@@ -123,14 +131,14 @@ impl<'a> Resolver<'a> {
             let Some(cell) = document.cell(*id) else {
                 continue;
             };
-            // Never the root. And never a formula cell: in TreeSheets its text is the
-            // calculated result, which this importer does not have (see lib.rs).
-            if at == 0 || cell.kind == CellKind::Formula {
+            // Never the root. A formula cell goes by its result, as in TreeSheets.
+            if at == 0 {
                 continue;
             }
-            if let (Some(list), Some(d)) =
-                (keys.get_mut(cell.text.as_str()), depth.get(at as usize))
-            {
+            let shown = calc
+                .and_then(|calc| calc.shown(document, *id))
+                .unwrap_or(cell.text.as_str());
+            if let (Some(list), Some(d)) = (keys.get_mut(shown), depth.get(at as usize)) {
                 list.push((*d, at));
             }
         }

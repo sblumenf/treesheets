@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Records what the real TreeSheets calculates, for the tests of Wombat's evaluator.
 
-Usage: make_formulas [formulas] [fgrid] [programs] [sequences]     (all if none is named)
+Usage: make_formulas [formulas] [fgrid] [programs] [sequences] [links]   (all if none is named)
 
 Builds every case of cases.py in the real app through its script API, and writes what the app
 shows to golden/*.jsonl, one case per line:
@@ -13,6 +13,8 @@ shows to golden/*.jsonl, one case per line:
     sequences.jsonl   {"name", "doc", "shown", "steps": [{"do", "shown"}]}: the document
                       after each of a series of edits
 
+and with `links` the file links.cts, a document with links to what formula cells show.
+
 Every case is built twice in different app instances and must come out the same. Needs Xvfb,
 xdotool and a TreeSheets built with Lobster (set TREESHEETS_BIN, see ../README.md). The
 tests (crates/wombat-core/tests/formulas_referee.rs) read the golden files and need none
@@ -22,7 +24,8 @@ import json
 import os
 import sys
 
-import app
+sys.dont_write_bytecode = True
+import app  # noqa: E402
 import cases
 from app import referee, ui
 
@@ -129,6 +132,27 @@ def do_step(ts, step):
 
 
 START = os.path.join(app.HERE, "start.cts")
+LINKS = os.path.join(app.HERE, "links.cts")
+
+
+def make_links(display):
+    """links.cts: links whose target text is what a formula cell shows, saved by the app, for
+    the importer's test (crates/wombat-cts/tests/formulas.rs)."""
+    from cases import D, F, T, column
+    doc = column([F("=1+1"), D("see 2 there"), D("2"), T("Box", D("to 4"), F("=2+2")), D("4"),
+                  D("to none"), F("='none'")])
+    with referee.Instance(display, app.HERE + "/../fixtures/features.cts") as ts:
+        ts.eval(app.build(doc))
+        ts.eval("\n".join(
+            app.goto([[0, 1]]) + ['ts.set_link(4, 1, "2", true)']
+            + app.goto([[0, 3], [0, 0]]) + ['ts.set_link(3, 1, "4", true)']
+            + app.goto([[0, 5]]) + ['ts.set_link(3, 4, "none", true)', 'ts.agent_result("ok")']))
+        path = os.path.join(ts.workdir, "links.cts")
+        ts.eval(f'ts.agent_result(if ts.save_document_as("{path}"): "ok" else: "failed")')
+        with open(path, "rb") as f:
+            data = f.read()
+    with open(LINKS, "wb") as f:
+        f.write(data)
 
 
 def make_start(display):
@@ -144,7 +168,7 @@ def make_start(display):
 
 
 def main():
-    which = sys.argv[1:] or ["formulas", "fgrid", "programs", "sequences"]
+    which = sys.argv[1:] or ["formulas", "fgrid", "programs", "sequences", "links"]
     with referee.xvfb() as display:
         if "formulas" in which:
             docs = list(cases.formula_documents()) + list(cases.random_formula_documents(400))
@@ -155,6 +179,8 @@ def main():
         if "programs" in which:
             docs = list(cases.program_documents()) + list(cases.random_program_documents(300))
             write("programs", twice("programs", lambda: record_documents(display, docs, True)))
+        if "links" in which:
+            make_links(display)
         if "sequences" in which:
             make_start(display)
             seqs = list(cases.sequences()) + list(cases.random_sequences(30))

@@ -184,3 +184,33 @@ fn running_the_program_of_every_example_matches_treesheets() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
     assert_eq!(files, 18);
 }
+
+/// A link in a `.cts` file names its target by text, and the text of a formula cell is what
+/// it shows (decision A66). `referee/formulas/links.cts` was saved by the real app; which
+/// cell TreeSheets would go to is from reading `FormulaEvaluator::LinkTarget`, since no
+/// script function follows a link.
+#[test]
+fn a_link_goes_to_a_formula_cell_by_what_it_shows() {
+    let mut ids = SeededIds::from_u64(5);
+    let bytes = fs::read(referee_dir().join("formulas/links.cts")).unwrap();
+    let imported = import(&bytes, &mut ids).unwrap();
+    assert!(imported.unresolved_links.is_empty());
+    let doc = &imported.document;
+    let at = |x, y| doc.child(doc.root(), x, y).unwrap();
+    let target = |id: CellId| match &doc.cell(id).unwrap().links[..] {
+        [link] => match link.target {
+            wombat_core::LinkTarget::Cell { doc: None, cell } => cell,
+            _ => panic!("not a link to a cell"),
+        },
+        other => panic!("{other:?}"),
+    };
+    // "2": the formula cell =1+1 comes before the data cell "2" in the same grid.
+    assert_eq!(doc.cell(at(0, 0)).unwrap().text, "=1+1");
+    assert_eq!(target(at(0, 1)), at(0, 0));
+    // "4": the formula cell beside the linking cell is nearer than the "4" outside.
+    let inside = |y| doc.child(at(0, 3), 0, y).unwrap();
+    assert_eq!(doc.cell(inside(1)).unwrap().text, "=2+2");
+    assert_eq!(target(inside(0)), inside(1));
+    // A result that is text.
+    assert_eq!(target(at(0, 5)), at(0, 6));
+}

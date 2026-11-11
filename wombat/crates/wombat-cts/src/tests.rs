@@ -1004,8 +1004,15 @@ fn many_links_to_a_far_target_do_not_take_quadratic_time() {
 }
 
 /// TreeSheets' search written out as it is in `evaluator.h` (`ForNearest` with `all`), slow
-/// and obvious, to check the indexed search against.
-fn slow_link_target(doc: &Document, from: CellId, name: &str) -> Option<CellId> {
+/// and obvious, to check the indexed search against. The text of a cell is what it shows:
+/// for a formula cell its result (decision A66; until milestone 5 formula cells were left
+/// out, because their results were not known).
+fn slow_link_target(
+    doc: &Document,
+    calc: &wombat_core::eval::Calc,
+    from: CellId,
+    name: &str,
+) -> Option<CellId> {
     let mut scope = doc.cell(from)?.parent();
     while let Some(top) = scope {
         let mut level = vec![top];
@@ -1013,11 +1020,7 @@ fn slow_link_target(doc: &Document, from: CellId, name: &str) -> Option<CellId> 
             let mut next = Vec::new();
             for id in level {
                 let cell = doc.cell(id)?;
-                if id != from
-                    && cell.parent().is_some()
-                    && cell.kind != CellKind::Formula
-                    && cell.text == name
-                {
+                if id != from && cell.parent().is_some() && calc.shown(doc, id) == Some(name) {
                     return Some(id);
                 }
                 if let Some(grid) = cell.grid() {
@@ -1065,19 +1068,21 @@ proptest! {
         prop_assume!(root.grid.is_some());
         let imported = cts(31, root).import().unwrap();
         let doc = &imported.document;
+        let calc = wombat_core::eval::Calc::new(doc);
         for id in doc.cells_in_order() {
             let cell = doc.cell(id).unwrap();
             // A formula's text got an "=" in front, so its link is one further on; the text
-            // the link asks for is whichever of A to D the cell was given.
+            // the link asks for is whichever of A to D the cell was given, which is what
+            // the cell it goes to shows.
             for link in &cell.links {
                 let wanted = match &link.target {
-                    LinkTarget::Cell { cell: to, .. } => doc.cell(*to).unwrap().text.clone(),
+                    LinkTarget::Cell { cell: to, .. } => calc.shown(doc, *to).unwrap().to_string(),
                     LinkTarget::Unknown => {
                         link.extra[UNRESOLVED_TARGET_FIELD].as_str().unwrap().to_string()
                     }
                     other => panic!("{other:?}"),
                 };
-                let expected = slow_link_target(doc, id, &wanted);
+                let expected = slow_link_target(doc, &calc, id, &wanted);
                 let got = match &link.target {
                     LinkTarget::Cell { cell: to, .. } => Some(*to),
                     _ => None,
