@@ -25,6 +25,7 @@ mod command;
 mod import;
 mod paste;
 mod program;
+mod read;
 mod restructure;
 mod size;
 mod step;
@@ -41,6 +42,7 @@ use crate::model::{
 use step::{ChangeSet, Step};
 
 pub use paste::Clip;
+pub use read::{CellView, GridView};
 
 /// The smallest width of a column, as in TreeSheets.
 pub const MIN_COL_WIDTH: u32 = 5;
