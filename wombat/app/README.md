@@ -1,8 +1,9 @@
-# The bare app
+# The app
 
-One screen of plain text and three buttons, to show that a Wombat document opens, reads,
-changes and undoes through the Rust core (`../crates/wombat-bridge`). It is not the
-interface; `../docs/UI_SPEC.md` specifies that.
+The Wombat app as far as it goes: a simple grid screen on an example document, and behind a
+menu entry the plain-text check of the bridge. It calls the Rust core through
+`../crates/wombat-bridge`. It is not yet the interface that `../docs/UI_SPEC.md` specifies.
 
-How to run and test it, what was run where, and what is left to do: `../docs/milestones/B1.md`.
-What is generated and how to regenerate it: `../AGENTS.md`.
+- The grid screen: `../docs/milestones/UI1.md`.
+- The bridge, how to run and test, and what is left to do: `../docs/milestones/B1.md`.
+- What is generated and how to regenerate it: `../AGENTS.md`.

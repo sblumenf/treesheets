@@ -1,9 +1,9 @@
-// The real app on a real device (or desktop): presses the three buttons and reads the
-// screen. Run with: flutter test integration_test -d linux   (or -d <an Android device>)
+// The plain-text check of the bridge on a real device (or desktop): presses its three
+// buttons and reads the screen. Run with: flutter test integration_test -d linux   (or -d <an Android device>)
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:wombat_app/main.dart';
+import 'package:wombat_app/demo_screen.dart';
 import 'package:wombat_app/src/rust/frb_generated.dart';
 
 void main() {
@@ -19,7 +19,7 @@ void main() {
   }
 
   testWidgets('open, change and undo on the screen', (tester) async {
-    await tester.pumpWidget(const WombatApp());
+    await tester.pumpWidget(const MaterialApp(home: DemoScreen()));
     expect(output(tester), 'Press Open.');
 
     await press(tester, 'open');

@@ -3,22 +3,18 @@
 // must be built first, from `wombat/`: cargo build -p wombat_bridge
 import 'dart:io';
 
-import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wombat_app/demo.dart';
 import 'package:wombat_app/src/rust/api/document.dart';
 import 'package:wombat_app/src/rust/api/wire.dart';
-import 'package:wombat_app/src/rust/frb_generated.dart';
+
+import 'support.dart';
 
 void main() {
   late Directory folder;
 
   setUpAll(() async {
-    await RustLib.init(
-      externalLibrary: ExternalLibrary.open(
-        '../target/debug/libwombat_bridge.so',
-      ),
-    );
+    await loadBridge();
     folder = await Directory.systemTemp.createTemp('wombat-test');
   });
 

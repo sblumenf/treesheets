@@ -4,10 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'demo.dart';
+import 'demo_screen.dart';
+import 'grid/grid_screen.dart';
+import 'grid/stage.dart';
+import 'src/rust/api/document.dart';
 import 'src/rust/frb_generated.dart';
 
-/// The bare app of milestone B1: one screen of plain text and three buttons, to show that
-/// a document opens, reads, changes and undoes through the Rust core. No real interface.
+/// The Wombat app as far as it goes: a simple grid screen on the example document, and
+/// the plain-text check of the bridge behind a menu entry. Not yet the interface that
+/// `docs/UI_SPEC.md` specifies.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
@@ -19,90 +24,64 @@ class WombatApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const MaterialApp(title: 'Wombat bridge', home: DemoScreen());
+      const MaterialApp(title: 'Wombat', home: StartScreen());
 }
 
-class DemoScreen extends StatefulWidget {
-  const DemoScreen({super.key});
+/// Opens the example that comes with the app and shows it on the grid screen.
+class StartScreen extends StatefulWidget {
+  const StartScreen({super.key});
 
   @override
-  State<DemoScreen> createState() => _DemoScreenState();
+  State<StartScreen> createState() => _StartScreenState();
 }
 
-class _DemoScreenState extends State<DemoScreen> {
-  final _demo = Demo();
-  String _text = 'Press Open.';
-  bool _busy = false;
+class _StartScreenState extends State<StartScreen> {
+  late final Future<Stage> _stage = _open();
 
-  /// Runs one step and shows its text, or the error it ended with.
-  Future<void> _run(Future<String> Function() step) async {
-    setState(() => _busy = true);
-    String text;
-    try {
-      text = await step();
-    } catch (error) {
-      text = describeError(error);
-    }
-    setState(() {
-      _text = text;
-      _busy = false;
-    });
-  }
-
-  Future<String> _open() async {
+  /// Many installs have the same example file, so the core makes a copy of it with IDs
+  /// of its own (decision A28), and that copy is what is opened. It goes to a folder the
+  /// app may write to on every platform; where documents really live is still to decide.
+  Future<Stage> _open() async {
     final example = await rootBundle.load('assets/example.wombat');
-    // A folder the app may write to on every platform; where documents really go is for
-    // the real interface to decide.
     final folder = await Directory.systemTemp.createTemp('wombat');
-    return _demo.open(folder, example.buffer.asUint8List());
+    final original = File('${folder.path}/example-original.wombat');
+    await original.writeAsBytes(example.buffer.asUint8List(), flush: true);
+    final doc = await OpenDocument.openCopy(
+      from: original.path,
+      to: '${folder.path}/example.wombat',
+    );
+    return Stage.open(doc);
   }
 
   @override
   Widget build(BuildContext context) {
-    final ready = !_busy && _demo.isOpen;
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Wrap(
-                spacing: 8,
-                children: [
-                  FilledButton(
-                    key: const Key('open'),
-                    onPressed: _busy ? null : () => _run(_open),
-                    child: const Text('Open'),
-                  ),
-                  FilledButton(
-                    key: const Key('change'),
-                    onPressed: ready ? () => _run(_demo.change) : null,
-                    child: const Text('Change'),
-                  ),
-                  FilledButton(
-                    key: const Key('undo'),
-                    onPressed: ready ? () => _run(_demo.undo) : null,
-                    child: const Text('Undo'),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(8),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: SelectableText(
-                    _text,
-                    key: const Key('output'),
-                    style: const TextStyle(fontFamily: 'monospace'),
-                  ),
+    return FutureBuilder<Stage>(
+      future: _stage,
+      builder: (context, snapshot) {
+        final stage = snapshot.data;
+        if (stage != null) {
+          return GridScreen(
+            stage: stage,
+            menu: [
+              PopupMenuItem(
+                key: const Key('bridge-check'),
+                value: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const DemoScreen()),
                 ),
+                child: const Text('Bridge check'),
               ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          );
+        }
+        final error = snapshot.error;
+        return Scaffold(
+          body: Center(
+            child: error == null
+                ? const CircularProgressIndicator()
+                : Text(describeError(error), key: const Key('start-error')),
+          ),
+        );
+      },
     );
   }
 }

@@ -23,7 +23,7 @@ memory: sessions do not remember each other, so anything agreed must be written 
 | `crates/wombat-cts` | Read-only importer of TreeSheets `.cts` files (all format versions up to 31), a testing tool; `tests/referee.rs` compares it with `referee/golden/`, `tests/quirks/` holds hand-built files with their own golden data |
 | `crates/wombat-search` | The search service: folding of text for comparison (`fold.rs`), queries and their text syntax (`query.rs`), what is indexed per document and how it follows edits (`index.rs`), searching and ranking (`engine.rs`), the slow reference scanner that the tests compare with (`naive.rs`), find and replace (`replace.rs`), the index of a workspace folder (`workspace.rs`, the only file access, through `wombat_core::scan`); `tests/support/` has the query generator and the made-up workspace of the size tests |
 | `crates/wombat-bridge` | The bridge to the Flutter interface (package `wombat_bridge`), a thin layer over the core: `api/document.rs` the open document that Dart holds (open, create, read one grid, apply a command, undo, redo, save), `api/wire.rs` the serialised form of commands, change reports and errors, `convert.rs` between that and the core's types, `record.rs` the same as JSON text; `frb_generated.rs` is generated and never edited |
-| `app/` | The bare Flutter app that shows the bridge working (`lib/main.dart` the screen, `lib/demo.dart` its three steps); `lib/src/rust/` is generated; `rust_builder/` is the build glue that `flutter_rust_bridge` put there (cargokit), not ours to edit; `assets/example.wombat` the document it opens; `test/` runs without a device, `integration_test/` on one |
+| `app/` | The Flutter app as far as it goes: a simple grid screen (`lib/grid/stage.dart` its logic without widgets, `lib/grid/grid_screen.dart` the widgets; `docs/milestones/UI1.md`), and the plain-text check of the bridge from milestone B1 (`lib/demo.dart` its three steps, `lib/demo_screen.dart` the screen); `lib/main.dart` opens the example and shows the grid screen; `lib/src/rust/` is generated; `rust_builder/` is the build glue that `flutter_rust_bridge` put there (cargokit), not ours to edit; `assets/example.wombat` the document it opens; `test/` runs without a device, `integration_test/` on one |
 | `crates/wombat-cli` | The `wombat` command-line tool, a thin layer over the core; `edit.rs` reads the editing commands of `wombat edit`; `tests/ops.rs` compares commands with `referee/ops/` |
 | `referee/` | Scripts that drive the real TreeSheets app, and the reference ("golden") data it produced |
 | `referee/ops/` | Operation cases: one edit done by the real app (`cases/*.lobster`) and as Wombat commands (`cases/*.edit`) on `fixture.cts`, the app's result (`golden/`), and `make_ops` to regenerate |
@@ -51,7 +51,7 @@ bridge and commit them, then run the app's checks. From `wombat/app/`, with Flut
 ```sh
 flutter_rust_bridge_codegen generate
 (cd .. && cargo fmt --all && cargo build -p wombat_bridge)
-dart format lib/main.dart lib/demo.dart test integration_test
+dart format lib/*.dart lib/grid test integration_test
 flutter analyze
 flutter test
 ```

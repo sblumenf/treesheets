@@ -58,7 +58,7 @@ jobs:
     - name: Get packages
       run: flutter pub get
     - name: Format
-      run: dart format --output=none --set-exit-if-changed lib/main.dart lib/demo.dart test integration_test
+      run: dart format --output=none --set-exit-if-changed lib/*.dart lib/grid test integration_test
     - name: Analyze
       run: flutter analyze
     - name: Build the bridge
