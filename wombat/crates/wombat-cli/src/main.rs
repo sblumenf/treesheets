@@ -1,6 +1,7 @@
 //! The `wombat` command-line tool: a thin layer over the core.
 
 mod edit;
+mod links;
 mod outline;
 
 use std::io::{Read, Write};
@@ -33,6 +34,19 @@ Usage:
   wombat list [<folder>] [--cells]          list the documents of a workspace folder and warn
                                             of files with the same document ID; --cells also
                                             loads every document to find shared cell IDs
+  wombat links <file.wombat>                list the links of a document with what each
+                                            points at, in this or another document of its folder
+  wombat backlinks <folder> <file> <CELL>   list the links to a cell of <file> from all
+                                            documents of the folder; CELL as in `wombat edit`
+  wombat broken <folder>                    list the links in a folder that point at nothing
+                                            (links, backlinks and broken take --cache to keep
+                                            an index in <folder>/.wombat-index, safe to delete)
+  wombat copy-cell <from.wombat> <CELL> <to.wombat> <CELL>
+                                            make the second cell a copy of the first, with
+                                            all in it; links in it keep pointing at the same cells
+  wombat move-cell <from.wombat> <CELL> <to.wombat> <EMPTY-CELL>
+                                            move a cell with all in it to another document,
+                                            keeping its IDs so that links to it survive
   wombat help                               show this text
 
 Outline format: one line per row of a grid, cells separated by \" | \"; lines indented
@@ -95,6 +109,16 @@ fn run(args: &[&str]) -> Result<String, Failure> {
         }
         ["import", source, file] => import(source, file),
         ["copy", source, file] => copy(source, file),
+        ["links", file] => links::links(file, false),
+        ["links", file, "--cache"] | ["links", "--cache", file] => links::links(file, true),
+        ["backlinks", folder, file, cell] => links::backlinks(folder, file, cell, false),
+        ["backlinks", folder, file, cell, "--cache"] => links::backlinks(folder, file, cell, true),
+        ["broken", folder] => links::broken(folder, false),
+        ["broken", folder, "--cache"] | ["broken", "--cache", folder] => {
+            links::broken(folder, true)
+        }
+        ["copy-cell", from, cell, to, place] => links::transfer(from, cell, to, place, false),
+        ["move-cell", from, cell, to, place] => links::transfer(from, cell, to, place, true),
         ["list"] => list(".", false),
         ["list", "--cells"] => list(".", true),
         ["list", folder, "--cells"] | ["list", "--cells", folder] => list(folder, true),

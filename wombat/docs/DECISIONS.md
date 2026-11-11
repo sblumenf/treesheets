@@ -356,8 +356,90 @@ TreeSheets.
     refused like one that is in the document. When the history forgets a unit, the IDs of
     the cells in it are free again.
 
-Numbers 49 to 59 are left free for milestone 4, which was built at the same time as
-milestone 5.
+Number 49 is not used.
+
+50. **Resolving a link** (milestone 4; numbers A50-A59 and B40-B49 are this milestone's,
+    A49 is not used). A link to a cell is looked for where it says: in its own document,
+    or in the document it names, found by document ID wherever the file is. If the cell
+    is not there, it is looked for by its ID in all documents at hand, because cell IDs
+    are unique across documents (A5) and a cell can move to another document with its ID
+    (A51): found in exactly one, the link resolves there and is marked *moved*, so that
+    it can be corrected (`LinkIndex::repairs`); found in none, the link is *broken*
+    (no such document, or no such cell). **Nothing is guessed:** if several files have
+    the document ID that the link leads to (hand copies, A28), a link into it from
+    another document is *ambiguous*, as is a cell that is not where the link says and is
+    in several documents. A document's links to its own cells always resolve within it,
+    also when another file has its ID. Of files with one document ID only the first by
+    name is indexed. Backlinks are the links that resolve to the cell, sorted by the ID
+    of the document that has the link, the ID of the cell, and the position: a fixed
+    order, not a meaningful one (an interface sorts as it likes).
+51. **Cells that go from one document to another** (`edit/paste.rs`, `links/transfer.rs`).
+    A `Clip` is a cell with everything in it, taken out of a document as a value.
+    *Copy* is `PasteCells`: as `CopyCell` (A39), the target keeps its ID and the cells
+    inside get new ones. *Move* keeps every ID, so that links to the moved cells survive
+    (B1): `AdoptCells` puts them, as they are, in the place of an empty cell of the
+    other document, and `ReleaseCell` takes them out of theirs, leaving a new empty
+    cell. Links in what arrives are rewritten to point at the same cells as before: to
+    cells that came along unchanged (or to their copies), to the other cells of the
+    document they came from by naming it, to cells of the document they arrive in
+    without a document (A47). On a move, `links::move_between` also rewrites the links
+    to the moved cells in the two documents (in the source they now name the target; in
+    the target they no longer name a document). Links in other documents are not
+    touched: they resolve as *moved* (A50) until they are corrected. Rewriting a link
+    this way drops its unknown fields.
+52. **A move between documents is two units of undo, one in each history.** An editor
+    edits one document (A34) and there is no history above the documents, so the move
+    cannot be one unit; `move_between` makes both changes or neither (if the second half
+    fails, the first is undone and forgotten). Undoing both gives both documents back
+    exactly. Undoing one only leaves the cells in neither document (links to them are
+    broken until the other is undone) or in both (each document's links find its own;
+    other documents' links stay with the document they name; the workspace reports the
+    shared IDs): nothing is lost either way. The IDs of moved cells stay taken in the
+    source's history (A48), and the target refuses to adopt an ID that it has or that
+    its history holds. An interface should offer the two undos together.
+53. **An index is one summary per document** (`summary.rs`; carries out A13 for links,
+    and is the shape milestone 6 is to use). A `Summary` is made by reading a document
+    once, follows edits from the change report (A35) at a cost that depends on the
+    cells changed and not on the document, and can be written to a cache and read back.
+    The link index (`links::LinkIndex`) is the summaries (`DocLinks`: the IDs of the
+    document's cells, and the links of the cells that have any, with the linked text)
+    and a table from target cell ID to the cells that link to it (which A47 makes
+    possible: the links to a cell are found by its ID alone). It holds nothing that is
+    not in the documents, and an index built from the documents equals one that
+    followed any sequence of commands, undos, redos and groups: the main test of the
+    milestone. It does not hold the order of cells or their place, which would not be
+    O(change) to maintain; the text and location trail of a target are read from its
+    document when they are shown.
+54. **The index of a workspace reads each document once, and its cache is believed only
+    when it proves itself** (`scan.rs`). Documents that are not open are indexed by
+    loading them one at a time (memory: one document and the summaries). The optional
+    cache is `.wombat-index/<kind>.idx` in the workspace folder: a first line with the
+    kind, its version, and the length and a checksum of the rest; then the summaries,
+    each under the length and a checksum of the bytes of the document file it was made
+    from. Every document file is read in full on every scan and its checksum compared,
+    so staleness does not depend on modification times: a changed file is parsed again,
+    an unchanged one is not, a renamed one is found, a deleted one drops out. A cache
+    whose first line is not exactly what this version would write for the rest is
+    ignored whole, and an entry that does not decode is parsed again. The checksum is
+    128-bit FNV-1a: proof against damage, not against forgery. Failing to write the
+    cache is not an error. The command-line tool keeps no cache unless asked
+    (`--cache`), so that reading a folder does not write to it.
+55. **Deleting what is linked to.** Nothing is rewritten: the link stays in the text of
+    the cell that has it and resolves as broken; undoing the deletion brings the cell
+    back with its ID (A36) and the link resolves again. `LinkIndex::would_break` and
+    `would_break_document` say beforehand which links a deletion would break, for a
+    warning. A deleted (or absent) document makes links into it broken ("no such
+    document"), also without rewriting.
+56. **Imported links without a target are resolved later only when there is no doubt**
+    (settles B14's "milestone 4 may"). `links::unknown_links` lists them with the cells
+    that now have the text they named; `links::resolve_unknown` gives a target to those
+    with exactly one such cell (never the root or the linking cell; a formula cell
+    counts by what it shows, A66) and leaves the others. TreeSheets' "nearest cell" rule is applied once, at
+    import (B1), and not again: on a document that has since been edited, "nearest"
+    would be a guess. Any `SetLink` on the range converts the link by hand.
+
+Numbers 57 to 59 are not used: milestones 4 and 5 were built at the same time, each with
+numbers of its own (A50 on and B40 on for milestone 4, A60 on and B50 on for milestone 5).
 
 60. **Calculating gives the same on every machine** (milestone 5; carries out A14 under
     the rule of deterministic output). TreeSheets takes the reading and writing of
@@ -443,7 +525,8 @@ milestone 5.
     result, so everything that compares texts compares results. Done: `SortRows` sorts
     by what cells show; a run reads formula cells by their results; the importer of
     `.cts` files finds the target of a link by what cells show, so a formula cell can be
-    a target (replaces B15). Not done, and still by the formula: hierarchify (which
+    a target (replaces B15), `links::unknown_links` counts them the same way, and
+    `links::place_shown` shows a link's target and its trail by what cells show. Not done, and still by the formula: hierarchify (which
     compares texts), flatten, collapse and hierarchy swap (which copy texts into new
     data cells).
 67. **Limits on calculating** (A12; B52 and B53 say how TreeSheets differs). A formula
@@ -564,7 +647,26 @@ milestone 5.
     properties stays possible; TreeSheets' interface cannot do that, but its script API
     can.
 
-Numbers 34 to 49 are left free for milestone 4.
+Numbers 34 to 39 are not used.
+
+40. **Following a link gives its target; nothing is opened by the core.** TreeSheets'
+    "open link in browser" and "open file" launch a browser or a program. The core
+    says what a link points at (`LinkIndex::resolve`), which link the cursor is on
+    (`links::link_at`, by TreeSheets' rule) and whether an external target is a URL or
+    a file path (`links::external`, TreeSheets' `HasURLScheme`); opening is the
+    interface's. TreeSheets opens the text of every selected cell when there is no
+    link; in Wombat that is the interface passing the text to the same function.
+41. **"Go to matching cell" is not a link.** TreeSheets' F6 and F7 jump to the next
+    cell with the same text or image. With links by ID (B1) going to a link's target
+    is resolution, and going back is the backlinks (B2); finding cells by equal text or
+    image is a search and belongs to milestone 6.
+42. **A deleted link target is reported, not searched for.** In TreeSheets a link whose
+    cell is gone silently goes to the next nearest cell with that text, or nowhere. In
+    Wombat it is a broken link, listed as such (A55).
+43. **Cells can move between documents and keep their identity** (A51). TreeSheets
+    moves cells between files only by cut and paste, which makes new cells.
+
+Numbers 44 to 49 are not used.
 
 50. **A formula cell that stops being one shows its formula again.** In TreeSheets the
     text of a formula cell is its result, and stays so when the cell is marked as data

@@ -79,7 +79,7 @@ impl Workspace {
     }
 
     /// The file names of the documents, sorted.
-    fn names(&self) -> Result<Vec<String>, Error> {
+    pub(crate) fn names(&self) -> Result<Vec<String>, Error> {
         let io = |source| Error::Io {
             path: self.dir.clone(),
             source,

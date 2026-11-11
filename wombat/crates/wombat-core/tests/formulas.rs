@@ -528,3 +528,121 @@ fn a_group_reports_everything_that_recalculated_in_it() {
     assert_eq!(e.recalculated(), both);
     assert_eq!(shown(&e)[2..], ["10", "20"]);
 }
+
+/// Formulas and the links of milestone 4 together: a formula cell copied or moved to
+/// another document keeps its kind and formula, and means there what the names mean there.
+#[test]
+fn formula_cells_copied_and_moved_between_documents_recalculate_in_both() {
+    use wombat_core::links::{copy_between, move_between};
+    let (mut a, mut ids) = editor(&[
+        json!(["Costs", "10", "20"]),
+        json!("=SUM(Costs)"),
+        json!(["Totals", "=SUM(Costs) * 2"]),
+        json!("=SUM(Totals)"),
+    ]);
+    // The other document: with IDs of its own.
+    let mut other = SeededIds::from_u64(99);
+    let items = [
+        json!(["Costs", "1", "2"]),
+        json!(""),
+        json!(""),
+        json!("=SUM(Totals)"),
+    ];
+    let mut b = Editor::new(build(&formula_support::column(&items), &mut other)).unwrap();
+    assert_eq!(shown(&a)[1..], ["30", "Totals", "60"]);
+    assert_eq!(shown(&b)[3], "#NAME?");
+
+    // A copy of the formula cell: same formula, the other document's Costs.
+    let formula = row(&a, 1);
+    let to = row(&b, 1);
+    copy_between(a.document(), formula, &mut b, to, &mut ids).unwrap();
+    let pasted = b.document().cell(row(&b, 1)).unwrap();
+    assert_eq!(
+        (pasted.kind, pasted.text.as_str()),
+        (CellKind::Formula, "=SUM(Costs)")
+    );
+    assert_eq!(shown(&b)[1], "3");
+    assert_eq!(b.recalculated(), [row(&b, 1)]);
+    assert_eq!(shown(&a)[1], "30");
+
+    // The table with a formula in it moves: the source loses the name, the target gains it.
+    let totals = row(&a, 2);
+    let inner = inside(&a, 2, 0, 0);
+    let to = row(&b, 2);
+    move_between(&mut a, totals, &mut b, to, None, &mut ids).unwrap();
+    assert_eq!(shown(&a)[2..], ["", "#NAME?"]);
+    assert_eq!(a.recalculated(), [row(&a, 3)]);
+    assert_eq!(a.calc().result(inner), None);
+    assert_eq!(row(&b, 2), totals);
+    assert_eq!(b.shown(inner), Some("6"));
+    assert_eq!(shown(&b)[2..], ["Totals", "6"]);
+    assert!(b.recalculated().contains(&inner) && b.recalculated().contains(&row(&b, 3)));
+    for e in [&a, &b] {
+        let full = Calc::new(e.document());
+        assert_eq!(e.calc().results(), full.results());
+    }
+
+    // Undoing both halves gives both back, results included.
+    a.undo().unwrap();
+    b.undo().unwrap();
+    assert_eq!(shown(&a)[1..], ["30", "Totals", "60"]);
+    assert_eq!(shown(&b)[1..], ["3", "", "#NAME?"]);
+    b.redo().unwrap();
+    a.redo().unwrap();
+    assert_eq!(shown(&b)[2..], ["Totals", "6"]);
+    assert_eq!(shown(&a)[3], "#NAME?");
+}
+
+/// What a link's target is shown as, and which cells an imported link without a target
+/// could go to: by what cells show (decision A66).
+#[test]
+fn links_show_and_find_formula_cells_by_their_results() {
+    use wombat_core::construct::Construct;
+    use wombat_core::links::{place, place_shown, resolve_unknown, unknown_links};
+    let spec = json!([
+        "",
+        0,
+        1,
+        3,
+        [
+            ["='Sum of ' & 3", 6, 1, 1, [["=1+2", 6]]],
+            ["see three", 0],
+            ["3", 0, 1, 1, [["x", 0]]]
+        ]
+    ]);
+    let mut ids = SeededIds::from_u64(1);
+    let mut doc = build(&spec, &mut ids);
+    let at = |doc: &wombat_core::Document, y| doc.child(doc.root(), 0, y).unwrap();
+    let inner = doc.child(at(&doc, 0), 0, 0).unwrap();
+    let calc = Calc::new(&doc);
+    let stored = place(&doc, inner).unwrap();
+    assert_eq!(
+        (stored.text.as_str(), &stored.trail[..]),
+        ("=1+2", &["".to_string(), "='Sum of ' & 3".to_string()][..])
+    );
+    let shown = place_shown(&doc, &calc, inner).unwrap();
+    assert_eq!(shown.text, "3");
+    assert_eq!(shown.trail, ["", "Sum of 3"]);
+
+    // An imported link that names "3": the formula cell that shows 3 and the data cell
+    // "3" are both candidates, so nothing is guessed.
+    let mut extra = wombat_core::model::Extra::new();
+    extra.insert("cts_target".into(), "3".into());
+    doc.cell_mut(at(&doc, 1)).unwrap().links = vec![wombat_core::Link {
+        start: 4,
+        len: 5,
+        target: wombat_core::LinkTarget::Unknown,
+        extra,
+    }];
+    doc.validate().unwrap();
+    let found = unknown_links(&doc);
+    assert_eq!(found[0].candidates, [inner, at(&doc, 2)]);
+    assert!(resolve_unknown(&doc).is_empty());
+    // With the data cell renamed, the formula cell is the only one, and the link goes to it.
+    doc.cell_mut(at(&doc, 2)).unwrap().text = "three".into();
+    let commands = resolve_unknown(&doc);
+    assert!(matches!(
+        &commands[..],
+        [Command::SetLink { target: Some(wombat_core::LinkTarget::Cell { doc: None, cell }), .. }] if *cell == inner
+    ));
+}

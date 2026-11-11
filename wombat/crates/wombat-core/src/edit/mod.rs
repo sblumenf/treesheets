@@ -22,6 +22,7 @@
 //! that undo or redo can bring back as taken (decisions A43, A46, A48).
 
 mod command;
+mod paste;
 mod program;
 mod restructure;
 mod size;
@@ -37,6 +38,8 @@ use crate::model::{
 };
 
 use step::{ChangeSet, Step};
+
+pub use paste::Clip;
 
 /// The smallest width of a column, as in TreeSheets.
 pub const MIN_COL_WIDTH: u32 = 5;
@@ -490,6 +493,37 @@ pub enum Command {
     ToggleCheck {
         /// The cells.
         cells: Vec<CellId>,
+    },
+    /// The paste operation for cells that may come from another document: makes `to` a
+    /// copy of the top cell of `clip` with everything inside it, as [`Command::CopyCell`]
+    /// does within a document. `to` keeps its ID and place; the cells inside get new IDs.
+    /// Links in the copy keep pointing at what they pointed at: at the copies, for cells
+    /// that were copied with them, and otherwise at the original cells, naming the
+    /// document those are in when it is not this one. Refused onto the root cell.
+    PasteCells {
+        /// The cell that becomes the copy.
+        to: CellId,
+        /// What to paste.
+        clip: Clip,
+    },
+    /// One half of moving cells between documents: the cells of `clip`, which was taken
+    /// from another document, come into this one with the IDs they have, in the place of
+    /// the empty cell `to`, which is removed. Refused if `to` is not empty or is the root,
+    /// or if one of the IDs is in use in this document or its history. The other half is
+    /// [`Command::ReleaseCell`] in the document they came from;
+    /// [`crate::links::move_between`] does both.
+    AdoptCells {
+        /// An empty cell (no text, image or grid) whose place the top cell takes.
+        to: CellId,
+        /// The cells that move in.
+        clip: Clip,
+    },
+    /// The other half of moving cells between documents: `cell` and everything inside it
+    /// leave this document, and a new empty cell with the same looks takes the place.
+    /// Unlike [`Command::ClearCells`] the ID of `cell` goes with it. Refused for the root.
+    ReleaseCell {
+        /// The cell that leaves.
+        cell: CellId,
     },
 }
 
@@ -965,6 +999,16 @@ impl Editor {
     /// hold (removed cells, replaced text), without what unknown fields hold.
     pub fn history_bytes(&self) -> usize {
         self.undo_cost
+    }
+
+    /// Whether a group of commands is open ([`Editor::begin_group`]).
+    pub fn in_group(&self) -> bool {
+        self.group_depth > 0
+    }
+
+    /// Forgets what could be redone; the document and the undo history stay as they are.
+    pub fn clear_redo(&mut self) {
+        self.forget_redo();
     }
 
     /// Forgets the whole history; the document stays as it is.
