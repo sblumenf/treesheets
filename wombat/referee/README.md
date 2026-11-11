@@ -10,13 +10,15 @@ and never need the app. Only regenerating needs it.
 | `export_golden` | Opens every example `.cts` in the real app and writes its exports to `golden/` |
 | `run_script` | Runs one Lobster script against one `.cts` in a fresh app and prints the result |
 | `make_fixtures` | Has the app build `fixtures/*.cts` from `fixtures/*.lobster` |
-| `referee.py` | What the three share: private X server, app instance, agent socket, JSON writer |
+| `referee.py` | What the scripts share: private X server, app instance, agent socket, JSON writer |
+| `ui.py` | Drives the app's menu actions by pressing keys on the private display (`xdotool`), for what no script function reaches |
 | `dump_tree.lobster` | The script that walks a document and reads every property (for the JSON kind) |
 | `fixtures/` | Test documents of our own, in the current file format, which no example uses |
 | `golden/` | The reference data, and `MANIFEST.json` |
+| `ops/` | Operation cases: one edit done by the real app and the same edit as Wombat commands. `make_ops` runs `cases/*.lobster` through the script API; `make_ui_ops` runs `ui/cases/*.ui` through `ui.py` |
 
 The scripts are Python 3.8+ with the standard library only. They need `Xvfb` and a TreeSheets
-built with Lobster. They never use an existing display, the user's settings or a running
+built with Lobster; `ui.py` and `ops/make_ui_ops` also need `xdotool`. They never use an existing display, the user's settings or a running
 TreeSheets: each file is opened as a copy in a new temporary directory, in a new instance
 (`-i -p -a`) with its own `HOME`, on a private `Xvfb`. Nothing is left running afterwards.
 
@@ -26,7 +28,7 @@ From the repository root, on Debian/Ubuntu (about 6 minutes on 4 cores):
 
 ```sh
 apt-get install -y cmake g++ libgtk-3-dev libgl1-mesa-dev libglu1-mesa-dev libcurl4-openssl-dev \
-    libsecret-1-dev libnotify-dev gettext xvfb
+    libsecret-1-dev libnotify-dev gettext xvfb xdotool
 cmake -S . -B _build -DCMAKE_BUILD_TYPE=Release -DTREESHEETS_BUNDLE_WXWIDGETS=ON -DENABLE_IPO=OFF
 cmake --build _build -j4
 ```
@@ -56,6 +58,9 @@ Use the same ones when those files change.
 wombat/referee/export_golden            # all of golden/, about 15 seconds
 wombat/referee/export_golden -o /tmp/g TS/examples/sales.cts    # some files, elsewhere
 wombat/referee/make_fixtures            # only after changing a fixtures/*.lobster
+wombat/referee/ops/make_ops             # ops/golden/, after changing ops/cases/*.lobster
+wombat/referee/ops/make_ui_ops          # ops/ui/golden/, after changing ops/ui/cases/*.ui
+wombat/referee/ops/make_ui_ops NAME     # one case
 ```
 
 `export_golden` exports every `.cts` under `TS/examples` (all subdirectories) and `fixtures/`. The
@@ -175,11 +180,39 @@ since the script may have edited any cell. Exit code 1, with the error on stderr
 does not compile or fails. A script that opens a dialog (for example `ts.save_document(true)`)
 blocks until `--timeout` (300 seconds).
 
+## Menu actions, by pressing keys
+
+The script API has no function for most menu actions (sort, transpose, hierarchify, flatten,
+hierarchy swap, wrap, collapse, split and others), and neither it nor the agent socket can run
+an action by name. `ui.py` reaches them the way a person does: the app runs on the private
+`Xvfb` display as always, a Lobster script sets the selection (`ts.select_range`), `xdotool key`
+presses the action's shortcut on that display only, and the document is read back with
+`dump_tree.lobster`. Actions without a shortcut get one through TreeSheets' own custom key
+bindings, which in portable mode it reads from `TreeSheets.ini` in its working directory (the
+table `ACTIONS` in `ui.py`). Nothing in TreeSheets is changed, and no existing display is touched.
+
+A case is `ops/ui/cases/NAME.ui` (the selection and the actions, each with whether the document
+must change), `NAME.edit` (the same as `wombat edit` lines) and `ops/ui/golden/NAME.json` (what
+the app gave), all on `ops/ui/fixture.cts`, which `fixture.lobster` builds. `make_ui_ops` runs
+every case twice in fresh apps and demands the same result, checks that the document changed or
+not as the case says, and after reading the result presses one more key that always changes the
+document, so that "nothing changed" means the action was refused and not that the key was lost.
+The test that compares (`crates/wombat-cli/tests/ops.rs`) needs none of this.
+
+What it took to make keys arrive, for whoever adds an action: the window must be given the
+keyboard (`xdotool windowfocus`; there is no window manager); Ctrl+Alt+F-keys never arrive (the
+X server takes them); and a new binding must not be a key that another menu item has.
+
 ## Known limitations
 
 - Linux only (X11 through `Xvfb`, Unix socket in `/tmp`).
 - One app start per document (under half a second each).
 - The process is ended with SIGTERM, since there is no window manager to close it. The scripts
   remove its socket and token files themselves.
-- Edits that only the user interface can do (keys, mouse, menus) are out of reach: the referee
-  covers what the Lobster script API offers.
+- Menu actions are reached only through their keyboard shortcuts (`ui.py`). Still out of reach:
+  anything that needs the mouse (dragging cells, clicking a checkbox, resizing a column by
+  hand), dialogs (colour pickers, file choosers, search and replace), and typing into a cell
+  (inserting and deleting text in the middle of a cell is compared with TreeSheets' own
+  `src/textruns.h` instead, compiled into `ops/textruns.cpp`).
+- What the dump cannot show cannot be compared: which cell is which (TreeSheets has no IDs), a
+  tag's colours, grid spacing, image scale, edit times (see "What no golden kind has").

@@ -264,8 +264,8 @@ fn grids_nested_exactly_to_the_limit_and_one_deeper() {
 
 #[test]
 fn more_cells_than_the_limit_are_refused_before_they_are_made() {
-    // Reaching the limit itself would take gigabytes; only "just beyond" is tested, and only
-    // in memory, since a file of that many cells is over the file size limit anyway.
+    // Only "just beyond" is tested, and only in memory, since a file of that many cells is
+    // over the file size limit anyway.
     let mut ids = SeededIds::from_u64(1);
     let mut doc = Document::new(&mut ids);
     let all = u32::try_from(MAX_CELLS).unwrap();
@@ -278,9 +278,12 @@ fn more_cells_than_the_limit_are_refused_before_they_are_made() {
         &mut ids
     )));
     assert_eq!(doc.cell_count(), 1);
+    // The limit is the number of cells that a file of the largest size can hold (a cell
+    // takes at least 48 bytes), rounded up: no file is refused for its number of cells
+    // alone. (It was 5,000,000 before the review of milestone 3: decision A43.)
     assert!(
-        MAX_CELLS as u64 * 40 > MAX_FILE_BYTES,
-        "a cell takes over 40 bytes"
+        MAX_CELLS as u64 * 48 >= MAX_FILE_BYTES && (MAX_CELLS as u64 - 1000) * 48 < MAX_FILE_BYTES,
+        "a cell takes at least 48 bytes"
     );
 }
 

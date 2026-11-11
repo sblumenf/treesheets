@@ -195,7 +195,9 @@ pub enum LinkTarget {
     External(String),
     /// A cell, by its permanent ID.
     Cell {
-        /// The document the cell is in, or `None` for the document that holds the link.
+        /// The document the cell is in, or `None` for the document that holds the link;
+        /// never the ID of that document itself, so that a link to one cell has one form
+        /// (decision A47).
         doc: Option<DocId>,
         /// The cell.
         cell: CellId,
@@ -593,6 +595,12 @@ impl Document {
                 return invalid(format!("cell {id} has a wrong or duplicate ID"));
             }
             validate_cell(cell)?;
+            let own = |link: &Link| matches!(link.target, LinkTarget::Cell { doc: Some(doc), .. } if doc == self.id);
+            if cell.links.iter().any(own) {
+                return invalid(format!(
+                    "cell {id}: a link to a cell of this document names the document"
+                ));
+            }
             if let Some(grid) = &cell.grid {
                 if depth >= MAX_DEPTH {
                     return Err(Error::Limit(format!(
@@ -615,9 +623,9 @@ impl Document {
 
     /// Makes a copy of the document that shares no ID with it: the copy has a new document
     /// ID and a new ID for every cell, taken from `ids` in document order. Links to cells of
-    /// this document (with or without its document ID) follow the copy's cells; links to
-    /// cells of other documents, and links to cells that are not in this document, are
-    /// unchanged. IDs inside unknown fields are not recognised and stay as they are. The
+    /// this document (which do not name the document, decision A47) follow the copy's
+    /// cells; links to cells of other documents, and links to cells that are not in this
+    /// document, are unchanged. IDs inside unknown fields are not recognised and stay as they are. The
     /// returned [`FreshIds`] says which ID became which, for the view state
     /// ([`crate::ViewState::with_fresh_ids`]) and anything else keyed by cell ID.
     pub fn with_fresh_ids(&self, ids: &mut dyn IdSource) -> Result<(Document, FreshIds), Error> {
@@ -656,12 +664,13 @@ impl Document {
                 }
             }
             for link in &mut cell.links {
-                if let LinkTarget::Cell { doc, cell: target } = &mut link.target {
-                    if let (true, Some(new)) =
-                        (doc.is_none_or(|d| d == self.id), fresh.cell(*target))
-                    {
+                if let LinkTarget::Cell {
+                    doc: None,
+                    cell: target,
+                } = &mut link.target
+                {
+                    if let Some(new) = fresh.cell(*target) {
                         *target = new;
-                        *doc = doc.map(|_| fresh.to);
                     }
                 }
             }
@@ -946,7 +955,7 @@ mod tests {
                 cell: inner,
             },
             LinkTarget::Cell {
-                doc: Some(doc.id()),
+                doc: None,
                 cell: root,
             },
             // Into another document, even to a cell with an ID this document also has.
@@ -959,16 +968,24 @@ mod tests {
                 doc: None,
                 cell: gone,
             },
-            LinkTarget::Cell {
-                doc: Some(doc.id()),
-                cell: gone,
-            },
             LinkTarget::External("https://example.org".into()),
             LinkTarget::Unknown,
         ];
+        // A link to an own cell that names the own document is not a valid form (A47).
+        {
+            let mut named = doc.clone();
+            let own = named.id;
+            let cell = named.cell_mut(cells[0]).unwrap();
+            cell.text = "0".into();
+            cell.links = vec![link(LinkTarget::Cell {
+                doc: Some(own),
+                cell: root,
+            })];
+            assert!(matches!(named.validate(), Err(Error::Invalid(_))));
+        }
         {
             let cell = doc.cell_mut(cells[0]).unwrap();
-            cell.text = "0123456".into();
+            cell.text = "012345".into();
             cell.links = targets.iter().cloned().map(link).collect();
             for (n, link) in cell.links.iter_mut().enumerate() {
                 link.start = n as u32;
@@ -1019,7 +1036,7 @@ mod tests {
             cell: fresh.cell(inner).unwrap(),
         };
         expected[1] = LinkTarget::Cell {
-            doc: Some(copy.id()),
+            doc: None,
             cell: copy.root(),
         };
         assert_eq!(links, expected);

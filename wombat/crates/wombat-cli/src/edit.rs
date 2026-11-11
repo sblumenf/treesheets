@@ -112,7 +112,7 @@ History
 
 Looking and saving
   show [ids]                          print the document as an outline
-  changes                             print what the last command, undo or redo changed
+  changes                             print what the last command, group, undo or redo changed
   check                               check that the document is valid
   save                                write the document (and its folds) to the file
 ";
@@ -760,7 +760,8 @@ impl<'a> Session<'a> {
             "undo" => self.history(args, true)?,
             "redo" => self.history(args, false)?,
             "begin" => self.editor.begin_group(),
-            "end" => self.editor.end_group(),
+            // After a group, `changes` shows what the group changed as a whole.
+            "end" => self.last = self.editor.end_group(),
             "now" => {
                 self.now = match next(args, "a time in milliseconds, or `none`")? {
                     "none" => None,

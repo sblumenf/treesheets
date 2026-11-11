@@ -14,7 +14,8 @@ use crate::model::{
 };
 use crate::text;
 
-use super::step::{Axis, Field, Step};
+use super::size::CELL_BYTES;
+use super::step::{Axis, Field, Patch, Step};
 use super::{restructure, Command, Prop, Tx, MIN_COL_WIDTH};
 
 pub(super) fn cell(doc: &Document, id: CellId) -> Result<&Cell, Error> {
@@ -108,13 +109,22 @@ pub(super) fn replace_text(
         // Replacing text by the same text: nothing to do, nothing to undo.
         return Ok(());
     }
+    // Only the runs and links that the edit touches go into the history, not all of them.
+    let shift = i64::from(count) - i64::from(len);
+    let runs = Patch::between(&c.runs, &runs, shift);
+    let links = Patch::between(&c.links, &links, shift);
     tx.step(Step::Splice {
         cell: id,
         at: start,
         del: len,
         ins,
     })?;
-    set_runs_links(tx, id, Some(runs), Some(links))?;
+    if let Some(patch) = runs {
+        tx.step(Step::PatchRuns { cell: id, patch })?;
+    }
+    if let Some(patch) = links {
+        tx.step(Step::PatchLinks { cell: id, patch })?;
+    }
     stamp(tx, id, now)
 }
 
@@ -183,74 +193,120 @@ fn set_link(
         }
         _ => {}
     }
+    // One form for a link to a cell of this document: without the document (A47).
+    let own = tx.doc().id();
+    let target = target.map(|target| match target {
+        LinkTarget::Cell { doc, cell } => LinkTarget::Cell {
+            doc: doc.filter(|d| *d != own),
+            cell,
+        },
+        other => other,
+    });
     let mut links = c.links.clone();
     text::links_set(&mut links, start, end, target);
     set_runs_links(tx, id, None, Some(links))
 }
 
-fn set_prop(tx: &mut Tx, id: CellId, prop: &Prop, now: Option<i64>) -> Result<(), Error> {
-    let c = cell(tx.doc(), id)?;
-    let field = match prop {
-        Prop::CellColor(v) => {
-            if c.cell_color != *v {
-                set(tx, id, Field::CellColor(*v))?;
+/// The properties of a cell as they are after `props`, in a cell that has no text and
+/// whose grid has no cells (they are left out so that a long text or a large grid costs
+/// nothing here). The last-edit time is stamped if a colour really differs at the end.
+fn with_props(c: &Cell, props: &[Prop], now: Option<i64>) -> Result<Cell, Error> {
+    let id = c.id();
+    let mut want = Cell::new(id, c.parent());
+    want.kind = c.kind;
+    want.cell_color = c.cell_color;
+    want.text_color = c.text_color;
+    want.draw_style = c.draw_style;
+    want.note.clone_from(&c.note);
+    want.text_align = c.text_align;
+    want.vert_align = c.vert_align;
+    want.rel_size = c.rel_size;
+    want.style = c.style;
+    want.runs.clone_from(&c.runs);
+    want.links.clone_from(&c.links);
+    want.last_edit = c.last_edit;
+    want.image.clone_from(&c.image);
+    want.extra.clone_from(&c.extra);
+    want.grid = c.grid().map(|g| {
+        let mut bare = Grid::new(g.xs(), g.ys(), Vec::new());
+        bare.border_color = g.border_color;
+        bare.outer_spacing = g.outer_spacing;
+        bare.vertical = g.vertical;
+        bare.col_widths.clone_from(&g.col_widths);
+        bare.extra.clone_from(&g.extra);
+        bare
+    });
+    let no_grid = || Error::Refused(format!("cell {id} has no grid"));
+    // Whether a time set with `Prop::LastEdit` comes after the last colour, and so wins.
+    let mut timed = false;
+    for prop in props {
+        match prop {
+            Prop::CellColor(v) => {
+                want.cell_color = *v;
+                timed = false;
             }
-            return stamp(tx, id, now);
-        }
-        Prop::TextColor(v) => {
-            let runs = text::runs_without_colors(&c.runs, c.style);
-            if c.text_color != *v {
-                set(tx, id, Field::TextColor(*v))?;
+            Prop::TextColor(v) => {
+                want.text_color = *v;
+                want.runs = text::runs_without_colors(&want.runs, want.style);
+                timed = false;
             }
-            set_runs_links(tx, id, Some(runs), None)?;
-            return stamp(tx, id, now);
-        }
-        Prop::RelSize(v) => (c.rel_size != *v).then_some(Field::RelSize(*v)),
-        Prop::TextAlign(v) => (c.text_align != *v).then_some(Field::TextAlign(*v)),
-        Prop::VertAlign(v) => (c.vert_align != *v).then_some(Field::VertAlign(*v)),
-        Prop::Kind(v) => (c.kind != *v).then_some(Field::Kind(*v)),
-        Prop::DrawStyle(v) => (c.draw_style != *v).then_some(Field::DrawStyle(*v)),
-        Prop::LastEdit(v) => (c.last_edit != *v).then_some(Field::LastEdit(*v)),
-        Prop::Note(v) => {
-            if code_points(v) > MAX_TEXT_CODE_POINTS {
-                return Err(Error::Limit(format!(
-                    "cell {id}: note longer than {MAX_TEXT_CODE_POINTS} code points"
-                )));
+            Prop::RelSize(v) => want.rel_size = *v,
+            Prop::TextAlign(v) => want.text_align = *v,
+            Prop::VertAlign(v) => want.vert_align = *v,
+            Prop::Kind(v) => want.kind = *v,
+            Prop::DrawStyle(v) => want.draw_style = *v,
+            Prop::LastEdit(v) => {
+                want.last_edit = *v;
+                timed = true;
             }
-            (c.note != *v).then(|| Field::Note(v.clone()))
-        }
-        Prop::Image(v) => {
-            if let Some(image) = v {
-                check_image(id, &image.file, image.scale)?;
-                crate::model::check_extra(
-                    &image.extra,
-                    crate::format::IMAGE_KEYS,
-                    &format!("the image of cell {id}"),
-                )?;
+            Prop::Note(v) => {
+                if code_points(v) > MAX_TEXT_CODE_POINTS {
+                    return Err(Error::Limit(format!(
+                        "cell {id}: note longer than {MAX_TEXT_CODE_POINTS} code points"
+                    )));
+                }
+                want.note.clone_from(v);
             }
-            (c.image != *v).then(|| Field::Image(v.clone()))
+            Prop::Image(v) => {
+                if let Some(image) = v {
+                    check_image(id, &image.file, image.scale)?;
+                    crate::model::check_extra(
+                        &image.extra,
+                        crate::format::IMAGE_KEYS,
+                        &format!("the image of cell {id}"),
+                    )?;
+                }
+                want.image.clone_from(v);
+            }
+            Prop::ImageScale(v) => {
+                let Some(image) = &mut want.image else {
+                    return refused(format!("cell {id} has no image"));
+                };
+                check_image(id, &image.file, *v)?;
+                image.scale = *v;
+            }
+            Prop::BorderColor(v) => want.grid.as_mut().ok_or_else(no_grid)?.border_color = *v,
+            Prop::OuterSpacing(v) => want.grid.as_mut().ok_or_else(no_grid)?.outer_spacing = *v,
+            Prop::Vertical(v) => want.grid.as_mut().ok_or_else(no_grid)?.vertical = *v,
         }
-        Prop::ImageScale(v) => {
-            let Some(image) = &c.image else {
-                return refused(format!("cell {id} has no image"));
-            };
-            check_image(id, &image.file, *v)?;
-            let mut scaled = image.clone();
-            scaled.scale = *v;
-            (image.scale != *v).then_some(Field::Image(Some(scaled)))
-        }
-        Prop::BorderColor(v) => {
-            (grid(tx.doc(), id)?.border_color != *v).then_some(Field::BorderColor(*v))
-        }
-        Prop::OuterSpacing(v) => {
-            (grid(tx.doc(), id)?.outer_spacing != *v).then_some(Field::OuterSpacing(*v))
-        }
-        Prop::Vertical(v) => (grid(tx.doc(), id)?.vertical != *v).then_some(Field::Vertical(*v)),
-    };
-    match field {
-        Some(field) => set(tx, id, field),
-        None => Ok(()),
     }
+    let recoloured =
+        (want.cell_color, want.text_color) != (c.cell_color, c.text_color) || want.runs != c.runs;
+    if recoloured && !timed && now.is_some() {
+        want.last_edit = now;
+    }
+    Ok(want)
+}
+
+/// Sets properties of one cell: the steps for what differs once all of `props` are
+/// applied, so that a property set and set back is no change (decision A44).
+fn set_props(tx: &mut Tx, id: CellId, props: &[Prop], now: Option<i64>) -> Result<(), Error> {
+    let want = with_props(cell(tx.doc(), id)?, props, now)?;
+    sync_props(tx, id, &want)?;
+    if let Some(want) = &want.grid {
+        sync_grid_props(tx, id, want)?;
+    }
+    Ok(())
 }
 
 fn check_image(id: CellId, file: &str, scale: f64) -> Result<(), Error> {
@@ -337,17 +393,29 @@ pub(super) fn check_depth(doc: &Document, place: CellId, content: CellId) -> Res
     Ok(())
 }
 
-pub(super) fn check_room(doc: &Document, more: usize) -> Result<(), Error> {
-    match doc.cell_count().checked_add(more) {
-        Some(total) if total <= MAX_CELLS => Ok(()),
-        _ => Err(Error::Limit(format!("more than {MAX_CELLS} cells"))),
+/// Checks, before they are made, that `more` cells can be added: within the limit on
+/// cells, and not more than a file can hold (whether the document as a whole can still be
+/// saved is checked when the command is complete).
+pub(super) fn check_room(tx: &Tx, more: usize) -> Result<(), Error> {
+    match tx.doc().cell_count().checked_add(more) {
+        Some(total) if total <= MAX_CELLS => {}
+        _ => return Err(Error::Limit(format!("more than {MAX_CELLS} cells"))),
     }
+    if (more as u64).saturating_mul(CELL_BYTES) > tx.size_limit {
+        return Err(Error::Limit(format!(
+            "{more} more cells would make the document too large to save (over {} bytes)",
+            tx.size_limit
+        )));
+    }
+    Ok(())
 }
 
 /// Hands out IDs for new cells, refusing a source that repeats itself.
 pub(super) struct Fresh<'a> {
     ids: &'a mut dyn IdSource,
     given: HashSet<CellId>,
+    /// The IDs of cells that are not in the document but that undo or redo can bring back.
+    held: &'a HashSet<CellId>,
 }
 
 impl Fresh<'_> {
@@ -355,6 +423,11 @@ impl Fresh<'_> {
         let id = CellId(self.ids.next_id());
         if id.0 == doc.id().0 || doc.cell(id).is_some() || !self.given.insert(id) {
             return refused(format!("the ID source repeated the ID {id}"));
+        }
+        if self.held.contains(&id) {
+            return refused(format!(
+                "the ID source gave the ID {id} of a cell that undo or redo can bring back"
+            ));
         }
         Ok(id)
     }
@@ -431,7 +504,7 @@ fn create_grid(
     let count = (xs as usize)
         .checked_mul(ys as usize)
         .ok_or_else(|| Error::Limit(format!("more than {MAX_CELLS} cells")))?;
-    check_room(doc, count)?;
+    check_room(tx, count)?;
     let mut cells = Vec::with_capacity(count);
     for _ in 0..count {
         cells.push(new_cell(fresh.next(doc)?, id, owner, now));
@@ -444,8 +517,18 @@ fn create_grid(
     })
 }
 
+/// The root is not a cell that can be selected in TreeSheets, so nothing there clears it,
+/// pastes over it or deletes its grid; here those are refused (decision B33).
+fn not_the_root(doc: &Document, id: CellId, what: &str) -> Result<(), Error> {
+    if id == doc.root() {
+        return refused(format!("the root cell cannot be {what}"));
+    }
+    Ok(())
+}
+
 fn remove_grid(tx: &mut Tx, id: CellId) -> Result<(), Error> {
     grid(tx.doc(), id)?;
+    not_the_root(tx.doc(), id, "left without its grid")?;
     let inside = descendants(tx.doc(), id);
     tx.step(Step::SetGrid {
         cell: id,
@@ -479,7 +562,7 @@ fn insert_lines(
         .checked_mul(across as usize)
         .filter(|_| along.checked_add(count).is_some())
         .ok_or_else(|| Error::Limit(format!("more than {MAX_CELLS} cells")))?;
-    check_room(doc, total)?;
+    check_room(tx, total)?;
     // New cells take after the line before them, or after the first line when inserted
     // in front of it.
     let source = at.saturating_sub(1);
@@ -554,9 +637,6 @@ fn delete_lines(tx: &mut Tx, id: CellId, axis: Axis, at: u32, count: u32) -> Res
         ));
     }
     if count == along {
-        if id == doc.root() {
-            return refused("the root cell's grid cannot lose all its rows or columns");
-        }
         return remove_grid(tx, id);
     }
     let mut gone = Vec::new();
@@ -608,6 +688,7 @@ pub(super) fn clear_own(tx: &mut Tx, id: CellId) -> Result<(), Error> {
 pub(super) fn clear_cells(tx: &mut Tx, cells: &[CellId]) -> Result<(), Error> {
     for id in cells {
         cell(tx.doc(), *id)?;
+        not_the_root(tx.doc(), *id, "cleared")?;
     }
     for id in cells {
         // A cell named after a cell it is inside of is gone with that cell's grid.
@@ -756,7 +837,22 @@ fn move_cell(tx: &mut Tx, from: CellId, to: CellId) -> Result<(), Error> {
 /// not its grid or its place) equal to that of `like`.
 pub(super) fn sync_cell(tx: &mut Tx, id: CellId, like: &Cell) -> Result<(), Error> {
     let target = cell(tx.doc(), id)?;
-    let del = len32(&target.text)?;
+    if target.text != like.text {
+        let del = len32(&target.text)?;
+        tx.step(Step::Splice {
+            cell: id,
+            at: 0,
+            del,
+            ins: like.text.clone(),
+        })?;
+    }
+    sync_props(tx, id, like)
+}
+
+/// The steps that make every property of the cell `id` equal to that of `like`: all of its
+/// own content but the text.
+fn sync_props(tx: &mut Tx, id: CellId, like: &Cell) -> Result<(), Error> {
+    let target = cell(tx.doc(), id)?;
     let fields = [
         (target.kind != like.kind).then_some(Field::Kind(like.kind)),
         (target.cell_color != like.cell_color).then_some(Field::CellColor(like.cell_color)),
@@ -773,14 +869,23 @@ pub(super) fn sync_cell(tx: &mut Tx, id: CellId, like: &Cell) -> Result<(), Erro
         (target.image != like.image).then(|| Field::Image(like.image.clone())),
         (target.extra != like.extra).then(|| Field::Extra(like.extra.clone())),
     ];
-    if target.text != like.text {
-        tx.step(Step::Splice {
-            cell: id,
-            at: 0,
-            del,
-            ins: like.text.clone(),
-        })?;
+    for field in fields.into_iter().flatten() {
+        set(tx, id, field)?;
     }
+    Ok(())
+}
+
+/// The steps that make the properties of the grid of `id` (not its shape or cells) equal
+/// to those of `want`.
+pub(super) fn sync_grid_props(tx: &mut Tx, id: CellId, want: &Grid) -> Result<(), Error> {
+    let have = grid(tx.doc(), id)?;
+    let fields = [
+        (have.border_color != want.border_color).then_some(Field::BorderColor(want.border_color)),
+        (have.outer_spacing != want.outer_spacing)
+            .then_some(Field::OuterSpacing(want.outer_spacing)),
+        (have.vertical != want.vertical).then_some(Field::Vertical(want.vertical)),
+        (have.col_widths != want.col_widths).then(|| Field::ColWidths(want.col_widths.clone())),
+    ];
     for field in fields.into_iter().flatten() {
         set(tx, id, field)?;
     }
@@ -794,6 +899,7 @@ fn copy_cell(tx: &mut Tx, from: CellId, to: CellId, fresh: &mut Fresh) -> Result
     if from == to {
         return refused("a cell cannot be copied onto itself");
     }
+    not_the_root(doc, to, "pasted over")?;
     let inside = descendants(doc, from);
     let replaced = descendants(doc, to).len();
     if doc
@@ -811,14 +917,11 @@ fn copy_cell(tx: &mut Tx, from: CellId, to: CellId, fresh: &mut Fresh) -> Result
     for old in &inside {
         renamed.insert(*old, fresh.next(doc)?);
     }
-    let own = doc.id();
     let rename = |c: &mut Cell| {
         for link in &mut c.links {
-            if let LinkTarget::Cell { doc, cell } = &mut link.target {
-                if doc.is_none_or(|d| d == own) {
-                    if let Some(new) = renamed.get(cell) {
-                        *cell = *new;
-                    }
+            if let LinkTarget::Cell { doc: None, cell } = &mut link.target {
+                if let Some(new) = renamed.get(cell) {
+                    *cell = *new;
                 }
             }
         }
@@ -889,6 +992,7 @@ pub(super) fn run(
     let mut fresh = Fresh {
         ids,
         given: HashSet::new(),
+        held: tx.held,
     };
     match command {
         Command::InsertText { cell, at, text } => replace_text(tx, cell, at, 0, &text, now),
@@ -921,14 +1025,9 @@ pub(super) fn run(
             len,
             target,
         } => set_link(tx, cell, start, len, target),
-        Command::SetProps { cells, props } => {
-            for id in &cells {
-                for prop in &props {
-                    set_prop(tx, *id, prop, now)?;
-                }
-            }
-            Ok(())
-        }
+        Command::SetProps { cells, props } => cells
+            .iter()
+            .try_for_each(|id| set_props(tx, *id, &props, now)),
         Command::SetStyle { cells, set, clear } => cells
             .iter()
             .try_for_each(|id| set_style(tx, *id, set, clear)),

@@ -1563,10 +1563,8 @@ fn a_subtree_is_copied_with_fresh_ids_and_its_own_links() {
                 doc: None,
                 cell: copy_deep
             },
-            LinkTarget::Cell {
-                doc: Some(own),
-                cell: b
-            },
+            // Asked for with the own document's ID, stored without it (A47).
+            LinkTarget::Cell { doc: None, cell: b },
             LinkTarget::Cell { doc: None, cell: c },
             LinkTarget::Cell {
                 doc: Some(other),
@@ -2062,17 +2060,44 @@ fn a_cell_adopted_from_a_removed_cell_returns_to_it_on_undo() {
 /// children of other cells.
 #[test]
 fn every_step_and_its_inverse_cancel_exactly() {
-    use super::step::{Axis, Field};
+    use super::step::{Axis, Field, Patch};
     let (mut e, mut ids, cells) = editor(2, 2);
     for cell in [cells[0], cells[3]] {
         e.apply(Command::CreateGrid { cell, xs: 2, ys: 2 }, None, &mut ids)
             .unwrap();
     }
-    let doc = e.into_document();
+    let mut doc = e.into_document();
     let root = doc.root();
     let a = doc.cell(cells[0]).unwrap().grid().unwrap().cells().to_vec();
     let b = doc.cell(cells[3]).unwrap().grid().unwrap().cells().to_vec();
     let lone = Cell::new(CellId(ids.next_id()), Some(root));
+    // A cell with two runs and two links, for the steps that patch them.
+    let styled = cells[2];
+    let run = |start, len, bold| Run {
+        start,
+        len,
+        style: Style {
+            bold,
+            italic: !bold,
+            ..Style::default()
+        },
+        color: None,
+        extra: Extra::new(),
+    };
+    {
+        let cell = doc.cell_mut(styled).unwrap();
+        cell.text = "abcdefgh".into();
+        cell.runs = vec![run(0, 1, true), run(4, 2, true)];
+        cell.links = [1, 5]
+            .map(|start| Link {
+                start,
+                len: 2,
+                target: LinkTarget::External("u".into()),
+                extra: Extra::new(),
+            })
+            .to_vec();
+    }
+    doc.validate().unwrap();
     let steps = [
         Step::Splice {
             cell: cells[1],
@@ -2131,7 +2156,28 @@ fn every_step_and_its_inverse_cancel_exactly() {
             to: 1,
         },
         Step::Swap { a: a[0], b: b[3] },
+        // The runs and links of a text edit: one replaced, the one after it moved.
+        Step::PatchRuns {
+            cell: styled,
+            patch: Patch {
+                at: 0,
+                del: 1,
+                ins: vec![run(0, 2, true), run(2, 1, false)],
+                shift: 2,
+            },
+        },
+        Step::PatchLinks {
+            cell: styled,
+            patch: Patch {
+                at: 1,
+                del: 1,
+                ins: Vec::new(),
+                shift: 0,
+            },
+        },
     ];
+    // The bound on the saved size as each step counts it, against a count of the whole.
+    let bound = |doc: &Document| super::size::document(doc) as i64;
     for step in steps {
         let mut work = doc.clone();
         let mut seen = ChangeSet::default();
@@ -2139,10 +2185,36 @@ fn every_step_and_its_inverse_cancel_exactly() {
         let inverse = step.apply(&mut work, &mut seen).unwrap();
         let changed = work.clone();
         assert_ne!(changed, doc, "{what}");
+        assert_eq!(seen.bytes, bound(&changed) - bound(&doc), "bytes of {what}");
         let again = inverse.apply(&mut work, &mut seen).unwrap();
         assert_eq!(work, doc, "undo of {what}");
+        assert_eq!(seen.bytes, 0, "bytes of undo of {what}");
         again.apply(&mut work, &mut seen).unwrap();
         assert_eq!(work, changed, "redo of {what}");
+    }
+    // A patch that does not fit the list, or would move a range before the text, is
+    // refused and changes nothing.
+    for patch in [
+        Patch {
+            at: 2,
+            del: 1,
+            ins: Vec::new(),
+            shift: 0,
+        },
+        Patch {
+            at: 0,
+            del: 1,
+            ins: Vec::new(),
+            shift: -9,
+        },
+    ] {
+        let mut work = doc.clone();
+        let step = Step::PatchRuns {
+            cell: styled,
+            patch,
+        };
+        assert!(step.apply(&mut work, &mut ChangeSet::default()).is_err());
+        assert_eq!(work, doc);
     }
     // Removing cells is the inverse of adding them.
     let mut work = doc.clone();

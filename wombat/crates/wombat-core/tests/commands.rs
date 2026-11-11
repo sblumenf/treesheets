@@ -80,6 +80,31 @@ fn document(spec: &Spec) -> Document {
             doc.cell_mut(*cell).unwrap().text = CLUSTERS[cluster].to_string();
         }
     }
+    // Most documents also get what the restructuring commands work on, in the first cell
+    // below the root that is still empty-handed: a small hierarchy of single columns with
+    // texts that repeat, and in it a table whose rows start alike.
+    let spare: Vec<CellId> = doc
+        .cells_in_order()
+        .into_iter()
+        .filter(|c| *c != doc.root() && doc.cell(*c).unwrap().grid().is_none())
+        .collect();
+    let mut fill = |doc: &mut Document, cell: CellId, xs: u32, clusters: &[usize]| {
+        doc.add_grid(cell, xs, clusters.len() as u32 / xs, &mut ids)
+            .unwrap();
+        let cells = doc.cell(cell).unwrap().grid().unwrap().cells().to_vec();
+        for (id, cluster) in cells.iter().zip(clusters) {
+            doc.cell_mut(*id).unwrap().text = CLUSTERS[*cluster].to_string();
+        }
+        cells
+    };
+    if spec.seed % 8 != 7 {
+        if let Some(top) = spare.first() {
+            let kids = fill(&mut doc, *top, 1, &[0, 1, 0]);
+            let inner = fill(&mut doc, kids[0], 1, &[1, 3]);
+            fill(&mut doc, inner[1], 1, &[0, 1]);
+            fill(&mut doc, kids[1], 3, &[0, 1, 5, 0, 3, 1, 1, 1, 2]);
+        }
+    }
     doc.tags_mut().insert("tag1".into(), Tag::default());
     // And a tag that many cells have.
     doc.tags_mut().insert(CLUSTERS[1].into(), Tag::default());
@@ -91,7 +116,36 @@ fn document(spec: &Spec) -> Document {
             let _ = editor.apply(command, Some(1_600_000_000_000), &mut ids);
         }
     }
-    editor.into_document()
+    let mut doc = editor.into_document();
+    // One document in three has fields that this version does not know, at every level:
+    // they must survive whatever leaves their owner alone, and saving must count them.
+    if spec.seed.is_multiple_of(3) {
+        let unknown = || serde_json::json!({"list": [1, "two\n", null], "deep": {"x": 1.5}});
+        doc.extra_mut().insert("x_document".into(), unknown());
+        for tag in doc.tags_mut().values_mut() {
+            tag.extra.insert("x_tag".into(), unknown());
+        }
+        for (n, id) in doc.cells_in_order().into_iter().enumerate() {
+            if n % 4 != 0 {
+                continue;
+            }
+            let cell = doc.cell_mut(id).unwrap();
+            cell.extra.insert("x_cell".into(), unknown());
+            for run in &mut cell.runs {
+                run.extra.insert("x_run".into(), unknown());
+            }
+            for link in &mut cell.links {
+                link.extra.insert("x_link".into(), unknown());
+            }
+            if let Some(image) = &mut cell.image {
+                image.extra.insert("x_image".into(), unknown());
+            }
+            if let Some(grid) = cell.grid_mut() {
+                grid.extra.insert("x_grid".into(), unknown());
+            }
+        }
+    }
+    doc
 }
 
 proptest! {
@@ -121,15 +175,22 @@ proptest! {
 }
 
 /// The generator is only worth something if most of its commands are carried out and some
-/// are refused, for every kind of command.
+/// are refused, for every kind of command. Prints how often each kind was carried out, did
+/// nothing or was refused, and fails if a kind falls below what it reached when this was
+/// last tuned, so that a change to the generator or to a command that makes one rare shows.
 #[test]
 fn the_random_commands_reach_every_kind_both_ways() {
     use proptest::strategy::ValueTree;
     use proptest::test_runner::TestRunner;
+    use std::collections::BTreeMap;
     let mut runner = TestRunner::deterministic();
-    let mut carried_out = vec![0usize; support::KINDS as usize];
-    let mut refused = vec![0usize; support::KINDS as usize];
-    let mut idle = vec![0usize; support::KINDS as usize];
+    let kinds = support::KINDS as usize;
+    let (mut carried_out, mut refused, mut idle) = (
+        vec![0usize; kinds],
+        vec![0usize; kinds],
+        vec![0usize; kinds],
+    );
+    let mut reasons: Vec<BTreeMap<String, usize>> = vec![BTreeMap::new(); kinds];
     for _ in 0..300 {
         let spec = spec().new_tree(&mut runner).unwrap().current();
         let ops = proptest::collection::vec(op(), 30)
@@ -142,25 +203,138 @@ fn the_random_commands_reach_every_kind_both_ways() {
             match support::apply_checked(&mut editor, op, &mut ids, true) {
                 Ok(changes) if !changes.is_empty() => carried_out[op.kind as usize] += 1,
                 Ok(_) => idle[op.kind as usize] += 1,
-                Err(_) => refused[op.kind as usize] += 1,
+                Err(error) => {
+                    refused[op.kind as usize] += 1;
+                    // The reason without the IDs and numbers in it.
+                    let reason: String = error
+                        .to_string()
+                        .split(' ')
+                        .filter(|word| !word.contains(|c: char| c.is_ascii_digit()))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    *reasons[op.kind as usize].entry(reason).or_default() += 1;
+                }
             }
         }
     }
-    println!("carried out per kind: {carried_out:?}\nrefused per kind:     {refused:?}");
-    println!("nothing to do:        {idle:?}");
-    for kind in 0..support::KINDS as usize {
-        assert!(
-            carried_out[kind] >= 20,
-            "kind {kind} was carried out {} times",
-            carried_out[kind]
+    println!(
+        "{:<20}{:>8}{:>8}{:>8}{:>6}",
+        "command", "done", "nothing", "refused", "done"
+    );
+    let mut low = Vec::new();
+    for kind in 0..kinds {
+        let tries = carried_out[kind] + idle[kind] + refused[kind];
+        let rate = carried_out[kind] * 100 / tries.max(1);
+        println!(
+            "{:<20}{:>8}{:>8}{:>8}{:>5}%",
+            support::NAMES[kind],
+            carried_out[kind],
+            idle[kind],
+            refused[kind],
+            rate
         );
-        // Setting a whole text, styling whole cells, clearing, transposing, tagging,
-        // resizing and ticking cannot fail on an existing cell.
-        assert!(
-            refused[kind] >= 5 || [3, 8, 16, 26, 33, 34, 35, 37].contains(&kind),
-            "kind {kind} was refused {} times",
-            refused[kind]
+        if rate < MIN_RATE {
+            low.push(format!(
+                "{} {rate}%: {:?}",
+                support::NAMES[kind],
+                reasons[kind]
+            ));
+        }
+        // Setting a whole text, styling whole cells, transposing, tagging, resizing and
+        // ticking cannot fail on an existing cell.
+        if refused[kind] < 5 && ![3, 8, 26, 33, 34, 35, 37].contains(&kind) {
+            low.push(format!(
+                "{} was refused {} times",
+                support::NAMES[kind],
+                refused[kind]
+            ));
+        }
+    }
+    assert!(
+        low.is_empty(),
+        "carried out too rarely:\n{}",
+        low.join("\n")
+    );
+}
+
+/// Every kind of command is carried out in at least this share of its tries, in per cent.
+const MIN_RATE: usize = 60;
+
+/// Whatever commands are accepted near the size limit, the document saves within it and
+/// loads back equal; a refusal for size changes nothing; undo and redo are never refused.
+/// The limit is set just above the document, in three ways: above the editor's bound (the
+/// ordinary case), between the saved size and the bound (a document loaded from a file
+/// close to the limit: the bound cannot tell, so the editor writes it out), and below the
+/// saved size (a document that was built too large: it can still be made smaller).
+#[test]
+fn what_commands_build_near_the_size_limit_can_be_saved() {
+    use proptest::strategy::ValueTree;
+    use proptest::test_runner::TestRunner;
+    use wombat_core::{format, Error};
+    let mut runner = TestRunner::deterministic();
+    let (mut accepted, mut too_large) = ([0usize; 3], [0usize; 3]);
+    for round in 0..240 {
+        let spec = spec().new_tree(&mut runner).unwrap().current();
+        let ops = proptest::collection::vec(op(), 40)
+            .new_tree(&mut runner)
+            .unwrap()
+            .current();
+        let original = document(&spec);
+        let size = |doc: &Document| format::to_string(doc).unwrap().len() as u64;
+        let mut editor = Editor::new(original.clone()).unwrap();
+        let (mode, room) = (round % 3, spec.seed % 600);
+        let limit = match mode {
+            0 => editor.size_bound() + room,
+            // With hardly any room, so that a cell moving one level down is too much.
+            1 => size(&original) + (room % 16).min(editor.size_bound() - size(&original) - 1),
+            _ => size(&original).saturating_sub(1 + room),
+        };
+        editor.set_size_limit(limit);
+        let mut ids = SeededIds::from_u64(11);
+        let mut fits = mode < 2;
+        let mut states = vec![original.clone()];
+        for op in &ops {
+            let bound = editor.size_bound();
+            match support::apply_checked(&mut editor, op, &mut ids, true) {
+                Ok(changes) if changes.is_empty() => {}
+                Ok(_) => {
+                    accepted[mode] += 1;
+                    // From the moment the bound is under the limit the document fits, and
+                    // one that fitted goes on fitting.
+                    fits |= editor.size_bound() <= limit;
+                    let now = size(editor.document());
+                    assert!(!fits || now <= limit, "{now} bytes saved, limit {limit}");
+                    assert!(
+                        editor.size_bound() <= limit.max(bound),
+                        "the bound grew over the limit"
+                    );
+                    states.push(editor.document().clone());
+                }
+                Err(Error::Limit(reason)) if reason.contains("too large to save") => {
+                    too_large[mode] += 1;
+                }
+                Err(_) => {}
+            }
+        }
+        // Back to the start and forward again, whatever the limit.
+        for expected in states.iter().rev().skip(1) {
+            editor.undo().unwrap().unwrap();
+            assert_eq!(editor.document(), expected);
+        }
+        assert_eq!(editor.undo().unwrap(), None);
+        for expected in states.iter().skip(1) {
+            editor.redo().unwrap().unwrap();
+            assert_eq!(editor.document(), expected);
+        }
+        let text = format::to_string(editor.document()).unwrap();
+        assert_eq!(
+            format::from_slice(text.as_bytes()).unwrap(),
+            *editor.document()
         );
+    }
+    println!("near the size limit, by mode: {accepted:?} carried out, {too_large:?} refused as too large");
+    for mode in 0..3 {
+        assert!(accepted[mode] > 300 && too_large[mode] > 100, "mode {mode}");
     }
 }
 

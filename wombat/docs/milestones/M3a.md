@@ -306,3 +306,184 @@ and must say so.
 **Also:** `DeleteCells` already contains TreeSheets' rule for which rows or columns disappear
 after cells are emptied; `clear_cell` is `Cell::Clear`. Text sizes relative to a parent
 (`Grid::RelSize` in TreeSheets) are not adjusted anywhere yet.
+
+## Fixes after review
+
+An independent review of the editing engine (milestones 3a and 3b) reproduced the problems
+below. Each fix began with a test that failed because of the problem (they are in
+`crates/wombat-core/tests/review.rs` unless another place is named); the decisions are A43 to
+A48 and B33. The reviewer's finding about the parents of cells in `SetGrid` and `InsertLines`
+was fixed with milestone 3b (A42) and is not repeated here.
+
+| # | Finding | What was done | Test (seen to fail first) |
+| ---- | ---- | ---- | ---- |
+| 1 | Commands could build a document that cannot be saved: a grid of 1,000 by 1,000 cells, a text of 9 million emoji | The editor keeps an upper bound on the saved size, updated by every step, and refuses a command that takes it over 32 MiB. The limit on cells is 700,000 (was 5,000,000). A43 | `a_grid_too_large_to_save_is_refused...`, `a_text_too_large_to_save_is_refused` (both failed: accepted, then not saveable) |
+| 2 | A command that asks for nothing new was not always nothing: a colour set to what it is stamped the edit time and entered the history; a colour set and set back was reported | `SetProps` makes steps for the net effect only; the stamp follows a real colour change; `TagCells` sets each tag once. A44 | `setting_the_colour_a_cell_has...`, `a_colour_set_and_set_back...`, `two_cells_that_tag_one_name...` (all failed) |
+| 3 | `RemoveGrid(root)` and `ClearCells([root])` wiped the document while `DeleteRows` refused | One rule: the root keeps its grid and cannot be cleared or pasted over. B33 | `no_command_takes_the_grid_of_the_root_away` (failed) |
+| 4 | History without bound; a keystroke held all runs and links of its cell; typing could not join the unit before it | Default bounds of 1,000 units and about 64 MiB; `Editor::apply_typing`; text edits hold only the runs and links they touch. A46 | `the_history_is_bounded...`, `typing_joins_the_unit...` (new functions, so no "before"); `a_keystroke_holds_only_the_runs_it_touches` (failed with the old steps: 288,784 bytes, the test allows 1,500) |
+| 5 | An ID of a removed cell that the history still holds could be issued again | The editor keeps the IDs of the cells in its history; such an ID is refused. A48 | `the_id_of_a_cell_held_in_the_history_is_not_issued_again` (failed: accepted) |
+| 6 | `SetLink` stored a link to an own cell with and without the document's ID as two different targets | One form, without the ID: in commands, when loading, in copies with fresh IDs, and `validate` refuses the other. A47 | `a_link_into_the_own_document_is_stored_without_the_document_id` (failed) |
+| 7 | A group of commands had no report | `Editor::end_group` returns it, net of cells made and removed inside the group. A45 | `a_group_reports_what_it_changed_as_a_whole`, and the random walk checks every group's report for completeness |
+| 8 | The random generators carried out some commands in under half of the tries | Arguments are taken from the document; every command is carried out in at least 60% of its tries, printed and asserted | `the_random_commands_reach_every_kind_both_ways` |
+| 9 | `referee/README.md` said menu actions are out of reach | Rewritten to describe `ui.py`, `ops/` and what is still out of reach | |
+
+### 1. Size
+
+- **The limits now:** a file at most 32 MiB (unchanged); at most 700,000 cells (what such a
+  file can hold: a cell takes at least 48 bytes); a document that commands build has a bound
+  of at most 32 MiB, where the bound counts an empty cell as 81 bytes (its 48 and the
+  deepest indentation), so commands stop at about 414,000 empty cells (20.3 MB as a file).
+  Texts and notes still at most 16,777,216 code points each, and now also within the bound.
+- **How it is kept cheap:** the bound is a sum over cells and tags (`edit/size.rs`). Every
+  kind of step adds and subtracts the parts it touches: a text edit the bytes of the text
+  that goes and comes, a property its old and new value, cells that are added or removed
+  their own sum. No command looks at the whole document for this. A unit test compares the
+  running sum with a fresh count for every kind of step, and the random tests do so after
+  every command, undo and redo (and check that the saved file is not longer than the bound).
+- **Where it is checked:** in `Editor::apply`, once, when the command is complete; so every
+  command is covered, the 3b ones included, without a check of its own. Commands that make
+  many cells (new grid, inserted rows and columns, flatten, wrap, split, and the three that
+  work on a copy of a subtree) are also refused before they make more cells than a file can
+  hold, and hierarchy swap stops before its copies pass the limit on cells.
+- **Undo and redo are never refused for size.**
+- **A file close to the limit** can have a bound over the limit (the bound is loose by up to
+  about 33 bytes per cell). Such a document can still be edited; each command is then
+  followed by writing the document out once to see that it still fits. That is the one case
+  where a command costs time in proportion to the document; it ends when the bound is under
+  the limit again.
+- **The rule that is tested** (`what_commands_build_near_the_size_limit_can_be_saved`, 240
+  random documents, 40 commands each, with the limit set just above the document in three
+  ways): every accepted command leaves a document that saves within the limit and loads
+  back equal; a refusal changes nothing; undo and redo of everything work. 5,033 commands
+  were carried out and 2,390 refused as too large. Taking out the write-out check, or
+  counting a part too short, makes tests fail (tried). One test works at the real limit
+  (414,231 cells, 10 seconds in a debug build).
+
+### 2 and 3. Nothing new is nothing; the root
+
+The random tests now assert for every command of every kind: if the document is equal before
+and after, the report is empty and the history untouched; and if the root had a grid before,
+it has one after. `commands_that_ask_for_what_is_already_so_do_nothing` lists 25 such requests
+by hand (sorting sorted rows, transposing one cell, adjusting by zero, and so on); those
+passed before the fix too, the defect was in `SetProps` and `TagCells` only. The helper of the
+3b unit tests removed the root's grid to set up its tables; it now starts from a root without
+a grid.
+
+### 4. History
+
+- **Default:** 1,000 units and about 64 MiB, the oldest forgotten first, the newest always
+  kept. 1,000 is TreeSheets' number (it also stops at 100 MB of copies); with typing joined
+  into units it is a long session. The memory is an estimate: steps, and the cells, texts,
+  runs, links and lists they hold.
+- **Typing:** `apply_typing` joins a text edit to the newest unit if that is typing in the
+  same cell. The caller decides when; the command-line tool does not use it.
+- **Cost of a keystroke** in a cell with 2,000 runs, three keystrokes (at the start, inside
+  a run, at the end): 288,784 bytes held before, 928 after; that is 96 KB against 0.3 KB per
+  keystroke. What is left is the steps themselves: the text, the edit time, and the one or
+  two runs that the keystroke touches.
+- **Left as it was:** undo is refused while a group is open; styling a range (not typing)
+  still holds the cell's whole list of runs; the redo history has no bound of its own.
+
+### 7. Reports for groups
+
+`end_group` returns the report of the outermost group; `wombat edit`'s `changes` shows it
+after `end`. It is complete and exact about created and removed cells; it may name a cell that
+was changed and changed back.
+
+### 8. The random tests
+
+How often each command is carried out, of about 240 tries each (300 documents, 30 mixed
+commands each, one try in eight with numbers out of range on purpose; the test prints this
+table and fails if any command is below 60%):
+
+| Command | Carried out | Nothing to do | Refused | Carried out |
+| ---- | ---- | ---- | ---- | ---- |
+| `InsertText` | 178 | 47 | 15 | 74% |
+| `DeleteText` | 202 | 11 | 17 | 87% |
+| `ReplaceText` | 185 | 20 | 18 | 82% |
+| `SetText` | 226 | 24 | 0 | 90% |
+| `SetRangeStyle` | 203 | 28 | 14 | 82% |
+| `SetRangeColor` | 152 | 62 | 29 | 62% |
+| `SetLink` | 171 | 41 | 19 | 74% |
+| `SetProps` | 152 | 37 | 27 | 70% |
+| `SetStyle` | 184 | 50 | 0 | 78% |
+| `SetColumnWidth` | 219 | 1 | 17 | 92% |
+| `CreateGrid` | 221 | 0 | 23 | 90% |
+| `RemoveGrid` | 200 | 0 | 41 | 82% |
+| `InsertRows` | 216 | 14 | 13 | 88% |
+| `InsertColumns` | 224 | 14 | 13 | 89% |
+| `DeleteRows` | 211 | 0 | 51 | 80% |
+| `DeleteColumns` | 161 | 0 | 51 | 75% |
+| `ClearCells` | 220 | 9 | 20 | 88% |
+| `DeleteCells` | 212 | 12 | 30 | 83% |
+| `MoveRows` (was 49%) | 145 | 47 | 34 | 64% |
+| `MoveColumns` (was 41%) | 150 | 68 | 28 | 60% |
+| `SwapCells` | 191 | 24 | 6 | 86% |
+| `MoveCell` | 137 | 0 | 62 | 68% |
+| `CopyCell` | 181 | 12 | 30 | 81% |
+| `SetTag` | 204 | 0 | 28 | 87% |
+| `RemoveTag` | 190 | 0 | 83 | 69% |
+| `SortRows` (was 30%) | 192 | 44 | 10 | 78% |
+| `Transpose` | 200 | 56 | 0 | 78% |
+| `HierarchySwap` (was 29%) | 135 | 0 | 81 | 62% |
+| `Hierarchify` (was 42%) | 186 | 38 | 20 | 76% |
+| `Flatten` | 201 | 13 | 36 | 80% |
+| `Wrap` | 180 | 0 | 27 | 86% |
+| `Collapse` (was 42%) | 157 | 3 | 68 | 68% |
+| `SplitCell` | 242 | 0 | 9 | 96% |
+| `TagCells` | 166 | 58 | 0 | 74% |
+| `UntagCells` (was 36%) | 162 | 87 | 0 | 65% |
+| `AdjustRelSize` | 197 | 24 | 0 | 89% |
+| `AdjustColumnWidths` | 191 | 18 | 35 | 78% |
+| `ToggleCheck` | 239 | 0 | 0 | 100% |
+
+At the start of this pass, with the rule for the root in place, 20 of the 38 were under 60%
+(the table of 3b showed only the new ones). What
+changed: a sort picks a column in which two neighbouring rows differ and the direction that
+turns them round; ranges for deleting, styling, colouring and linking are not empty; rows,
+columns and blocks are taken from the grid's real size; swap, move and copy avoid the root
+and cells inside each other; tags are named after cell texts; and most random documents get a
+small hierarchy of single columns and a table with repeating first cells. `MoveColumns`,
+`HierarchySwap` and `UntagCells` stay near 60% because after a few destructive commands a
+small document often has no grid with two columns, no two levels of single-column grids, or
+no cell whose text is a tag.
+
+New in what the generators cover: units limits on the history (the walk sets them and the
+model forgets with the editor); typing that joins; groups inside groups; a `SetProps` with
+several properties, also set and set back; unknown fields at every level (document, tag, cell,
+run, link, image, grid) in one document in three; texts of characters made of several code
+points were there already. The budget in bytes is tested by hand-written cases only.
+
+### Numbers
+
+226 tests pass (210 before) and 1 runs by hand; `cargo test --workspace` takes about 1 minute
+45 seconds in a debug build on this container (64 seconds before: the random tests check the
+size bound, write the document out after every command, and work on larger documents).
+`cargo fmt`, `cargo clippy -D warnings` and `cargo check -p wombat-core --target
+wasm32-unknown-unknown` pass. The referee comparisons (38 files, 44 and 73 operation cases)
+are unchanged and pass.
+
+### Changed for callers
+
+- `Editor::end_group` returns `Changes`. New: `apply_typing`, `set_history_budget`,
+  `history_bytes`, `size_bound`, `set_size_limit`, `edit::size_bound`,
+  `edit::DEFAULT_HISTORY_UNITS`, `edit::DEFAULT_HISTORY_BYTES`.
+- The history is bounded unless told otherwise (`set_history_limit(None)` and
+  `set_history_budget(None)` give the old behaviour).
+- `limits::MAX_CELLS` is 700,000. A `.cts` file with more cells is refused by the importer.
+- Refused now: `RemoveGrid`, `ClearCells` and `CopyCell` on the root; any command that would
+  make the document too large to save; an `IdSource` that gives an ID held by the history.
+- A document with a link that names its own document ID is invalid when built by hand; a
+  file with one loads (the ID is dropped).
+
+### Doubtful or left undone
+
+- The size bound is loose (81 bytes for a cell that takes 48), which is why commands stop at
+  about 60% of the cells a file could hold, and why files near the limit fall back to being
+  written out after each command. Exact indentation would cure both at the price of steps
+  that walk the cells they move; not done.
+- `Editor::set_size_limit` is public mainly so that the rule can be tested near the limit.
+- A refused command can still take the memory of the cells it made before the refusal: at
+  most about 150 MB (414,000 cells), where it was 1.8 GB.
+- Undo inside an open group is still refused.
+- The combined report of a group is not tight (see 7).

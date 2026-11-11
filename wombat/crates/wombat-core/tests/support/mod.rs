@@ -56,12 +56,54 @@ pub struct Op {
 
 pub const KINDS: u8 = 38;
 
+/// The command that each kind of [`Op`] becomes.
+pub const NAMES: [&str; KINDS as usize] = [
+    "InsertText",
+    "DeleteText",
+    "ReplaceText",
+    "SetText",
+    "SetRangeStyle",
+    "SetRangeColor",
+    "SetLink",
+    "SetProps",
+    "SetStyle",
+    "SetColumnWidth",
+    "CreateGrid",
+    "RemoveGrid",
+    "InsertRows",
+    "InsertColumns",
+    "DeleteRows",
+    "DeleteColumns",
+    "ClearCells",
+    "DeleteCells",
+    "MoveRows",
+    "MoveColumns",
+    "SwapCells",
+    "MoveCell",
+    "CopyCell",
+    "SetTag",
+    "RemoveTag",
+    "SortRows",
+    "Transpose",
+    "HierarchySwap",
+    "Hierarchify",
+    "Flatten",
+    "Wrap",
+    "Collapse",
+    "SplitCell",
+    "TagCells",
+    "UntagCells",
+    "AdjustRelSize",
+    "AdjustColumnWidths",
+    "ToggleCheck",
+];
+
 pub fn op() -> impl Strategy<Value = Op> {
     (
         0..KINDS,
         any::<[u32; 5]>(),
         proptest::collection::vec(0..CLUSTERS.len(), 0..4),
-        proptest::bool::weighted(0.1),
+        proptest::bool::weighted(0.15),
         any::<(u8, u8, u8)>(),
     )
         .prop_map(|(kind, n, clusters, raw, color)| Op {
@@ -115,7 +157,7 @@ pub fn command(doc: &Document, op: &Op) -> Command {
         .copied()
         .filter(|c| !cell_of(c).text.is_empty())
         .collect();
-    let text_cell = if n4 % 4 == 0 {
+    let text_cell = if n4 % 7 == 0 {
         cell
     } else {
         pick(&wordy, n0).unwrap_or(cell)
@@ -134,6 +176,44 @@ pub fn command(doc: &Document, op: &Op) -> Command {
         let (a, b) = (position(n1), position(n2));
         (a.min(b), a.max(b))
     };
+    // Deleting, styling, colouring and linking are about a range that is not empty: the
+    // end moves on to the next character where there is one.
+    // (Or the start moves back, at the end of the text.)
+    let wants_range = end == start && !op.raw && matches!(op.kind, 1 | 4 | 5 | 6);
+    let end = if wants_range {
+        (start + 1..=len)
+            .find(|at| floor_boundary(text, *at) == *at)
+            .unwrap_or(end)
+    } else {
+        end
+    };
+    let start = if wants_range && end == start && start > 0 {
+        floor_boundary(text, start - 1)
+    } else {
+        start
+    };
+    let root = doc.root();
+    // Whether `inner` is `outer` or inside it.
+    let within = |inner: CellId, outer: CellId| {
+        let mut at = Some(inner);
+        while let Some(id) = at {
+            if id == outer {
+                return true;
+            }
+            at = cell_of(&id).parent();
+        }
+        false
+    };
+    let filled = |c: &CellId| {
+        let c = cell_of(c);
+        !c.text.is_empty() || c.image.is_some() || c.grid().is_some()
+    };
+    // The cells of the block `xs` by `ys` at `x`, `y` of a grid.
+    let block_of = |g: &wombat_core::Grid, x: u32, y: u32, xs: u32, ys: u32| -> Vec<CellId> {
+        (y..y + ys)
+            .flat_map(|cy| (x..x + xs).filter_map(move |cx| g.at(cx, cy)))
+            .collect()
+    };
     let color = Color::rgb(op.color.0, op.color.1, op.color.2);
     // Moving lines needs two of them, wrapping and collapsing are mostly about several
     // cells: for those, a grid that has them, if there is one.
@@ -142,6 +222,8 @@ pub fn command(doc: &Document, op: &Op) -> Command {
         with_grid.iter().filter(fits).copied().collect()
     };
     let roomy = match op.kind {
+        // Not the root's grid, which cannot be removed (nor all its rows or columns).
+        11 | 14 | 15 => with_grid.iter().copied().filter(|c| *c != root).collect(),
         18 => sized(&|_, ys| ys > 1),
         19 => sized(&|xs, _| xs > 1),
         26 | 30 => sized(&|xs, ys| xs * ys > 1),
@@ -160,13 +242,14 @@ pub fn command(doc: &Document, op: &Op) -> Command {
         .grid()
         .map_or((1, 1), |g| (g.xs(), g.ys()));
     // Now and then numbers that may be out of range, to be refused.
-    let sloppy = u32::from(n4 % 6 == 0);
+    let sloppy = u32::from(n4 % 8 == 0);
     let several = || {
         let count = 1 + n4 % 3;
         (0..count)
             .map(|i| pick(&all, n0.wrapping_add(i * 7)).unwrap())
             .collect::<Vec<_>>()
     };
+    let below_root: Vec<CellId> = all.iter().copied().filter(|c| *c != root).collect();
     let new_text = || {
         let mut text = text_of(&op.clusters);
         if n4 % 9 == 0 {
@@ -199,26 +282,31 @@ pub fn command(doc: &Document, op: &Op) -> Command {
             cell: text_cell,
             start,
             len: end - start,
-            set: style(n3),
-            clear: style(n4),
+            // Mostly at least one bit on, and none switched on and off at once.
+            set: style(n3 | (1 << (n3 % 5))),
+            clear: style(if n4 % 4 == 0 {
+                n4
+            } else {
+                n4 & !(n3 | (1 << (n3 % 5)))
+            }),
         },
         5 => Command::SetRangeColor {
             cell: text_cell,
             start,
             len: end - start,
-            color: (n3 % 4 != 0).then_some(color),
+            color: (n3 % 6 != 0).then_some(color),
         },
         6 => Command::SetLink {
             cell: text_cell,
             start,
             len: end - start,
-            target: match n3 % 4 {
+            target: match n3 % 7 {
                 0 => None,
-                1 => Some(LinkTarget::External(format!(
+                1 | 4 => Some(LinkTarget::External(format!(
                     "https://example.org/{}",
                     n4 % 3
                 ))),
-                2 => Some(LinkTarget::Cell {
+                2 | 5 => Some(LinkTarget::Cell {
                     doc: None,
                     cell: pick(&all, n4).unwrap(),
                 }),
@@ -255,10 +343,25 @@ pub fn command(doc: &Document, op: &Op) -> Command {
             } else {
                 several()
             };
-            Command::SetProps {
-                cells,
-                props: vec![prop],
-            }
+            // Now and then a second property, or the first one set and set back to what
+            // the cell has (which must come out as no change at all).
+            let has = cell_of(&cells[0]);
+            let back = match &prop {
+                Prop::CellColor(_) => Some(Prop::CellColor(has.cell_color)),
+                Prop::TextColor(_) => Some(Prop::TextColor(has.text_color)),
+                Prop::RelSize(_) => Some(Prop::RelSize(has.rel_size)),
+                Prop::TextAlign(_) => Some(Prop::TextAlign(has.text_align)),
+                Prop::Note(_) => Some(Prop::Note(has.note.clone())),
+                Prop::Kind(_) => Some(Prop::Kind(has.kind)),
+                _ => None,
+            };
+            let props = match (n3 % 8, back) {
+                (0, Some(back)) => vec![prop, back],
+                (1, _) => vec![prop, Prop::RelSize(n3 as i32 / 8 % 5 - 2)],
+                (2, _) => vec![Prop::LastEdit(Some(i64::from(n3))), prop],
+                _ => vec![prop],
+            };
+            Command::SetProps { cells, props }
         }
         8 => Command::SetStyle {
             cells: several(),
@@ -267,36 +370,59 @@ pub fn command(doc: &Document, op: &Op) -> Command {
         },
         9 => Command::SetColumnWidth {
             cell: grid_cell,
-            column: n1 % (xs + 1),
+            column: n1 % (xs + sloppy),
             width: n2 % 200,
         },
         10 => Command::CreateGrid {
-            cell: pick(&leaves, n0).unwrap_or(cell),
-            xs: n1 % 4,
-            ys: n2 % 4,
+            cell: if n4 % 9 == 0 {
+                cell
+            } else {
+                pick(&leaves, n0).unwrap_or(cell)
+            },
+            xs: (1 - sloppy) + n1 % 3,
+            ys: (1 - sloppy) + n2 % 3,
         },
         11 => Command::RemoveGrid { cell: grid_cell },
         12 => Command::InsertRows {
             cell: grid_cell,
-            at: n1 % (ys + 2),
-            count: n2 % 3,
+            at: n1 % (ys + 1 + sloppy),
+            count: u32::from(n4 % 10 != 0) + n2 % 2,
         },
         13 => Command::InsertColumns {
             cell: grid_cell,
-            at: n1 % (xs + 2),
-            count: n2 % 3,
+            at: n1 % (xs + 1 + sloppy),
+            count: u32::from(n4 % 10 != 0) + n2 % 2,
         },
-        14 => Command::DeleteRows {
-            cell: grid_cell,
-            at: n1 % (ys + sloppy),
-            count: 1 + n2 % 2,
-        },
-        15 => Command::DeleteColumns {
-            cell: grid_cell,
-            at: n1 % (xs + sloppy),
-            count: 1 + n2 % 2,
-        },
-        16 => Command::ClearCells { cells: several() },
+        14 | 15 => {
+            // Lines that exist, unless sloppy; all of them takes the grid away.
+            let along = if op.kind == 14 { ys } else { xs };
+            let at = n1 % (along + sloppy);
+            let count = 1 + n2 % (along - at.min(along - 1)).min(2) + sloppy;
+            if op.kind == 14 {
+                Command::DeleteRows {
+                    cell: grid_cell,
+                    at,
+                    count,
+                }
+            } else {
+                Command::DeleteColumns {
+                    cell: grid_cell,
+                    at,
+                    count,
+                }
+            }
+        }
+        16 => {
+            // Mostly cells that have something to lose, and not the root, which is refused.
+            let full: Vec<CellId> = below_root.iter().copied().filter(filled).collect();
+            let mut cells: Vec<CellId> = (0..1 + n4 % 3)
+                .filter_map(|i| pick(&full, n0.wrapping_add(i * 7)))
+                .collect();
+            if n4 % 9 == 0 || cells.is_empty() {
+                cells = several();
+            }
+            Command::ClearCells { cells }
+        }
         17 => Command::DeleteCells {
             cell: grid_cell,
             x: n1 % (xs + sloppy),
@@ -332,22 +458,41 @@ pub fn command(doc: &Document, op: &Op) -> Command {
                 }
             }
         }
-        20 => Command::SwapCells {
-            a: cell,
-            b: pick(&all, n1).unwrap(),
-        },
-        21 => {
-            let empty: Vec<CellId> = leaves
+        20 => {
+            // Mostly two cells that can trade places: not the root, neither in the other.
+            let a = pick(&below_root, n0).unwrap_or(cell);
+            let apart: Vec<CellId> = below_root
                 .iter()
                 .copied()
-                .filter(|c| cell_of(c).text.is_empty() && cell_of(c).image.is_none())
+                .filter(|b| !within(*b, a) && !within(a, *b))
+                .collect();
+            if n4 % 9 == 0 {
+                Command::SwapCells {
+                    a: cell,
+                    b: pick(&all, n1).unwrap(),
+                }
+            } else {
+                Command::SwapCells {
+                    a,
+                    b: pick(&apart, n1).unwrap_or(a),
+                }
+            }
+        }
+        21 => {
+            // Mostly a cell with something in it, to an empty cell that is not inside it.
+            let full: Vec<CellId> = below_root.iter().copied().filter(filled).collect();
+            let from = pick(&full, n0).unwrap_or(cell);
+            let empty: Vec<CellId> = below_root
+                .iter()
+                .copied()
+                .filter(|c| !filled(c) && !within(*c, from))
                 .collect();
             Command::MoveCell {
-                from: cell,
-                to: if n2 % 5 == 0 {
+                from,
+                to: if n2 % 9 == 0 {
                     pick(&all, n1).unwrap()
                 } else {
-                    pick(&empty, n1).unwrap_or(cell)
+                    pick(&empty, n1).unwrap_or(from)
                 },
             }
         }
@@ -358,46 +503,65 @@ pub fn command(doc: &Document, op: &Op) -> Command {
             } else {
                 cell
             },
-            to: pick(&all, n1).unwrap(),
+            // Not often onto the root, which is refused.
+            to: if n4 % 9 == 0 {
+                pick(&all, n1).unwrap()
+            } else {
+                pick(&below_root, n1).unwrap_or(cell)
+            },
         },
         23 => Command::SetTag {
-            name: match n1 % 4 {
+            // Now and then the text of a cell, so that cells have tags.
+            name: match n1 % 6 {
                 0 => String::new(),
+                2.. => pick(&wordy, n2).map_or("tag1".into(), |c| cell_of(&c).text.clone()),
                 n => format!("tag{n}"),
             },
             cell_color: color,
             text_color: Color::rgb(op.color.2, op.color.1, op.color.0),
         },
-        24 => Command::RemoveTag {
-            name: format!("tag{}", n1 % 4),
-        },
+        24 => {
+            // Mostly a tag that the document has.
+            let names: Vec<&String> = doc.tags().keys().collect();
+            Command::RemoveTag {
+                name: match pick(&names, n1) {
+                    Some(name) if n4 % 3 != 0 => name.clone(),
+                    _ => format!("tag{}", n1 % 4),
+                },
+            }
+        }
         25 => {
-            // Mostly by a column that has a text in it, or there is nothing to sort by.
-            let in_rows: Vec<CellId> = wordy
-                .iter()
-                .copied()
-                .filter(|c| {
-                    let parent = cell_of(c).parent().map(|p| cell_of(&p));
-                    parent.and_then(Cell::grid).is_some_and(|g| g.ys() > 1)
-                })
-                .collect();
-            let keyed = pick(&in_rows, n1).and_then(|c| {
-                let parent = cell_of(&c).parent()?;
-                let grid = cell_of(&parent).grid()?;
-                let index = grid.cells().iter().position(|k| *k == c)?;
-                Some((parent, index as u32 % grid.xs(), grid.ys()))
-            });
-            let (owner, column, rows) = match keyed {
-                Some(keyed) if n4 % 5 != 0 => keyed,
-                _ => (grid_cell, n1 % (xs + sloppy), ys),
-            };
-            let row = if n3 % 4 == 0 { n2 % rows } else { 0 };
-            Command::SortRows {
-                cell: owner,
-                column,
-                row,
-                count: rows - row + sloppy,
-                descending: n2 % 2 == 0,
+            // Mostly a sort that has something to do: a grid and a column in which two
+            // rows next to each other differ, in the direction that turns those two round.
+            let lower = |c: CellId| cell_of(&c).text.to_lowercase();
+            let mut unsorted: Vec<(CellId, u32, bool)> = Vec::new();
+            for owner in &with_grid {
+                let grid = cell_of(owner).grid().unwrap();
+                for column in 0..grid.xs() {
+                    let key = |row: u32| grid.at(column, row).map(lower);
+                    if let Some(row) = (1..grid.ys()).find(|row| key(row - 1) != key(*row)) {
+                        unsorted.push((*owner, column, key(row - 1) < key(row)));
+                    }
+                }
+            }
+            match pick(&unsorted, n1) {
+                Some((owner, column, descending)) if n4 % 7 != 0 => Command::SortRows {
+                    cell: owner,
+                    column,
+                    row: 0,
+                    count: cell_of(&owner).grid().unwrap().ys(),
+                    descending,
+                },
+                _ => {
+                    let row = if n3 % 4 == 0 { n2 % ys } else { 0 };
+                    Command::SortRows {
+                        cell: grid_cell,
+                        column: n1 % (xs + sloppy),
+                        row,
+                        count: ys - row + sloppy,
+                        descending: n2 % 2 == 0,
+                    }
+                }
             }
         }
         26 => Command::Transpose {
@@ -420,7 +584,7 @@ pub fn command(doc: &Document, op: &Op) -> Command {
                 })
                 .collect();
             Command::HierarchySwap {
-                cell: if n4 % 5 == 0 {
+                cell: if n4 % 12 == 0 {
                     cell
                 } else {
                     pick(&fit, n1).unwrap_or(cell)
@@ -433,40 +597,67 @@ pub fn command(doc: &Document, op: &Op) -> Command {
                 grid.cells().iter().all(|k| cell_of(k).grid().is_none())
             };
             let tables: Vec<CellId> = with_grid.iter().copied().filter(is_table).collect();
-            // Mostly a table with something to do: several columns.
+            // Mostly a table with something to do: several columns, or rows that start
+            // with the same text.
             let wide: Vec<CellId> = tables
                 .iter()
                 .copied()
-                .filter(|c| cell_of(c).grid().unwrap().xs() > 1)
+                .filter(|c| {
+                    let grid = cell_of(c).grid().unwrap();
+                    let firsts: BTreeSet<&str> = (0..grid.ys())
+                        .filter_map(|y| grid.at(0, y))
+                        .map(|k| cell_of(&k).text.as_str())
+                        .collect();
+                    grid.xs() > 1 || firsts.len() < grid.ys() as usize
+                })
                 .collect();
             Command::Hierarchify {
-                cell: if n4 % 5 == 0 {
+                cell: if n4 % 9 == 0 {
                     cell
                 } else {
                     pick(&wide, n1).or(pick(&tables, n1)).unwrap_or(cell)
                 },
             }
         }
-        29 => Command::Flatten {
-            // A flattened hierarchy can be many times its size: only while small.
-            cell: if all.len() > 300 || n4 % 7 == 0 {
-                cell
-            } else {
-                grid_cell
-            },
-        },
+        29 => {
+            // Mostly a grid with grids inside it; a table is flat already.
+            let nested: Vec<CellId> = with_grid
+                .iter()
+                .copied()
+                .filter(|c| {
+                    let grid = cell_of(c).grid().unwrap();
+                    grid.cells().iter().any(|k| cell_of(k).grid().is_some())
+                })
+                .collect();
+            Command::Flatten {
+                // A flattened hierarchy can be many times its size: only while small.
+                cell: if all.len() > 300 || n4 % 9 == 0 {
+                    cell
+                } else {
+                    pick(&nested, n1).unwrap_or(grid_cell)
+                },
+            }
+        }
         30 | 31 => {
             let (mut x, mut y) = (n1 % (xs + sloppy), n2 % (ys + sloppy));
             let (mut bxs, mut bys) = (
                 (1 - sloppy) + n3 % (xs - n1 % xs + sloppy),
                 (1 - sloppy) + n4 / 8 % (ys - n2 % ys + sloppy),
             );
-            // Collapsing takes two cells or more: mostly up to the end of the grid.
-            if op.kind == 31 && sloppy == 0 && n4 % 4 != 0 {
-                if n4 % 3 != 0 {
-                    (x, y) = (0, 0);
-                }
+            // Collapsing takes two cells or more with something in them: mostly up to the
+            // end of the grid, and from its start if that is not enough.
+            if op.kind == 31 && sloppy == 0 && n4 % 9 != 0 {
                 (bxs, bys) = (xs - x, ys - y);
+                let poor = |x, y, bxs, bys| {
+                    let grid = cell_of(&grid_cell).grid();
+                    let block = grid
+                        .map(|g| block_of(g, x, y, bxs, bys))
+                        .unwrap_or_default();
+                    block.len() < 2 || !block.iter().any(filled)
+                };
+                if poor(x, y, bxs, bys) {
+                    (x, y, bxs, bys) = (0, 0, xs, ys);
+                }
             }
             if op.kind == 30 {
                 Command::Wrap {
@@ -499,6 +690,9 @@ pub fn command(doc: &Document, op: &Op) -> Command {
                 .collect();
             let mut cells = several();
             cells.extend(pick(&tagged, n1));
+            if n4 % 9 != 0 && !tagged.is_empty() {
+                cells.retain(|c| tagged.contains(c));
+            }
             Command::UntagCells { cells }
         }
         35 => Command::AdjustRelSize {
@@ -639,6 +833,16 @@ pub fn check_document(doc: &Document, whole_clusters: bool) {
     }
 }
 
+/// Checks the editor's bound on the size of the saved file: it is what a fresh count of
+/// the whole document gives (the running sum has not drifted), and the file is not longer.
+pub fn check_bound(editor: &Editor, what: &str) {
+    let doc = editor.document();
+    let fresh = wombat_core::edit::size_bound(doc);
+    assert_eq!(editor.size_bound(), fresh, "the size bound drifted: {what}");
+    let bytes = format::to_string(doc).unwrap().len() as u64;
+    assert!(bytes <= fresh, "{bytes} bytes saved, bound {fresh}: {what}");
+}
+
 pub fn saved(doc: &Document) -> String {
     let text = format::to_string(doc).unwrap();
     assert_eq!(
@@ -665,11 +869,22 @@ pub fn apply_checked(
     let what = format!("{command:?}");
     match &result {
         Ok(changes) => {
-            check_report(&before, editor.document(), changes, &what);
-            check_document(editor.document(), whole_clusters);
-            if changes.is_empty() {
+            let after = editor.document();
+            check_report(&before, after, changes, &what);
+            check_document(after, whole_clusters);
+            // A command that leaves the document as it was reports nothing and leaves no
+            // unit in the history, whatever it did on the way (decision A44).
+            if changes.is_empty() || *after == before {
+                assert!(changes.is_empty(), "nothing differs, but reported: {what}");
                 assert_eq!((editor.undo_len(), editor.redo_len()), history, "{what}");
             }
+            // No command takes the root's grid away (decision B33).
+            let rooted = |doc: &Document| doc.cell(doc.root()).unwrap().grid().is_some();
+            assert!(
+                !rooted(&before) || rooted(after),
+                "the root lost its grid: {what}"
+            );
+            check_bound(editor, &what);
         }
         Err(_) => {
             assert_eq!(
@@ -711,6 +926,7 @@ pub fn run_sequence(original: Document, ops: &[Op], whole_clusters: bool) -> (us
         let changes = editor.undo().unwrap().unwrap();
         assert_eq!(editor.document(), expected, "undo");
         check_report(&before, editor.document(), &changes, "undo");
+        check_bound(&editor, "undo");
     }
     assert_eq!(editor.undo().unwrap(), None);
     assert_eq!(*editor.document(), original);
@@ -724,6 +940,7 @@ pub fn run_sequence(original: Document, ops: &[Op], whole_clusters: bool) -> (us
         let changes = editor.redo().unwrap().unwrap();
         assert_eq!(editor.document(), expected, "redo");
         check_report(&before, editor.document(), &changes, "redo");
+        check_bound(&editor, "redo");
     }
     assert_eq!(editor.redo().unwrap(), None);
     assert_eq!(*editor.document(), last);
@@ -739,83 +956,155 @@ pub fn run_sequence(original: Document, ops: &[Op], whole_clusters: bool) -> (us
 #[derive(Clone, Debug)]
 pub enum Act {
     Apply(Op),
-    /// Several commands as one undo unit.
+    /// A text edit that joins the unit before it if that is typing in the same cell.
+    Type(Op),
+    /// Several commands as one undo unit, the second and third of them in a group inside
+    /// the group.
     Group(Vec<Op>),
     Undo,
     Redo,
+    /// Bounds the history to so many units.
+    Limit(usize),
 }
 
 pub fn act() -> impl Strategy<Value = Act> {
     prop_oneof![
-        5 => op().prop_map(Act::Apply),
-        1 => proptest::collection::vec(op(), 0..4).prop_map(Act::Group),
-        3 => Just(Act::Undo),
-        2 => Just(Act::Redo),
+        10 => op().prop_map(Act::Apply),
+        4 => op().prop_map(Act::Type),
+        3 => proptest::collection::vec(op(), 0..5).prop_map(Act::Group),
+        6 => Just(Act::Undo),
+        4 => Just(Act::Redo),
+        1 => (0..6usize).prop_map(Act::Limit),
     ]
 }
 
-/// Commands, groups, undo and redo in any order, against a model that keeps a copy of the
-/// document for every unit of the history: each undo and redo must land on the copy.
+/// The cell whose text a command edits, if it is one of the three typing commands.
+fn typed_cell(command: &Command) -> Option<CellId> {
+    match command {
+        Command::InsertText { cell, .. }
+        | Command::DeleteText { cell, .. }
+        | Command::ReplaceText { cell, .. } => Some(*cell),
+        _ => None,
+    }
+}
+
+/// Commands, typing, groups (also nested), undo, redo and history limits in any order,
+/// against a model that keeps a copy of the document for every unit of the history: each
+/// undo and redo must land on the copy, and a group reports what it changed as a whole.
 pub fn run_walk(original: Document, acts: &[Act], whole_clusters: bool) {
     let mut ids = SeededIds::from_u64(77);
     let mut editor = Editor::new(original.clone()).unwrap();
-    let (mut past, mut future): (Vec<Document>, Vec<Document>) = (Vec::new(), Vec::new());
+    // Per unit: the document before it, and the cell if the unit is typing in one cell.
+    type Units = Vec<(Document, Option<CellId>)>;
+    let (mut past, mut future): (Units, Units) = (Vec::new(), Vec::new());
+    let mut limit = usize::MAX;
     for act in acts {
         let before = editor.document().clone();
         match act {
             Act::Apply(op) => {
+                let typed = typed_cell(&command(&before, op));
                 if apply_checked(&mut editor, op, &mut ids, whole_clusters)
                     .is_ok_and(|c| !c.is_empty())
                 {
-                    past.push(before);
+                    past.push((before, typed));
                     future.clear();
+                }
+            }
+            Act::Type(op) => {
+                // The same checks as for `apply`, on one of the three text commands.
+                let op = Op {
+                    kind: op.kind % 3,
+                    ..op.clone()
+                };
+                let command = command(&before, &op);
+                let typed = typed_cell(&command);
+                let now = Some(1_700_000_000_000 + i64::from(op.n[4] % 1000));
+                match editor.apply_typing(command.clone(), now, &mut ids) {
+                    Ok(changes) => {
+                        let what = format!("typing {command:?}");
+                        check_report(&before, editor.document(), &changes, &what);
+                        check_bound(&editor, &what);
+                        if !changes.is_empty() {
+                            let joins = past.last().is_some_and(|(_, cell)| *cell == typed);
+                            if !joins {
+                                past.push((before, typed));
+                            }
+                            future.clear();
+                        }
+                    }
+                    Err(_) => assert_eq!(*editor.document(), before, "refused typing"),
                 }
             }
             Act::Group(ops) => {
                 editor.begin_group();
                 let mut any = false;
-                for op in ops {
+                for (n, op) in ops.iter().enumerate() {
+                    if n == 1 {
+                        editor.begin_group();
+                    }
                     any |= apply_checked(&mut editor, op, &mut ids, whole_clusters)
                         .is_ok_and(|c| !c.is_empty());
                     assert!(
                         editor.undo().is_err(),
                         "undo inside a group must be refused"
                     );
+                    if n == 2 || (n == 1 && ops.len() == 2) {
+                        assert!(editor.end_group().is_empty(), "an inner group reports");
+                    }
                 }
-                editor.end_group();
+                let changes = editor.end_group();
+                check_report_loose(&before, editor.document(), &changes);
                 if any {
-                    past.push(before);
+                    past.push((before, None));
                     future.clear();
+                } else {
+                    assert!(changes.is_empty(), "a group that did nothing reports");
                 }
             }
             Act::Undo => match (editor.undo().unwrap(), past.pop()) {
-                (Some(changes), Some(expected)) => {
+                (Some(changes), Some((expected, typed))) => {
                     assert_eq!(*editor.document(), expected, "undo");
                     check_report_loose(&before, editor.document(), &changes);
-                    future.push(before);
+                    check_bound(&editor, "undo");
+                    future.push((before, typed));
                 }
                 (None, None) => {}
                 (got, _) => panic!("undo gave {got:?}, the model disagrees"),
             },
             Act::Redo => match (editor.redo().unwrap(), future.pop()) {
-                (Some(changes), Some(expected)) => {
+                (Some(changes), Some((expected, typed))) => {
                     assert_eq!(*editor.document(), expected, "redo");
                     check_report_loose(&before, editor.document(), &changes);
-                    past.push(before);
+                    check_bound(&editor, "redo");
+                    past.push((before, typed));
                 }
                 (None, None) => {}
                 (got, _) => panic!("redo gave {got:?}, the model disagrees"),
             },
+            Act::Limit(units) => {
+                limit = *units;
+                editor.set_history_limit(Some(limit));
+            }
         }
+        // The oldest units are forgotten; what they did stays.
+        let over = past.len().saturating_sub(limit);
+        past.drain(..over);
         assert_eq!(
             (editor.undo_len(), editor.redo_len()),
             (past.len(), future.len())
         );
         check_document(editor.document(), whole_clusters);
     }
+    // Undoing all there is leads to the document before the oldest unit that was kept.
+    let oldest = past
+        .first()
+        .map_or(editor.document().clone(), |(doc, _)| doc.clone());
     while editor.undo().unwrap().is_some() {}
-    assert_eq!(*editor.document(), original);
-    assert_eq!(saved(editor.document()), saved(&original));
+    assert_eq!(*editor.document(), oldest);
+    if limit == usize::MAX {
+        assert_eq!(oldest, original);
+    }
+    assert_eq!(saved(editor.document()), saved(&oldest));
 }
 
 /// As [`check_report`], but for a group of commands, whose report may name a cell that

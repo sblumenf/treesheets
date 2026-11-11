@@ -17,14 +17,14 @@ use std::collections::{HashMap, HashSet};
 
 use crate::error::{refused, Error};
 use crate::id::CellId;
-use crate::limits::{MAX_DEPTH, MAX_TEXT_CODE_POINTS};
+use crate::limits::{MAX_CELLS, MAX_DEPTH, MAX_TEXT_CODE_POINTS};
 use crate::model::{code_points, Cell, CellKind, Document, Extra, Grid, Tag};
 use crate::text;
 
 use super::command::{
     cell, check_range, check_room, clear_cells, clear_own, col_width_of, delete_cells, depth,
     descendants, fresh_grid, grid, has_content, height, len32, new_cell, replace_text, set,
-    set_tag, stamp, sync_cell, Fresh,
+    set_tag, stamp, sync_cell, sync_grid_props, Fresh,
 };
 use super::step::{Field, Step};
 use super::{Tx, MAX_REL_SIZE, MIN_COL_WIDTH, MIN_REL_SIZE};
@@ -348,7 +348,7 @@ impl Scratch {
                 added.push(new);
             }
         }
-        check_room(doc, added.len().saturating_sub(removed.len()))?;
+        check_room(tx, added.len().saturating_sub(removed.len()))?;
         let new: HashSet<CellId> = added.iter().map(Cell::id).collect();
         if !added.is_empty() {
             tx.step(Step::AddCells(added))?;
@@ -367,18 +367,7 @@ impl Scratch {
                     if (have.xs, have.ys) == (want.xs, want.ys) && have.cells == want.cells =>
                 {
                     // The same cells in the same places: only properties can differ.
-                    if have.border_color != want.border_color {
-                        set(tx, *id, Field::BorderColor(want.border_color))?;
-                    }
-                    if have.outer_spacing != want.outer_spacing {
-                        set(tx, *id, Field::OuterSpacing(want.outer_spacing))?;
-                    }
-                    if have.vertical != want.vertical {
-                        set(tx, *id, Field::Vertical(want.vertical))?;
-                    }
-                    if have.col_widths != want.col_widths {
-                        set(tx, *id, Field::ColWidths(want.col_widths))?;
-                    }
+                    sync_grid_props(tx, *id, &want)?;
                 }
                 (_, want) => tx.step(Step::SetGrid {
                     cell: *id,
@@ -499,7 +488,7 @@ pub(super) fn flatten(
     let total = leaves
         .checked_mul(levels as usize)
         .ok_or_else(|| Error::Limit("a table that large".into()))?;
-    check_room(doc, total.saturating_sub(inside))?;
+    check_room(tx, total.saturating_sub(inside))?;
     let rows = u32::try_from(leaves).map_err(|_| Error::Limit("a table that large".into()))?;
 
     let mut s = Scratch::load(doc, id)?;
@@ -845,6 +834,10 @@ pub(super) fn hierarchy_swap(
             if let Some(g) = &mut copy.grid {
                 g.vertical = vertical;
             }
+            // Before the copies take more memory than any document may.
+            if copies.len() >= MAX_CELLS {
+                return Err(Error::Limit(format!("more than {MAX_CELLS} cells")));
+            }
             copies.push((copy.id, p));
             let copy_id = copy.id;
             swap.s.insert(copy);
@@ -907,7 +900,7 @@ pub(super) fn wrap(
     if depth(doc, id)?.saturating_add(2).saturating_add(tallest) > MAX_DEPTH {
         return Err(too_deep());
     }
-    check_room(doc, selected.len())?;
+    check_room(tx, selected.len())?;
     let first = selected.first().and_then(|c| doc.cell(*c));
     let first = first.ok_or_else(|| broken("a grid is not full"))?;
     let wrapper = new_cell(fresh.next(doc)?, id, first, now);
@@ -1047,7 +1040,7 @@ pub(super) fn split_cell(
     if depth(doc, id)?.saturating_add(levels) > MAX_DEPTH {
         return Err(too_deep());
     }
-    check_room(doc, 4)?;
+    check_room(tx, 4)?;
     let cut = text::byte_offset(&whole.text, at).unwrap_or(whole.text.len());
     let (before, after) = whole.text.split_at(cut);
     let mut part = |from: u32, to: u32, text: &str| -> Result<Cell, Error> {
@@ -1130,6 +1123,10 @@ fn with_inside(doc: &Document, cells: &[CellId], recursive: bool) -> Result<Vec<
 /// text becomes a tag of the document, with the cell's colours (an existing tag of that
 /// name takes them).
 pub(super) fn tag_cells(tx: &mut Tx, cells: &[CellId]) -> Result<(), Error> {
+    // Of several cells with one text the last gives the colours; each tag is set once, so
+    // that a tag which ends as it was is not changed on the way (decision A44).
+    let mut wanted: Vec<(String, Tag)> = Vec::new();
+    let mut place: HashMap<String, usize> = HashMap::new();
     for id in with_inside(tx.doc(), cells, false)? {
         let c = cell(tx.doc(), id)?;
         if c.text.is_empty() {
@@ -1141,7 +1138,14 @@ pub(super) fn tag_cells(tx: &mut Tx, cells: &[CellId]) -> Result<(), Error> {
             text_color: c.text_color,
             extra: old.map(|tag| tag.extra.clone()).unwrap_or_default(),
         };
-        set_tag(tx, c.text.clone(), Some(tag))?;
+        let at = *place.entry(c.text.clone()).or_insert(wanted.len());
+        match wanted.get_mut(at) {
+            Some((_, earlier)) => *earlier = tag,
+            None => wanted.push((c.text.clone(), tag)),
+        }
+    }
+    for (name, tag) in wanted {
+        set_tag(tx, name, Some(tag))?;
     }
     Ok(())
 }

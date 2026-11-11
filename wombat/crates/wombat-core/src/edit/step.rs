@@ -5,6 +5,9 @@
 //! value, a step that takes cells out of the document those cells. A step either applies
 //! completely or returns an error with the document untouched.
 //!
+//! Every step also says by how much it changes the bound on the size of the saved file
+//! (`size.rs`), from the parts it touches alone.
+//!
 //! Between the steps of one command the document may break the model's rules (cells that no
 //! grid lists yet, for example); it is valid again when the command is complete.
 
@@ -19,7 +22,7 @@ use crate::model::{
 };
 use crate::text::byte_offset;
 
-use super::Changes;
+use super::{size, Changes};
 
 /// Rows or columns of a grid.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -96,6 +99,110 @@ impl Field {
     }
 }
 
+/// A run or a link: a range of text that starts somewhere.
+pub(crate) trait Ranged: PartialEq {
+    fn start(&self) -> u32;
+    fn start_mut(&mut self) -> &mut u32;
+    /// Whether `self`, moved by `shift` code points, is `other`.
+    fn is_shifted(&self, other: &Self, shift: i64) -> bool;
+}
+
+impl Ranged for Run {
+    fn start(&self) -> u32 {
+        self.start
+    }
+
+    fn start_mut(&mut self) -> &mut u32 {
+        &mut self.start
+    }
+
+    fn is_shifted(&self, other: &Run, shift: i64) -> bool {
+        i64::from(self.start).checked_add(shift) == Some(i64::from(other.start))
+            && (self.len, self.style, self.color) == (other.len, other.style, other.color)
+            && self.extra == other.extra
+    }
+}
+
+impl Ranged for Link {
+    fn start(&self) -> u32 {
+        self.start
+    }
+
+    fn start_mut(&mut self) -> &mut u32 {
+        &mut self.start
+    }
+
+    fn is_shifted(&self, other: &Link, shift: i64) -> bool {
+        i64::from(self.start).checked_add(shift) == Some(i64::from(other.start))
+            && self.len == other.len
+            && self.target == other.target
+            && self.extra == other.extra
+    }
+}
+
+/// A change to a cell's list of runs or links as a text edit makes it: the ranges that the
+/// edit touches are replaced, and those after it move with the text. It holds only the
+/// touched ranges, however many there are after them (decision A46).
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) struct Patch<T> {
+    /// The index of the first range that is replaced.
+    pub(crate) at: usize,
+    /// How many ranges are replaced.
+    pub(crate) del: usize,
+    /// The ranges that take their place.
+    pub(crate) ins: Vec<T>,
+    /// By how many code points the ranges after them move.
+    pub(crate) shift: i64,
+}
+
+impl<T: Ranged + Clone> Patch<T> {
+    /// The patch that turns `old` into `new`, where the ranges that follow the changed
+    /// ones have moved by `shift`; `None` if nothing differs.
+    pub(crate) fn between(old: &[T], new: &[T], shift: i64) -> Option<Patch<T>> {
+        if old == new {
+            return None;
+        }
+        let same = old.iter().zip(new).take_while(|(a, b)| a == b).count();
+        let (old_rest, new_rest) = (old.get(same..)?, new.get(same..)?);
+        let moved = old_rest
+            .iter()
+            .rev()
+            .zip(new_rest.iter().rev())
+            .take_while(|(a, b)| a.is_shifted(b, shift))
+            .count();
+        Some(Patch {
+            at: same,
+            del: old_rest.len().checked_sub(moved)?,
+            ins: new_rest.get(..new_rest.len().checked_sub(moved)?)?.to_vec(),
+            // With no range after the changed ones there is nothing to move, also not back.
+            shift: if moved == 0 { 0 } else { shift },
+        })
+    }
+
+    /// Applies the patch to `list` and returns the patch that undoes it; `None`, with the
+    /// list untouched, if it does not fit.
+    fn apply(self, list: &mut Vec<T>) -> Option<Patch<T>> {
+        let end = self.at.checked_add(self.del).filter(|e| *e <= list.len())?;
+        let shift = self.shift;
+        let moved = |start: u32| u32::try_from(i64::from(start).checked_add(shift)?).ok();
+        if list.get(end..)?.iter().any(|r| moved(r.start()).is_none()) {
+            return None;
+        }
+        let count = self.ins.len();
+        let removed: Vec<T> = list.splice(self.at..end, self.ins).collect();
+        for range in list.iter_mut().skip(self.at.saturating_add(count)) {
+            let start = range.start_mut();
+            *start = moved(*start).unwrap_or(*start);
+        }
+        Some(Patch {
+            at: self.at,
+            del: count,
+            ins: removed,
+            shift: shift.checked_neg()?,
+        })
+    }
+}
+
 /// A small reversible change. See the module documentation.
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) enum Step {
@@ -109,6 +216,10 @@ pub(crate) enum Step {
     },
     /// Sets one field of a cell.
     Set { cell: CellId, field: Field },
+    /// Changes the runs of a cell as an edit of its text does.
+    PatchRuns { cell: CellId, patch: Patch<Run> },
+    /// Changes the links of a cell as an edit of its text does.
+    PatchLinks { cell: CellId, patch: Patch<Link> },
     /// Sets (or with `None` removes) a tag of the document.
     Tag { name: String, tag: Option<Tag> },
     /// Puts cells into the document that no grid lists yet. Each cell says which cell is
@@ -160,8 +271,10 @@ pub(crate) enum Step {
 }
 
 /// What the steps applied so far have touched.
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub(crate) struct ChangeSet {
+    /// By how much the steps changed the bound on the size of the saved file (`size.rs`).
+    pub(crate) bytes: i64,
     changed: BTreeSet<CellId>,
     created: BTreeSet<CellId>,
     removed: BTreeSet<CellId>,
@@ -185,6 +298,26 @@ fn grid_properties(grid: &Grid) -> GridProperties {
 }
 
 impl ChangeSet {
+    fn grew(&mut self, bytes: u64) {
+        self.bytes = self.bytes.saturating_add_unsigned(bytes);
+    }
+
+    fn shrank(&mut self, bytes: u64) {
+        self.bytes = self.bytes.saturating_sub_unsigned(bytes);
+    }
+
+    /// Adds what a later command touched, for the report of a group of commands.
+    pub(crate) fn absorb(&mut self, later: ChangeSet) {
+        self.changed.extend(later.changed);
+        self.created.extend(later.created);
+        self.removed.extend(later.removed);
+        self.grids.extend(later.grids);
+        self.tags.extend(later.tags);
+        for (id, grid) in later.first_grids {
+            self.first_grids.entry(id).or_insert(grid);
+        }
+    }
+
     /// The report: what differs between the document before the first step and `doc` now.
     pub(crate) fn finish(mut self, doc: &Document) -> Changes {
         // A cell both created and removed either never existed for the outside (made and
@@ -292,7 +425,10 @@ impl Step {
                 let removed = c.text.get(from..to).unwrap_or_default().to_owned();
                 let inserted = u32::try_from(ins.chars().count())
                     .map_err(|_| Error::Limit("text too long".into()))?;
+                let was_empty = c.text.is_empty();
                 c.text.replace_range(from..to, &ins);
+                seen.grew(size::text_piece(&ins) + size::text_frame(c.text.is_empty()));
+                seen.shrank(size::text_piece(&removed) + size::text_frame(was_empty));
                 seen.changed.insert(cell);
                 Ok(Step::Splice {
                     cell,
@@ -303,15 +439,42 @@ impl Step {
             }
             Step::Set { cell, field } => {
                 let c = doc.cells.get_mut(&cell).ok_or_else(|| missing(cell))?;
+                let new = size::field(&field);
                 let field = field.swap(c)?;
+                seen.grew(new);
+                seen.shrank(size::field(&field));
                 seen.changed.insert(cell);
                 Ok(Step::Set { cell, field })
             }
+            Step::PatchRuns { cell, patch } => {
+                let c = doc.cells.get_mut(&cell).ok_or_else(|| missing(cell))?;
+                let old = size::runs(&c.runs);
+                let Some(patch) = patch.apply(&mut c.runs) else {
+                    return refused(format!("cell {cell}: runs that do not fit"));
+                };
+                seen.grew(size::runs(&c.runs));
+                seen.shrank(old);
+                seen.changed.insert(cell);
+                Ok(Step::PatchRuns { cell, patch })
+            }
+            Step::PatchLinks { cell, patch } => {
+                let c = doc.cells.get_mut(&cell).ok_or_else(|| missing(cell))?;
+                let old = size::links(&c.links);
+                let Some(patch) = patch.apply(&mut c.links) else {
+                    return refused(format!("cell {cell}: links that do not fit"));
+                };
+                seen.grew(size::links(&c.links));
+                seen.shrank(old);
+                seen.changed.insert(cell);
+                Ok(Step::PatchLinks { cell, patch })
+            }
             Step::Tag { name, tag } => {
+                seen.grew(size::tag(&name, tag.as_ref()));
                 let old = match tag {
                     Some(tag) => doc.tags.insert(name.clone(), tag),
                     None => doc.tags.remove(&name),
                 };
+                seen.shrank(size::tag(&name, old.as_ref()));
                 seen.tags.insert(name.clone());
                 Ok(Step::Tag { name, tag: old })
             }
@@ -325,6 +488,7 @@ impl Step {
                 }
                 let ids = cells.iter().map(|c| c.id).collect();
                 for cell in cells {
+                    seen.grew(size::cell(&cell));
                     seen.created.insert(cell.id);
                     doc.cells.insert(cell.id, cell);
                 }
@@ -340,6 +504,7 @@ impl Step {
                 let mut cells = Vec::with_capacity(ids.len());
                 for id in ids {
                     if let Some(cell) = doc.cells.remove(&id) {
+                        seen.shrank(size::cell(&cell));
                         seen.removed.insert(id);
                         cells.push(cell);
                     }
@@ -391,7 +556,9 @@ impl Step {
                         grid.cells = cells;
                         grid.xs = new_len;
                         let at = at as usize;
+                        seen.shrank(size::grid_widths(grid));
                         grid.col_widths.splice(at..at, widths);
+                        seen.grew(size::grid_widths(grid));
                         // The widths are a property of the cell, and now differ.
                         seen.changed.insert(owner);
                     }
@@ -441,7 +608,9 @@ impl Step {
                         }
                         grid.cells = cells;
                         grid.xs = along - count;
+                        seen.shrank(size::grid_widths(grid));
                         let widths = grid.col_widths.drain(at as usize..end as usize).collect();
+                        seen.grew(size::grid_widths(grid));
                         seen.changed.insert(owner);
                         (ids, widths)
                     }
@@ -527,7 +696,9 @@ impl Step {
                     previous = set_parents(doc, &grid.cells, cell)?;
                 }
                 let c = doc.cells.get_mut(&cell).ok_or_else(|| missing(cell))?;
+                seen.grew(size::grid(grid.as_ref()));
                 let old = mem::replace(&mut c.grid, grid);
+                seen.shrank(size::grid(old.as_ref()));
                 // Whether the properties of the grid changed is known only at the end: the
                 // grid may be taken away by one step and another put there by a later one.
                 seen.first_grids

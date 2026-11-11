@@ -271,6 +271,90 @@ TreeSheets.
     Tested: every kind of step followed by its inverse gives the identical document, and
     the inverse of the inverse the changed one, starting from cells that are children of
     other cells.
+43. **What commands build can be saved** (replaces the 5,000,000 cells of A20, completes
+    A29; found in review of milestone 3). Commands used to check only the number of cells
+    and the length of one text, while saving refuses a file over 32 MiB: a grid of 1,000 by
+    1,000 cells was made and could then not be saved. Now:
+    - *The limit on cells is 700,000*: what a file of 32 MiB can hold (a cell takes at
+      least 48 bytes) and no less, so it refuses no file. The importer of `.cts` files is
+      bound by it too; a document with more could never be saved.
+    - *The editor keeps an upper bound on the size of the saved file* (`edit/size.rs`,
+      `Editor::size_bound`): a sum of one number per cell and tag, each counted as written
+      or longer. Every step changes the sum by the parts it touches, so no command looks at
+      the whole document for it. To be independent of where a cell is, the bound counts
+      every cell as indented as deeply as allowed: an empty cell counts 81 bytes where it
+      takes 48 or so.
+    - *A command that would take the bound over 32 MiB is refused* (`Error::Limit`, "too
+      large to save"), with nothing changed, whichever command it is; this is checked in
+      one place, when the command is complete. Before that, a command that asks for more
+      new cells than a file can hold is refused before it makes them, so the most memory a
+      refused command takes is that of about 414,000 cells (150 MB), not gigabytes.
+    - *Undo and redo are never refused*: they lead to documents that were accepted.
+    - *A document whose bound is over the limit although its file fits* (loaded from a file
+      within about 33 bytes per cell of the limit) can be edited: a command that raises
+      the bound is refused; any other is carried out and the document is then written out
+      once to see that it still fits, which costs time in proportion to the document for
+      every command until the bound is under the limit again. A document that did not fit
+      when the editor took it (built in memory) can be made smaller freely.
+    - So: any document reached by commands from one that could be saved can be saved and
+      loaded again. Tested by a rule on random commands with the limit set just above the
+      document (`Editor::set_size_limit`, which exists for that and for interfaces with
+      little memory), and by one test at the real limit.
+    The cost of the looseness: commands stop at about 414,000 empty cells where a file
+    could hold 699,000. Counting indentation exactly would remove it and was not done,
+    because steps that move cells between grids would then have to walk what they move.
+44. **A command that leaves the document as it was is nothing** (makes A34 and A35 true
+    where they were not; found in review). No last-edit stamp, no unit in the history, an
+    empty report. `SetProps` now works out what the properties of a cell are after all of
+    its `props` and makes steps only for what differs, so a colour set to what it is, or
+    set and set back in one command, does nothing; the last-edit time is stamped only if a
+    colour (or the colours of runs) really differs at the end, and a `Prop::LastEdit` after
+    the last colour in the same command wins over the stamp. `TagCells` sets each tag
+    once, with the colours of the last cell that has its text. The other commands already
+    compared before they changed anything. Tested as a rule for every command: if the
+    document is equal before and after, the report is empty and the history as it was.
+45. **A group reports what it changed as a whole** (adds to A35). `Editor::end_group`
+    returns the report for the outermost group: what differs between the document before
+    its first command and after its last. A cell made and removed again inside the group
+    is not named at all. A cell that was changed and changed back may still be named (the
+    report is complete, not tight; making it tight would need a copy of every touched
+    cell). Closing an inner group returns an empty report.
+46. **The cost of the history** (changes A34, which had no bound; found in review).
+    - *Bounds by default:* the undo history keeps at most 1,000 units (TreeSheets' number)
+      and about 64 MiB (`Editor::set_history_limit`, `set_history_budget`,
+      `history_bytes`); the oldest units go first. Memory is the bound that matters, since
+      one unit can hold a deleted subtree of any size; the number of units keeps the list
+      itself small. The memory is an estimate (the size of each step and of the cells,
+      texts, runs and lists it holds; not what unknown fields hold). The newest unit is
+      kept even if it alone is over the budget, so that the last command can always be
+      undone. The redo history is not bounded separately: it only holds what was undone.
+    - *Typing can join the unit before it:* `Editor::apply_typing` is `apply`, except that
+      an `InsertText`, `DeleteText` or `ReplaceText` joins the newest unit if that unit is
+      nothing but such edits of the same cell. The caller decides when typing continues
+      (same cell, no pause, no cursor movement), since the core has no clock. Units made
+      by `apply` can be joined too; groups cannot.
+    - *A text edit holds only the runs and links it touches.* It used to put the cell's
+      whole lists of runs and links into the history whenever any of them moved. Two more
+      kinds of step (`PatchRuns`, `PatchLinks`; thirteen kinds now, with A42's) replace the
+      ranges that the edit changes and move the ones after it by a number. Measured, three
+      keystrokes in a cell with 2,000 runs: 288,784 bytes of history before, 928 after
+      (96 KB and 0.3 KB per keystroke). Carrying out the edit still reads all the runs of
+      the cell. Styling a range and the other commands still hold whole lists.
+    - Not changed: undo is still refused while a group is open.
+47. **A link to a cell of its own document does not name the document** (settles what A28
+    left open, for milestone 4). `LinkTarget::Cell` has `doc: None` for such a link, never
+    the document's own ID: `SetLink` drops an own ID, the reader drops one it finds in a
+    file (and so writes the file back without it), the importer never made one, and
+    `validate` refuses a document that has one, so no editor ever holds one. This form
+    was chosen over always naming the document because a copy with fresh IDs then needs
+    no rewriting of the document part, files are shorter, and the links to a cell can be
+    found by cell ID alone. A link with another document's ID is left as it is.
+48. **An ID in the history is taken** (adds to A36; found in review). A cell that was
+    removed but that undo or redo can bring back still owns its ID: the editor keeps the
+    set of IDs of the cells that its history holds (updated as units come and go, at the
+    cost of the cells in them), and an ID from the `IdSource` that is in the set is
+    refused like one that is in the document. When the history forgets a unit, the IDs of
+    the cells in it are free again.
 
 ## B. Deliberate departures from TreeSheets
 
@@ -362,3 +446,16 @@ TreeSheets.
     unticks it) is not a command: it is `ReplaceText` of one character.
 32. **Restructuring is refused where it would nest grids deeper than 32** (A20);
     TreeSheets has no such limit when editing.
+33. **The root keeps its grid, and cannot be cleared or pasted over.** In TreeSheets the
+    root is never a selected cell (the selection is always cells inside a grid, and
+    `Grid::DelSelf` returns without doing anything for the root's grid), so no action
+    there removes the root's grid, clears the root or pastes over it. Wombat's commands
+    name any cell, so the rule is stated: `RemoveGrid` of the root, `ClearCells` with the
+    root among the cells, `CopyCell` onto the root, and `DeleteRows` or `DeleteColumns` of
+    all of the root's rows or columns (B22) are refused, with nothing done. `DeleteCells`
+    on everything in the root empties the cells and keeps the grid (B22, as TreeSheets).
+    The restructuring commands never leave the root without a grid. So once the root has
+    a grid, no command takes it away (a new document's root has none until `CreateGrid`),
+    which the random tests check for every command. Setting the root's text and
+    properties stays possible; TreeSheets' interface cannot do that, but its script API
+    can.

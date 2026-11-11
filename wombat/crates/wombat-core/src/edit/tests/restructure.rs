@@ -20,9 +20,15 @@ fn fill(f: &mut Fixture, cell: CellId, xs: u32, texts: &[&str]) -> Vec<CellId> {
 
 /// A document whose root has a grid of `xs` columns with these texts.
 fn table(xs: u32, texts: &[&str]) -> (Fixture, Vec<CellId>) {
-    let mut f = Fixture::new(1, 1);
+    // (The root starts without a grid: once it has one, no command takes it away, B33.)
+    let mut ids = SeededIds::from_u64(7);
+    let doc = Document::new(&mut ids);
+    let mut f = Fixture {
+        e: Editor::new(doc).unwrap(),
+        ids,
+        cells: Vec::new(),
+    };
     let root = f.root();
-    f.ok(Command::RemoveGrid { cell: root });
     let cells = fill(&mut f, root, xs, texts);
     f.e.clear_history();
     (f, cells)

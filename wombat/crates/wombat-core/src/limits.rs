@@ -5,8 +5,12 @@
 /// Largest document or view-state file that is read or written, in bytes. Loading needs
 /// memory of up to about 17 times the file size (decision A26), so this is what bounds memory.
 pub const MAX_FILE_BYTES: u64 = 32 * 1024 * 1024;
-/// Largest number of cells in one document.
-pub const MAX_CELLS: usize = 5_000_000;
+/// Largest number of cells in one document: as many as a file of [`MAX_FILE_BYTES`] can
+/// hold and no fewer, so that it refuses nothing a file could contain. A cell takes at least
+/// 48 bytes of a file (its ID in `{"id": "..."}`, one space of indentation and a line end).
+/// A document built in memory or imported cannot have more either (decision A43).
+pub const MAX_CELLS: usize = 700_000;
+const _: () = assert!(MAX_CELLS as u64 * 48 >= MAX_FILE_BYTES);
 /// Deepest nesting of grids. The root cell is at depth 0, the cells of its grid at depth 1.
 pub const MAX_DEPTH: u32 = 32;
 /// Longest text or note of one cell, in Unicode code points.

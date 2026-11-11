@@ -417,7 +417,11 @@ fn read_cell(
         let target_doc = take_id(&mut link, "doc", &place)?.map(DocId);
         let target = match (url, target_cell, target_doc) {
             (Some(url), None, None) => LinkTarget::External(url),
-            (None, Some(cell), doc) => LinkTarget::Cell { doc, cell },
+            // A link to a cell of this document has one form, without `doc` (A47).
+            (None, Some(cell), target_doc) => LinkTarget::Cell {
+                doc: target_doc.filter(|d| *d != doc),
+                cell,
+            },
             (None, None, None) => LinkTarget::Unknown,
             _ => return invalid(format!("{place} has a contradictory target")),
         };

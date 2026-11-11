@@ -90,7 +90,7 @@ save a document whose file would be over a limit, with an error that says which 
 | Limit | Value |
 | ---- | ---- |
 | File size | 33,554,432 bytes (32 MiB) |
-| Cells in one document | 5,000,000 |
+| Cells in one document | 700,000 |
 | Nesting depth of grids (root cell is depth 0; a cell at depth 32 cannot have a grid) | 32 |
 | Text or note of one cell | 16,777,216 code points |
 | Image file name | 255 bytes |
@@ -99,8 +99,17 @@ save a document whose file would be over a limit, with an error that says which 
 The limits on nesting are chosen together, so that no file nests JSON arrays and objects more
 than 127 deep in all, which common JSON parsers accept: the document object is 1 level, each
 level of grid costs 3 (grid object, `cells` array, cell object), a run or link of a cell 2 more,
-and 1 + 3 × 32 + 3 + 24 = 124. The limit on cells cannot be reached by a file, since 5,000,000
-cells take more than 32 MiB; it bounds documents built in memory.
+and 1 + 3 × 32 + 3 + 24 = 124. The limit on cells is what a file of the largest size can hold
+and no less: a cell takes at least 48 bytes (its ID, one space of indentation, the line end),
+and 700,000 × 48 is just over 32 MiB. So no file is refused for its number of cells alone; the
+limit bounds documents built in memory, in line with what can be saved (decision A43).
+
+**Editing stays within the limits** (decision A43). A document that editing commands built can
+always be saved: the editor keeps an upper bound on the size of the file (every cell counted as
+if it were indented as deeply as allowed, so 81 bytes for an empty cell; at most 414,000 empty
+cells) and refuses a command that would take the bound over 32 MiB. A file close to the limit
+can therefore load and still be over the bound; it can be edited, more slowly, as long as
+writing it out shows that it fits.
 
 ## 3. The document file
 
@@ -178,12 +187,17 @@ tag's name, like a cell's text, has no characters below U+0020.
 | `start`, `len` | as for runs | required | The range. |
 | `url` | non-empty string | absent | An external target: a URL with a scheme, or else a file path, absolute or relative to the document. |
 | `cell` | ID | absent | An internal target: the ID of a cell. |
-| `doc` | ID | absent | With `cell`: the ID of the document the cell is in. Absent means this document. |
+| `doc` | ID | absent | With `cell`: the ID of the document the cell is in. Absent means this document; a writer never writes this document's own ID here. |
 
 A link has `url`, or `cell` (optionally with `doc`), or neither; `url` together with `cell` or
 `doc`, and `doc` without `cell`, are errors. A link with neither is one whose kind of target this
 version does not know; its unknown fields say what it is. The target cell need not exist (it may
 have been deleted, or be in a document that is not present).
+
+A link to a cell of the document it is in has one form: `cell` without `doc` (decision A47). A
+reader that finds `doc` equal to the document's own `id` treats it as absent, and it is written
+back without. (So a copy of a document, which has a new ID, needs no change to such links, and
+"the links to this cell" can be found by comparing cell IDs alone.)
 
 One such unknown field is in use: the `.cts` importer (`crates/wombat-cts`) writes a TreeSheets
 link to a cell by text, for which no cell with that text exists, as a link with neither `url` nor
@@ -294,7 +308,7 @@ selected range of the cell's text in code points while it is being edited, with 
 View state can be older than the document, so it may name cells that no longer exist. That is not
 an error; a reader drops those references. Unknown fields are kept as in section 2, and the
 limits of section 2 on file size and on nesting inside unknown fields apply; `folded` holds at
-most 5,000,000 IDs. A copy of a document (section 1) gets a copy of the view state under its
+most 700,000 IDs (the limit on cells). A copy of a document (section 1) gets a copy of the view state under its
 own ID, naming its own cells. The canonical
 layout is as in the example: line 2 the header, then `selection`, `zoom`, unknown fields and
 `folded` (one ID per line), each on its own line.

@@ -9,7 +9,9 @@ engine that this work would have run into was repaired (below). All checks pass
 
 Other findings of the review of 3a (file size limits when saving, stamping of commands that
 change nothing, protection of the root, memory of the history) were left for a separate pass,
-as agreed; they are not touched here.
+as agreed; they are not touched here. That pass is done: see "Fixes after review" in `M3a.md`,
+which also has the acceptance rates of the random tests as they are now and the rewritten
+`referee/README.md`.
 
 ## What was built
 
