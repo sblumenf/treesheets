@@ -14,6 +14,8 @@ memory: sessions do not remember each other, so anything agreed must be written 
 | `docs/DECISIONS.md` | Design decisions and deliberate departures from TreeSheets |
 | `docs/FILE_FORMAT.md` | Specification of the `.wombat` format (from milestone 1) |
 | `docs/milestones/` | One summary per finished milestone |
+| `docs/UI_SPEC.md` | Specification of the Flutter interface |
+| `docs/research/` | Background research behind the interface; not instructions |
 | `crates/wombat-core` | The core library: document model, commands, undo, links, formulas, file format |
 | `crates/wombat-cli` | The `wombat` command-line tool, a thin layer over the core |
 | `referee/` | Scripts that drive the real TreeSheets app, and the reference ("golden") data it produced |
