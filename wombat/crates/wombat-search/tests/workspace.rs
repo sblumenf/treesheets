@@ -337,3 +337,154 @@ fn the_rules_of_folding_are_pinned() {
 }
 
 const PINNED: u64 = 0x2c76_9938_d1d6_b80d;
+
+/// Replacing across a folder prepares every document before it saves any; when saving
+/// one fails, it stops and says which files were changed, which one failed and which
+/// were not reached. (In the tool, a failure in a later document used to return after
+/// the earlier ones were saved, and the list of what was changed was lost.)
+#[test]
+fn a_replace_across_a_folder_says_what_was_saved_when_saving_fails() {
+    use wombat_core::construct::Construct;
+    use wombat_core::{storage, CellKind, Error};
+    use wombat_search::query::Term;
+    use wombat_search::replace::ReplaceOptions;
+    use wombat_search::workspace::replace_in_folder;
+
+    let ws = Workspace::open(folder("replace_folder")).unwrap();
+    let mut ids = SeededIds::from_u64(5);
+    let names = ["a.wombat", "b.wombat", "c.wombat", "d.wombat", "e.wombat"];
+    for (n, name) in names.iter().enumerate() {
+        let mut doc = Document::new(&mut ids);
+        let root = doc.root();
+        // d has the word in a formula only, e not at all.
+        doc.cell_mut(root).unwrap().text = match n {
+            3 => "=apple".to_owned(),
+            4 => "pear".to_owned(),
+            _ => format!("apple {n}{n}"),
+        };
+        if n == 3 {
+            doc.cell_mut(root).unwrap().kind = CellKind::Formula;
+        }
+        ws.save(&doc, name).unwrap();
+    }
+    fs::write(ws.dir().join("zz.wombat"), "not a document").unwrap();
+    let before: Vec<Vec<u8>> = names
+        .iter()
+        .map(|name| fs::read(ws.dir().join(name)).unwrap())
+        .collect();
+    let read = |name: &str| ws.open_name(name).unwrap();
+    let text = |name: &str| read(name).cell(read(name).root()).unwrap().text.clone();
+    let mut targets: Vec<(String, Option<wombat_core::CellId>)> =
+        names.iter().map(|name| (name.to_string(), None)).collect();
+    targets.push(("zz.wombat".into(), None));
+    let term = Term::new("apple");
+    let options = ReplaceOptions::default();
+
+    // A dry run saves nothing and says what would happen.
+    let mut never = |_: &Document, _: &Path| -> Result<(), Error> { panic!("a dry run saves") };
+    let dry = replace_in_folder(
+        &ws, &targets, &term, "fig", options, true, None, &mut ids, &mut never,
+    )
+    .unwrap();
+    let found: Vec<(&str, usize, usize)> = dry
+        .files
+        .iter()
+        .map(|file| {
+            (
+                file.name.as_str(),
+                file.counts.places,
+                file.counts.formula_places,
+            )
+        })
+        .collect();
+    assert_eq!(
+        found,
+        [
+            ("a.wombat", 1, 0),
+            ("b.wombat", 1, 0),
+            ("c.wombat", 1, 0),
+            ("d.wombat", 0, 1)
+        ]
+    );
+    assert!(dry.saved.is_empty() && dry.failed.is_none() && dry.not_saved.is_empty());
+    assert_eq!(dry.unreadable.len(), 1);
+
+    // A refusal in a later document: nothing at all is saved.
+    let mut saved = 0;
+    let mut count = |doc: &Document, path: &Path| {
+        saved += 1;
+        storage::save_document(doc, path)
+    };
+    let refused = replace_in_folder(
+        &ws,
+        &targets,
+        &Term::new("1"),
+        "\u{301}",
+        options,
+        false,
+        None,
+        &mut ids,
+        &mut count,
+    );
+    let (name, error) = refused.unwrap_err();
+    assert_eq!(name, "b.wombat");
+    assert!(matches!(error, Error::Refused(_)), "{error:?}");
+    assert_eq!(saved, 0);
+
+    // Saving the second document fails: the first is changed, the second and third are
+    // as they were, and the result says exactly that.
+    let mut calls = 0;
+    let mut failing = |doc: &Document, path: &Path| {
+        calls += 1;
+        if calls == 2 {
+            return Err(Error::Refused("the disk is full".into()));
+        }
+        storage::save_document(doc, path)
+    };
+    let done = replace_in_folder(
+        &ws,
+        &targets,
+        &term,
+        "fig",
+        options,
+        false,
+        Some(9),
+        &mut ids,
+        &mut failing,
+    )
+    .unwrap();
+    assert_eq!(done.saved, ["a.wombat"]);
+    assert_eq!(
+        done.failed.as_ref().map(|(name, _)| name.as_str()),
+        Some("b.wombat")
+    );
+    assert_eq!(done.not_saved, ["c.wombat"]);
+    assert_eq!(calls, 2, "nothing is written after a failure");
+    assert_eq!(text("a.wombat"), "fig 00");
+    for n in 1..5 {
+        assert_eq!(
+            fs::read(ws.dir().join(names[n])).unwrap(),
+            before[n],
+            "{}",
+            names[n]
+        );
+    }
+    // Run again without the failure: the rest is done.
+    let done = replace_in_folder(
+        &ws,
+        &targets,
+        &term,
+        "fig",
+        options,
+        false,
+        None,
+        &mut ids,
+        &mut storage::save_document,
+    )
+    .unwrap();
+    assert_eq!(done.saved, ["b.wombat", "c.wombat"]);
+    assert_eq!(
+        (text("b.wombat"), text("d.wombat")),
+        ("fig 11".into(), "=apple".into())
+    );
+}

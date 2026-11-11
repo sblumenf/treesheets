@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use wombat_core::scan::CacheMode;
-use wombat_core::{storage, DocId, Document, Editor, Workspace};
+use wombat_core::{storage, CellId, DocId, Document, Workspace};
 use wombat_search::query::{parse, Filter, Order, Query, Term};
-use wombat_search::replace::{replace, Scope};
+use wombat_search::replace::ReplaceOptions;
 use wombat_search::{workspace, Field, Hit, Options, Snippet};
 
 use crate::links::{find_cell, place_of};
@@ -66,11 +66,21 @@ wombat replace <folder | file.wombat> <text> <replacement> [options]
 Replaces every place where <text> is found in the text of a cell (not in notes), in every
 document of the folder or in the one file, and saves the documents that changed. As in
 `wombat search`, upper and lower case, accents and full-width forms count as the same.
-In a formula cell the formula is what is searched and replaced, never the result it
-shows; the result follows from the new formula.
+
+Two things are left alone and counted in what is printed:
+  - formula cells, unless --formulas is given (then the formula is what is searched and
+    replaced, never the result it shows; the result follows from the new formula);
+  - a place where the match is only part of a character: replacing s does not touch the
+    ß of Straße (which is found as ss), nor f the ligature ﬁ, nor 1 the fraction ½.
+
+Replacing in a folder is not all-or-nothing: every document is prepared first, and if a
+replacement cannot be made in one of them nothing is saved; but if saving a file fails,
+the files saved before it stay changed, and what was saved, what failed and what was not
+reached is printed.
 
 Options:
   --case               only exactly these characters
+  --formulas           also replace in the formulas of formula cells
   --in FILE CELL       only in this cell of FILE and the cells inside it
   --dry-run            say what would be replaced, and change nothing
 ";
@@ -361,13 +371,14 @@ pub fn search(args: &[&str]) -> Result<String, Failure> {
 /// `wombat replace`.
 pub fn replace_all(args: &[&str]) -> Result<String, Failure> {
     let mut words: Vec<&str> = Vec::new();
-    let (mut exact, mut dry) = (false, false);
+    let (mut exact, mut dry, mut formulas) = (false, false, false);
     let mut within: Option<(&str, &str)> = None;
     let mut rest = args.iter();
     while let Some(word) = rest.next() {
         match *word {
             "--case" => exact = true,
             "--dry-run" => dry = true,
+            "--formulas" => formulas = true,
             "--in" => {
                 let (Some(file), Some(cell)) = (rest.next(), rest.next()) else {
                     return usage("--in takes a file and a cell");
@@ -385,57 +396,133 @@ pub fn replace_all(args: &[&str]) -> Result<String, Failure> {
         exact,
     };
     let target = target(path)?;
-    let names = match (&target.only, within) {
-        (_, Some((file, _))) => {
+    let targets: Vec<(String, Option<CellId>)> = match (&target.only, within) {
+        (_, Some((file, cell))) => {
             let name = Path::new(file).file_name().and_then(|name| name.to_str());
-            vec![name.unwrap_or_default().to_owned()]
+            let name = name.unwrap_or_default().to_owned();
+            let doc = target.workspace.open_name(&name)?;
+            vec![(name, Some(find_cell(&doc, cell).map_err(Failure::Failed)?))]
         }
-        (Some(only), None) => vec![only.clone()],
+        (Some(only), None) => vec![(only.clone(), None)],
         (None, None) => {
             let listed = target.workspace.list()?;
-            listed.into_iter().map(|entry| entry.name).collect()
+            listed.into_iter().map(|entry| (entry.name, None)).collect()
         }
     };
     let mut ids = crate::os_ids()?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH);
+    let now = now.ok().map(|since| since.as_millis() as i64);
+    let options = ReplaceOptions { formulas };
+    let done = workspace::replace_in_folder(
+        &target.workspace,
+        &targets,
+        &term,
+        with,
+        options,
+        dry,
+        now,
+        &mut ids,
+        &mut storage::save_document,
+    )
+    .map_err(|(name, e)| Failure::Failed(format!("{name}: {e}; nothing was changed")))?;
+    let out = replace_report(&target.workspace, &done, dry);
+    match &done.failed {
+        None => Ok(out),
+        Some(_) => Err(Failure::Failed(out.trim_end().to_owned())),
+    }
+}
+
+/// What `wombat replace` prints.
+fn replace_report(workspace: &Workspace, done: &workspace::FolderReplace, dry: bool) -> String {
     let mut out = String::new();
+    for (name, error) in &done.unreadable {
+        out.push_str(&format!("warning: {name} could not be read: {error}\n"));
+    }
     let (mut places, mut cells, mut files) = (0usize, 0usize, 0usize);
-    for name in names {
-        let path = target.workspace.path_of(&name)?;
-        let doc = match storage::load_document(&path) {
-            Ok(doc) => doc,
-            Err(error) => {
-                out.push_str(&format!("warning: {name} could not be read: {error}\n"));
-                continue;
+    let (mut formula_places, mut formula_cells, mut skipped) = (0usize, 0usize, 0usize);
+    for file in &done.files {
+        let (name, counts) = (&file.name, &file.counts);
+        if counts.places > 0 {
+            out.push_str(&format!(
+                "{name}: {} places in {} cells\n",
+                counts.places, counts.cells
+            ));
+            files = files.saturating_add(1);
+        }
+        if counts.formula_places > 0 {
+            let what = if counts.formulas_included {
+                "included"
+            } else {
+                "left alone (--formulas includes them)"
+            };
+            out.push_str(&format!(
+                "{name}: {} places in {} formula cells {what}\n",
+                counts.formula_places, counts.formula_cells
+            ));
+        }
+        // Where the cells are is read from the file; replacing does not move cells.
+        let doc = (!counts.skipped.is_empty())
+            .then(|| workspace.open_name(name).ok())
+            .flatten();
+        for skip in counts.skipped.iter().take(20) {
+            let place = doc
+                .as_ref()
+                .map_or(format!("#{}", skip.cell), |doc| place_of(doc, skip.cell));
+            out.push_str(&format!(
+                "{name}: {place} not replaced at character {}: the match is only part of {:?}\n",
+                skip.start.saturating_add(1),
+                skip.text
+            ));
+        }
+        if counts.skipped.len() > 20 {
+            out.push_str(&format!(
+                "{name}: and {} more such places\n",
+                counts.skipped.len() - 20
+            ));
+        }
+        places = places.saturating_add(counts.places);
+        cells = cells.saturating_add(counts.cells);
+        skipped = skipped.saturating_add(counts.skipped.len());
+        formula_places = formula_places.saturating_add(counts.formula_places);
+        formula_cells = formula_cells.saturating_add(counts.formula_cells);
+    }
+    if let Some((failed, error)) = &done.failed {
+        // Not atomic: say exactly what happened to which file.
+        out.push_str(&format!("saving {failed} failed: {error}\n"));
+        let list = |names: &[String]| {
+            if names.is_empty() {
+                "none".to_owned()
+            } else {
+                names.join(", ")
             }
         };
-        let scope = match within {
-            Some((_, cell)) => Scope::Branch(find_cell(&doc, cell).map_err(Failure::Failed)?),
-            None => Scope::Document,
-        };
-        let mut editor = Editor::new(doc)?;
-        let now = SystemTime::now().duration_since(UNIX_EPOCH);
-        let now = now.ok().map(|since| since.as_millis() as i64);
-        let done = replace(&mut editor, &term, with, scope, now, &mut ids)
-            .map_err(|e| Failure::Failed(format!("{name}: {e}")))?;
-        if done.places == 0 {
-            continue;
-        }
-        if !dry && !done.changes.is_empty() {
-            storage::save_document(editor.document(), &path)?;
-        }
+        out.push_str(&format!("changed and saved: {}\n", list(&done.saved)));
         out.push_str(&format!(
-            "{name}: {} places in {} cells\n",
-            done.places, done.cells
+            "not changed: {failed}, {}\n",
+            list(&done.not_saved)
         ));
-        places = places.saturating_add(done.places);
-        cells = cells.saturating_add(done.cells);
-        files = files.saturating_add(1);
+        return out;
     }
     let verb = if dry { "would be replaced" } else { "replaced" };
     out.push_str(&format!(
         "{places} places in {cells} cells of {files} documents {verb}\n"
     ));
-    Ok(out)
+    if formula_places > 0 {
+        let what = if done.files.iter().any(|f| f.counts.formulas_included) {
+            "are among them"
+        } else {
+            "were left alone"
+        };
+        out.push_str(&format!(
+            "{formula_places} places in {formula_cells} formula cells {what}\n"
+        ));
+    }
+    if skipped > 0 {
+        out.push_str(&format!(
+            "{skipped} places were left alone where the match is only part of a character\n"
+        ));
+    }
+    out
 }
 
 fn collect(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), Failure> {

@@ -734,6 +734,31 @@ Numbers 80 to 89 are not used: 90 on are where milestones 4, 5 and 6, built apar
     result), and the tool prints them as `wombat show` does, `"=SUM(Costs)" = "1050.5"`.
     Filters that ask about a cell's text (`text:`, `tag:`, `has:text`) and the "shorter
     text first" of the ranking still go by the stored text.
+105. **Replace changes only whole characters** (review of milestone 6; numbers 93 to 104
+    are used by other work). A match in folded text can cover part of a character: `s`
+    is found in the `ß` of `Straße` (folded `ss`), `f` in `ﬁ`, `1` in `½`, one person in
+    a family emoji. Search still finds and highlights those cells. Replace takes a
+    place only where the match is the whole of one or more user-perceived characters;
+    any other place is left alone, counted, and listed with the characters it touches
+    (`replace::Counts::skipped`), by the dry run as by the run. After such a place the
+    search goes on one character further, so `ss` still replaces the `ß` of `sß`.
+    Before this, `s -> X` made `XtraXe` of `Straße` without a word.
+106. **Replace leaves formula cells alone unless asked** (replaces the second half of
+    A91). `ReplaceOptions::formulas` (the tool's `--formulas`, `formulas` in
+    `replace-all`) includes them; then, as A91 says, the formula is what is replaced,
+    and the cell calculates again. Without it formula cells are skipped and the result
+    and the dry run say how many of them had how many places
+    (`Counts::formula_cells`, `formula_places`). Replacing the word "sum" in a folder
+    of notes must not turn every `=SUM(` into something else. Renaming a table in the
+    whole document therefore needs the option.
+107. **Replace across a folder prepares everything, then saves, and is not atomic**
+    (`wombat_search::workspace::replace_in_folder`). Every document is read and changed
+    in memory first; a replacement refused in any of them saves nothing. Then the
+    changed documents are saved one by one (each file whole or not at all, A20); if
+    one fails, saving stops and the result names the files saved, the one that failed
+    and the ones not reached. There is no undo across files: a second run finishes the
+    job, since what was replaced is no longer found. The changed documents are all in
+    memory until they are saved.
 
 ## B. Deliberate departures from TreeSheets
 

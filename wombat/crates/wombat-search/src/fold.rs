@@ -237,6 +237,20 @@ impl FoldMap {
         };
         (start, end.saturating_sub(start))
     }
+
+    /// Whether the bytes `from..to` of the folded text are the whole folded forms of
+    /// the characters that [`FoldMap::range`] gives for them: the match neither begins
+    /// nor ends inside the folded form of one character.
+    pub fn is_whole(&self, from: usize, to: usize) -> bool {
+        let first = self.clusters.partition_point(|c| c.0 as usize <= from);
+        let starts_at = first
+            .checked_sub(1)
+            .and_then(|before| self.clusters.get(before))
+            .map_or(0, |c| c.0 as usize);
+        let last = self.clusters.partition_point(|c| (c.0 as usize) < to);
+        let ends_at = self.clusters.get(last).map(|c| c.0 as usize);
+        from < to && starts_at == from && ends_at == Some(to)
+    }
 }
 
 /// Whether `c` is part of a word: a letter or a digit of any script.

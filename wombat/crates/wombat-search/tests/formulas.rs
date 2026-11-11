@@ -24,7 +24,7 @@ use wombat_core::{
     Workspace,
 };
 use wombat_search::query::{parse, Term};
-use wombat_search::replace::{replace, Scope};
+use wombat_search::replace::{replace, ReplaceOptions, Scope};
 use wombat_search::{naive, workspace, Field, Hit, Options, Order, SearchIndex};
 
 /// An editor with a search index that follows it.
@@ -301,22 +301,31 @@ fn replace_changes_formulas_and_never_results() {
     let b = budget();
     let before = format::to_string(&b.doc).unwrap();
     let mut desk = Desk::new(b.doc);
-    let go = |desk: &mut Desk, what: &str, with: &str| {
+    let all = ReplaceOptions { formulas: true };
+    let run = |desk: &mut Desk, what: &str, with: &str, options: ReplaceOptions| {
         let term = Term::new(what);
         let done = replace(
             &mut desk.editor,
             &term,
             with,
             Scope::Document,
+            options,
             None,
             &mut desk.ids,
         )
         .unwrap();
         desk.follow(&done.changes);
-        (done.cells, done.places)
+        (done.counts.cells, done.counts.places)
     };
+    let go = |desk: &mut Desk, what: &str, with: &str| run(desk, what, with, all);
     // A result is not text that can be replaced: nothing happens.
     assert_eq!(go(&mut desk, "1050.5", "0"), (0, 0));
+    assert_eq!(format::to_string(desk.editor.document()).unwrap(), before);
+    // A formula is not replaced in unless that is asked for (decision A106).
+    assert_eq!(
+        run(&mut desk, "sum", "MAX", ReplaceOptions::default()),
+        (0, 0)
+    );
     assert_eq!(format::to_string(desk.editor.document()).unwrap(), before);
     // In the formula it is: the cell stays a formula cell, and shows the new result.
     assert_eq!(go(&mut desk, "sum", "MAX"), (1, 1));
@@ -344,6 +353,7 @@ fn replace_changes_formulas_and_never_results() {
         &Term::new("Kosten"),
         "Spend",
         Scope::Cells(&only),
+        ReplaceOptions::default(),
         None,
         &mut desk.ids,
     )

@@ -376,13 +376,15 @@ fn formula_cells_are_found_by_result_and_replaced_by_formula() {
         &dir,
         "budget.wombat",
         "find \"1050.5\"\ntext /1,1/2,1 \"300\"\nfind \"1050.5\"\nfind \"550.5\"\n\
-         replace-all \"1050.5\" \"7\"\nreplace-all \"sum\" \"MAX\"\nfind \"case:MAX\"\n\
+         replace-all \"1050.5\" \"7\"\nreplace-all \"sum\" \"MAX\"\nreplace-all \"sum\" \"MAX\" formulas\nfind \"case:MAX\"\n\
          find \"1700\"\nundo\nfind \"550.5\"\nsave\n",
     );
     assert_eq!(
         session,
         "/2,1 «1050.5»\n1 found\n0 found\n/2,1 «550.5»\n1 found\n\
-         0 places in 0 cells\n4 places in 3 cells\n\
+         0 places in 0 cells\n\
+         0 places in 0 cells\n4 places in 3 formula cells left alone (add: formulas)\n\
+         4 places in 3 cells\n\
          /2,1 =«MAX»(Costs)\n/3,1 =«MAX»(Costs) * 1.2\n/2,2 =«MAX»(Income) - «MAX»(Costs)\n\
          3 found\n/2,2 «1700»\n1 found\n/2,1 «550.5»\n1 found\nsaved budget.wombat\n"
     );
@@ -395,11 +397,56 @@ fn formula_cells_are_found_by_result_and_replaced_by_formula() {
         dry,
         "0 places in 0 cells of 0 documents would be replaced\n"
     );
-    let done = ok(&dir, &["replace", ".", "costs", "Kosten"]);
+    // Formula cells are left alone and counted, in the dry run as in the run.
+    let prose = "budget.wombat: 1 places in 1 cells\n\
+                 budget.wombat: 3 places in 3 formula cells left alone (--formulas includes them)\n\
+                 1 places in 1 cells of 1 documents would be replaced\n\
+                 3 places in 3 formula cells were left alone\n";
+    assert_eq!(
+        ok(&dir, &["replace", ".", "costs", "Kosten", "--dry-run"]),
+        prose
+    );
+    let done = ok(&dir, &["replace", ".", "costs", "Kosten", "--formulas"]);
     assert!(done.contains("4 places in 4 cells"), "{done}");
+    assert!(
+        done.contains("3 places in 3 formula cells are among them"),
+        "{done}"
+    );
     let shown = ok(&dir, &["show", "budget.wombat"]);
     assert!(
         shown.contains("[2,1] \"=SUM(Kosten)\" (formula) = \"550.5\""),
         "{shown}"
     );
+}
+
+/// Replace leaves alone what it did not match: half of a `ß`, one part of a ligature,
+/// and says so, in the dry run as in the run.
+#[test]
+fn replace_reports_the_places_it_leaves_alone() {
+    let dir = folder("replace_partial");
+    fs::write(dir.join("de.txt"), "Straße\n  ﬁnance | ½ ㎏\n").unwrap();
+    ok(&dir, &["new", "de.wombat", "--from", "de.txt"]);
+    let expected = |verb: &str| {
+        format!(
+            "de.wombat: 1 places in 1 cells\n\
+             de.wombat: / not replaced at character 5: the match is only part of \"ß\"\n\
+             1 places in 1 cells of 1 documents {verb}\n\
+             1 places were left alone where the match is only part of a character\n"
+        )
+    };
+    let dry = ok(&dir, &["replace", ".", "s", "X", "--dry-run"]);
+    assert_eq!(dry, expected("would be replaced"));
+    assert_eq!(ok(&dir, &["replace", ".", "s", "X"]), expected("replaced"));
+    let shown = ok(&dir, &["show", "de.wombat"]);
+    assert!(shown.contains("\"Xtraße\""), "{shown}");
+    let none = ok(&dir, &["replace", ".", "f", "Q"]);
+    assert!(
+        none.contains("/1,1 not replaced at character 1") && none.contains("\"ﬁ\""),
+        "{none}"
+    );
+    assert!(
+        none.contains("0 places in 0 cells of 0 documents replaced"),
+        "{none}"
+    );
+    assert!(ok(&dir, &["show", "de.wombat"]).contains("\"ﬁnance\""));
 }

@@ -9,9 +9,10 @@
 
 use proptest::prelude::*;
 use wombat_core::construct::Construct;
+use wombat_core::CellKind;
 use wombat_core::{format, CellId, Command, Document, Editor, Error, LinkTarget, SeededIds, Style};
 use wombat_search::query::{parse, Term};
-use wombat_search::replace::{commands, places, replace, Scope};
+use wombat_search::replace::{places, plan, replace, ReplaceOptions, Scope};
 use wombat_search::{Options, SearchIndex};
 
 /// A document whose root has one column of cells with these texts; the first cell has a
@@ -82,11 +83,12 @@ fn every_place_is_replaced_in_one_step_that_undo_takes_back_exactly() {
         &Term::new("apple"),
         "Fig",
         Scope::Document,
+        ReplaceOptions::default(),
         Some(7),
         &mut ids,
     )
     .unwrap();
-    assert_eq!((done.cells, done.places), (6, 7));
+    assert_eq!((done.counts.cells, done.counts.places), (6, 7));
     assert_eq!(
         texts(editor.document()),
         // Whatever the case, accents or width of what was there; the replacement as
@@ -143,11 +145,12 @@ fn case_counts_only_when_asked_and_scopes_limit_where() {
             &term,
             "kiwi",
             scope,
+            ReplaceOptions::default(),
             None,
             &mut SeededIds::from_u64(1),
         )
         .unwrap();
-        (texts(editor.document()), done.places)
+        (texts(editor.document()), done.counts.places)
     };
     assert_eq!(
         run(Term::exact("apple"), Scope::Document),
@@ -182,8 +185,20 @@ fn case_counts_only_when_asked_and_scopes_limit_where() {
         Term::exact(""),
         Term::new("\u{301}"),
     ] {
-        let done = replace(&mut editor, &term, "x", Scope::Document, Some(1), &mut ids).unwrap();
-        assert_eq!((done.cells, done.places, editor.undo_len()), (0, 0, 0));
+        let done = replace(
+            &mut editor,
+            &term,
+            "x",
+            Scope::Document,
+            ReplaceOptions::default(),
+            Some(1),
+            &mut ids,
+        )
+        .unwrap();
+        assert_eq!(
+            (done.counts.cells, done.counts.places, editor.undo_len()),
+            (0, 0, 0)
+        );
         assert!(done.changes.is_empty());
     }
     assert!(*editor.document() == doc);
@@ -193,47 +208,57 @@ fn case_counts_only_when_asked_and_scopes_limit_where() {
         &Term::new("a"),
         "x",
         Scope::Branch(gone),
+        ReplaceOptions::default(),
         None,
         &mut ids,
     )
     .unwrap();
-    assert_eq!(done.places, 0);
+    assert_eq!(done.counts.places, 0);
     // Replacing something by itself is nothing either.
     let done = replace(
         &mut editor,
         &Term::exact("apple"),
         "apple",
         Scope::Document,
+        ReplaceOptions::default(),
         Some(1),
         &mut ids,
     )
     .unwrap();
-    assert_eq!((done.places, editor.undo_len()), (3, 0));
+    assert_eq!((done.counts.places, editor.undo_len()), (3, 0));
 }
 
 #[test]
 fn places_are_whole_characters_from_left_to_right_and_never_overlap() {
-    let fold = |text: &str, word: &str| places(text, &Term::new(word));
+    let fold = |text: &str, word: &str| places(text, &Term::new(word)).whole;
+    let part = |text: &str, word: &str| places(text, &Term::new(word)).partial;
     assert_eq!(fold("aaaa", "aa"), [(0, 2), (2, 2)]);
     assert_eq!(fold("aaa", "aa"), [(0, 2)]);
     assert_eq!(fold("Straße", "ss"), [(4, 1)]);
-    assert_eq!(
-        fold("Straße", "s"),
-        [(0, 1), (4, 1)],
-        "ß is s twice, but one place"
-    );
+    // (This test used to say that `s` is found in the `ß` as a place to replace: that
+    // was the fault. Half a letter is not a place.)
+    assert_eq!(fold("Straße", "s"), [(0, 1)]);
+    assert_eq!(part("Straße", "s"), [(4, 1)], "ß is s twice: one place");
     assert_eq!(fold("e\u{301}e", "e"), [(0, 2), (2, 1)]);
     assert_eq!(fold("ｶﾞｶﾞ", "ガ"), [(0, 2), (2, 2)]);
     assert_eq!(fold("so\u{ad}ft", "soft"), [(0, 5)]);
+    assert_eq!(fold("x\u{ad}soft\u{ad}y", "soft"), [(2, 4)]);
     assert_eq!(fold("x", ""), []);
-    let exact = |text: &str, word: &str| places(text, &Term::exact(word));
-    assert_eq!(exact("Aa", "a"), [(1, 1)]);
+    // A whole match that starts inside a partial one is still found.
+    assert_eq!(fold("sß", "ss"), [(1, 1)]);
     assert_eq!(
-        exact("e\u{301}e", "e"),
-        [(0, 2), (2, 1)],
-        "part of a character is the character"
+        part("sß", "ss"),
+        [],
+        "what overlaps a replaced place is not listed"
     );
-    assert_eq!(exact("👨\u{200d}👩", "👩"), [(0, 3)]);
+    assert_eq!((fold("ßs", "ss"), part("ßs", "ss")), (vec![(0, 1)], vec![]));
+    let exact = |text: &str, word: &str| places(text, &Term::exact(word));
+    assert_eq!(exact("Aa", "a").whole, [(1, 1)]);
+    // Part of a character is not the character.
+    let accent = exact("e\u{301}e", "e");
+    assert_eq!((accent.whole, accent.partial), (vec![(2, 1)], vec![(0, 2)]));
+    let pair = exact("👨\u{200d}👩", "👩");
+    assert_eq!((pair.whole, pair.partial), (vec![], vec![(0, 3)]));
     // The replacement is not searched again: this ends.
     let (doc, outer, _) = document(&["aXa"], &[]);
     let mut editor = Editor::new(doc).unwrap();
@@ -242,6 +267,7 @@ fn places_are_whole_characters_from_left_to_right_and_never_overlap() {
         &Term::new("a"),
         "aa",
         Scope::Document,
+        ReplaceOptions::default(),
         None,
         &mut SeededIds::from_u64(1),
     )
@@ -281,6 +307,7 @@ fn styles_and_links_of_replaced_text_follow_the_rules_of_text_editing() {
         &Term::new("apple"),
         "fig",
         Scope::Document,
+        ReplaceOptions::default(),
         None,
         &mut ids,
     )
@@ -310,6 +337,7 @@ fn a_replacement_that_cannot_be_made_everywhere_is_made_nowhere() {
         &Term::new("a"),
         "\u{301}",
         Scope::Document,
+        ReplaceOptions::default(),
         Some(1),
         &mut ids,
     );
@@ -323,6 +351,7 @@ fn a_replacement_that_cannot_be_made_everywhere_is_made_nowhere() {
         &Term::new("a"),
         "x",
         Scope::Document,
+        ReplaceOptions::default(),
         None,
         &mut ids,
     );
@@ -357,17 +386,17 @@ proptest! {
         let term = Term { text: word, exact };
         let before = format::to_string(&doc).unwrap();
         let mut editor = Editor::new(doc.clone()).unwrap();
-        let (list, _) = commands(&doc, &term, &with, Scope::Document);
-        match replace(&mut editor, &term, &with, Scope::Document, Some(5), &mut SeededIds::from_u64(1)) {
+        let list = plan(&doc, &term, &with, Scope::Document, ReplaceOptions::default()).commands;
+        match replace(&mut editor, &term, &with, Scope::Document, ReplaceOptions::default(), Some(5), &mut SeededIds::from_u64(1)) {
             Ok(done) => {
-                prop_assert_eq!(done.places, list.len());
+                prop_assert_eq!(done.counts.places, list.len());
                 for (id, text) in outer.iter().zip(&cells) {
                     // The same, worked out on the characters: the parts between the
                     // places, with the replacement between them.
                     let chars: Vec<char> = text.chars().collect();
                     let mut expected = String::new();
                     let mut at = 0usize;
-                    for (start, len) in places(text, &term) {
+                    for (start, len) in places(text, &term).whole {
                         expected.extend(&chars[at..start as usize]);
                         expected.push_str(&with);
                         at = (start + len) as usize;
@@ -384,5 +413,351 @@ proptest! {
             Err(error) => prop_assert!(matches!(error, Error::Refused(_)), "{:?}", error),
         }
         prop_assert_eq!(format::to_string(editor.document()).unwrap(), before);
+    }
+}
+
+/// One piece of the hostile alphabet: one user-perceived character, and its folded
+/// form **as written here by hand from the Unicode data** (case folding, NFKD, accents
+/// of Latin letters dropped), not as the code under test folds it.
+const HOSTILE: &[(&str, &str)] = &[
+    ("s", "s"),
+    ("S", "s"),
+    ("ß", "ss"),
+    ("ẞ", "ss"),
+    ("f", "f"),
+    ("i", "i"),
+    ("ﬁ", "fi"),
+    ("ﬃ", "ffi"),
+    ("ｆ", "f"),
+    ("Ａ", "a"),
+    ("a", "a"),
+    ("İ", "i"),
+    ("ı", "i"),
+    ("I", "i"),
+    ("σ", "σ"),
+    ("ς", "σ"),
+    ("Σ", "σ"),
+    ("é", "e"),
+    ("e\u{301}", "e"),
+    ("e", "e"),
+    ("\u{1112}\u{1161}\u{11ab}", "한"),
+    ("한", "한"),
+    ("하", "하"),
+    ("👩", "👩"),
+    ("👨\u{200d}👩\u{200d}👧", "👨\u{200d}👩\u{200d}👧"),
+    ("👨", "👨"),
+    ("🇩🇪", "🇩🇪"),
+    ("🇪🇸", "🇪🇸"),
+    ("½", "1⁄2"),
+    ("1", "1"),
+    ("2", "2"),
+    ("⁄", "⁄"),
+    ("㎏", "kg"),
+    ("k", "k"),
+    ("K", "k"),
+    ("g", "g"),
+    ("㎠", "cm2"),
+    ("²", "2"),
+    (" ", " "),
+    ("-", "-"),
+];
+
+/// Queries that find wholes and parts of the pieces above: as typed, and folded by hand.
+const WORDS: &[(&str, &str)] = &[
+    ("s", "s"),
+    ("ss", "ss"),
+    ("S", "s"),
+    ("f", "f"),
+    ("i", "i"),
+    ("fi", "fi"),
+    ("ffi", "ffi"),
+    ("ff", "ff"),
+    ("a", "a"),
+    ("A", "a"),
+    ("σ", "σ"),
+    ("ς", "σ"),
+    ("e", "e"),
+    ("é", "e"),
+    ("한", "한"),
+    ("하", "하"),
+    ("👩", "👩"),
+    ("👨", "👨"),
+    ("🇩", "🇩"),
+    ("🇩🇪", "🇩🇪"),
+    ("1", "1"),
+    ("2", "2"),
+    ("1⁄2", "1⁄2"),
+    ("⁄", "⁄"),
+    ("k", "k"),
+    ("g", "g"),
+    ("kg", "kg"),
+    ("cm", "cm"),
+    ("m2", "m2"),
+    (" ", " "),
+    ("s ", "s "),
+    ("ss-", "ss-"),
+    ("is", "is"),
+    ("si", "si"),
+    ("ı", "i"),
+    ("İ", "i"),
+    ("ß", "ss"),
+    ("ﬁ", "fi"),
+    ("½", "1⁄2"),
+    ("㎏", "kg"),
+    ("e\u{301}", "e"),
+    ("\u{301}", ""),
+    ("\u{200d}", "\u{200d}"),
+];
+
+/// Replace-all as the plainest code would do it, on the pieces and their hand-written
+/// folded forms: at each piece from left to right, take the shortest run of whole
+/// pieces from there whose folded forms (or, for an exact word, the pieces themselves)
+/// make up the word exactly; replace it and go on after it. Returns the new text and
+/// which pieces were replaced.
+fn reference(pieces: &[usize], word: &str, exact: bool, with: &str) -> (String, Vec<bool>) {
+    let form = |n: usize| if exact { HOSTILE[n].0 } else { HOSTILE[n].1 };
+    if word.is_empty() {
+        let text = pieces.iter().map(|n| HOSTILE[*n].0).collect();
+        return (text, vec![false; pieces.len()]);
+    }
+    let mut out = String::new();
+    let mut gone = vec![false; pieces.len()];
+    let mut at = 0;
+    while at < pieces.len() {
+        // The end of the shortest run of whole pieces from here that is the word.
+        let mut run = String::new();
+        let mut matched = None;
+        for (end, piece) in pieces.iter().enumerate().skip(at) {
+            run.push_str(form(*piece));
+            if run == word {
+                matched = Some(end);
+            }
+            if run.len() >= word.len() {
+                break;
+            }
+        }
+        match matched {
+            Some(end) => {
+                out.push_str(with);
+                gone[at..=end].fill(true);
+                at = end + 1;
+            }
+            None => {
+                out.push_str(HOSTILE[pieces[at]].0);
+                at += 1;
+            }
+        }
+    }
+    (out, gone)
+}
+
+#[test]
+fn the_hostile_alphabet_is_what_its_table_says() {
+    use unicode_segmentation::UnicodeSegmentation;
+    for (piece, _) in HOSTILE {
+        assert_eq!(
+            piece.graphemes(true).count(),
+            1,
+            "{piece:?} is one character"
+        );
+    }
+    // The reviewer's examples, as the tool would be asked.
+    let one = |text: &str, word: &str, with: &str| {
+        let (doc, outer, _) = document(&[text], &[]);
+        let mut editor = Editor::new(doc).unwrap();
+        let done = replace(
+            &mut editor,
+            &Term::new(word),
+            with,
+            Scope::Document,
+            ReplaceOptions::default(),
+            None,
+            &mut SeededIds::from_u64(1),
+        )
+        .unwrap();
+        let text = editor.document().cell(outer[0]).unwrap().text.clone();
+        (text, done.counts.places, done.counts.skipped.len())
+    };
+    assert_eq!(one("Straße", "s", "X"), ("Xtraße".into(), 1, 1));
+    assert_eq!(one("ﬁnance", "f", "Q"), ("ﬁnance".into(), 0, 1));
+    assert_eq!(one("㎏", "k", "K"), ("㎏".into(), 0, 1));
+    assert_eq!(one("½", "1", "7"), ("½".into(), 0, 1));
+    assert_eq!(
+        one("👨\u{200d}👩\u{200d}👧", "👩", "W"),
+        ("👨\u{200d}👩\u{200d}👧".into(), 0, 1)
+    );
+    assert_eq!(one("🇩🇪", "🇩", "D"), ("🇩🇪".into(), 0, 1));
+    // The whole of such a character is a place like any other.
+    assert_eq!(one("Straße", "ss", "X"), ("StraXe".into(), 1, 0));
+    assert_eq!(one("ﬁnance", "fi", "Q"), ("Qnance".into(), 1, 0));
+    assert_eq!(one("1½ ㎏", "1⁄2", "0.5"), ("10.5 ㎏".into(), 1, 0));
+    // What was skipped is said, with the characters that were touched.
+    let (doc, outer, _) = document(&["Straße, Masse"], &[]);
+    let found = plan(
+        &doc,
+        &Term::new("s"),
+        "X",
+        Scope::Document,
+        ReplaceOptions::default(),
+    );
+    assert_eq!((found.counts.places, found.counts.cells), (3, 1));
+    let skipped = &found.counts.skipped;
+    assert_eq!(skipped.len(), 1);
+    assert_eq!(
+        (
+            skipped[0].cell,
+            skipped[0].start,
+            skipped[0].len,
+            skipped[0].text.as_str()
+        ),
+        (outer[0], 4, 1, "ß")
+    );
+}
+
+#[test]
+fn formula_cells_are_left_alone_unless_asked_for() {
+    let (mut doc, outer, _) = document(&["=SUM(A1)", "the sum is ours", "=1+1"], &[]);
+    doc.cell_mut(outer[0]).unwrap().kind = CellKind::Formula;
+    doc.cell_mut(outer[2]).unwrap().kind = CellKind::Formula;
+    let term = Term::new("s");
+    let dry = plan(&doc, &term, "X", Scope::Document, ReplaceOptions::default());
+    assert_eq!(
+        (
+            dry.counts.cells,
+            dry.counts.places,
+            dry.counts.formula_cells,
+            dry.counts.formula_places
+        ),
+        (1, 3, 1, 1)
+    );
+    assert!(!dry.counts.formulas_included);
+    let mut ids = SeededIds::from_u64(1);
+    let mut editor = Editor::new(doc.clone()).unwrap();
+    let done = replace(
+        &mut editor,
+        &term,
+        "X",
+        Scope::Document,
+        ReplaceOptions::default(),
+        None,
+        &mut ids,
+    )
+    .unwrap();
+    assert_eq!(
+        done.counts, dry.counts,
+        "the dry run says what the replace does"
+    );
+    assert_eq!(
+        texts(editor.document())[1..],
+        ["=SUM(A1)", "the Xum iX ourX", "=1+1"]
+    );
+    assert_eq!(done.changes.changed, [outer[1]]);
+    // Asked for: the formula text is replaced like any text.
+    let all = ReplaceOptions { formulas: true };
+    let mut editor = Editor::new(doc.clone()).unwrap();
+    let done = replace(
+        &mut editor,
+        &term,
+        "X",
+        Scope::Document,
+        all,
+        None,
+        &mut ids,
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            done.counts.cells,
+            done.counts.places,
+            done.counts.formula_cells,
+            done.counts.formula_places
+        ),
+        (2, 4, 1, 1)
+    );
+    assert!(done.counts.formulas_included);
+    assert_eq!(
+        done.counts,
+        plan(&doc, &term, "X", Scope::Document, all).counts
+    );
+    assert_eq!(
+        texts(editor.document())[1..],
+        ["=XUM(A1)", "the Xum iX ourX", "=1+1"]
+    );
+    assert_eq!(
+        editor.document().cell(outer[0]).unwrap().kind,
+        CellKind::Formula
+    );
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(1500))]
+
+    /// Over an alphabet made to hurt: whatever is replaced, every character that was
+    /// not exactly matched is still there, in order, and the result is the one the
+    /// plain reference above gives.
+    #[test]
+    fn replacing_never_destroys_what_was_not_matched(
+        pieces in proptest::collection::vec(0..HOSTILE.len(), 0..14),
+        word in proptest::sample::select(WORDS),
+        typed in proptest::collection::vec(0..HOSTILE.len(), 1..4),
+        from_text in any::<bool>(),
+        with in proptest::sample::select(&["", "X", "ss", "é", "👩", "-"][..]),
+        exact in any::<bool>(),
+    ) {
+        // The word: one of the list, or made of pieces as someone would type them
+        // (their folded forms, or the pieces themselves).
+        // `word` is what is typed; `wanted` what it stands for: itself if exact,
+        // else its folded form, by the tables.
+        let (word, folded): (String, String) = if from_text {
+            (typed.iter().map(|n| HOSTILE[*n].0).collect(), typed.iter().map(|n| HOSTILE[*n].1).collect())
+        } else {
+            (word.0.to_owned(), word.1.to_owned())
+        };
+        let wanted = if exact { word.clone() } else { folded };
+        let text: String = pieces.iter().map(|n| HOSTILE[*n].0).collect();
+        let (doc, outer, _) = document(&[&text], &[]);
+        let term = Term { text: word.clone(), exact };
+        let found = places(&text, &term);
+        let (expected, gone) = reference(&pieces, &wanted, exact, with);
+        // The places are exactly the runs of pieces that the reference replaced.
+        let mut starts = Vec::new();
+        let mut at = 0u32;
+        for n in &pieces {
+            starts.push(at);
+            at += HOSTILE[*n].0.chars().count() as u32;
+        }
+        let covered = |place: &(u32, u32), n: usize| {
+            starts[n] >= place.0 && starts[n] < place.0 + place.1
+        };
+        for (n, replaced) in gone.iter().enumerate() {
+            prop_assert_eq!(
+                found.whole.iter().any(|place| covered(place, n)), *replaced,
+                "piece {} of {:?}, word {:?}", n, &text, &word
+            );
+            // A partial place never claims a replaced piece.
+            prop_assert!(!(*replaced && found.partial.iter().any(|place| covered(place, n))));
+        }
+        let mut editor = Editor::new(doc).unwrap();
+        match replace(&mut editor, &term, with, Scope::Document, ReplaceOptions::default(), None, &mut SeededIds::from_u64(1)) {
+            Ok(done) => {
+                let result = editor.document().cell(outer[0]).unwrap().text.clone();
+                prop_assert_eq!(&result, &expected, "{:?} / {:?}", &text, &word);
+                prop_assert_eq!(done.counts.places, found.whole.len());
+                // Every piece that was not matched is still there, in order.
+                let mut rest = result.as_str();
+                for (n, _) in gone.iter().enumerate().filter(|(_, gone)| !**gone) {
+                    let piece = HOSTILE[pieces[n]].0;
+                    let Some(found) = rest.find(piece) else {
+                        return Err(TestCaseError::fail(format!("{piece:?} is gone from {result:?}")));
+                    };
+                    rest = &rest[found + piece.len()..];
+                }
+            }
+            // Refused whole (the replacement would join a neighbour): nothing changed.
+            Err(error) => {
+                prop_assert!(matches!(error, Error::Refused(_)), "{:?}", error);
+                prop_assert_eq!(&editor.document().cell(outer[0]).unwrap().text, &text);
+            }
+        }
     }
 }

@@ -5,3 +5,5 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 730d0660208e1a8394afc2a3e688eb797d390a1b59b5157005aebc3860fec1e4 # shrinks to cells = ["ß"], word = "S", with = "a", exact = false
+cc 467a117175deee29d42367f3fc671e60c6e29c63592cd2aa833564b33ea6306d # shrinks to pieces = [17], word = "é", typed = [0], from_text = false, with = "", exact = false
+cc 3ca3053d2f8fbd7a6fd7d4b5edf780544c8094ff8adea356bcf84c4196de73e8 # shrinks to pieces = [28], word = ("s", "s"), typed = [29], from_text = true, with = "", exact = false
