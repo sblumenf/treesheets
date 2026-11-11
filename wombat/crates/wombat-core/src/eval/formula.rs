@@ -160,10 +160,12 @@ fn avg(v: &[f64]) -> f64 {
     }
 }
 
-/// The middle number when sorted, or the average of the two middle ones.
+/// The middle number when sorted, or the average of the two middle ones. Zero and minus
+/// zero count as equal and keep their order, which is what TreeSheets' `nth_element` does
+/// for up to three numbers (for more, which of the two zeroes it picks is not defined).
 pub(crate) fn median(v: &[f64]) -> f64 {
     let mut sorted = v.to_vec();
-    sorted.sort_by(f64::total_cmp);
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let mid = sorted.len() / 2;
     let at = |i: usize| sorted.get(i).copied().unwrap_or(0.0);
     if sorted.is_empty() {
@@ -171,7 +173,7 @@ pub(crate) fn median(v: &[f64]) -> f64 {
     } else if sorted.len() % 2 == 1 {
         at(mid)
     } else {
-        (at(mid) + at(mid.saturating_sub(1))) / 2.0
+        (at(mid) + max(sorted.get(..mid).unwrap_or_default())) / 2.0
     }
 }
 
