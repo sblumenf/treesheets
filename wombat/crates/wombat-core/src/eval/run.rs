@@ -526,8 +526,12 @@ impl Runner {
             return result;
         }
         match c.kind {
-            CellKind::VarRead => Some(match self.vars.get(&c.text).cloned() {
-                Some(v) => self.copy(&v),
+            CellKind::VarRead => Some(match self.vars.remove(&c.text) {
+                Some(v) => {
+                    let copy = self.copy(&v);
+                    self.vars.insert(c.text.clone(), v);
+                    copy
+                }
                 None => {
                     self.fail(FailureKind::NoVariable, c);
                     let mut v = self.copy(c);
@@ -630,18 +634,12 @@ impl Runner {
                     Some(v) if v.grid.is_some() || !v.text.is_empty() => v,
                     _ => self.eval(grid.cells.get_mut(i)?)?,
                 };
-                let sym = grid.cells.get(i)?;
-                // The names are those of the cell as it is, grid included.
-                let sym = Value {
-                    text: sym.text.clone(),
-                    kind: sym.kind,
-                    formula: None,
-                    props: sym.props,
-                    grid: sym.grid.clone(),
-                    origin: None,
-                    replaced: false,
-                };
+                // The names are those of the cell as it is, grid included: taken out of
+                // the grid for the moment, so that nothing has to be copied.
+                let slot = grid.cells.get_mut(i)?;
+                let sym = std::mem::replace(slot, Value::fresh(0));
                 self.assign(&sym, &acc);
+                *slot = sym;
                 Some(acc)
             }
             CellKind::ViewH | CellKind::ViewV => {

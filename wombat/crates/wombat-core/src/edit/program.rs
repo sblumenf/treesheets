@@ -3,6 +3,8 @@
 //! commands: `Run` (TreeSheets' Program > Run) and `EnterText` (what TreeSheets does when
 //! typing into a cell ends).
 
+use std::collections::HashMap;
+
 use crate::error::Error;
 use crate::eval::{self, is_formula_text, Calc, RunReport, Value, Variables};
 use crate::id::CellId;
@@ -108,6 +110,8 @@ fn make(
     // Each grid still to do: the value that has it, and the ID its cell got.
     let mut todo = vec![(value, id)];
     let mut top_grid = None;
+    // Where in `inside` the cell with each ID is.
+    let mut place: HashMap<CellId, usize> = HashMap::new();
     while let Some((v, owner)) = todo.pop() {
         let Some(grid) = v.grid() else { continue };
         let mut ids = Vec::with_capacity(grid.cells().len());
@@ -115,17 +119,14 @@ fn make(
             ids.push(fresh.next(doc)?);
             todo.push((child, *ids.last().unwrap_or(&owner)));
         }
-        let first = inside.len();
         for (child, child_id) in grid.cells().iter().zip(&ids) {
+            place.insert(*child_id, inside.len());
             inside.push(stamp(child, child.to_cell(*child_id, Some(owner), doc)));
         }
         let made = v.to_grid(ids);
         if owner == id {
             top_grid = made;
-        } else if let Some(c) = inside
-            .get_mut(..first)
-            .and_then(|done| done.iter_mut().rev().find(|c| c.id == owner))
-        {
+        } else if let Some(c) = place.get(&owner).and_then(|n| inside.get_mut(*n)) {
             c.grid = made;
         }
     }

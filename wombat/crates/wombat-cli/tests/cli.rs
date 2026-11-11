@@ -674,3 +674,91 @@ save
     }
     assert_eq!(fs::read(dir.join("shop.wombat")).unwrap(), original);
 }
+
+/// The plan's "change a number and watch dependent cells recalculate", and the program.
+#[test]
+fn formulas_recalculate_and_the_program_runs() {
+    let dir = folder("formulas");
+    let outline = "Costs | =SUM(Costs) | =SUM(Costs) * 1.2\n  Rent | 800\n  Food | 250.5\n\
+                   Income | =SUM(Income) - SUM(Costs)\n  2000\n";
+    fs::write(dir.join("budget.txt"), outline).unwrap();
+    let made = wombat(&dir, &["new", "budget.wombat", "--from", "budget.txt"]);
+    assert!(made.status.success(), "{}", stderr(&made));
+    // The file has the formulas, not the results.
+    let saved = fs::read_to_string(dir.join("budget.wombat")).unwrap();
+    assert!(
+        saved.contains("\"text\": \"=SUM(Costs)\", \"kind\": \"formula\""),
+        "{saved}"
+    );
+    assert!(!saved.contains("1050.5"));
+    let shown = stdout(&wombat(&dir, &["show", "budget.wombat"]));
+    assert!(
+        shown.contains("[2,1] \"=SUM(Costs)\" (formula) = \"1050.5\"\n"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("[3,1] \"=SUM(Costs) * 1.2\" (formula) = \"1260.6\"\n"),
+        "{shown}"
+    );
+    assert!(shown.contains("[2,2] \"=SUM(Income) - SUM(Costs)\" (formula) = \"949.5\"\n"));
+
+    let script = "\
+text /1,1/2,2 \"300\"
+changes
+enter /3,2 \"=MAX(Costs) & ' is the largest'\"
+changes
+text /1,1 \"Kosten\"
+changes
+undo
+enter /3,2 \"plain\"
+show
+grid /3,2 3 1
+text /3,2/1,1 \"5\"
+set /3,2/2,1 kind=var_assign
+text /3,2/2,1 \"rate\"
+set /3,2/3,1 kind=view_h
+enter /3,1 \"=rate * 2\"
+changes
+run
+changes
+show
+undo
+save
+";
+    let done = edit(&dir, "budget.wombat", script);
+    assert!(done.status.success(), "{}", stderr(&done));
+    let out = stdout(&done);
+    // One number: its three dependents, in document order.
+    assert!(
+        out.contains(
+            "changed /1,1/2,2 #"
+        ) && out.contains(
+            "recalculated /2,1 = \"1100\"\nrecalculated /3,1 = \"1320\"\nrecalculated /2,2 = \"900\"\n"
+        ),
+        "{out}"
+    );
+    assert!(
+        out.contains("recalculated /3,2 = \"800 is the largest\"\n"),
+        "{out}"
+    );
+    // A renamed table: the formulas that name it no longer find it.
+    assert!(out.contains("recalculated /2,1 = \"#NAME?\"\n"), "{out}");
+    assert!(
+        out.contains("[2,1] \"=SUM(Costs)\" (formula) = \"1100\"\n"),
+        "{out}"
+    );
+    assert!(out.contains("[3,2] \"plain\"\n"), "{out}");
+    // A variable is not there before the program has run.
+    assert!(out.contains("recalculated /3,1 = \"#N/A\"\n"), "{out}");
+    assert!(out.contains("run: finished\n"), "{out}");
+    assert!(out.contains("recalculated /3,1 = \"10\"\n"), "{out}");
+    assert!(out.contains("[3,1] \"5\" (view_h)\n"), "{out}");
+    assert!(out.contains("saved budget.wombat\n"), "{out}");
+    // The run was undone before saving: the view is empty in the file.
+    let shown = stdout(&wombat(&dir, &["show", "budget.wombat"]));
+    assert!(shown.contains("[3,1] \"\" (view_h)\n"), "{shown}");
+    assert!(
+        shown.contains("[3,1] \"=rate * 2\" (formula) = \"#N/A\"\n"),
+        "{shown}"
+    );
+}
