@@ -75,7 +75,9 @@ fn every_place_is_replaced_in_one_step_that_undo_takes_back_exactly() {
         clear: Style::default(),
     };
     let changes = editor.apply(style, None, &mut ids).unwrap();
-    index.apply(editor.document(), editor.calc(), &changes);
+    index
+        .apply(editor.document(), editor.calc(), &changes)
+        .unwrap();
     let styled = format::to_string(editor.document()).unwrap();
 
     let done = replace(
@@ -113,7 +115,9 @@ fn every_place_is_replaced_in_one_step_that_undo_takes_back_exactly() {
     assert_eq!(editor.document().cell(outer[2]).unwrap().last_edit, None);
     assert_eq!(done.changes.changed.len(), 6);
     // The search index follows the report it was given.
-    index.apply(editor.document(), editor.calc(), &done.changes);
+    index
+        .apply(editor.document(), editor.calc(), &done.changes)
+        .unwrap();
     let mut fresh = SearchIndex::new();
     fresh.insert_document(editor.document(), editor.calc(), "d.wombat");
     assert_eq!(index.encoded(), fresh.encoded());
@@ -125,7 +129,9 @@ fn every_place_is_replaced_in_one_step_that_undo_takes_back_exactly() {
     // One undo: everything back, to the byte. One redo: replaced again.
     assert_eq!(editor.undo_len(), 2);
     let back = editor.undo().unwrap().unwrap();
-    index.apply(editor.document(), editor.calc(), &back);
+    index
+        .apply(editor.document(), editor.calc(), &back)
+        .unwrap();
     assert_eq!(format::to_string(editor.document()).unwrap(), styled);
     assert_eq!(count(&index, "apple"), 7);
     editor.redo().unwrap().unwrap();

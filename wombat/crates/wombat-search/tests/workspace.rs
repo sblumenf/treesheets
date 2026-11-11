@@ -170,7 +170,8 @@ fn the_workspace_index_covers_documents_that_are_not_open_and_follows_the_folder
     ];
     for command in commands {
         let changes = editor.apply(command, Some(corpus::NOW), &mut ids).unwrap();
-        live.apply(editor.document(), editor.calc(), &changes);
+        live.apply(editor.document(), editor.calc(), &changes)
+            .unwrap();
     }
     ws.save(editor.document(), name).unwrap();
     let third = checked(&ws, CacheMode::Verify);

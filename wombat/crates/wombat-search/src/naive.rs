@@ -189,6 +189,7 @@ struct Look<'a> {
     world: &'a World<'a>,
     name: &'a str,
     doc: &'a Document,
+    calc: &'a Calc,
     id: CellId,
     cell: &'a Cell,
     fields: &'a [FieldText],
@@ -196,16 +197,10 @@ struct Look<'a> {
 
 impl Look<'_> {
     fn found(&self, term: &Term) -> bool {
-        let empty = if term.exact {
-            term.text.is_empty()
-        } else {
-            fold(&term.text).is_empty()
-        };
-        empty
-            || self
-                .fields
-                .iter()
-                .any(|(_, _, text)| !places(term, text).is_empty())
+        // (A word with nothing to search for is found nowhere: `places` is empty.)
+        self.fields
+            .iter()
+            .any(|(_, _, text)| !places(term, text).is_empty())
     }
 
     fn passes(&self, filter: &Filter) -> bool {
@@ -215,15 +210,36 @@ impl Look<'_> {
                 .iter()
                 .map(|link| world.links.resolve(doc.id(), &link.target))
         };
+        // What the cell shows: the result of a formula cell, the text of any other.
+        let shows = |id: CellId| self.calc.shown(doc, id).unwrap_or_default();
+        let is_tag = |id: CellId, name: &String| shows(id) == name && doc.tags().contains_key(name);
         match filter {
-            Filter::Tag(name) => cell.text == *name && doc.tags().contains_key(name),
-            Filter::Has(Has::Text) => !cell.text.is_empty(),
+            Filter::Tag(name) => is_tag(self.id, name),
+            Filter::RowTag(name) => {
+                // The cells of the same row of the grid that the cell is in.
+                let grid = cell.parent().and_then(|parent| doc.cell(parent)?.grid());
+                let Some(grid) = grid else {
+                    return is_tag(self.id, name);
+                };
+                let at = grid.cells().iter().position(|id| *id == self.id);
+                let width = grid.xs().max(1) as usize;
+                let row = at.map_or(&[][..], |at| {
+                    let start = at - at % width;
+                    grid.cells().get(start..start + width).unwrap_or_default()
+                });
+                row.iter().any(|id| is_tag(*id, name))
+            }
+            Filter::Formula(text) => {
+                let formula = Prepared::new(cell.text.clone());
+                cell.kind == CellKind::Formula && !places(&Term::new(text.clone()), &formula).is_empty()
+            }
+            Filter::Has(Has::Text) => !shows(self.id).is_empty(),
             Filter::Has(Has::Note) => !cell.note.is_empty(),
             Filter::Has(Has::Image) => cell.image.is_some(),
             Filter::Has(Has::Grid) => cell.grid().is_some(),
             Filter::Has(Has::Link) => !cell.links.is_empty(),
             Filter::Has(Has::BrokenLink) => resolved().any(|to| matches!(to, Resolved::Broken(_))),
-            Filter::Has(Has::Tag) => doc.tags().contains_key(&cell.text),
+            Filter::Has(Has::Tag) => doc.tags().contains_key(shows(self.id)),
             Filter::LinksTo(target) => {
                 resolved().any(|to| matches!(to, Resolved::Cell { cell, .. } if cell == *target))
             }
@@ -273,7 +289,7 @@ impl Look<'_> {
             Filter::CellColor(color) => cell.cell_color == *color,
             Filter::TextColor(color) => cell.text_color == *color,
             Filter::Style(style) => cell.style == *style,
-            Filter::TextIs(text) => cell.text == *text,
+            Filter::TextIs(text) => shows(self.id) == text,
             Filter::Image(name) => cell.image.as_ref().is_some_and(|image| image.file == *name),
         }
     }
@@ -354,6 +370,7 @@ impl<'a> Reference<'a> {
         Ok(Results {
             total,
             hits: page.map(|(_, hit)| finish(self.world.docs, hit)).collect(),
+            warnings: query.warnings(),
         })
     }
 
@@ -406,6 +423,7 @@ impl<'a> Reference<'a> {
                     world,
                     name,
                     doc,
+                    calc,
                     id,
                     cell,
                     fields,
@@ -454,7 +472,7 @@ impl<'a> Reference<'a> {
                     // Later first: the distance from the latest possible time.
                     Some(time) => (i128::from(i64::MAX) - i128::from(time)) as u64,
                 };
-                let len = cell.text.chars().count() as u64;
+                let len = calc.shown(doc, id).unwrap_or_default().chars().count() as u64;
                 let rest = [len, u64::from(depth)];
                 let first: Vec<u64> = match order {
                     Order::Relevance => [&[u64::from(score)][..], &rest].concat(),

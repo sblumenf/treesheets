@@ -28,13 +28,19 @@ The query (several arguments are joined with spaces; quote it for the shell):
   1050.5               a formula cell is found by its formula and by what it shows; it
                        is printed as \"=SUM(Costs)\" = \"1050.5\"
   app                  a word need not be complete, and need not start a word
-  \"apple pie\"          the words together
-  apple OR pear        either (also: apple | pear)       -apple   not
+  \"apple pie\"          the words together (curly quotes “ ” work too)
+  apple OR pear        either (also: apple | pear)
+  -apple               not (also: NOT apple); apple AND pie is the same as apple pie
+  -5                   a negative number is a word; \"not 5\" is NOT 5
   (a OR b) -c          brackets
+  \"AND\" \"OR\" \"NOT\"   those words themselves; in lower case they are words anyway
   case:Apple           exactly these characters; otherwise upper and lower case, accents
                        (é = e) and full-width forms count as the same
 Filters, alone or with words:
-  tag:NAME             cells whose text is the tag NAME          has:tag    any tag
+  tag:NAME             cells in a row that has the tag NAME (a cell that shows NAME, in
+                       a document with that tag): tag:todo apple is the rows tagged
+                       todo that mention apple
+  is-tag:NAME          the tag cells themselves                  has:tag    any tag cell
   has:note  has:image  has:grid  has:link  has:broken-link  has:text
   in:ID                the cell with this ID and everything inside it (or: --in FILE CELL)
   doc:NAME             only the document NAME (with or without .wombat)
@@ -43,7 +49,10 @@ Filters, alone or with words:
   edited:2026-01-31    on that day (UTC);  edited:2026-01-01..2026-01-31;  edited:2026-01-01..
   recent:5%            the most recently edited 5% of each document
   kind:formula  bg:#rrggbb  fg:#rrggbb  style:bold+italic  style:none
-  text:\"exactly this\"  image:FILE
+  formula:sum          formula cells whose formula has this text
+  text:\"exactly this\"  image:FILE       (of a formula cell, text: tag: has:text go by
+                       what it shows)
+A word with a colon that is no filter (status:done, 12:30, in:progress) is searched as text.
   sort:relevance (default)  sort:recent  sort:relevance-recent  sort:document
 
 Options:
@@ -256,6 +265,8 @@ pub fn search(args: &[&str]) -> Result<String, Failure> {
         since.map_or(0, |since| since.as_millis() as i64)
     });
     let parsed = parse(&words.join(" "), now).map_err(|e| Failure::Failed(e.to_string()))?;
+    let mut notes = parsed.warnings.clone();
+    notes.extend(parsed.query.warnings());
     let target = target(path)?;
 
     let started = Instant::now();
@@ -355,6 +366,9 @@ pub fn search(args: &[&str]) -> Result<String, Failure> {
                 built.parsed, built.reused
             ));
         }
+    }
+    for note in &notes {
+        out.push_str(&format!("note: {note}\n"));
     }
     for (name, error) in &built.failed {
         out.push_str(&format!("warning: {name} could not be read: {error}\n"));

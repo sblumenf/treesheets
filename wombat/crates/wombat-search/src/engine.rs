@@ -153,7 +153,22 @@ pub struct Results {
     pub total: usize,
     /// The results asked for, in order.
     pub hits: Vec<Hit>,
+    /// What is odd about the query without being wrong ([`Query::warnings`]): a word
+    /// with nothing to search for, which matches no cell.
+    pub warnings: Vec<String>,
 }
+
+/// [`SearchIndex::apply`] was given a document that the index does not have.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct NotIndexed(pub DocId);
+
+impl std::fmt::Display for NotIndexed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "the search index does not have the document {}", self.0)
+    }
+}
+
+impl std::error::Error for NotIndexed {}
 
 /// Cuts a snippet of at most `width` user-perceived characters out of `text`, around
 /// the first of `ranges` (start and length in code points).
@@ -316,15 +331,19 @@ impl SearchIndex {
     /// the editor's results at that moment ([`wombat_core::Editor::calc`]), which also
     /// say which formula cells now show something else (decision A90). Call it once
     /// for every change report, before the next command. A document that the index
-    /// does not have yet is read whole, under an empty name.
-    pub fn apply(&mut self, doc: &Document, calc: &Calc, changes: &Changes) {
-        match self.docs.get_mut(&doc.id()) {
-            Some(held) => {
-                held.search.update(doc, calc, changes);
-                self.links.apply(doc, changes);
-            }
-            None => self.insert_document(doc, calc, ""),
-        }
+    /// does not have is an error and nothing is done: it has no name to be found
+    /// under, so it must be put in with [`SearchIndex::insert_document`] first. (It
+    /// used to be read whole under an empty name, which hid the mistake.)
+    pub fn apply(
+        &mut self,
+        doc: &Document,
+        calc: &Calc,
+        changes: &Changes,
+    ) -> Result<(), NotIndexed> {
+        let held = self.docs.get_mut(&doc.id()).ok_or(NotIndexed(doc.id()))?;
+        held.search.update(doc, calc, changes);
+        self.links.apply(doc, changes);
+        Ok(())
     }
 
     /// The link index of the same documents.
@@ -413,7 +432,11 @@ impl SearchIndex {
         found.sort_unstable();
         let page = found.iter().skip(options.offset).take(options.limit);
         let hits = page.filter_map(|found| run.hit(found)).collect();
-        Ok(Results { total, hits })
+        Ok(Results {
+            total,
+            hits,
+            warnings: query.warnings(),
+        })
     }
 
     /// The next cell after `from` that matches `query`, in the order of the document
@@ -478,6 +501,9 @@ struct Needle {
 /// A filter, ready to be tested.
 enum Test {
     Tag(String),
+    RowTag(String),
+    /// The folded form of what the formula must contain.
+    Formula(String),
     Has(Has),
     /// One of these cells: what the link filters come to.
     OneOf(HashSet<(DocId, CellId)>),
@@ -585,6 +611,8 @@ impl<'a> Run<'a> {
         let links = &self.index.links;
         match filter {
             Filter::Tag(name) => Test::Tag(name.clone()),
+            Filter::RowTag(name) => Test::RowTag(name.clone()),
+            Filter::Formula(text) => Test::Formula(fold(text)),
             Filter::Has(Has::BrokenLink) => {
                 let broken = links.broken();
                 Test::OneOf(broken.iter().map(|link| (link.doc, link.cell)).collect())
@@ -762,6 +790,7 @@ impl<'a> Run<'a> {
                 id: *id,
                 search: &held.search,
                 recent: Vec::new(),
+                tagged: Vec::new(),
                 memo: vec![UNKNOWN; self.needles.len()],
             };
             let rank = self.ranks.get(id).copied().unwrap_or(0);
@@ -774,7 +803,7 @@ impl<'a> Run<'a> {
                     return;
                 }
                 let score = doc.score(entry);
-                let len = entry.text.chars().count();
+                let len = entry.display().chars().count();
                 // (Where the cells are is worked out on a document's first match: a
                 // document without one is spared that.)
                 let depth = held.search.depth(slot);
@@ -815,8 +844,9 @@ impl<'a> Run<'a> {
     /// [`Run::occurrences`] would give, without looking further than needed. (Most
     /// searches end here for most cells, so this is where the time goes.)
     fn best(&self, doc: DocId, entry: &Entry, needle: &Needle) -> u32 {
+        // A word with nothing to search for matches no cell (decision A108).
         if needle.text.is_empty() {
-            return 0;
+            return NO_MATCH;
         }
         let mut best = NO_MATCH;
         if needle.exact {
@@ -1098,6 +1128,9 @@ struct InDoc<'a> {
     search: &'a DocSearch,
     /// For each percentage asked about: the edit time from which a cell is recent.
     recent: Vec<(u8, i64)>,
+    /// For each tag asked about: the rows that have it, as (slot of the cell whose
+    /// grid it is, row), sorted.
+    tagged: Vec<(String, Vec<(u32, u32)>)>,
     /// For the cell at hand: the points of each needle, once known.
     memo: Vec<u32>,
 }
@@ -1148,14 +1181,22 @@ impl InDoc<'_> {
 
     fn test(&mut self, test: &Test, slot: u32, entry: &Entry) -> bool {
         match test {
-            Test::Tag(name) => *entry.text == **name && self.search.has_tag(name),
+            // What a cell is to the eye goes by what it shows: of a formula cell the
+            // result (decision A110).
+            Test::Tag(name) => entry.display() == name && self.search.has_tag(name),
+            Test::RowTag(name) => self.in_tagged_row(name, entry),
+            Test::Formula(text) => {
+                entry.kind == wombat_core::CellKind::Formula
+                    && !text.is_empty()
+                    && entry.folded_text().contains(text.as_str())
+            }
             Test::Has(has) => match has {
-                Has::Text => !entry.text.is_empty(),
+                Has::Text => !entry.display().is_empty(),
                 Has::Note => !entry.note().is_empty(),
                 Has::Image => entry.image().is_some(),
                 Has::Grid => entry.has_grid,
                 Has::Link => entry.has_links,
-                Has::Tag => self.search.has_tag(&entry.text),
+                Has::Tag => self.search.has_tag(entry.display()),
                 // Made into a set of cells before the search starts.
                 Has::BrokenLink => false,
             },
@@ -1176,9 +1217,35 @@ impl InDoc<'_> {
             Test::CellColor(color) => entry.cell_color == *color,
             Test::TextColor(color) => entry.text_color == *color,
             Test::Style(style) => entry.style == *style,
-            Test::TextIs(text) => *entry.text == **text,
+            Test::TextIs(text) => entry.display() == text,
             Test::Image(name) => entry.image() == Some(name.as_str()),
         }
+    }
+
+    /// Whether the cell is in a row that has the tag `name`: see [`Filter::RowTag`].
+    fn in_tagged_row(&mut self, name: &str, entry: &Entry) -> bool {
+        let search = self.search;
+        let row = |entry: &Entry| {
+            let columns = search.entries.get(entry.parent as usize);
+            (
+                entry.parent,
+                entry.pos / columns.map_or(1, |e| e.cols.max(1)),
+            )
+        };
+        let known = self.tagged.iter().position(|(tag, _)| tag == name);
+        let at = known.unwrap_or_else(|| {
+            let mut rows: Vec<(u32, u32)> = Vec::new();
+            if search.has_tag(name) {
+                let live = search.entries.iter().filter(|entry| entry.live);
+                rows.extend(live.filter(|e| e.display() == name).map(row));
+                rows.sort_unstable();
+                rows.dedup();
+            }
+            self.tagged.push((name.to_owned(), rows));
+            self.tagged.len() - 1
+        });
+        let rows = self.tagged.get(at).map_or(&[][..], |(_, rows)| rows);
+        rows.binary_search(&row(entry)).is_ok()
     }
 
     /// The edit time from which a cell is among the most recent `percent` of its

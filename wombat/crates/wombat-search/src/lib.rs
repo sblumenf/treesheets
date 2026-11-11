@@ -20,6 +20,6 @@ pub mod query;
 pub mod replace;
 pub mod workspace;
 
-pub use engine::{Field, Hit, Options, Results, SearchIndex, Snippet};
+pub use engine::{Field, Hit, NotIndexed, Options, Results, SearchIndex, Snippet};
 pub use index::{searchable, DocIndex, DocSearch, Searchable};
 pub use query::{parse, Filter, Has, Order, Parsed, Query, QueryError, Term};

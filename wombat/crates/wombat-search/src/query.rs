@@ -6,13 +6,16 @@
 //! that a person types, which `docs/milestones/M6.md` describes in full:
 //!
 //! ```text
-//! apple pie            both words (in any field of the cell)
-//! "apple pie"          the phrase
+//! apple pie            both words (in any field of the cell); also: apple AND pie
+//! "apple pie"          the phrase; “curly quotes” do the same
 //! apple OR pear        either; also apple | pear
-//! -apple               not
+//! -apple               not; also: NOT apple
+//! -5  -0.5             a negative number, not "not 5" (that is: NOT 5, or -"5")
 //! (a OR b) -c          grouping
+//! "AND" "OR" "NOT"     those words themselves
 //! case:Apple           the exact characters, upper and lower case as written
-//! tag:todo  has:note  kind:formula  bg:#ff0000  fg:#000000  style:bold+italic
+//! tag:todo             cells in a row that has the tag todo;  is-tag:todo  the tag cell itself
+//! has:note  kind:formula  formula:sum  bg:#ff0000  fg:#000000  style:bold+italic
 //! in:CELL  doc:NAME  links-to:CELL  linked-from:CELL  has:broken-link
 //! edited:7d  edited:2026-01-01..2026-01-31  recent:5%  text:"exactly this"  image:NAME
 //! sort:recent
@@ -20,8 +23,11 @@
 //!
 //! Parsing never fails on punctuation: a quote or bracket left open is closed at the
 //! end, as when a query is still being typed. It fails only when a filter has a value
-//! that means nothing, and when the query is over the limits below, which exist so that
-//! no query can take unbounded time or memory.
+//! that means nothing (`has:wings`), and when the query is over the limits below, which
+//! exist so that no query can take unbounded time or memory. A word with a colon whose
+//! first part is not the name of a filter (`status:done`, `12:30`, a web address) is
+//! searched as text, and so are `is:` and `in:` with a value that they cannot mean
+//! (`is:open`, `in:progress`); where that may surprise, [`Parsed::warnings`] says so.
 
 use std::fmt;
 
@@ -62,12 +68,18 @@ impl Term {
             exact: true,
         }
     }
+
+    /// Whether there is nothing to find: the word is empty, or its folded form is (it
+    /// is made of accents, soft hyphens and the like only). Such a word matches no cell.
+    pub fn is_nothing(&self) -> bool {
+        self.text.is_empty() || (!self.exact && crate::fold::fold(&self.text).is_empty())
+    }
 }
 
 /// Something a cell can have.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Has {
-    /// Text that is not empty.
+    /// Text that is not empty: of a formula cell, a result that is not empty.
     Text,
     /// A note.
     Note,
@@ -79,16 +91,24 @@ pub enum Has {
     Link,
     /// A link that points at nothing ([`wombat_core::links::Resolved::Broken`]).
     BrokenLink,
-    /// A tag: its text is the name of a tag of its document.
+    /// A tag: what it shows is the name of a tag of its document.
     Tag,
 }
 
 /// A condition on a cell that is not about finding words.
 #[derive(Clone, PartialEq, Debug)]
 pub enum Filter {
-    /// The cell has this tag: its text is exactly this name, and its document has a tag
-    /// of that name (TreeSheets' "show cells with tags").
+    /// The cell is this tag: what it shows is exactly this name, and its document has a
+    /// tag of that name (TreeSheets' "show cells with tags"; `is-tag:` in text).
     Tag(String),
+    /// The cell is in a row that has this tag: some cell of the same row of the same
+    /// grid, the cell itself included, is the tag ([`Filter::Tag`]). For the root
+    /// cell, which is in no grid: the cell itself is. This is `tag:` in text
+    /// (decision A109): "rows tagged todo that mention apple" is `tag:todo apple`.
+    RowTag(String),
+    /// The cell is a formula cell whose formula contains this text, compared in folded
+    /// form like a word. (Everything else about a formula cell goes by what it shows.)
+    Formula(String),
     /// The cell has this.
     Has(Has),
     /// The cell has a link that leads to this cell.
@@ -121,7 +141,8 @@ pub enum Filter {
     TextColor(Color),
     /// The cell's base style is exactly this (TreeSheets' "same style").
     Style(Style),
-    /// The cell's text is exactly this (TreeSheets' "same text").
+    /// The cell shows exactly this text (TreeSheets' "same text"): of a formula cell
+    /// its result.
     TextIs(String),
     /// The cell shows the image with this file name.
     Image(String),
@@ -199,6 +220,8 @@ impl Query {
                 *parts = parts.saturating_add(1);
                 let text = match filter {
                     Filter::Tag(text)
+                    | Filter::RowTag(text)
+                    | Filter::Formula(text)
                     | Filter::DocName(text)
                     | Filter::TextIs(text)
                     | Filter::Image(text) => text.as_str(),
@@ -224,6 +247,35 @@ impl Query {
         Ok(())
     }
 
+    /// What is odd about the query without being wrong: a word that has nothing to
+    /// search for. A word whose folded form is empty (only an accent, a soft hyphen, a
+    /// variation selector) and an empty word match no cell (decision A108); a search
+    /// passes this on in [`crate::Results::warnings`].
+    pub fn warnings(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        self.warnings_into(&mut out);
+        out
+    }
+
+    fn warnings_into(&self, out: &mut Vec<String>) {
+        match self {
+            Query::Term(term) if term.is_nothing() => {
+                let warning = format!(
+                    "{:?} has nothing to search for (no letters, digits or signs): it matches no cell",
+                    term.text
+                );
+                if !out.contains(&warning) {
+                    out.push(warning);
+                }
+            }
+            Query::And(list) | Query::Or(list) => {
+                list.iter().for_each(|query| query.warnings_into(out));
+            }
+            Query::Not(query) => query.warnings_into(out),
+            Query::All | Query::Term(_) | Query::Filter(_) => {}
+        }
+    }
+
     /// The first plain word or phrase of the query, if it has one: what "replace" takes
     /// as the text to replace.
     pub fn first_term(&self) -> Option<&Term> {
@@ -242,6 +294,10 @@ pub struct Parsed {
     pub query: Query,
     /// The order asked for with `sort:`.
     pub order: Option<Order>,
+    /// What was read in a way the writer may not have meant, in words for the user:
+    /// `status:done` searched as text because `status:` is not a filter. Never a
+    /// reason not to search.
+    pub warnings: Vec<String>,
 }
 
 /// Reads the text syntax. `now` is the current time in milliseconds since 1970 UTC, for
@@ -255,12 +311,14 @@ pub fn parse(text: &str, now: i64) -> Result<Parsed, QueryError> {
         at: 0,
         now,
         order: None,
+        warnings: Vec::new(),
     };
     let query = parser.or(0)?;
     query.check()?;
     Ok(Parsed {
         query,
         order: parser.order,
+        warnings: parser.warnings,
     })
 }
 
@@ -269,6 +327,13 @@ struct Parser {
     at: usize,
     now: i64,
     order: Option<Order>,
+    warnings: Vec<String>,
+}
+
+/// The characters that open or close a phrase: the plain quote, and the curly ones that
+/// phones and word processors type in its place.
+fn is_quote(c: char) -> bool {
+    matches!(c, '"' | '\u{201c}' | '\u{201d}' | '\u{201e}' | '\u{201f}')
 }
 
 /// One word of the text: its characters, and whether any of it was in quotes.
@@ -324,6 +389,10 @@ impl Parser {
                             more = true;
                             break;
                         }
+                        // Words side by side are already "and".
+                        if self.keyword("AND") {
+                            continue;
+                        }
                         if let Some(part) = self.unary(depth)? {
                             all.push(part);
                         }
@@ -369,14 +438,26 @@ impl Parser {
     }
 
     fn unary(&mut self, depth: usize) -> Result<Option<Query>, QueryError> {
+        let after = |n: usize| self.chars.get(self.at.saturating_add(n)).copied();
+        let (first, second) = (after(1), after(2));
+        // A minus sign before a digit is a negative number, which is a thing to search
+        // for in a document of figures; before anything else it means "not".
+        let number = first.is_some_and(|c| c.is_ascii_digit())
+            || (first == Some('.') && second.is_some_and(|c| c.is_ascii_digit()));
+        let minus = self.peek() == Some('-') && !number;
+        let not = if minus && first.is_some_and(|c| !c.is_whitespace()) {
+            self.at = self.at.saturating_add(1);
+            true
+        } else if self.keyword("NOT") {
+            self.skip_spaces();
+            true
+        } else {
+            false
+        };
         match self.peek() {
-            Some('-')
-                if self
-                    .chars
-                    .get(self.at.saturating_add(1))
-                    .is_some_and(|c| !c.is_whitespace()) =>
-            {
-                self.at = self.at.saturating_add(1);
+            // A "not" with nothing after it counts for nothing, like `a OR`.
+            None | Some(')' | '|') if not => Ok(None),
+            _ if not => {
                 if depth >= MAX_NESTING {
                     return error(format!("the query is nested deeper than {MAX_NESTING}"));
                 }
@@ -409,7 +490,7 @@ impl Parser {
         };
         let mut in_quotes = false;
         while let Some(c) = self.peek() {
-            if c == '"' {
+            if is_quote(c) {
                 in_quotes = !in_quotes;
                 word.quoted = true;
             } else if !in_quotes
@@ -443,6 +524,8 @@ impl Parser {
         let known = [
             "case",
             "tag",
+            "is-tag",
+            "formula",
             "has",
             "is",
             "kind",
@@ -460,10 +543,47 @@ impl Parser {
             "sort",
         ];
         let lower = key.to_ascii_lowercase();
+        let whole = || format!("{key}:{value}");
         if !known.contains(&lower.as_str()) {
-            // Not a filter: a word with a colon in it, such as a web address.
-            let whole = format!("{key}:{value}");
-            return Ok(Some(Query::Term(Term::new(whole))));
+            // Not a filter: a word with a colon in it, such as a web address or a time.
+            // If it reads like an attempt at a filter, say what was done with it.
+            let name = !key.is_empty() && key.chars().all(|c| c.is_ascii_alphabetic() || c == '-');
+            if name && value.chars().next().is_some_and(char::is_alphanumeric) {
+                self.warnings.push(format!(
+                    "{key}: is not a filter, so {} is searched as text",
+                    whole()
+                ));
+            }
+            return Ok(Some(Query::Term(Term::new(whole()))));
+        }
+        // `is` and `in` are words that anyone types before a colon. They are filters
+        // only with a value that they can mean; anything else is text.
+        let has = |value: &str| {
+            Some(match value.to_ascii_lowercase().as_str() {
+                "text" => Has::Text,
+                "note" => Has::Note,
+                "image" => Has::Image,
+                "grid" => Has::Grid,
+                "link" => Has::Link,
+                "broken-link" | "broken" => Has::BrokenLink,
+                "tag" | "tagged" => Has::Tag,
+                _ => return None,
+            })
+        };
+        let means_nothing = match lower.as_str() {
+            "is" => has(&value).is_none(),
+            "in" => CellId::parse(&value).is_none(),
+            _ => false,
+        };
+        if means_nothing {
+            if !value.is_empty() {
+                self.warnings.push(format!(
+                    "{} is searched as text ({lower}: is a filter only as in {})",
+                    whole(),
+                    example(&lower)
+                ));
+            }
+            return Ok(Some(Query::Term(Term::new(whole()))));
         }
         if value.is_empty() && !(quoted && lower == "text") {
             return error(format!("{lower}: needs a value, as in {}", example(&lower)));
@@ -487,20 +607,16 @@ impl Parser {
                 });
                 return Ok(None);
             }
-            "tag" => Filter::Tag(value),
+            "tag" => Filter::RowTag(value),
+            "is-tag" => Filter::Tag(value),
+            "formula" => Filter::Formula(value),
             "text" => Filter::TextIs(value),
             "image" => Filter::Image(value),
             "doc" => Filter::DocName(value),
-            "has" | "is" => Filter::Has(match value.to_ascii_lowercase().as_str() {
-                "text" => Has::Text,
-                "note" => Has::Note,
-                "image" => Has::Image,
-                "grid" => Has::Grid,
-                "link" => Has::Link,
-                "broken-link" | "broken" => Has::BrokenLink,
-                "tag" | "tagged" => Has::Tag,
-                _ => return bad(),
-            }),
+            "has" | "is" => match has(&value) {
+                Some(has) => Filter::Has(has),
+                None => return bad(),
+            },
             "kind" => match CellKind::parse(&value.to_ascii_lowercase()) {
                 Some(kind) => Filter::Kind(kind),
                 None => return bad(),
@@ -561,12 +677,15 @@ fn example(key: &str) -> &'static str {
     match key {
         "case" => "case:Word",
         "tag" => "tag:todo",
-        "has" | "is" => "has:note, has:image, has:grid, has:link, has:broken-link, has:tag, has:text",
+        "is-tag" => "is-tag:todo",
+        "formula" => "formula:sum",
+        "has" => "has:note, has:image, has:grid, has:link, has:broken-link, has:tag, has:text",
+        "is" => "is:tagged, is:broken",
         "kind" => "kind:data, kind:code, kind:formula, kind:var_assign, kind:var_read, kind:view_h, kind:view_v",
         "bg" => "bg:#ff0000",
         "fg" => "fg:#000000",
         "style" => "style:bold, style:bold+italic, style:none (also fixed, underline, strike)",
-        "in" => "in: with the ID of a cell",
+        "in" => "in:ID with the ID of a cell",
         "links-to" => "links-to: with the ID of a cell",
         "linked-from" => "linked-from: with the ID of a cell",
         "doc" => "doc:notes",

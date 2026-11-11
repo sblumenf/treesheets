@@ -754,11 +754,53 @@ Numbers 80 to 89 are not used: 90 on are where milestones 4, 5 and 6, built apar
 107. **Replace across a folder prepares everything, then saves, and is not atomic**
     (`wombat_search::workspace::replace_in_folder`). Every document is read and changed
     in memory first; a replacement refused in any of them saves nothing. Then the
-    changed documents are saved one by one (each file whole or not at all, A20); if
+    changed documents are saved one by one (each file whole or not at all); if
     one fails, saving stops and the result names the files saved, the one that failed
     and the ones not reached. There is no undo across files: a second run finishes the
     job, since what was replaced is no longer found. The changed documents are all in
     memory until they are saved.
+108. **The text syntax forgives ordinary typing** (changes A75 in these points; review
+    of milestone 6).
+    - `-` before a digit (`-5`, `-0.5`, `-.5`) is part of the word: a negative number
+      is a thing to search for in a document of figures. "Not 5" is `NOT 5` or
+      `-"5"`.
+    - `AND` and `NOT` are operators like `OR`, in upper case only; `a AND b` is `a b`.
+      The words themselves are searched in quotes (`"AND"`); in lower case they are
+      words. Left hanging (`a AND`, `a NOT`) they count for nothing, like `a OR`.
+    - The curly quotes `“ ” „ ‟` are quotes: phones type them in place of `"`.
+    - A word with a colon is a filter only if its first part is a filter's name.
+      Anything else is text, as before (`12:30`, a web address); if it reads like an
+      attempt at a filter (`status:done`), `Parsed::warnings` says that it was
+      searched as text. `is:` and `in:` are words that anyone types before a colon, so
+      they are filters only with a value they can mean (`is:tagged`, `in:` with a cell
+      ID) and text with a warning otherwise (`is:open`, `in:progress` used to be
+      errors). Every other filter with a value that means nothing is still an error
+      that says what would, because there the writer meant a filter.
+    - A word with nothing to search for (empty, or folding to nothing: a lone accent,
+      a soft hyphen, a variation selector) matches **no** cell and `Results::warnings`
+      says so. It used to match every cell.
+    The `Query` value and the text agree: everything above is how text becomes a value;
+    only the last point is about values.
+109. **`tag:` is the row of a tag cell; `is-tag:` is the tag cell** (B90). In text,
+    `tag:NAME` is `Filter::RowTag`: the cells in a row of a grid in which some cell is
+    the tag NAME (the root cell, which is in no grid: itself). `tag:todo apple` is
+    therefore "rows tagged todo that mention apple", which is what the words say, and
+    `tag:todo` alone is every cell of those rows. `is-tag:NAME` is `Filter::Tag`,
+    TreeSheets' own filter: the cells that are the tag. `has:tag` stays "is any tag".
+    Only the row counts, not the grid inside a cell of the row, nor the rows above or
+    below: narrowing further is `in:`. The index keeps the number of columns of each
+    cell's grid for this (4 bytes a cell; the summary's version is 3).
+110. **Whatever asks what a cell is to the eye goes by what the cell shows** (replaces
+    the last sentence of A92). `text:`, `tag:`, `is-tag:`, `has:tag`, `has:text` and
+    the "shorter text first" of the ranking go by the result of a formula cell, as the
+    trail and the linked-text field already did. Words still find a formula cell by
+    its formula *and* by its result (A90), as two fields. `formula:TEXT` finds formula
+    cells whose formula contains the text (folded, like a word); `kind:formula` finds
+    them all.
+111. **Following a document that the index does not have is an error**
+    (`SearchIndex::apply` returns `NotIndexed`). It used to read the document in under
+    an empty name, so that a caller's mistake showed up later as results from a
+    document called "".
 
 ## B. Deliberate departures from TreeSheets
 
@@ -956,3 +998,8 @@ Numbers 44 to 49 are not used.
     or exactly (one switch, exact by default). Wombat looks in text, note, image name,
     link targets and linked cells' texts of every document of the workspace, ignoring
     case, accents and width (A72) unless the word says `case:`.
+90. **`tag:` narrows to rows** (A109; numbers B66 to B89 are not used here). TreeSheets'
+    "filter by tags" shows the cells that are a tag, and its "show entire row" setting
+    draws their rows. In a search a result is a cell, so the setting has to become
+    part of the query: `tag:todo` is the cells of the rows that have the tag, and
+    `is-tag:todo` is exactly what TreeSheets' filter marks.

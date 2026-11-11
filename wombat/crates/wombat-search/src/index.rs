@@ -149,6 +149,9 @@ pub(crate) struct Entry {
     pub has_grid: bool,
     pub has_links: bool,
     pub live: bool,
+    /// How many columns the cell's grid has; 0 without a grid. With `pos` of the cells
+    /// inside, this says which of them are in one row.
+    pub cols: u32,
 }
 
 /// Which field of the folded form a place is in, by the number of line breaks before it.
@@ -201,6 +204,7 @@ impl Entry {
             has_grid: false,
             has_links: false,
             live: true,
+            cols: 0,
         }
     }
 
@@ -212,6 +216,7 @@ impl Entry {
             kind: cell.kind,
             style: cell.style,
             has_grid: cell.grid().is_some(),
+            cols: cell.grid().map_or(0, |grid| grid.xs()),
             has_links: !cell.links.is_empty(),
             ..Entry::of(id, what)
         }
@@ -594,6 +599,7 @@ impl DocSearch {
         };
         if let Some(entry) = self.entries.get_mut(slot as usize) {
             entry.has_grid = found.grid().is_some();
+            entry.cols = found.grid().map_or(0, |grid| grid.xs());
         }
         let children = found.grid().map_or(&[][..], |grid| grid.cells());
         for (pos, child) in children.iter().enumerate() {
@@ -788,7 +794,8 @@ impl DocSearch {
 impl Summary for DocSearch {
     const KIND: &'static str = "words";
     /// 2: what formula cells show is kept (the bytes have the same layout as in 1).
-    const VERSION: u32 = 2;
+    /// 3: the number of columns of each cell's grid is kept.
+    const VERSION: u32 = 3;
 
     fn fingerprint() -> u64 {
         fold::fingerprint()
@@ -874,6 +881,7 @@ impl Summary for DocSearch {
                 entry.shown().is_some() || entry.image().is_some() || !entry.urls().is_empty();
             let parent = order.get(entry.parent as usize).copied();
             out.num(parent.map_or(0, |place| u64::from(place) + 1));
+            out.num(u64::from(entry.cols));
             out.text(&entry.text);
             out.text(entry.note());
             let style = entry.style;
@@ -933,7 +941,7 @@ impl Summary for DocSearch {
             }
             index.tags.insert(tag.to_owned());
         }
-        let count = read.count(27)?;
+        let count = read.count(28)?;
         if count == 0 {
             return None;
         }
@@ -966,6 +974,7 @@ impl Summary for DocSearch {
                 }
             }
             parents.push(parent);
+            let cols = read.num32()?;
             let text = read.text()?.to_owned();
             let note = read.text()?.to_owned();
             let bits = read.byte()?;
@@ -1015,6 +1024,7 @@ impl Summary for DocSearch {
                 strike: bits & 16 != 0,
             };
             entry.has_links = bits & 0x20 != 0;
+            entry.cols = cols;
             if let Some(above) = parent.checked_sub(1) {
                 entry.parent = above;
                 let taken = children.get_mut(above as usize)?;
@@ -1025,6 +1035,14 @@ impl Summary for DocSearch {
         }
         for (entry, count) in index.entries.iter_mut().zip(&children) {
             entry.has_grid = *count > 0;
+            // A grid is rows of as many cells as it has columns.
+            let whole = match entry.cols {
+                0 => *count == 0,
+                cols => *count > 0 && *count % cols == 0,
+            };
+            if !whole {
+                return None;
+            }
         }
         index.root = 0;
         for list in index.table.values_mut() {

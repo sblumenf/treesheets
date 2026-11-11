@@ -48,7 +48,8 @@ impl Desk {
 
     fn follow(&mut self, changes: &Changes) {
         self.index
-            .apply(self.editor.document(), self.editor.calc(), changes);
+            .apply(self.editor.document(), self.editor.calc(), changes)
+            .unwrap();
         // The index that followed is the index of the document and its results now.
         let mut fresh = SearchIndex::new();
         let (doc, calc) = (self.editor.document(), self.editor.calc());
