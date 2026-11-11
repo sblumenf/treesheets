@@ -1,5 +1,9 @@
 # Next piece of work: a minimal bridge between Flutter and the Rust core
 
+**Status:** built and run on Linux; the Android build, the measurements and the independent
+review are still to do. See `milestones/B1.md`, which says what exists and what is left. The
+rest of this note is the brief as it was written.
+
 This note is for whoever starts the bridge work, person or AI, in a new session. It says what to
 build, what not to build, and what "done" means. Read `../AGENTS.md`, `POC_SUMMARY.md`,
 `DECISIONS.md` (at least A1 to A15 and A121) and `UI_SPEC.md` section 2 first.

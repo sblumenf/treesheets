@@ -60,7 +60,9 @@ can be trusted, and what an interface needs next.
 
 ## Future list
 
-- A minimal bridge between Flutter and the core, the next piece of work (`NEXT_BRIDGE.md`).
+- A minimal bridge between Flutter and the core (`NEXT_BRIDGE.md`): built and run on Linux, with the
+  Android build, the measurements and an independent review still to do
+  ([summary](milestones/B1.md)).
 - The Flutter interface, starting with a phone sketch on a real iPhone that tests nested grids on
   a small screen and typing into cells.
 - Sync between devices.

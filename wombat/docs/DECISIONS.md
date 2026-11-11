@@ -1243,6 +1243,75 @@ are where milestones 4, 5 and 6, built apart, meet).
     the two branches were merged. The core is still checked for WebAssembly in CI because it
     costs nothing and catches file or thread use creeping into the pure core; it is no longer a
     requirement and can be dropped if it gets in the way.)
+122. **The bridge crate may hold `unsafe` in one generated file.** Calling between Rust and
+    Dart needs it, and `flutter_rust_bridge` writes that code (`crates/wombat-bridge/src/
+    frb_generated.rs`). So that crate cannot take the workspace's lints, which forbid `unsafe`:
+    it writes the same lints out with `unsafe_code` denied instead of forbidden, and lets off
+    only the module `frb_generated`, in `lib.rs`. The generated file also trips `unwrap_used`
+    and `missing_docs`, let off in the same place. Everything written by hand in the crate is
+    under the same rules as the rest of Wombat. Both generated sides (that file and
+    `app/lib/src/rust/`) are committed, so that the three checks pass without the generator.
+123. **The serialised form of commands and reports is a set of mirror types in the bridge crate
+    with `serde`** (`api/wire.rs`), not a `serde` derive on the core's types. One command of the
+    core is one variant with the same name and fields; `flutter_rust_bridge` generates the Dart
+    classes from the same types, so Dart, the bridge and JSON share one form. The core gains no
+    dependency (it still uses `serde_core` only), and a derive on it would have let a caller
+    state what the core computes (the height of a clip, the cell count of a table). What
+    differs from the core's types:
+    - IDs are their canonical text; anything else is refused.
+    - Unknown fields of an image are the text of a JSON object (empty for none). It is read with
+      `serde_json`, which keeps the last of a repeated key where the file reader refuses; the
+      command still checks the fields when it is applied.
+    - A scale that is not a finite number is refused, in both directions: JSON cannot write it.
+    - A table to import goes through `Table::new` and `Entry::new`, which check and count.
+    - As JSON (`record.rs`) it is what `serde` writes by default: `{"SetText": {"cell": "...",
+      "text": "..."}}`, and `"Run"` for a command without fields.
+    This form is independent of the script language of `wombat edit`, which stays what the
+    referee cases are written in.
+124. **A clip crosses a boundary as a document.** `Clip::as_document` gives the cells as a
+    document whose root is the top cell, and `Clip::from_document` makes the clip again, checked
+    as `Clip::of` checks. The bridge carries the text of that document with the ID of the
+    document the cells came from and the cell the top cell was in. So the two paste commands are
+    in the serialised form like the other 43, and there is still no way to make a clip of cells
+    that break the model's rules. (The bridge has no call yet that gives Dart a clip; that comes
+    with copy and paste in the interface.)
+125. **Reading one grid is a query of the core**, `Editor::grid_view`: a cell and the cells of
+    its grid, each with its text, kind, what a formula cell shows, whether that is an error
+    value, and whether it has a grid. A cell without a grid gives 0 by 0 cells, so a new
+    document, whose root has no grid, reads without an error. The bridge only converts it.
+126. **What crosses the bridge after a command is the change report with the recalculated
+    cells in it** (`Report.recalculated`). The core's `Changes` stays as decision A90 left it;
+    the bridge adds `Editor::recalculated()`, because an interface that redraws only what a
+    report names would otherwise show old results of formulas.
+127. **An open document is an opaque handle** (`OpenDocument`: editor, file, ID source, clock,
+    whether saved), not something looked up by document ID: two files can have the same ID
+    (A28). Every call is asynchronous on the Dart side and runs off the thread that draws;
+    `flutter_rust_bridge` lets one call at a time work on a document, and Dart awaits each. A
+    test in the core asserts that `Editor` can move between threads. Only plain `apply` is
+    bridged; joining typing into one undo unit and groups come with the real interface.
+128. **The bridge supplies what the core takes as arguments:** new IDs from a generator seeded
+    from the operating system once per open document (`getrandom`), and the time from the
+    device's clock. Tests give both.
+129. **Errors cross as `{kind, message, path}`.** The kind mirrors the variants of the core's
+    error, for the interface to switch on; the message is the core's English text. What is
+    wrong with something sent over the bridge (text that is no ID, say) has the kind `Invalid`.
+    A panic, which the core is written not to have, is caught by `flutter_rust_bridge` at the
+    boundary and arrives in Dart as a `PanicException`, not as a crash (tried in a throwaway
+    project for synchronous and asynchronous calls; no test in the repository does it, since
+    it would need a function that panics on purpose).
+130. **The app opens the example through a copy with fresh IDs** (`OpenDocument::open_copy`,
+    which is `storage::copy_document`): every install has the same example file, and A28 says
+    a copy gets its own IDs. A new document is saved where it is created, as `Workspace::create`
+    does. The bare app writes into the system's temporary folder; where documents live, opening
+    from bytes, and Android's picked documents (which are not paths) are for the real
+    interface.
+131. **Three things the build tools decide.** The package is named `wombat_bridge`, with an
+    underscore unlike the other crates, because the app's build (cargokit, in
+    `app/rust_builder`) looks for a library with the package's name. That build compiles the
+    bridge with rustup's `stable` toolchain, not the version pinned in `rust-toolchain.toml`:
+    cargokit knows only stable, beta and nightly. The checks and CI use the pin. And the crate,
+    the Dart package and the generator must be the same version of `flutter_rust_bridge`
+    (2.13.0), pinned exactly in all three places.
 
 ## B. Deliberate departures from TreeSheets
 
