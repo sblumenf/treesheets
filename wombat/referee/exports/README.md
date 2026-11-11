@@ -8,6 +8,7 @@ need the app; `make_exports` regenerates them. The general notes on the referee 
 | Path | Contents |
 | ---- | -------- |
 | `make_exports` | Drives the app and writes everything below |
+| `check_lookup_libreoffice` | Optional, not needed by any test: opens a lookup export of Wombat in a real LibreOffice and tries the README's formulas (below) |
 | `fixture.lobster`, `fixture.cts` | A document of ten cases, each a cell with a grid: quotes, empty rows, text that looks like a formula, formula cells, nested grids, an outline |
 | `golden/NAME.csv`, `.txt` | Per case: what the script function `ts.get_subtree_text` gives for the cell (1: CSV, 0: indented text) |
 | `golden/NAME.tsv` | Per case: what File > Export > Tab delimited text writes with the view zoomed into the cell |
@@ -57,3 +58,27 @@ wombat/referee/exports/make_exports --fixture   # also rebuild fixture.cts (new 
   followed by an empty field. Text that starts with `=` stays plain text.
 - Indented text: each leading space or tab is one step; the first line sets the top level; a line
   indented further than the level it is in goes into the grid of the line before it.
+
+## The lookup export in a real LibreOffice (optional)
+
+`check_lookup_libreoffice` is not a comparison with TreeSheets, which has no such export, and
+no test needs it. It is how the claims of `docs/milestones/M7.md` about LibreOffice were
+verified, and can be run again after a change to the export:
+
+```sh
+cargo build                                    # in wombat/
+referee/exports/check_lookup_libreoffice --soffice /path/to/libreoffice/program/soffice
+```
+
+It builds a small nested document with texts that are awkward in CSV (a semicolon, a comma,
+quotes, leading signs, leading zeros, a long number, a date, CJK names, a tab in a note),
+exports it with `--format lookup --notes`, and opens every table in a headless LibreOffice Calc
+with the settings its import dialog proposes (separated by comma, semicolon and tab at once).
+It checks that each table arrives as the rectangle that was written, with the IDs in the ID
+columns, and that each sheet is named after its file. Then it puts each nested table into the
+workbook of its parent and types in the formulas of `README.txt` in LibreOffice's form
+(`XLOOKUP`, `INDEX` with `MATCH`, `COUNTIF`), as a person would, and compares what they show
+with the document. Last it lists what LibreOffice made of the values that did not stay text
+(`00123` becomes 123, and so on). It needs LibreOffice 24.8 or later for `XLOOKUP`, uses the
+`python` that comes with LibreOffice, and writes only into a fresh temporary folder (the
+profile of LibreOffice included). Exit status 0 means that every check passed.

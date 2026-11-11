@@ -19,8 +19,8 @@ mod import;
 pub mod lookup;
 pub mod names;
 
-pub use export::{flat_csv, grid_csv, outline};
-pub use import::{decode, parse_outline, parse_table, to_document, Entry, Table};
+pub use export::{error_cells, flat_csv, grid_csv, outline};
+pub use import::{decode, parse_outline, parse_table, to_document, Encoding, Entry, Table};
 
 use crate::error::Error;
 use crate::eval::Calc;
@@ -57,9 +57,14 @@ impl Delimiter {
 /// Which fields are written in double quotes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Quoting {
-    /// Those that need it: a field with the delimiter, a double quote or a line break in
-    /// it, and the empty field of a row that has no other (an empty line is no row).
+    /// Those that need it for any reader: a field with a comma, a semicolon, a tab, a
+    /// double quote or a line break in it, whichever of the three is the delimiter (a
+    /// spreadsheet's import dialog proposes all three as separators at once), and the
+    /// empty field of a row that has no other (an empty line is no row).
     Minimal,
+    /// As [`Quoting::Minimal`], but of the three separators only the delimiter itself:
+    /// the least that RFC 4180 asks for, and what TreeSheets' TSV compares with.
+    Narrow,
     /// All, as TreeSheets writes CSV.
     All,
 }
@@ -85,6 +90,10 @@ pub struct ExportOptions {
     pub formulas: bool,
     /// Whether every column is followed by a column with the notes of its cells.
     pub notes: bool,
+    /// Whether the lines of a flattened export end with the columns that say which cell
+    /// their inner rows are nested in ([`flat_csv`]). `None`, the default: when a row has
+    /// more than one nested grid, because then the cells alone do not say it.
+    pub parent_columns: Option<bool>,
 }
 
 impl Default for ExportOptions {
@@ -97,6 +106,7 @@ impl Default for ExportOptions {
             guard: true,
             formulas: false,
             notes: false,
+            parent_columns: None,
         }
     }
 }
@@ -108,7 +118,7 @@ impl ExportOptions {
         ExportOptions {
             delimiter,
             quoting: match delimiter {
-                Delimiter::Tab => Quoting::Minimal,
+                Delimiter::Tab => Quoting::Narrow,
                 _ => Quoting::All,
             },
             bom: false,
@@ -116,6 +126,7 @@ impl ExportOptions {
             guard: false,
             formulas: false,
             notes: false,
+            parent_columns: None,
         }
     }
 }

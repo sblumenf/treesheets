@@ -10,7 +10,7 @@ use crate::construct::Construct;
 use crate::error::Error;
 use crate::eval::is_formula_text;
 use crate::id::{CellId, IdSource};
-use crate::limits::{MAX_CELLS, MAX_DEPTH, MAX_TEXT_CODE_POINTS};
+use crate::limits::{MAX_CELLS, MAX_DEPTH, MAX_FILE_BYTES, MAX_TEXT_CODE_POINTS};
 use crate::model::{code_points, CellKind, Document};
 use crate::text;
 
@@ -28,6 +28,22 @@ pub struct Table {
     pub(crate) height: u32,
     /// The cells of this table and of those inside.
     pub(crate) count: usize,
+    /// The least the cells take in a saved document.
+    bytes: u64,
+}
+
+/// The least a cell takes in a saved document: the comma and line end before it, one
+/// space of indentation, and `{"id": "` and `"}` around the 36 characters of the ID. (The
+/// first cell of a grid has no comma before it; the grid itself takes far more than that.)
+const MIN_CELL_BYTES: u64 = 49;
+
+/// The least a text adds to its cell in a saved document: `, "text": "` and `"` around it.
+fn text_bytes(text: &str) -> u64 {
+    if text.is_empty() {
+        0
+    } else {
+        (text.len() as u64).saturating_add(12)
+    }
 }
 
 /// One cell of a [`Table`].
@@ -107,7 +123,28 @@ impl Table {
         }
         // The cell that gets the table is one more.
         if count >= MAX_CELLS {
-            return Err(Error::Limit(format!("more than {MAX_CELLS} cells")));
+            return Err(Error::Limit(format!(
+                "{count} cells are more than a document may have, which is {MAX_CELLS}"
+            )));
+        }
+        // What the cells would at least take in a saved document: a cheap sum, so that a
+        // table too large to save is refused here and not after a document was made of it.
+        let texts = cells.iter().fold(0u64, |sum, entry| {
+            let inner = entry.grid.as_ref().map_or(0, |grid| grid.bytes);
+            sum.saturating_add(text_bytes(&entry.text))
+                .saturating_add(inner)
+        });
+        let bytes = (cells.len() as u64)
+            .saturating_mul(MIN_CELL_BYTES)
+            .saturating_add(texts);
+        if bytes > MAX_FILE_BYTES {
+            let room = MAX_FILE_BYTES.saturating_mul(count as u64) / bytes.max(1);
+            return Err(Error::Limit(format!(
+                "{count} cells with their text would make a document of at least {bytes} \
+                 bytes; a document may be at most {MAX_FILE_BYTES} bytes, which is room for \
+                 at most about {room} cells such as these (and never more than {MAX_CELLS}); \
+                 import a part of it"
+            )));
         }
         Ok(Table {
             xs,
@@ -115,7 +152,24 @@ impl Table {
             cells,
             height,
             count,
+            bytes,
         })
+    }
+
+    /// The same table with the guard of an export taken off: every text that
+    /// [`crate::convert::delimited::guard`] would have made loses the single quote it
+    /// starts with. With `formulas`, a text that is a formula after that becomes a formula
+    /// cell. For a file that Wombat itself exported with the guard on, and only for such a
+    /// file: elsewhere a text like `'=1+1` may be what its author wrote.
+    pub fn unguarded(mut self, formulas: bool) -> Table {
+        for entry in &mut self.cells {
+            if let Some(text) = delimited::unguard(&entry.text) {
+                entry.text = text.to_string();
+                entry.formula = formulas && is_formula_text(&entry.text);
+            }
+            entry.grid = entry.grid.take().map(|grid| grid.unguarded(formulas));
+        }
+        self
     }
 
     /// The number of columns.
@@ -152,43 +206,126 @@ const CP1252: [char; 32] = [
     '\u{2dc}', '\u{2122}', '\u{161}', '\u{203a}', '\u{153}', '\u{9d}', '\u{17e}', '\u{178}',
 ];
 
-/// The text of a file to import, whatever a spreadsheet saved it as: UTF-8 with or
-/// without a byte-order mark, UTF-16 with one (Excel's "Unicode text"), and for bytes
-/// that are neither, Windows-1252 (Excel's plain "CSV" on Windows; every byte is a
-/// character there, so this never fails). The byte-order mark is not part of the text.
-pub fn decode(bytes: &[u8]) -> String {
-    let utf16 = |rest: &[u8], unit: fn([u8; 2]) -> u16| -> String {
-        let units = rest.chunks_exact(2).map(|pair| {
-            unit([
-                pair.first().copied().unwrap_or(0),
-                pair.get(1).copied().unwrap_or(0),
-            ])
-        });
-        char::decode_utf16(units)
-            .map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER))
-            .collect()
-    };
-    if let Some(rest) = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]) {
-        if let Ok(text) = std::str::from_utf8(rest) {
-            return text.to_string();
+/// What the bytes of a file to import are read as.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Encoding {
+    /// UTF-8, with or without a byte-order mark.
+    Utf8,
+    /// UTF-16, the low byte of each unit first (Excel's "Unicode text").
+    Utf16Le,
+    /// UTF-16, the high byte first.
+    Utf16Be,
+    /// Windows-1252 (Excel's plain "CSV" on Windows in western Europe and the Americas).
+    Windows1252,
+}
+
+impl Encoding {
+    /// The name for a person.
+    pub fn name(self) -> &'static str {
+        match self {
+            Encoding::Utf8 => "UTF-8",
+            Encoding::Utf16Le => "UTF-16 (little-endian)",
+            Encoding::Utf16Be => "UTF-16 (big-endian)",
+            Encoding::Windows1252 => "Windows-1252",
         }
     }
-    if let Some(rest) = bytes.strip_prefix(&[0xff, 0xfe]) {
-        return utf16(rest, u16::from_le_bytes);
-    }
-    if let Some(rest) = bytes.strip_prefix(&[0xfe, 0xff]) {
-        return utf16(rest, u16::from_be_bytes);
-    }
+}
+
+const UTF8_MARK: &[u8] = &[0xef, 0xbb, 0xbf];
+const UTF16_LE_MARK: &[u8] = &[0xff, 0xfe];
+const UTF16_BE_MARK: &[u8] = &[0xfe, 0xff];
+
+fn not_text(encoding: Encoding, at: usize) -> Error {
+    Error::Invalid(format!(
+        "the file is not {}: byte {at} (counted from 0) does not belong; if it is in another \
+         encoding, say which (utf-8, utf-16le, utf-16be or windows-1252)",
+        encoding.name()
+    ))
+}
+
+fn utf8(bytes: &[u8], skipped: usize) -> Result<String, Error> {
     match std::str::from_utf8(bytes) {
-        Ok(text) => text.to_string(),
-        Err(_) => bytes
+        Ok(text) => Ok(text.to_string()),
+        Err(error) => Err(not_text(
+            Encoding::Utf8,
+            skipped.saturating_add(error.valid_up_to()),
+        )),
+    }
+}
+
+fn utf16(bytes: &[u8], skipped: usize, encoding: Encoding) -> Result<String, Error> {
+    let unit: fn([u8; 2]) -> u16 = match encoding {
+        Encoding::Utf16Be => u16::from_be_bytes,
+        _ => u16::from_le_bytes,
+    };
+    let pairs = bytes.chunks_exact(2);
+    let odd = !pairs.remainder().is_empty();
+    let units = pairs.map(|pair| {
+        unit([
+            pair.first().copied().unwrap_or(0),
+            pair.get(1).copied().unwrap_or(0),
+        ])
+    });
+    let mut text = String::with_capacity(bytes.len() / 2);
+    // Where the unit being read starts.
+    let mut at = skipped;
+    for c in char::decode_utf16(units) {
+        match c {
+            Ok(c) => {
+                text.push(c);
+                at = at.saturating_add(c.len_utf16().saturating_mul(2));
+            }
+            Err(_) => return Err(not_text(encoding, at)),
+        }
+    }
+    if odd {
+        return Err(not_text(encoding, at));
+    }
+    Ok(text)
+}
+
+/// The text of a file to import, and what it was read as. Nothing is guessed (decision
+/// A115):
+///
+/// - Without an `encoding`, the bytes are UTF-8, with or without a byte-order mark, or,
+///   if they start with the byte-order mark of UTF-16, that. Anything else is an error
+///   that names the first byte that does not belong.
+/// - With one, they are read as that: for a file in Windows-1252, or in UTF-16 without a
+///   mark, somebody has to say so. A wrong byte is an error in the same way; in
+///   Windows-1252 every byte is a character, so that never fails.
+///
+/// The byte-order mark of the encoding is not part of the text.
+pub fn decode(bytes: &[u8], encoding: Option<Encoding>) -> Result<(String, Encoding), Error> {
+    let after = |mark: &[u8]| bytes.strip_prefix(mark).map(|rest| (rest, mark.len()));
+    let encoding = encoding.unwrap_or(if bytes.starts_with(UTF16_LE_MARK) {
+        Encoding::Utf16Le
+    } else if bytes.starts_with(UTF16_BE_MARK) {
+        Encoding::Utf16Be
+    } else {
+        Encoding::Utf8
+    });
+    let text = match encoding {
+        Encoding::Utf8 => {
+            let (rest, skipped) = after(UTF8_MARK).unwrap_or((bytes, 0));
+            utf8(rest, skipped)?
+        }
+        Encoding::Utf16Le => {
+            let (rest, skipped) = after(UTF16_LE_MARK).unwrap_or((bytes, 0));
+            utf16(rest, skipped, encoding)?
+        }
+        Encoding::Utf16Be => {
+            let (rest, skipped) = after(UTF16_BE_MARK).unwrap_or((bytes, 0));
+            utf16(rest, skipped, encoding)?
+        }
+        Encoding::Windows1252 => bytes
             .iter()
             .map(|b| match b.checked_sub(0x80).map(usize::from) {
                 Some(n) if n < 32 => CP1252.get(n).copied().unwrap_or(' '),
                 _ => char::from(*b),
             })
             .collect(),
-    }
+    };
+    Ok((text, encoding))
 }
 
 fn entry(text: &str, formulas: bool) -> Entry {

@@ -38,9 +38,15 @@ fn tree(table: &Table) -> Value {
 }
 
 fn ours(name: &str) -> Value {
-    let text = decode(&fs::read(imports().join(name)).unwrap());
+    let (text, _) = decode(&fs::read(imports().join(name)).unwrap(), None).unwrap();
     let table = match Path::new(name).extension().unwrap().to_str().unwrap() {
-        "csv" => parse_table(&text, Delimiter::Comma, false),
+        "csv" => {
+            // Looking for the delimiter of a file called CSV, as the tool does, never
+            // finds another one in these: the comparison is of what the tool reads.
+            let found = wombat_core::convert::delimited::detect(&text);
+            assert!(matches!(found, None | Some(Delimiter::Comma)), "{name}");
+            parse_table(&text, Delimiter::Comma, false)
+        }
         "ssv" => parse_table(&text, Delimiter::Semicolon, false),
         "tsv" => parse_table(&text, Delimiter::Tab, false),
         "txt" => parse_outline(&text, MAX_DEPTH, false),

@@ -18,13 +18,16 @@
 //!   nested in, which is in one of the `<name>_id` columns of that row).
 //! - **`row_id`** is the ID of the row's first cell. Cells have permanent IDs and rows
 //!   have none, so the first cell stands for its row: the key stays the same from one
-//!   export to the next for as long as that cell exists and is first in its row.
+//!   export to the next for as long as that cell exists and stays first in its row.
+//!   Sorting rows keeps it; swapping or moving columns, or transposing, changes which
+//!   cell is first.
 //! - **`index.csv`**: one row per table, in document order: `table` (file), `trail` (the
 //!   texts on the way to the cell it sits in), `rows`, `columns`, `header_row`,
 //!   `parent_table`, `parent_row_id`, `parent_column`, `cell_id` and `cell_text` (the
 //!   cell it sits in).
-//! - **`README.txt`**: the layout in a few lines, and an `XLOOKUP` formula written for
-//!   two of the exported tables.
+//! - **`README.txt`**: the layout in a few lines, and lookup formulas written for two of
+//!   the exported tables: `XLOOKUP` as Excel and Google Sheets write it and as LibreOffice
+//!   does, and `INDEX` with `MATCH`, which every version of them has.
 //!
 //! Nothing is lost: the tree of texts and IDs can be rebuilt from the folder alone (a
 //! test does). File names are made by [`super::names`].
@@ -277,7 +280,7 @@ fn write_table(
     Ok(out.finish())
 }
 
-/// The explanation, with a formula for the first nested table if there is one.
+/// The explanation, with formulas for the first nested table if there is one.
 fn readme(
     tables: &[Table],
     layouts: &[Layout],
@@ -313,8 +316,8 @@ fn readme(
          \x20 parent_cell_id  the ID of the cell this table is nested in\n\
          \n\
          Every row of a nested table carries the row_id of the row it belongs to, so the two\n\
-         tables can be joined with XLOOKUP (Excel 2021 or 365, Google Sheets, LibreOffice 24.8\n\
-         or later). The key does not have to be the first column, so the ID columns are last.\n\
+         tables can be joined with a lookup formula. The key does not have to be the first\n\
+         column, so the ID columns are last.\n\
          \n",
     );
     let nested = tables
@@ -338,24 +341,40 @@ fn readme(
                  {child_file} is nested in {parent_file}.\n\
                  To show, beside every row of {child_file}, column A of the row it belongs to:\n\
                  \n\
-                 1. Open both files as sheets of one workbook. A sheet gets the name of its file\n\
+                 1. Get both files into one workbook, each as a sheet named after its file\n\
                  \x20  without \".csv\": {child} and {parent}.\n\
-                 \x20  Excel: open both files, then right-click the sheet tab > Move or Copy.\n\
-                 \x20  Google Sheets: File > Import > Upload > Insert new sheet(s), once per file.\n\
-                 \x20  LibreOffice: Sheet > Insert Sheet from File.\n\
+                 \x20  Excel: open both files (each opens as a workbook with one sheet of that\n\
+                 \x20  name), then right-click the sheet tab > Move or Copy, into the other.\n\
+                 \x20  Google Sheets: File > Import > Upload > Insert new sheet(s), once per\n\
+                 \x20  file; rename the sheet if it did not get the name above.\n\
+                 \x20  LibreOffice: open one file (in the dialog that comes, keep \"Separated by\"\n\
+                 \x20  comma; the sheet is named after the file), then Sheet > Insert Sheet from\n\
+                 \x20  File for the other.\n\
                  2. In sheet {child}, the column parent_row_id is column {key} and the first free\n\
-                 \x20  column is {free}. In cell {free}2 enter\n\
+                 \x20  column is {free}. In cell {free}2 enter one of these and fill it down.\n\
+                 \n\
+                 \x20  Excel 2021 or 365, and Google Sheets:\n\
                  \n\
                  \x20      =XLOOKUP({key}2, '{parent}'!{row_id}:{row_id}, '{parent}'!A:A)\n\
                  \n\
-                 \x20  and fill it down. ({row_id} is the column row_id of sheet {parent}; replace A:A\n\
-                 \x20  by another column of that sheet to fetch something else.)\n\
-                 \x20  Where formulas are written with semicolons, use ; in place of each comma.\n\
-                 \x20  LibreOffice writes the sheet as $'{parent}'.{row_id}:{row_id} and $'{parent}'.A:A.\n\
+                 \x20  LibreOffice 24.8 or later (it writes a sheet as $'name'. and not 'name'!):\n\
+                 \n\
+                 \x20      =XLOOKUP({key}2, $'{parent}'.{row_id}:{row_id}, $'{parent}'.A:A)\n\
+                 \n\
+                 \x20  Every version of all three, without XLOOKUP:\n\
+                 \n\
+                 \x20      =INDEX('{parent}'!A:A, MATCH({key}2, '{parent}'!{row_id}:{row_id}, 0))\n\
+                 \x20      =INDEX($'{parent}'.A:A, MATCH({key}2, $'{parent}'.{row_id}:{row_id}, 0))    (LibreOffice)\n\
+                 \n\
+                 \x20  {row_id} is the column row_id of sheet {parent}; replace A:A by another column\n\
+                 \x20  of that sheet to fetch something else.\n\
+                 \x20  Where the comma is the decimal sign (much of Europe), formulas take ; in place\n\
+                 \x20  of each comma between arguments: =XLOOKUP({key}2; ...; ...).\n\
                  3. The other way round, the number of rows of {child} under each row of\n\
                  \x20  {parent}: in sheet {parent}, in a free column of row 2,\n\
                  \n\
                  \x20      =COUNTIF('{child}'!{key}:{key}, {row_id}2)\n\
+                 \x20      =COUNTIF($'{child}'.{key}:{key}, {row_id}2)    (LibreOffice)\n\
                  \n\
                  The same works between any table and the one named in its parent_table column;\n\
                  the letters of the key columns differ with the number of columns of each table.\n",
@@ -367,21 +386,96 @@ fn readme(
         }
     }
     out.push_str(
-        "\nrow_id and the cell IDs stay the same from one export to the next for as long as\n\
-         the cells exist, so tables exported at different times can be compared by them.\n",
+        "\nHow long the IDs stay the same\n\
+         ------------------------------\n\
+         \n\
+         A cell's ID never changes. row_id is the ID of the row's first cell: it is the same\n\
+         in every export as long as that cell exists and stays first in its row. Sorting\n\
+         rows keeps it. Deleting that cell, swapping or moving columns, or transposing the\n\
+         grid changes which cell is first, and so the row_id of the row.\n\
+         \n\
+         What a spreadsheet does to the values when it opens a CSV file\n\
+         --------------------------------------------------------------\n\
+         \n\
+         A CSV file is text; the spreadsheet decides what each value is. 00123 becomes the\n\
+         number 123, a number of more than 15 digits is rounded (12345678901234567890\n\
+         becomes 1.23E+19), 2026-03-04 becomes a date, and Excel is known to do the same to\n\
+         1/2 and to 1e5. The IDs stay text. Where the exact text matters, import the columns\n\
+         as text: LibreOffice, in the dialog on opening, select the columns and choose the\n\
+         column type Text; Excel, Data > From Text/CSV > Transform Data, or the Text Import\n\
+         Wizard with the column format Text; Google Sheets, File > Import with \"Convert\n\
+         text to numbers, dates and formulas\" switched off.\n",
     );
+    if options.delimiter == super::Delimiter::Comma {
+        out.push_str(
+            "\nIf Excel shows a whole row in one column, its list separator is the semicolon\n\
+             (as where the comma is the decimal sign): export again with the delimiter\n\
+             semicolon (wombat export --delimiter semicolon), or import the file through\n\
+             Data > From Text/CSV.\n",
+        );
+    }
     if options.guard {
         out.push_str(
-            "\nSafety: a cell whose text starts with = + - or @ (and is not just a number)\n\
-             was exported with a single quote ' in front, so that no spreadsheet runs it as a\n\
-             formula. Exporting with the raw option leaves such text as it is.\n",
+            "\nSafety\n\
+             ------\n\
+             \n\
+             A text that a spreadsheet could run as a formula was exported with a single quote '\n\
+             in front: one that starts with = , or with + - or @ and has in it what a formula\n\
+             needs to do something (a parenthesis, a | , a reference to another sheet), or that\n\
+             continues like a calculation or a name (+1+1, -A1). The quote is visible in the\n\
+             cell. Ordinary texts are left as they are: -5, +44 20 7946 0958, - a list item,\n\
+             @name. Exporting with the raw option leaves every text as it is; importing such a\n\
+             file back into Wombat with the option unguard takes the quotes away again.\n",
         );
     }
     out
 }
 
+/// The names of the columns of `index.csv`.
+const INDEX_COLUMNS: [&str; 10] = [
+    "table",
+    "trail",
+    "rows",
+    "columns",
+    "header_row",
+    "parent_table",
+    "parent_row_id",
+    "parent_column",
+    "cell_id",
+    "cell_text",
+];
+
+/// The files of the tables that an `index.csv` of this export lists, for removing the
+/// tables of an earlier export from a folder that is exported into again. `None` if the
+/// text is not such an index (its first line is not the names of the columns, with any
+/// of the three delimiters): then the folder is not one this export made.
+pub fn index_tables(text: &str) -> Option<Vec<String>> {
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+    let limits = super::delimited::ParseLimits {
+        cells: MAX_TABLES
+            .saturating_add(1)
+            .saturating_mul(INDEX_COLUMNS.len()),
+        field: crate::limits::MAX_TEXT_CODE_POINTS,
+    };
+    use super::Delimiter::{Comma, Semicolon, Tab};
+    [Comma, Semicolon, Tab].into_iter().find_map(|delimiter| {
+        let (rows, _) = super::delimited::parse(text, delimiter, limits).ok()?;
+        let (names, tables) = rows.split_first()?;
+        if names != &INDEX_COLUMNS {
+            return None;
+        }
+        Some(
+            tables
+                .iter()
+                .filter_map(|row| row.first().cloned())
+                .collect(),
+        )
+    })
+}
+
 /// The lookup-style export of the grid of `cell` and everything nested in it: the files
-/// of one folder, `README.txt` and `index.csv` first, then the tables in document order.
+/// of one folder, the tables in document order, then `README.txt`, then `index.csv` last,
+/// so that a folder written in this order has its index only when it is complete.
 /// See the module documentation for the layout. The same document and options give the
 /// same files, byte for byte; the document is not changed.
 ///
@@ -421,18 +515,7 @@ pub fn export(
         .collect();
 
     let mut index = Writer::new(options);
-    for name in [
-        "table",
-        "trail",
-        "rows",
-        "columns",
-        "header_row",
-        "parent_table",
-        "parent_row_id",
-        "parent_column",
-        "cell_id",
-        "cell_text",
-    ] {
+    for name in INDEX_COLUMNS {
         index.raw(name)?;
     }
     index.end_row();
@@ -485,16 +568,13 @@ pub fn export(
             return Err(too_large());
         }
     }
-    let mut out = vec![
-        ExportFile {
-            name: README_FILE.to_string(),
-            text: readme(&tables, &layouts, options, lookup),
-        },
-        ExportFile {
-            name: INDEX_FILE.to_string(),
-            text: index.finish(),
-        },
-    ];
-    out.append(&mut files);
-    Ok(out)
+    files.push(ExportFile {
+        name: README_FILE.to_string(),
+        text: readme(&tables, &layouts, options, lookup),
+    });
+    files.push(ExportFile {
+        name: INDEX_FILE.to_string(),
+        text: index.finish(),
+    });
+    Ok(files)
 }

@@ -36,10 +36,17 @@ fn names(dir: &Path) -> Vec<String> {
     names
 }
 
+/// The index of a lookup export that lists `t-1.csv` and `t-2.csv`.
+const INDEX: &[u8] =
+    b"table,trail,rows,columns,header_row,parent_table,parent_row_id,parent_column,cell_id,cell_text\r\n\
+      t-1.csv,,1,1,no,,,,a,\r\n\
+      t-2.csv,x,1,1,no,t-1.csv,a,A,b,x\r\n";
+
+/// The files of an export, in the order of writing: the index last.
 const FILES: &[(&str, &[u8])] = &[
-    ("index.csv", b"index"),
     ("t-1.csv", b"one"),
     ("t-2.csv", b"two"),
+    ("index.csv", INDEX),
 ];
 
 #[test]
@@ -74,15 +81,30 @@ fn a_folder_is_made_and_one_with_anything_in_it_only_when_asked() {
     assert_eq!(names(&out), ["index.csv", "t-1.csv", "t-2.csv"]);
     assert_eq!(fs::read(out.join("t-2.csv")).unwrap(), b"two");
     // Again without overwrite: refused, nothing touched.
-    let changed: &[(&str, &[u8])] = &[("index.csv", b"new"), ("t-3.csv", b"three")];
+    let index: &[u8] = b"table;trail;rows;columns;header_row;parent_table;parent_row_id;\
+                         parent_column;cell_id;cell_text\nt-3.csv;;1;1;no;;;;c;\n";
+    let changed: &[(&str, &[u8])] = &[("t-3.csv", b"three"), ("index.csv", index)];
     let again = write_folder(&out, changed, false);
     assert!(matches!(again, Err(Error::Refused(_))), "{again:?}");
-    assert_eq!(fs::read(out.join("index.csv")).unwrap(), b"index");
+    assert_eq!(fs::read(out.join("index.csv")).unwrap(), INDEX);
     assert_eq!(names(&out).len(), 3);
-    // With overwrite: files of the same name are replaced, others are left alone.
+    // With overwrite: the tables that the index of the export before lists are removed,
+    // so that none of a grid that is gone stays beside the new index (A117); files that
+    // it does not list are left alone, whatever they are called.
+    fs::write(out.join("mine.csv"), b"mine").unwrap();
+    fs::write(out.join("notes.txt"), b"notes").unwrap();
     write_folder(&out, changed, true).unwrap();
-    assert_eq!(fs::read(out.join("index.csv")).unwrap(), b"new");
-    assert_eq!(names(&out), ["index.csv", "t-1.csv", "t-2.csv", "t-3.csv"]);
+    assert_eq!(fs::read(out.join("index.csv")).unwrap(), index);
+    assert_eq!(
+        names(&out),
+        ["index.csv", "mine.csv", "notes.txt", "t-3.csv"]
+    );
+    // And again, from an index with another delimiter: the same tables stay.
+    write_folder(&out, FILES, true).unwrap();
+    assert_eq!(
+        names(&out),
+        ["index.csv", "mine.csv", "notes.txt", "t-1.csv", "t-2.csv"]
+    );
     // An existing empty folder is fine; a file in the folder's place is not; neither is
     // a folder whose parent is not there.
     let empty = dir.join("empty");
@@ -97,6 +119,45 @@ fn a_folder_is_made_and_one_with_anything_in_it_only_when_asked() {
         Err(Error::Io { .. })
     ));
     assert!(!dir.join("a").exists());
+}
+
+#[test]
+fn a_folder_that_is_no_export_of_wombats_is_not_written_into() {
+    let dir = folder("foreign");
+    for (n, index) in [
+        None,
+        Some(&b"name,size\nreport.csv,3\n"[..]),
+        Some(b""),
+        Some(b"\xff\xfe not text"),
+        Some(b"table,trail\nreport.csv,x\n"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let out = dir.join(format!("out{n}"));
+        fs::create_dir(&out).unwrap();
+        fs::write(out.join("report.csv"), b"mine").unwrap();
+        if let Some(index) = index {
+            fs::write(out.join("index.csv"), index).unwrap();
+        }
+        let before = names(&out);
+        let result = write_folder(&out, FILES, true);
+        match result {
+            Err(Error::Refused(message)) => assert!(message.contains("index.csv"), "{message}"),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(names(&out), before);
+        assert_eq!(fs::read(out.join("report.csv")).unwrap(), b"mine");
+    }
+    // A real export is recognised with a byte-order mark and with every field quoted.
+    let out = dir.join("quoted");
+    fs::create_dir(&out).unwrap();
+    let quoted = "\u{feff}\"table\",\"trail\",\"rows\",\"columns\",\"header_row\",\"parent_table\",\
+                  \"parent_row_id\",\"parent_column\",\"cell_id\",\"cell_text\"\n\"gone.csv\",\"\"\n";
+    fs::write(out.join("index.csv"), quoted).unwrap();
+    fs::write(out.join("gone.csv"), b"gone").unwrap();
+    write_folder(&out, FILES, true).unwrap();
+    assert_eq!(names(&out), ["index.csv", "t-1.csv", "t-2.csv"]);
 }
 
 #[test]
@@ -176,7 +237,7 @@ mod links {
         assert_eq!(names(&dir), ["out.csv", "victim.txt"]);
         // The same inside a folder.
         let out = dir.join("out");
-        fs::create_dir(&out).unwrap();
+        write_folder(&out, FILES, false).unwrap();
         symlink(&victim, out.join(".t-1.csv.tmp")).unwrap();
         write_folder(&out, FILES, true).unwrap();
         assert_eq!(fs::read(&victim).unwrap(), b"untouched");
@@ -223,20 +284,56 @@ mod links {
         fs::write(&victim, b"untouched").unwrap();
         let out = dir.join("out");
         fs::create_dir(&out).unwrap();
-        // The last file of the export: the others must not be written before it is found.
+        // An index of an export before, which lists a table that this one does not write.
+        let old = [INDEX, b"old.csv,,1,1,no,,,,c,\r\n"].concat();
+        fs::write(out.join("index.csv"), &old).unwrap();
+        fs::write(out.join("old.csv"), b"old").unwrap();
+        // The last table of the export: nothing must be written or removed before it is
+        // found.
         symlink(&victim, out.join("t-2.csv")).unwrap();
         let result = write_folder(&out, FILES, true);
         assert!(matches!(result, Err(Error::Refused(_))), "{result:?}");
         assert_eq!(fs::read(&victim).unwrap(), b"untouched");
-        assert_eq!(names(&out), ["t-2.csv"]);
+        assert_eq!(names(&out), ["index.csv", "old.csv", "t-2.csv"]);
+        assert_eq!(fs::read(out.join("index.csv")).unwrap(), old);
         // A folder at the name of a file is refused too.
         fs::remove_file(out.join("t-2.csv")).unwrap();
-        fs::create_dir(out.join("index.csv")).unwrap();
+        fs::create_dir(out.join("t-1.csv")).unwrap();
         assert!(matches!(
             write_folder(&out, FILES, true),
             Err(Error::Refused(_))
         ));
-        assert_eq!(names(&out), ["index.csv"]);
+        assert_eq!(names(&out), ["index.csv", "old.csv", "t-1.csv"]);
+        // The index of a folder is trusted with nothing: of the names it lists, only a
+        // regular file with a plain name that ends in .csv, in this folder, is removed.
+        fs::remove_dir(out.join("t-1.csv")).unwrap();
+        fs::write(dir.join("beside.csv"), b"beside").unwrap();
+        fs::create_dir(out.join("folder.csv")).unwrap();
+        symlink(&victim, out.join("link.csv")).unwrap();
+        fs::write(out.join("keep.txt"), b"keep").unwrap();
+        let hostile = [
+            INDEX,
+            b"../beside.csv,,1,1,no,,,,c,\r\nfolder.csv\r\nlink.csv\r\nkeep.txt\r\n",
+            b"old.csv\r\n",
+            dir.join("beside.csv").to_str().unwrap().as_bytes(),
+            b"\r\n",
+        ]
+        .concat();
+        fs::write(out.join("index.csv"), &hostile).unwrap();
+        write_folder(&out, FILES, true).unwrap();
+        assert_eq!(
+            names(&out),
+            [
+                "folder.csv",
+                "index.csv",
+                "keep.txt",
+                "link.csv",
+                "t-1.csv",
+                "t-2.csv"
+            ]
+        );
+        assert_eq!(fs::read(dir.join("beside.csv")).unwrap(), b"beside");
+        assert_eq!(fs::read(&victim).unwrap(), b"untouched");
     }
 }
 

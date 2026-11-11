@@ -84,12 +84,16 @@ Structure (CELL is the cell that has the grid)
   swap CELL CELL                      two cells trade places
   move CELL EMPTY-CELL                move a cell to where an empty cell is
   copy CELL CELL                      make the second cell a copy of the first (paste)
-  import CELL FILE [csv|tsv|semicolon|text] [formulas]
-                                      read a file of comma, tab or semicolon separated
+  import CELL FILE [csv|tsv|semicolon|text] [comma|tab] [ENCODING] [formulas] [unguard]
+         [replace]                    read a file of comma, tab or semicolon separated
                                       values or indented text (by default told by its
-                                      name) as the grid of CELL, replacing the grid it
-                                      has; one unit of undo. formulas: texts that start
-                                      with = become formula cells
+                                      name, and for .csv by what its lines are separated
+                                      by) as the grid of CELL; one unit of undo. A grid
+                                      with content is replaced only with `replace`.
+                                      ENCODING: utf-8 (the default; nothing is guessed),
+                                      utf-16le, utf-16be, windows-1252. formulas: texts
+                                      that start with = become formula cells. unguard:
+                                      take away the ' of the guard of `wombat export`
 
 Restructuring (as the TreeSheets menu actions of the same names)
   sort CELL COLUMN ROW COUNT [desc]   sort COUNT rows from ROW on by the text in COLUMN,
@@ -675,21 +679,58 @@ impl<'a> Session<'a> {
             "import" => {
                 let cell = self.next_cell(args, "a cell")?;
                 let file = next(args, "a file")?;
-                let (mut format, mut formulas) = (None, false);
+                let mut options = crate::convert::ReadOptions::default();
+                let mut replace = false;
                 for (word, _) in args.by_ref() {
                     match word.as_str() {
-                        "formulas" => formulas = true,
-                        other => format = Some(other),
+                        "formulas" => options.formulas = true,
+                        "unguard" => options.unguard = true,
+                        "replace" => replace = true,
+                        other if options.word(other) => {}
+                        other => options.format = Some(other),
                     }
                 }
                 let depth = self.doc().depth(cell).unwrap_or(0);
                 let levels = wombat_core::limits::MAX_DEPTH.saturating_sub(depth);
-                let table = crate::convert::read_table(file, format, formulas, levels).map_err(
-                    |failure| match failure {
-                        crate::Failure::Usage(m) | crate::Failure::Failed(m) => m,
-                    },
-                )?;
-                self.apply(Command::Import { cell, table })?;
+                let read =
+                    crate::convert::read_table(file, &options, levels).map_err(|failure| {
+                        match failure {
+                            crate::Failure::Usage(m) | crate::Failure::Failed(m) => m,
+                        }
+                    })?;
+                // The links that point into the grid that goes, from cells that stay: of
+                // this document, the only one in sight here.
+                let doc = self.doc();
+                let inside = doc.cell(cell).and_then(|c| c.grid()).map(|g| g.cells());
+                let mut index = wombat_core::links::LinkIndex::new();
+                index.insert_document(doc);
+                let links = index.would_break(doc, inside.unwrap_or(&[])).len();
+                let (xs, ys) = (read.table.xs(), read.table.ys());
+                self.apply(Command::Import {
+                    cell,
+                    table: read.table,
+                    replace,
+                })?;
+                out = format!(
+                    "imported {file}: {xs} columns by {ys} rows\n  {}\n",
+                    read.how
+                );
+                let removed = self.last.removed.len();
+                if removed > 0 {
+                    let cells = if removed == 1 { "cell" } else { "cells" };
+                    let pointing = match links {
+                        0 => "no link of this document pointed at them".to_string(),
+                        1 => "1 link of this document pointed at them and now points at \
+                              nothing"
+                            .to_string(),
+                        n => format!(
+                            "{n} links of this document pointed at them and now point at nothing"
+                        ),
+                    };
+                    out.push_str(&format!(
+                        "  removed {removed} {cells} that were there; {pointing}\n"
+                    ));
+                }
             }
             "grid" => {
                 let cell = self.next_cell(args, "a cell")?;

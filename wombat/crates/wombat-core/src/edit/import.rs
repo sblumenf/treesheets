@@ -11,18 +11,37 @@ use super::command::{cell, check_room, depth, descendants, fresh_grid, new_cell,
 use super::step::Step;
 use super::Tx;
 
-/// Gives `id` the table as its grid, in place of the grid it may have. The new cells take
-/// the looks of `id`, as the cells of a new grid do.
+/// Whether a cell has anything that an import over it would lose: text, a note, an
+/// image or a grid.
+fn has_content(cell: &Cell) -> bool {
+    !cell.text.is_empty() || !cell.note.is_empty() || cell.image.is_some() || cell.grid().is_some()
+}
+
+/// Gives `id` the table as its grid. The new cells take the looks of `id`, as the cells
+/// of a new grid do. A grid that `id` has is replaced: if any of its cells has content,
+/// only with `replace`.
 pub(super) fn import(
     tx: &mut Tx,
     id: CellId,
     table: &Table,
+    replace: bool,
     now: Option<i64>,
     fresh: &mut Fresh,
 ) -> Result<(), Error> {
     let doc = tx.doc();
     let owner = cell(doc, id)?;
     let replaced = descendants(doc, id);
+    let full = replaced
+        .iter()
+        .filter(|c| doc.cell(**c).is_some_and(has_content))
+        .count();
+    if full > 0 && !replace {
+        return Err(Error::Refused(format!(
+            "cell {id} has a grid of {} cells, {full} of them with content, which the import \
+             would replace; that is done only when asked for (replace)",
+            replaced.len()
+        )));
+    }
     check_room(tx, table.count.saturating_sub(replaced.len()))?;
     if depth(doc, id)?.saturating_add(table.height) > MAX_DEPTH {
         return Err(Error::Limit(format!(

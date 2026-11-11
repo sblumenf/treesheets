@@ -24,7 +24,7 @@ use wombat_core::convert::delimited::{guard, is_risky, parse, ParseLimits, Write
 use wombat_core::convert::lookup::{self, column_letters, ExportFile, LookupOptions};
 use wombat_core::convert::{
     decode, flat_csv, grid_csv, names, outline, parse_outline, parse_table, to_document, Delimiter,
-    Entry, ExportOptions, Quoting, Table,
+    Encoding, Entry, ExportOptions, Quoting, Table,
 };
 use wombat_core::eval::Calc;
 use wombat_core::limits::{MAX_CELLS, MAX_DEPTH};
@@ -43,18 +43,22 @@ fn plain() -> ExportOptions {
 fn options() -> impl Strategy<Value = ExportOptions> {
     (
         proptest::sample::select(&[Delimiter::Comma, Delimiter::Semicolon, Delimiter::Tab][..]),
-        proptest::sample::select(&[Quoting::Minimal, Quoting::All][..]),
+        proptest::sample::select(&[Quoting::Minimal, Quoting::Narrow, Quoting::All][..]),
         any::<(bool, bool, bool, bool, bool)>(),
+        proptest::option::of(any::<bool>()),
     )
         .prop_map(
-            |(delimiter, quoting, (bom, crlf, guard, formulas, notes))| ExportOptions {
-                delimiter,
-                quoting,
-                bom,
-                crlf,
-                guard,
-                formulas,
-                notes,
+            |(delimiter, quoting, (bom, crlf, guard, formulas, notes), parent_columns)| {
+                ExportOptions {
+                    delimiter,
+                    quoting,
+                    bom,
+                    crlf,
+                    guard,
+                    formulas,
+                    notes,
+                    parent_columns,
+                }
             },
         )
 }
@@ -265,9 +269,11 @@ fn fields_are_quoted_only_where_delimited_text_needs_it() {
         1,
     );
     let csv = |options: &ExportOptions| export(&doc, |s| grid_csv(s, doc.root(), options));
+    // A comma, a semicolon and a tab are quoted whichever is the delimiter: a spreadsheet
+    // offers to split at all three (A113).
     assert_eq!(
         csv(&plain()),
-        "\"a,b\",\"say \"\"hi\"\"\",x;y\n lead,tab,\n"
+        "\"a,b\",\"say \"\"hi\"\"\",\"x;y\"\n lead,tab,\n"
     );
     let semicolon = ExportOptions {
         delimiter: Delimiter::Semicolon,
@@ -275,7 +281,17 @@ fn fields_are_quoted_only_where_delimited_text_needs_it() {
     };
     assert_eq!(
         csv(&semicolon),
-        "a,b;\"say \"\"hi\"\"\";\"x;y\"\n lead;tab;\n"
+        "\"a,b\";\"say \"\"hi\"\"\";\"x;y\"\n lead;tab;\n"
+    );
+    // The least that RFC 4180 asks for, which is what TreeSheets' TSV is compared with.
+    let narrow = ExportOptions {
+        quoting: Quoting::Narrow,
+        ..semicolon.clone()
+    };
+    assert_eq!(csv(&narrow), "a,b;\"say \"\"hi\"\"\";\"x;y\"\n lead;tab;\n");
+    assert_eq!(
+        ExportOptions::treesheets(Delimiter::Tab).quoting,
+        Quoting::Narrow
     );
     let all = ExportOptions {
         quoting: Quoting::All,
@@ -346,34 +362,29 @@ fn notes_are_a_column_after_each_column_when_asked_for() {
 
 #[test]
 fn text_that_a_spreadsheet_would_run_gets_a_quote_in_front_and_numbers_do_not() {
+    // (After the review the rule is narrower: `convert_review.rs` has what changed. Of
+    // the texts here, `-`, `+`, `=`, `--5`, `-5-`, `-1.2.3`, `-5 ` and `- 5` were guarded
+    // before and are ordinary text now.)
     for risky in [
         "=1+1",
         "=cmd|' /C calc'!A0",
         "+1+1",
         "-1+1",
         "@SUM(1)",
-        "-",
-        "+",
-        "=",
         "-a",
-        "--5",
-        "-5-",
-        "-1.2.3",
         "+1e",
         "-e5",
         "-.",
         "\tx",
         "\rx",
-        "-5 ",
-        "- 5",
         "-٣",
     ] {
         assert!(is_risky(risky), "{risky:?}");
         assert_eq!(guard(risky), format!("'{risky}"));
     }
     for safe in [
-        "", "a", "1+1", "a=b", "-5", "+5", "-2.5", "-2,5", "-.5", "+1e10", "-1.5E-3", "'=x",
-        " =1+1", "1-2",
+        "", "a", "1+1", "a=b", "-5", "+5", "-2.5", "-2,5", "-.5", "+1e10", "-1.5E-3", " =1+1",
+        "1-2", "-", "+", "=", "--5", "-5-", "-1.2.3", "-5 ", "- 5", "'x", "'",
     ] {
         assert!(!is_risky(safe), "{safe:?}");
         assert_eq!(guard(safe), safe);
@@ -387,7 +398,7 @@ fn the_guard_covers_every_export_and_every_kind_of_field() {
         2,
         vec![
             cell("=evil"),
-            grid("@inner", 1, vec![cell("-run"), cell("-5")]),
+            grid("@inner(1)", 1, vec![cell("-run"), cell("-5")]),
         ],
     );
     spec.grid.as_mut().unwrap().1[0].note = "+note".into();
@@ -423,7 +434,7 @@ fn the_guard_covers_every_export_and_every_kind_of_field() {
     assert!(fields > 40);
     // Every risky text is there, made harmless; the number is as it was.
     let joined = all.concat();
-    for guarded in ["'=evil", "'@inner", "'-run", "'+note", "'=root"] {
+    for guarded in ["'=evil", "'@inner(1)", "'-run", "'+note", "'=root"] {
         assert!(joined.contains(guarded), "{guarded}");
     }
     assert!(joined.contains(",-5") || joined.contains("\n-5"));
@@ -434,7 +445,7 @@ fn the_guard_covers_every_export_and_every_kind_of_field() {
         ..ExportOptions::default()
     };
     let text = grid_csv(s, doc.root(), &raw).unwrap();
-    assert!(text.contains("=evil,+note,@inner"));
+    assert!(text.contains("=evil,+note,@inner(1)"));
 }
 
 #[test]
@@ -475,7 +486,11 @@ fn flattening_irregular_nesting_gives_a_rectangle_with_one_block_of_columns_per_
         ),
         1,
     );
-    let text = export(&doc, |s| flat_csv(s, doc.root(), &plain()));
+    let bare = ExportOptions {
+        parent_columns: Some(false),
+        ..plain()
+    };
+    let text = export(&doc, |s| flat_csv(s, doc.root(), &bare));
     assert_eq!(
         text,
         "A,B,a1,a2,a3,\n\
@@ -484,6 +499,20 @@ fn flattening_irregular_nesting_gives_a_rectangle_with_one_block_of_columns_per_
          A,B,b2,,,\n\
          solo,,,,,\n\
          ,,,,,\n"
+    );
+    // The first row has grids in two of its cells, so unasked every line ends with one
+    // column per level below the first: the column of the cell its cells of that level
+    // are inside of. `deep` is in the grid of B, and `d1` in the grid of `deep`, which is
+    // in column C of its line.
+    let text = export(&doc, |s| flat_csv(s, doc.root(), &plain()));
+    assert_eq!(
+        text,
+        "A,B,a1,a2,a3,,A,\n\
+         A,B,deep,,,d1,B,C\n\
+         A,B,deep,,,d2,B,C\n\
+         A,B,b2,,,,B,\n\
+         solo,,,,,,,\n\
+         ,,,,,,,\n"
     );
 }
 
@@ -743,7 +772,8 @@ fn the_lookup_export_of_the_projects_is_what_the_summary_shows() {
     // The cell without text is called after the first text of its row.
     let other = format!("Borealis-{}.csv", short(id(2, 1)));
     let names: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
-    assert_eq!(names, ["README.txt", "index.csv", &top, &tasks, &other]);
+    // The index is last: written in this order, it is there only when the rest is.
+    assert_eq!(names, [&top, &tasks, &other, "README.txt", "index.csv"]);
 
     assert_eq!(
         file(&files, &top).text,
@@ -853,7 +883,7 @@ fn with_the_header_option_the_first_row_names_the_columns_where_it_can() {
     // The top table has a row to spare; a table of one row has not; a table with a grid
     // in its first row keeps all rows, so that the grid's rows find their parent.
     assert_eq!(headers, ["yes", "no", "no", "no"]);
-    let top = read(&files[2], &options);
+    let top = read(&files[0], &options);
     // Same name twice (in any case): the second gets a number. No text: the letter.
     assert_eq!(
         top.names,
@@ -899,7 +929,7 @@ fn a_column_named_like_a_key_column_does_not_take_its_place() {
     };
     let lookup = LookupOptions { header_row: true };
     let files = lookup::export(source(&doc, &calc), doc.root(), &options, lookup).unwrap();
-    let top = read(&files[2], &options);
+    let top = read(&files[0], &options);
     assert_eq!(
         top.names,
         [
@@ -926,7 +956,7 @@ fn a_column_named_like_a_key_column_does_not_take_its_place() {
         ..ExportOptions::default()
     };
     let files = lookup::export(source(&doc, &calc), doc.root(), &guarded, lookup).unwrap();
-    assert!(files[2].text.starts_with("row_id,A_id,'=SUM(1),"));
+    assert!(files[0].text.starts_with("row_id,A_id,'=SUM(1),"));
 }
 
 #[test]
@@ -974,7 +1004,10 @@ const RESERVED: &[&str] = &[
 /// What a file name must be to be safe on Windows, macOS and Linux, and as a sheet name.
 fn check_name(stem: &str) {
     assert!(!stem.is_empty());
-    assert!(stem.chars().count() <= names::MAX_STEM_CHARS, "{stem:?}");
+    assert!(
+        stem.encode_utf16().count() <= names::MAX_STEM_UNITS,
+        "{stem:?}"
+    );
     assert!(stem.len() <= 200, "{stem:?}");
     assert!(
         stem.chars().all(|c| c.is_alphanumeric() || c == '-'),
@@ -1118,27 +1151,69 @@ fn a_file_with_nothing_in_it_is_refused() {
     );
 }
 
+/// The text of bytes read with the default: UTF-8, or UTF-16 if it says so.
+fn decoded(bytes: &[u8]) -> String {
+    decode(bytes, None).unwrap().0
+}
+
 #[test]
-fn files_are_decoded_whatever_a_spreadsheet_saved_them_as() {
-    assert_eq!(decode(b"\xef\xbb\xbfa,\xc3\xa9"), "a,é");
-    assert_eq!(decode("a,é,日".as_bytes()), "a,é,日");
+fn a_file_is_utf8_or_says_that_it_is_utf16_and_nothing_is_guessed() {
+    assert_eq!(
+        decode(b"\xef\xbb\xbfa,\xc3\xa9", None).unwrap(),
+        ("a,é".to_string(), Encoding::Utf8)
+    );
+    assert_eq!(decoded("a,é,日".as_bytes()), "a,é,日");
     // UTF-16 with a byte-order mark, either way round, with a character outside the BMP.
     let utf16: Vec<u16> = "a\té😀".encode_utf16().collect();
-    let le: Vec<u8> = [0xff, 0xfe]
-        .into_iter()
-        .chain(utf16.iter().flat_map(|u| u.to_le_bytes()))
-        .collect();
-    let be: Vec<u8> = [0xfe, 0xff]
-        .into_iter()
-        .chain(utf16.iter().flat_map(|u| u.to_be_bytes()))
-        .collect();
-    assert_eq!(decode(&le), "a\té😀");
-    assert_eq!(decode(&be), "a\té😀");
-    // Not UTF-8: Windows-1252, where 0xE9 is é and 0x80 the euro sign.
-    assert_eq!(decode(b"caf\xe9,\x80 5"), "café,€ 5");
-    // Half a UTF-16 unit at the end, or half a pair, does not stop it.
-    assert_eq!(decode(&[0xff, 0xfe, 0x41, 0x00, 0x42]), "A");
-    assert_eq!(decode(&[0xff, 0xfe, 0x3d, 0xd8]), "\u{fffd}");
+    let le_units: Vec<u8> = utf16.iter().flat_map(|u| u.to_le_bytes()).collect();
+    let be_units: Vec<u8> = utf16.iter().flat_map(|u| u.to_be_bytes()).collect();
+    let le = [&[0xff, 0xfe][..], &le_units].concat();
+    let be = [&[0xfe, 0xff][..], &be_units].concat();
+    assert_eq!(
+        decode(&le, None).unwrap(),
+        ("a\té😀".to_string(), Encoding::Utf16Le)
+    );
+    assert_eq!(
+        decode(&be, None).unwrap(),
+        ("a\té😀".to_string(), Encoding::Utf16Be)
+    );
+    // Without a mark it has to be said, and then the mark may be there or not.
+    for (bytes, encoding) in [
+        (&le_units, Encoding::Utf16Le),
+        (&le, Encoding::Utf16Le),
+        (&be_units, Encoding::Utf16Be),
+        (&be, Encoding::Utf16Be),
+    ] {
+        assert_eq!(decode(bytes, Some(encoding)).unwrap().0, "a\té😀");
+    }
+    let wrong = |bytes: &[u8], encoding: Option<Encoding>| match decode(bytes, encoding) {
+        Err(Error::Invalid(message)) => message,
+        other => panic!("{other:?}"),
+    };
+    // (Read as UTF-8, the zero bytes of the first two letters pass; the é does not.)
+    assert!(wrong(&le_units, None).contains("byte 4 "));
+    // One wrong byte is an error that says where, with or without a mark before it: the
+    // whole file is not turned into something else.
+    let bad = b"caf\xc3\xa9,\xe6\x97\xa5\xe6\x9c\xac,bad\xff";
+    let message = wrong(bad, None);
+    assert!(
+        message.contains("not UTF-8") && message.contains("byte 16 "),
+        "{message}"
+    );
+    assert!(message.contains("windows-1252"), "{message}");
+    assert!(wrong(&[&[0xef, 0xbb, 0xbf][..], bad].concat(), None).contains("byte 19 "));
+    assert!(wrong(bad, Some(Encoding::Utf8)).contains("byte 16 "));
+    // Windows-1252 when asked for: 0xE9 is é and 0x80 the euro sign.
+    assert!(wrong(b"caf\xe9,\x80 5", None).contains("byte 3 "));
+    assert_eq!(
+        decode(b"caf\xe9,\x80 5", Some(Encoding::Windows1252)).unwrap(),
+        ("café,€ 5".to_string(), Encoding::Windows1252)
+    );
+    // Half a UTF-16 unit at the end, or half a pair, is an error with its place.
+    assert!(wrong(&[0xff, 0xfe, 0x41, 0x00, 0x42], None).contains("byte 4 "));
+    assert!(wrong(&[0xff, 0xfe, 0x41, 0x00, 0x3d, 0xd8], None).contains("byte 4 "));
+    assert!(wrong(&[0x41, 0x00, 0x3d, 0xd8], Some(Encoding::Utf16Le)).contains("byte 2 "));
+    assert_eq!(decoded(b""), "");
 }
 
 #[test]
@@ -1301,12 +1376,26 @@ fn the_limits_of_a_document_stop_an_import() {
         parse_table(&ragged, Delimiter::Comma, false),
         Err(Error::Limit(_))
     ));
-    // Just inside the limit is read.
-    let fits = "a\n".repeat(MAX_CELLS - 2);
+    // What is read is what a document can hold when it is saved, and the refusal says
+    // what was offered and how much there is room for (A119): 600,000 empty cells fit,
+    // 600,000 cells of one letter do not.
+    let fits = "\"\"\n".repeat(600_000);
     assert_eq!(
-        parse_table(&fits, Delimiter::Comma, false).unwrap().ys() as usize,
-        MAX_CELLS - 2
+        parse_table(&fits, Delimiter::Comma, false).unwrap().ys(),
+        600_000
     );
+    match parse_table(&"a\n".repeat(600_000), Delimiter::Comma, false) {
+        Err(Error::Limit(message)) => {
+            assert!(message.contains("600000 cells"), "{message}");
+            assert!(message.contains("at most about 541"), "{message}");
+            assert!(message.contains("33554432 bytes"), "{message}");
+        }
+        other => panic!("{other:?}"),
+    }
+    match parse_table(&"\"\"\n".repeat(MAX_CELLS - 2), Delimiter::Comma, false) {
+        Err(Error::Limit(message)) => assert!(message.contains("699998 cells"), "{message}"),
+        other => panic!("{other:?}"),
+    }
     // A field longer than a text may be, with a small bound to keep the test quick.
     let limits = ParseLimits {
         cells: 100,
@@ -1355,6 +1444,7 @@ fn importing_into_a_cell_gives_it_the_grid_and_undoes_as_one_unit() {
             Command::Import {
                 cell: target,
                 table,
+                replace: false,
             },
             Some(5),
             &mut ids,
@@ -1389,7 +1479,15 @@ fn importing_over_a_grid_replaces_it_and_into_the_root_is_allowed() {
     let old: BTreeSet<CellId> = editor.document().cells_in_order().into_iter().collect();
     let table = parse_table("a,b\n1,2\n", Delimiter::Comma, false).unwrap();
     let changes = editor
-        .apply(Command::Import { cell: root, table }, None, &mut ids)
+        .apply(
+            Command::Import {
+                cell: root,
+                table,
+                replace: true,
+            },
+            None,
+            &mut ids,
+        )
         .unwrap();
     assert_eq!(changes.removed.len(), old.len() - 1);
     assert_eq!(changes.created.len(), 4);
@@ -1422,6 +1520,7 @@ fn an_import_that_does_not_fit_is_refused_and_changes_nothing() {
         Command::Import {
             cell: at,
             table: table(),
+            replace: false,
         },
         None,
         &mut ids,
@@ -1433,6 +1532,7 @@ fn an_import_that_does_not_fit_is_refused_and_changes_nothing() {
         Command::Import {
             cell,
             table: table(),
+            replace: false,
         },
         None,
         &mut ids,
@@ -1446,6 +1546,7 @@ fn an_import_that_does_not_fit_is_refused_and_changes_nothing() {
         Command::Import {
             cell: root,
             table: big,
+            replace: true,
         },
         None,
         &mut ids,
@@ -1502,6 +1603,14 @@ fn guarded(rows: Vec<Vec<String>>, options: &ExportOptions) -> Vec<Vec<String>> 
         .collect()
 }
 
+/// Where a cell is in its row (from 0), and its row.
+fn lines_of(doc: &Document, id: CellId) -> (usize, usize) {
+    let around = doc.cell(doc.cell(id).unwrap().parent().unwrap()).unwrap();
+    let g = around.grid().unwrap();
+    let place = g.cells().iter().position(|c| *c == id).unwrap();
+    (place % g.xs() as usize, place / g.xs() as usize)
+}
+
 /// What the importer makes of a field that the strict reader read: line breaks (only notes
 /// have them) become spaces, as every control character.
 fn as_imported(rows: Vec<Vec<String>>) -> Vec<Vec<String>> {
@@ -1515,7 +1624,7 @@ fn as_imported(rows: Vec<Vec<String>>) -> Vec<Vec<String>> {
 }
 
 fn imported(text: &str, delimiter: Delimiter) -> Vec<Vec<String>> {
-    let table = parse_table(&decode(text.as_bytes()), delimiter, false).unwrap();
+    let table = parse_table(&decoded(text.as_bytes()), delimiter, false).unwrap();
     rows(&table)
         .into_iter()
         .map(|row| row.into_iter().map(String::from).collect())
@@ -1561,31 +1670,65 @@ proptest! {
         let strict = strict_csv(&text, options.delimiter.as_char(), options.crlf);
         let width = strict[0].len();
         prop_assert!(strict.iter().all(|row| row.len() == width));
-        // The innermost rows, each with the rows around it, found another way.
-        fn innermost(doc: &Document, id: CellId, trail: &mut Vec<Vec<CellId>>, out: &mut Vec<Vec<Vec<CellId>>>) {
+        // The innermost rows, each with the rows around it and the cell of each that the
+        // next is in, found another way.
+        type Line = (Vec<Vec<CellId>>, Vec<CellId>);
+        fn innermost(doc: &Document, id: CellId, at: &mut Line, out: &mut Vec<Line>, several: &mut bool) {
             let g = doc.cell(id).unwrap().grid().unwrap();
             for row in g.cells().chunks(g.xs() as usize) {
-                trail.push(row.to_vec());
+                at.0.push(row.to_vec());
                 let nested: Vec<CellId> = row.iter().copied()
                     .filter(|c| doc.cell(*c).unwrap().grid().is_some()).collect();
                 if nested.is_empty() {
-                    out.push(trail.clone());
+                    out.push(at.clone());
                 }
+                *several |= nested.len() > 1;
                 for c in nested {
-                    innermost(doc, c, trail, out);
+                    at.1.push(c);
+                    innermost(doc, c, at, out, several);
+                    at.1.pop();
                 }
-                trail.pop();
+                at.0.pop();
             }
         }
-        let mut lines = Vec::new();
-        innermost(&doc, doc.root(), &mut Vec::new(), &mut lines);
+        let mut found = Vec::new();
+        let mut several = false;
+        innermost(&doc, doc.root(), &mut (Vec::new(), Vec::new()), &mut found, &mut several);
+        let (lines, owners): (Vec<_>, Vec<_>) = found.into_iter().unzip();
         prop_assert_eq!(strict.len(), lines.len());
         let per_cell = if options.notes { 2 } else { 1 };
         let levels = lines.iter().map(Vec::len).max().unwrap();
         let widths: Vec<usize> = (0..levels)
             .map(|l| lines.iter().filter_map(|t| t.get(l)).map(Vec::len).max().unwrap())
             .collect();
-        prop_assert_eq!(width, widths.iter().sum::<usize>() * per_cell);
+        // The parent columns are there when asked for, or unasked when a row has several
+        // nested grids: one per level below the first.
+        let parents = options.parent_columns.unwrap_or(several);
+        let cells_width = widths.iter().sum::<usize>() * per_cell;
+        prop_assert_eq!(width, cells_width + if parents { levels - 1 } else { 0 });
+        let shown = |c: CellId| {
+            let cell = doc.cell(c).unwrap();
+            let own = if options.formulas { cell.text.as_str() } else { calc.shown(&doc, c).unwrap() };
+            if options.guard { guard(own).into_owned() } else { own.to_string() }
+        };
+        for (fields, owners) in strict.iter().zip(&owners) {
+            for (level, letters) in fields[cells_width..].iter().enumerate() {
+                match owners.get(level) {
+                    // The letters name a column of this very line, and in it is the cell
+                    // that the cells of the next level are inside of.
+                    Some(owner) => {
+                        let column = (0..width).find(|n| &column_letters(*n) == letters).unwrap();
+                        prop_assert!(column < cells_width);
+                        prop_assert_eq!(&fields[column], &shown(*owner));
+                        let start: usize = widths[..level].iter().sum::<usize>() * per_cell;
+                        prop_assert!((start..start + widths[level] * per_cell).contains(&column));
+                        let x = (column - start) / per_cell;
+                        prop_assert_eq!(lines_of(&doc, *owner).0, x);
+                    }
+                    None => prop_assert_eq!(letters, ""),
+                }
+            }
+        }
         for (fields, trail) in strict.iter().zip(&lines) {
             let mut at = 0;
             for (level, level_width) in widths.iter().enumerate() {
@@ -1679,7 +1822,7 @@ proptest! {
             .map(|g| g.ys() as usize).sum();
         prop_assert_eq!(check_joins(&doc, &files, &options), nested_rows);
         let mut seen = BTreeSet::new();
-        for f in &files[2..] {
+        for f in &files[..files.len() - 2] {
             let stem = f.name.strip_suffix(".csv").unwrap();
             check_name(stem);
             prop_assert!(seen.insert(stem.to_lowercase()));
@@ -1699,7 +1842,7 @@ proptest! {
         let doc = build(&spec, 3);
         let calc = Calc::new(&doc);
         let files = lookup::export(source(&doc, &calc), doc.root(), &options, LookupOptions { header_row }).unwrap();
-        for f in &files[1..] {
+        for f in files.iter().filter(|f| f.name != lookup::README_FILE) {
             let table = read(f, &options);
             let lower: BTreeSet<String> = table.names.iter().map(|n| n.to_lowercase()).collect();
             prop_assert_eq!(lower.len(), table.names.len(), "column names differ");
@@ -1749,8 +1892,24 @@ proptest! {
         delimiter in proptest::sample::select(&[Delimiter::Comma, Delimiter::Semicolon, Delimiter::Tab][..]),
         formulas in any::<bool>(),
         levels in 0..40u32,
+        encoding in proptest::option::of(proptest::sample::select(
+            &[Encoding::Utf8, Encoding::Utf16Le, Encoding::Utf16Be, Encoding::Windows1252][..],
+        )),
     ) {
-        let text = decode(&bytes);
+        let text = match decode(&bytes, encoding) {
+            Ok((text, used)) => {
+                prop_assert!(encoding.is_none_or(|asked| asked == used));
+                text
+            }
+            Err(error) => {
+                prop_assert!(matches!(error, Error::Invalid(_)));
+                prop_assert!(encoding != Some(Encoding::Windows1252));
+                // What is refused is not valid in the encoding; what is valid is read.
+                prop_assert!(std::str::from_utf8(&bytes).is_err() || encoding.is_some());
+                String::from_utf8_lossy(&bytes).into_owned()
+            }
+        };
+        let _ = wombat_core::convert::delimited::detect(&text);
         for table in [parse_table(&text, delimiter, formulas), parse_outline(&text, levels, formulas)] {
             match table {
                 Ok(table) => {
@@ -1784,7 +1943,12 @@ proptest! {
                 _ => {}
             }
         }
-        let text = decode(&bytes);
+        let text = String::from_utf8_lossy(&bytes).into_owned();
+        // Whatever the damage, decoding gives the text or an error, never something else.
+        if let Ok((decoded, Encoding::Utf8)) = decode(&bytes, None) {
+            let same = decoded == text.strip_prefix('\u{feff}').unwrap_or(&text);
+            prop_assert!(same);
+        }
         if let Ok(table) = parse_table(&text, options.delimiter, true) {
             let doc = to_document(&table, &mut SeededIds::from_u64(1)).unwrap();
             support::check_document(&doc, false);
@@ -1820,7 +1984,22 @@ proptest! {
         let mut editor = Editor::new(doc.clone()).unwrap();
         let before = support::saved(&doc);
         let mut ids = SeededIds::from_u64(5);
-        let changes = editor.apply(Command::Import { cell: target, table: table.clone() }, now, &mut ids).unwrap();
+        // Without the word, a grid with content is not replaced, and nothing changes.
+        let full = doc.cell(target).unwrap().grid().is_some_and(|g| g.cells().iter().any(|c| {
+            let c = doc.cell(*c).unwrap();
+            !c.text.is_empty() || !c.note.is_empty() || c.grid().is_some()
+        }));
+        let kept = editor.apply(Command::Import { cell: target, table: table.clone(), replace: false }, now, &mut ids);
+        if full {
+            prop_assert!(matches!(kept, Err(Error::Refused(_))));
+            prop_assert_eq!(support::saved(editor.document()), before.clone());
+            prop_assert_eq!(editor.undo_len(), 0);
+        } else {
+            kept.unwrap();
+            editor.undo().unwrap().unwrap();
+        }
+        let mut editor = Editor::new(doc.clone()).unwrap();
+        let changes = editor.apply(Command::Import { cell: target, table: table.clone(), replace: true }, now, &mut ids).unwrap();
         let after = editor.document().clone();
         support::check_report(&doc, &after, &changes, "import");
         support::check_document(&after, false);

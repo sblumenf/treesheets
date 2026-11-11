@@ -97,7 +97,12 @@ fn hundred_thousand_cells_export_and_import() {
     );
 
     let table = timed("read the flattened CSV (144,000 cells)", || {
-        parse_table(&decode(flat.as_bytes()), Delimiter::Comma, false).unwrap()
+        parse_table(
+            &decode(flat.as_bytes(), None).unwrap().0,
+            Delimiter::Comma,
+            false,
+        )
+        .unwrap()
     });
     assert_eq!((table.xs(), table.ys()), (12, 12_000));
     let imported = timed("make a document of it", || {
@@ -119,6 +124,7 @@ fn hundred_thousand_cells_export_and_import() {
                 Command::Import {
                     cell: target,
                     table: nested,
+                    replace: true,
                 },
                 Some(1),
                 &mut ids,

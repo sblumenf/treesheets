@@ -257,8 +257,22 @@ fn the_flattened_export_of_the_fixture_reads_as_expected() {
         "Apollo,Ana,,Design,done\nApollo,Ana,,Build,open\nBorealis,Chidi,,Survey,open\nCygnus,Eve,none,,\n"
     );
     // The second row has two cells with grids: the rows of both follow the same outer row.
+    // Since the review of milestone 7 (A118) every line of such a table ends with the
+    // columns that say which cell its inner rows are in: without them nothing told that
+    // "in a cell without text" is inside the empty cell and Leek inside Veg.
     assert_eq!(
         flat("nested"),
+        "Fruit,has text,Apple,red,,A,\nFruit,has text,Pear,green,,A,\n\
+         ,Veg,in a cell without text,,,A,\n,Veg,Leek,,green,B,C\n,Veg,Kale,,,B,\nlast,,,,,,\n"
+    );
+    // Without them, the table as it was before.
+    let bare = ExportOptions {
+        parent_columns: Some(false),
+        ..options.clone()
+    };
+    let nested = cases.iter().find(|(n, _)| n == "nested").unwrap().1;
+    assert_eq!(
+        convert::flat_csv(source, nested, &bare).unwrap(),
         "Fruit,has text,Apple,red,\nFruit,has text,Pear,green,\n\
          ,Veg,in a cell without text,,\n,Veg,Leek,,green\n,Veg,Kale,,\nlast,,,,\n"
     );

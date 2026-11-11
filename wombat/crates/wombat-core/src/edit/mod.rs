@@ -529,15 +529,22 @@ pub enum Command {
         cell: CellId,
     },
     /// Import: the table (read from a CSV or text file by [`crate::convert::parse_table`]
-    /// or [`crate::convert::parse_outline`]) becomes the grid of `cell`, in place of the
-    /// grid it may have; the cell keeps its text. The cells are new, with new IDs, and
-    /// look like the cells of a new grid of `cell` would. Refused if the document would
-    /// have too many cells or nest too deep.
+    /// or [`crate::convert::parse_outline`]) becomes the grid of `cell`; the cell keeps its
+    /// text. The cells are new, with new IDs, and look like the cells of a new grid of
+    /// `cell` would. Refused if the document would have too many cells or nest too deep.
+    ///
+    /// A grid that `cell` already has is replaced with everything in it. If any cell in it
+    /// has content (text, a note, an image or a grid), that is done only with `replace`,
+    /// and refused without. The cells that went are in [`Changes::removed`]; the links
+    /// that pointed at them are what [`crate::links::LinkIndex::would_break`] gives for
+    /// the cells of the grid, asked before the command.
     Import {
         /// The cell that gets the grid.
         cell: CellId,
         /// What to import.
         table: crate::convert::Table,
+        /// Whether a grid with content may be replaced.
+        replace: bool,
     },
     /// Corrects links after cells went to another document: every link of this document
     /// to one of `cells` that names the document `from` (`None`: no document, the cells

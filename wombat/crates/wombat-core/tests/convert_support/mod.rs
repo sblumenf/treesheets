@@ -291,3 +291,55 @@ pub fn strict_csv(text: &str, delimiter: char, crlf: bool) -> Vec<Vec<String>> {
     }
     rows
 }
+
+/// Reads delimited text as a spreadsheet's import dialog does with its defaults
+/// (LibreOffice: "separated by" comma, semicolon and tab, all three at once): a field ends
+/// at any of the three unless it is in double quotes. A byte-order mark is dropped; rows
+/// end at CR LF, LF or CR; line breaks inside quotes are kept.
+pub fn spreadsheet_csv(text: &str) -> Vec<Vec<String>> {
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+    let mut chars = text.chars().peekable();
+    let mut rows = Vec::new();
+    let mut row: Vec<String> = Vec::new();
+    let mut field = String::new();
+    let mut at_start = true;
+    while let Some(c) = chars.next() {
+        match c {
+            '"' if at_start => {
+                at_start = false;
+                loop {
+                    match chars.next() {
+                        None => break,
+                        Some('"') if chars.peek() == Some(&'"') => {
+                            chars.next();
+                            field.push('"');
+                        }
+                        Some('"') => break,
+                        Some(c) => field.push(c),
+                    }
+                }
+            }
+            ',' | ';' | '\t' => {
+                row.push(std::mem::take(&mut field));
+                at_start = true;
+            }
+            '\r' | '\n' => {
+                if c == '\r' && chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                row.push(std::mem::take(&mut field));
+                rows.push(std::mem::take(&mut row));
+                at_start = true;
+            }
+            c => {
+                at_start = false;
+                field.push(c);
+            }
+        }
+    }
+    if !field.is_empty() || !row.is_empty() {
+        row.push(field);
+        rows.push(row);
+    }
+    rows
+}

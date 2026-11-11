@@ -1,20 +1,22 @@
 //! Delimited text: comma, semicolon or tab separated values.
 //!
 //! **Writing** gives valid RFC 4180 text: a field that holds the delimiter, a double quote
-//! or a line break is put in double quotes with its quotes doubled. Two things go beyond
-//! the RFC: a row whose only field is empty is written `""`, because an empty line is no
-//! row to most readers (TreeSheets and this module among them), and [`guard`]. (And a first
-//! field that starts with the character U+FEFF is quoted, so that it is not taken for a
-//! byte-order mark.)
+//! or a line break is put in double quotes with its quotes doubled. Four things go beyond
+//! the RFC. A field that holds a comma, a semicolon or a tab is quoted whichever of them
+//! is the delimiter, because a spreadsheet's import dialog proposes all three as
+//! separators at once (decision A113). A row whose only field is empty is written `""`,
+//! because an empty line is no row to most readers (TreeSheets and this module among
+//! them). A first field that starts with the character U+FEFF is quoted, so that it is not
+//! taken for a byte-order mark. And [`guard`].
 //!
 //! **Reading** accepts every valid RFC 4180 text and reads what is not valid the way
 //! TreeSheets' importer does where that is defined (`Grid::CSVImport`): see [`parse`].
+//! [`detect`] finds the delimiter of a text that does not say it.
 
 use super::{too_large, Delimiter, ExportOptions, Quoting, MAX_EXPORT_BYTES};
 use crate::error::Error;
 
 /// Whether `text` is a plain number with a sign: `-12`, `+3.5`, `-1,5`, `-.5`, `-2e10`.
-/// A spreadsheet reads it as a number or as text, never as a formula with an effect.
 fn is_signed_number(text: &str) -> bool {
     let rest = match text.strip_prefix(['-', '+']) {
         Some(rest) => rest,
@@ -32,22 +34,93 @@ fn is_signed_number(text: &str) -> bool {
     mantissa_ok && exponent.is_none_or(digits)
 }
 
-/// Whether a spreadsheet that opens a CSV file could run `text` as a formula: it starts
-/// with `=`, `+`, `-`, `@`, a tab or a carriage return (the list of OWASP's "CSV
-/// injection"), and is not just a number with a sign.
+/// Whether `text` has in it what a formula needs to do more than calculate: a
+/// parenthesis (a function is called with one), a `|` (the mark of a DDE link, such as
+/// `cmd|' /C calc'!A0`), or a `!` right before a letter, digit, `$`, `'`, `_` or `#` (a
+/// reference to another sheet or workbook, such as `'\\host\share\[b.xlsx]S'!A1`).
+fn could_act(text: &str) -> bool {
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        let next = chars.peek().copied();
+        let refers = c == '!' && next.is_some_and(|n| n.is_alphanumeric() || "$'_#".contains(n));
+        if c == '(' || c == '|' || refers {
+            return true;
+        }
+    }
+    false
+}
+
+/// Whether a spreadsheet that opens a CSV file could take `text` for a formula that does
+/// something ("CSV injection"; decision A114 has the reasons and a table of examples).
+/// The rule goes by the first character, a full-width form counting as the plain one:
+///
+/// - **a tab or a carriage return:** always.
+/// - **`=`:** always, except the text `=` alone.
+/// - **`+` or `-`:** unless the text is one of these shapes, which nothing can run:
+///   only signs, dashes and spaces (`-`, `--`, `+`, `- -`); a sign followed by digits,
+///   spaces and `( ) . , / -` with at least one digit (a signed number, a telephone number,
+///   a date: `-5`, `+44 20 7946 0958`, `+1 (555) 010-0100`, `-2026-03-04`); a number with
+///   an exponent (`-2e10`); a sign, a space and text without a parenthesis, a `|` or a
+///   reference to another sheet (a list item: `- item one`).
+/// - **`@`:** only with a parenthesis, a `|` or a reference to another sheet in the text
+///   (`@SUM(1)`); `@handle` is left alone.
+///
+/// Where the rule is not sure, it says yes.
 pub fn is_risky(text: &str) -> bool {
-    text.starts_with(['=', '+', '-', '@', '\t', '\r']) && !is_signed_number(text)
+    let mut chars = text.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    let rest = chars.as_str();
+    match first {
+        '\t' | '\r' => true,
+        '=' | '\u{ff1d}' => !rest.is_empty(),
+        '@' | '\u{ff20}' => could_act(rest),
+        '+' | '-' => {
+            let dash =
+                |c: char| matches!(c, '+' | '-' | ' ' | '\u{2010}'..='\u{2015}' | '\u{2212}');
+            let figure = |c: char| c.is_ascii_digit() || " ().,/-".contains(c);
+            let only_dashes = rest.chars().all(dash);
+            let figures = rest.chars().all(figure) && rest.chars().any(|c| c.is_ascii_digit());
+            let item = rest.starts_with(' ') && !could_act(rest);
+            !(only_dashes || figures || item || is_signed_number(text))
+        }
+        // Full-width signs: taken for the plain ones where they are typed, so no shape of
+        // theirs is trusted.
+        '\u{ff0b}' | '\u{ff0d}' => true,
+        _ => false,
+    }
+}
+
+/// `text` without the single quotes it starts with.
+fn unquoted(text: &str) -> &str {
+    text.trim_start_matches('\'')
 }
 
 /// `text` made safe to open in a spreadsheet: if [`is_risky`], a single quote is put in
-/// front, which Excel, LibreOffice and Google Sheets all take as "this is text". The
-/// quote stays visible in the cell; that is the price of a file that cannot run anything.
+/// front, so that the field no longer starts with what makes a formula. **The quote is
+/// visible:** LibreOffice and Excel show it as a character of the cell when they open a
+/// CSV file (only typed into a cell is a leading quote a mark that disappears). That is
+/// the price of a file that cannot run anything.
+///
+/// A text that already starts with single quotes and would be risky without them
+/// (`'=1+1`, typed so by its author) gets one more, so that [`unguard`] can tell the
+/// quote that was added from one that was there: `unguard(guard(text))` is `text`, always.
 pub fn guard(text: &str) -> std::borrow::Cow<'_, str> {
-    if is_risky(text) {
+    if is_risky(unquoted(text)) {
         std::borrow::Cow::Owned(format!("'{text}"))
     } else {
         std::borrow::Cow::Borrowed(text)
     }
+}
+
+/// The opposite of [`guard`], for reading back a file that Wombat exported with the
+/// guard on: the single quote that `guard` put in front is taken away again. `None` if
+/// `guard` would not have made this text. Only for such files: in a file from anywhere
+/// else a text like `'=1+1` may be exactly what its author wrote.
+pub fn unguard(text: &str) -> Option<&str> {
+    let rest = text.strip_prefix('\'')?;
+    is_risky(unquoted(rest)).then_some(rest)
 }
 
 /// Builds delimited text row by row, within [`MAX_EXPORT_BYTES`].
@@ -99,9 +172,11 @@ impl<'a> Writer<'a> {
         }
         // At the very start of a text without a byte-order mark, U+FEFF would be read as
         // one and lost: inside quotes it is text.
-        let quote = self.options.quoting == Quoting::All
-            || text.contains([delimiter, '"', '\n', '\r'])
-            || (self.out.is_empty() && text.starts_with('\u{feff}'));
+        let quote = match self.options.quoting {
+            Quoting::All => true,
+            Quoting::Minimal => text.contains([',', ';', '\t', '"', '\n', '\r']),
+            Quoting::Narrow => text.contains([delimiter, '"', '\n', '\r']),
+        } || (self.out.is_empty() && text.starts_with('\u{feff}'));
         if quote {
             self.out.push('"');
             for c in text.chars() {
@@ -268,4 +343,100 @@ pub fn parse(
         }
     }
     Ok((rows, widest))
+}
+
+/// How many lines [`detect`] looks at, and how much text at most.
+const DETECT_LINES: usize = 100;
+const DETECT_CHARS: usize = 64 * 1024;
+
+/// For each line at the start of `text`, how many times `delimiter` separates two fields
+/// in it, read as [`parse`] reads: not inside a quoted field. The second value says, for
+/// a comma, whether every one of them stands between two digits (`1,5`).
+fn separators(text: &str, delimiter: char) -> (Vec<usize>, bool) {
+    let mut counts = Vec::new();
+    let (mut count, mut seen, mut at_start) = (0usize, false, true);
+    let mut decimal = true;
+    let mut before = None;
+    let mut chars = text.chars().take(DETECT_CHARS).peekable();
+    let mut whole = true;
+    while let Some(c) = chars.next() {
+        match c {
+            '"' if at_start => {
+                loop {
+                    match chars.next() {
+                        // The text looked at ends inside a quote: this line does not count.
+                        None => whole = false,
+                        Some('"') if chars.peek() == Some(&'"') => {
+                            chars.next();
+                            continue;
+                        }
+                        Some('"') => {}
+                        Some(_) => continue,
+                    }
+                    break;
+                }
+                (seen, at_start) = (true, false);
+            }
+            c if c == delimiter => {
+                let digit = |c: Option<char>| c.is_some_and(|c| c.is_ascii_digit());
+                decimal &= digit(before) && digit(chars.peek().copied());
+                count = count.saturating_add(1);
+                (seen, at_start) = (true, true);
+            }
+            '\r' | '\n' => {
+                if seen {
+                    counts.push(count);
+                }
+                (count, seen, at_start) = (0, false, true);
+                if counts.len() >= DETECT_LINES {
+                    return (counts, decimal);
+                }
+            }
+            _ => (seen, at_start) = (true, false),
+        }
+        before = Some(c);
+    }
+    // The last line counts if the text ended there, not if the look was cut short.
+    if seen && whole && text.chars().nth(DETECT_CHARS).is_none() {
+        counts.push(count);
+    }
+    (counts, decimal)
+}
+
+/// The delimiter that the lines of `text` agree on, for a file that does not say what
+/// separates its fields (a `.csv` file is separated by semicolons where the comma is the
+/// decimal sign, and some programs write tabs under that name). `None` if the text does
+/// not show it; the caller then takes what the file's name says.
+///
+/// Looked at are the first 100 lines (within the first 64 KiB), read as [`parse`] reads
+/// them, so that a delimiter inside a quoted field does not count. A candidate is a
+/// delimiter that occurs in every line, the same number of times: it makes a table.
+///
+/// - Fewer than two lines show nothing: `None`.
+/// - One candidate: that one.
+/// - A tab among several: the tab, which no prose and no number has in it.
+/// - Comma and semicolon both: the semicolon if every comma stands between two digits
+///   (`1,5;2,5`: decimal commas), else `None`.
+/// - No candidate (a file of one column with commas in its sentences, say): `None`.
+pub fn detect(text: &str) -> Option<Delimiter> {
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+    let mut decimal_commas = false;
+    let mut candidates = Vec::new();
+    for delimiter in [Delimiter::Comma, Delimiter::Semicolon, Delimiter::Tab] {
+        let (counts, decimal) = separators(text, delimiter.as_char());
+        let first = counts.first().copied()?;
+        if counts.len() < 2 {
+            return None;
+        }
+        if first > 0 && counts.iter().all(|count| *count == first) {
+            candidates.push(delimiter);
+            decimal_commas |= delimiter == Delimiter::Comma && decimal;
+        }
+    }
+    match candidates.as_slice() {
+        [one] => Some(*one),
+        [.., Delimiter::Tab] => Some(Delimiter::Tab),
+        [Delimiter::Comma, Delimiter::Semicolon] if decimal_commas => Some(Delimiter::Semicolon),
+        _ => None,
+    }
 }

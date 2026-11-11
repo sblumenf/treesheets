@@ -271,7 +271,11 @@ fn each_format_and_option_writes_what_the_help_says() {
 #[test]
 fn formulas_and_risky_text_are_exported_safely_unless_asked_otherwise() {
     let dir = folder("guard");
-    fs::write(dir.join("in.txt"), "=1+2 | @cmd | -5 | -run\n").unwrap();
+    fs::write(
+        dir.join("in.txt"),
+        "=1+2 | @cmd(1) | -5 | -run | @name | - item\n",
+    )
+    .unwrap();
     ok(&dir, &["new", "doc.wombat", "--from", "in.txt"]);
     let export = |args: &[&str]| {
         let mut all = vec![
@@ -286,11 +290,27 @@ fn formulas_and_risky_text_are_exported_safely_unless_asked_otherwise() {
         all.push("-");
         ok(&dir, &all)
     };
-    // The formula cell shows 3; the text that only looks like one is guarded.
-    assert_eq!(export(&[]), "3,'@cmd,-5,'-run\n");
-    assert_eq!(export(&["--formulas"]), "'=1+2,'@cmd,-5,'-run\n");
-    assert_eq!(export(&["--formulas", "--raw"]), "=1+2,@cmd,-5,-run\n");
-    assert_eq!(export(&["--raw"]), "3,@cmd,-5,-run\n");
+    // The formula cell shows 3; the text that only looks like one is guarded, and what a
+    // spreadsheet cannot run is left as it is.
+    assert_eq!(export(&[]), "3,'@cmd(1),-5,'-run,@name,- item\n");
+    assert_eq!(
+        export(&["--formulas"]),
+        "'=1+2,'@cmd(1),-5,'-run,@name,- item\n"
+    );
+    assert_eq!(
+        export(&["--formulas", "--raw"]),
+        "=1+2,@cmd(1),-5,-run,@name,- item\n"
+    );
+    assert_eq!(export(&["--raw"]), "3,@cmd(1),-5,-run,@name,- item\n");
+    // Exported with the guard and imported with --unguard, the texts are as they were.
+    ok(&dir, &["export", "doc.wombat", "--format", "csv", "g.csv"]);
+    let out = ok(&dir, &["import", "g.csv", "back.wombat", "--unguard"]);
+    assert!(out.contains("guard"), "{out}");
+    let shown = ok(&dir, &["show", "back.wombat"]);
+    assert!(
+        shown.contains("[2,1] \"@cmd(1)\"") && shown.contains("[4,1] \"-run\""),
+        "{shown}"
+    );
 }
 
 #[test]

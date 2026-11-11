@@ -994,6 +994,113 @@ are where milestones 4, 5 and 6, built apart, meet).
     document) and at most 10,000 tables in a lookup export; beyond that it is refused
     with the advice to export a part by its cell.
 
+113. **A field with a comma, a semicolon or a tab is quoted, whichever is the
+    delimiter** (fixes after the review of milestone 7; changes A97. The numbers A105 to
+    A112 are not used here). LibreOffice's import dialog proposes all three as separators
+    at once, so a cell `Ana; Bob` in a comma separated file shifted its row by a column
+    and the lookup join gave `#N/A`. `Quoting::Minimal` now quotes for all three, plus the
+    quote and line breaks as before; `Quoting::Narrow` is the old rule (only the
+    delimiter), kept because `--treesheets` TSV is compared with TreeSheets' bytes. The
+    tests read every export a second time with a reader that splits at all three, and
+    get the same table.
+114. **The guard against formula injection guards what could run, and says that its
+    quote is visible** (changes A98). The old rule put `'` before every text that
+    started with `=`, `+`, `-` or `@` unless it was a number, which damaged list items,
+    dashes, telephone numbers and `@names`; and its claim that spreadsheets take the
+    quote as "this is text" was false: LibreOffice (verified) and Excel (documented) show
+    it as a character when they open a CSV file. The rule now, by the first character
+    (a full-width `＝ ＋ － ＠` counts as the plain one):
+    - a tab or carriage return: guarded;
+    - `=`: guarded, except the text `=` alone (LibreOffice evaluates `==` and
+      `= in prose` to an error);
+    - `+` or `-`: guarded unless the text is only signs, dashes and spaces; or a sign
+      followed by digits, spaces and `( ) . , / -` with at least one digit; or a number
+      with an exponent; or a sign, a space and text with no parenthesis, no `|` and no
+      `!` before a letter, digit, `$`, `'`, `_` or `#`;
+    - `@`: guarded only with a parenthesis, a `|` or such a `!` in the text.
+    A parenthesis is what a function call needs, `|` what a DDE link needs, `!` what a
+    reference to another sheet or workbook needs; without them a formula can only
+    calculate or fail. Where unsure the rule guards (`-item`, `-A1`, `+1+1`,
+    `- call (x)`). What is left alone can still be *shown* differently by a
+    spreadsheet (Excel is documented to make `=+1-555-0100` of `+1-555-0100`, and
+    `#NAME?` of `- item`; LibreOffice does neither): that is the same kind of change as
+    `00123` becoming 123, not an attack, and is listed with it in M7.md.
+    **Taking the guard off again:** a text that starts with `'` before something the
+    rule guards gets one more quote (`'=1+1` is written `''=1+1`), so
+    `unguard(guard(t)) == t` for every text, and `Table::unguarded` (`--unguard`) gives
+    back exactly what was exported. It is an option and off by default, because in a
+    file from anywhere else `'=1+1` cannot be told from a text its author wrote so.
+115. **The encoding of an imported file is never guessed** (changes A102). One byte
+    that was not UTF-8 made the whole file Windows-1252, silently: `café` became `cafÃ©`.
+    Now `decode` reads UTF-8 (a byte-order mark accepted and dropped), or UTF-16 if the
+    file starts with its byte-order mark, and anything else is an error that names the
+    first byte that does not belong and the encodings that can be asked for: `utf-8`,
+    `utf-16le`, `utf-16be`, `windows-1252`. Half a UTF-16 unit or pair is an error too,
+    not a replacement character. `decode` returns the encoding used and the tool prints
+    it.
+116. **An export replaces a regular file and nothing else, however the path is
+    written** (extends A103). `--overwrite` replaced a device node with a regular file
+    (the temporary file was renamed over it), and `link/` was written through where
+    `link` was refused, because a path that ends in a separator is resolved through the
+    link. Now a path is first reduced to its components (no separator or `.` at the
+    end); at the place of a file only nothing or a regular file is accepted, and a
+    device, FIFO, socket, folder or link is refused with or without `overwrite`; the same
+    for every file of a folder export, checked before anything is written. The tool's
+    `new_path` (used by `new`, `import`, `copy`) refuses a name that ends in a separator
+    and anything that is there, a link to nothing included. Tests use FIFOs, sockets
+    and links in a temporary folder.
+117. **Writing a lookup folder again removes the tables of the export before, and the
+    names of tables fit a sheet name exactly** (changes A101 and A103).
+    - With `overwrite`, a folder that has anything in it must have an `index.csv` of a
+      lookup export (its first line is the column names, with any delimiter), else it is
+      refused: it is not Wombat's. The tables that index lists and the new export does
+      not write are removed first: only plain names ending in `.csv` that are regular
+      files in that folder. Other files stay. Before, tables of grids that were gone
+      stayed beside the new index and still joined.
+    - The files are written tables first, then `README.txt`, then `index.csv` last. A
+      folder is not replaced atomically: a folder that is not empty cannot be renamed
+      over, and removing the old one whole would remove files the export did not write.
+      If writing stops half way, the folder has the old index or none; exporting into
+      it again with `overwrite` puts it right in the first case, and in the second the
+      folder is refused and has to be removed by hand.
+    - A name is at most 31 UTF-16 units, which is how Excel counts a sheet name (22
+      letters outside the BMP were 53). The suffix is eight digits of the cell's ID;
+      among 10,000 tables two share them in about one export in a hundred, and then
+      only those tables get sixteen digits, and only if those are equal too (a crafted
+      file) a number. Before, one collision renamed every table. Names still hold only
+      letters, digits and `-`, so none of `[ ] : * ? / \ '`, and differ in a lower-case
+      ASCII suffix, so also without regard to case.
+118. **A flattened row with several nested grids says which cell each line is inside
+    of, and exports can say how many error values they wrote** (extends A99).
+    `P,Q,p1 / P,Q,p2 / P,Q,q1` did not say that `q1` is inside `Q`. When some row has
+    more than one nested grid (or always, or never: `parent_columns`), every line ends
+    with one column per level below the first: the letter that the column of the parent
+    cell has in the flattened table itself (`P,Q,p1,A`, `P,Q,q1,B`), empty where the line
+    is not nested that deep. Letters of the same table can be checked by eye and used in
+    a filter; at the end they shift no other column. `error_cells` counts the formula
+    cells in the exported grids whose result is an error value (`#LIMIT!`, `#NAME?`),
+    and the tool prints the count after an export.
+119. **An import is refused early if a document could not hold it, and replaces
+    content only when asked** (changes A102). `Table::new` adds up what the cells would
+    at least take in a saved document (49 bytes a cell, and its text with 12 more) and
+    refuses a table over the 32 MiB of a file with the number of cells offered and the
+    number there is room for; before, 600,000 one-letter rows were made into a document
+    and refused at saving, with a message about bytes. (The 700,000-cell limit cannot
+    be reached through an import: 684,784 empty cells fill a file.)
+    `Command::Import` has `replace`: without it, a grid any of whose cells has text, a
+    note, an image or a grid is not replaced. The cells removed are in the change
+    report; the links that pointed at them are what `LinkIndex::would_break` gives for
+    the cells of the grid before the command, which the tool prints for the document
+    itself.
+120. **The delimiter of a `.csv` file is looked for in the file** (`delimited::detect`).
+    The first 100 lines are read as the importer reads them (delimiters in quoted
+    fields do not count). A candidate occurs in every line the same number of times.
+    One candidate: that one. A tab among several: the tab. Comma and semicolon both:
+    the semicolon if every comma stands between two digits (decimal commas), else no
+    answer. Fewer than two lines, or no candidate: no answer, and the caller takes what
+    the file's name says (comma). The tool does this for `.csv` only, `--delimiter`
+    overrides it, and it prints which delimiter it used and why.
+
 ## B. Deliberate departures from TreeSheets
 
 1. **Links point at cell IDs**, not at "the nearest cell with this text". Renaming or moving a cell
@@ -1240,3 +1347,16 @@ Numbers 66 to 69 are not used. 70 to 79 are from the review of milestones 4 and 
     side by side (A99); for grids of one column the two are the same.
 86. **A file not in UTF-8 is read as Windows-1252, or as UTF-16 if it says so**
     (A102). TreeSheets leaves it to wxWidgets' guess, which depends on the system.
+95. **A file that is not UTF-8 is refused unless its encoding is said** (A115; changes
+    B86; the numbers B87 to B94 are not used here). TreeSheets leaves the encoding to
+    wxWidgets' guess; Wombat guessed Windows-1252 and now guesses nothing.
+96. **A `.csv` file's delimiter is found in the file** (A120). TreeSheets has one menu
+    item per delimiter and reads what it is told; so does Wombat when told
+    (`--delimiter`, `--format semicolon`, `.tsv`).
+97. **An import into a cell replaces content only when asked** (A119; changes B83).
+98. **Other separators are quoted too, and the guard is narrower** (A113, A114; adds
+    to B80). TreeSheets quotes every field of CSV and guards nothing; `--treesheets`
+    still gives its bytes.
+99. **The flattened export may end its lines with parent columns** (A118; adds to
+    B85). TreeSheets' Flatten has nothing like it; where every grid has one column they
+    never appear unasked, and the export equals Flatten as before.

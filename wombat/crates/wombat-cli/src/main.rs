@@ -168,7 +168,12 @@ fn new_path(file: &str) -> Result<&Path, Failure> {
             "{file}: a document's name ends in .wombat"
         )));
     }
-    if path.exists() {
+    // A name with a separator after it would be taken for the folder a link leads to.
+    if file.ends_with(std::path::is_separator) {
+        return Err(Failure::Failed(format!("{file} is not a file name")));
+    }
+    // Whatever is there, a link that leads nowhere included, stays as it is.
+    if std::fs::symlink_metadata(path).is_ok() {
         return Err(Failure::Failed(format!(
             "{file} already exists; it was not changed"
         )));
