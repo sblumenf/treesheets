@@ -18,7 +18,7 @@ use std::path::Path;
 use search_support::check_hit;
 use wombat_core::construct::Construct;
 use wombat_core::eval::Calc;
-use wombat_core::scan::CacheMode;
+use wombat_core::scan::{Cache, CacheMode};
 use wombat_core::{
     format, CellId, CellKind, Changes, Command, Document, Editor, Link, LinkTarget, SeededIds,
     Workspace,
@@ -374,6 +374,7 @@ fn scratch(test: &str) -> std::path::PathBuf {
         .join("search_formulas")
         .join(test);
     let _ = fs::remove_dir_all(&dir);
+    let _ = fs::remove_dir_all(dir.with_extension("cache"));
     fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -389,7 +390,8 @@ fn documents_that_are_not_open_are_searched_by_their_results() {
     let saved = fs::read_to_string(dir.join("budget.wombat")).unwrap();
     assert!(!saved.contains("1050.5"), "a result was saved");
     let find = |mode: CacheMode, text: &str| {
-        let built = workspace::index(&ws, mode).unwrap();
+        let cache = Cache::at(dir.with_extension("cache"), mode);
+        let built = workspace::index(&ws, &cache).unwrap();
         let query = parse(text, 0).unwrap().query;
         let found = built.index.search(&query, &Options::default()).unwrap();
         let doc = ws.open_name("budget.wombat").unwrap();

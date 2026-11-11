@@ -2,13 +2,14 @@
 //!
 //! The only module of this crate that touches files, and only through
 //! [`wombat_core::scan`]: every document of the folder is read once, open or not, for
-//! the words and the links together, and the result is kept in the cache
-//! `.wombat-index/search/` if asked.
+//! the words and the links together, and the result is kept in a cache if asked, in a
+//! folder that the caller names and that is never inside the workspace
+//! ([`wombat_core::scan::Cache`]).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use wombat_core::scan::{scan, CacheMode, CacheUse};
+use wombat_core::scan::{scan, Cache, CacheUse};
 use wombat_core::{storage, CellId, DocId, Document, Editor, Error, IdSource, Workspace};
 
 use crate::engine::SearchIndex;
@@ -41,7 +42,7 @@ pub struct WorkspaceIndex {
 /// each file once. An interface keeps the index and follows the documents it edits with
 /// [`SearchIndex::apply`]; building it again with a cache parses only the files that
 /// changed.
-pub fn index(workspace: &Workspace, cache: CacheMode) -> Result<WorkspaceIndex, Error> {
+pub fn index(workspace: &Workspace, cache: &Cache) -> Result<WorkspaceIndex, Error> {
     let scanned = scan::<DocIndex>(workspace, cache)?;
     let mut out = WorkspaceIndex {
         index: SearchIndex::new(),

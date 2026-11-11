@@ -80,11 +80,12 @@ impl Folder {
         };
         let workspace = Workspace::open(dir)?;
         let mode = if cache {
-            scan::CacheMode::Fast
+            scan::CacheMode::Verify
         } else {
             scan::CacheMode::Off
         };
-        let links = scan::link_index(&workspace, mode)?;
+        let cache = crate::search::cache_of(&workspace, mode, None);
+        let links = scan::link_index(&workspace, &cache)?;
         Ok(Folder {
             workspace,
             links,

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use wombat_core::scan::CacheMode;
+use wombat_core::scan::{self, Cache, CacheMode};
 use wombat_core::{storage, CellId, DocId, Document, Workspace};
 use wombat_search::query::{parse, Filter, Order, Query, Term};
 use wombat_search::replace::ReplaceOptions;
@@ -61,9 +61,19 @@ Options:
   --in FILE CELL       only inside this cell of FILE (CELL as in `wombat edit`)
   --next FILE CELL     only the next match after this cell in FILE, in the order of the
   --prev FILE CELL     document, going round at the end (or the previous one)
-  --cache              keep the index in <folder>/.wombat-index and use it next time; a
-                       document is read again if its length or time has changed
-  --cache=verify       the same, but every document is read and compared each time
+  --no-cache           do not keep an index between runs. Otherwise one is kept, outside
+                       the folder that is searched: in a folder of its own under
+                       $WOMBAT_CACHE_DIR, or else the cache directory of the system
+                       ($XDG_CACHE_HOME or ~/.cache, ~/Library/Caches, %LOCALAPPDATA%)
+                       with /wombat. Every document is still read and compared with
+                       it on every run, so the index is never out of date; only the
+                       parsing is saved. (A .wombat-index folder inside the searched
+                       folder is from an older version and is not used.)
+  --cache-dir DIR      keep the indexes under DIR instead
+  --cache=fast         do not read a document whose length, times and (on Unix) inode
+                       are what they were. Faster, and it can miss a change made by a
+                       tool that restores a file's times; --rebuild then helps
+  --rebuild            throw the kept index of this folder away and make it again
   --now MILLISECONDS   the time that edited: counts from (default: the clock)
   --time               also print how long indexing and searching took
 ";
@@ -101,6 +111,40 @@ fn usage<T>(message: impl Into<String>) -> Result<T, Failure> {
 fn number(word: Option<&&str>, what: &str) -> Result<usize, Failure> {
     let parsed = word.and_then(|word| word.parse().ok());
     parsed.ok_or_else(|| Failure::Usage(format!("{what} takes a number")))
+}
+
+/// The folder under which index caches are kept if none is named: `$WOMBAT_CACHE_DIR`,
+/// or `wombat` in the cache directory of the system. `None` if the system names none.
+fn cache_base() -> Option<PathBuf> {
+    let var = |name: &str| {
+        let value = std::env::var_os(name).filter(|value| !value.is_empty());
+        value.map(PathBuf::from).filter(|path| path.is_absolute())
+    };
+    if let Some(dir) = var("WOMBAT_CACHE_DIR") {
+        return Some(dir);
+    }
+    let system = if cfg!(windows) {
+        var("LOCALAPPDATA")
+    } else if cfg!(target_os = "macos") {
+        var("HOME").map(|home| home.join("Library").join("Caches"))
+    } else {
+        var("XDG_CACHE_HOME").or_else(|| var("HOME").map(|home| home.join(".cache")))
+    };
+    system.map(|dir| dir.join("wombat"))
+}
+
+/// The index cache of a workspace: under `dir` if given, else in the user's cache
+/// directory; never inside the workspace (decision A112). No cache if there is nowhere
+/// to keep one.
+pub fn cache_of(workspace: &Workspace, mode: CacheMode, dir: Option<&str>) -> Cache {
+    let base = dir.map(PathBuf::from).or_else(cache_base);
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok();
+    let cache = base.and_then(|base| Cache::in_base(&base, workspace, mode).ok());
+    match (cache, now) {
+        (Some(cache), Some(now)) => cache.with_now(now.as_nanos()),
+        (Some(cache), None) => cache,
+        (None, _) => Cache::off(),
+    }
 }
 
 /// A folder to search, or one document of it.
@@ -228,7 +272,8 @@ fn milliseconds(started: Instant) -> String {
 /// `wombat search`.
 pub fn search(args: &[&str]) -> Result<String, Failure> {
     let mut words: Vec<&str> = Vec::new();
-    let (mut limit, mut offset, mut cache, mut time) = (20usize, 0usize, CacheMode::Off, false);
+    let (mut limit, mut offset, mut cache, mut time) = (20usize, 0usize, CacheMode::Verify, false);
+    let (mut cache_dir, mut rebuild) = (None, false);
     let mut now: Option<i64> = None;
     let mut within: Option<(&str, &str)> = None;
     let mut next: Option<(&str, &str, bool)> = None;
@@ -240,8 +285,15 @@ pub fn search(args: &[&str]) -> Result<String, Failure> {
         match *word {
             "--limit" => limit = number(rest.next(), "--limit")?,
             "--offset" => offset = number(rest.next(), "--offset")?,
-            "--cache" => cache = CacheMode::Fast,
-            "--cache=verify" => cache = CacheMode::Verify,
+            "--cache" | "--cache=verify" => cache = CacheMode::Verify,
+            "--cache=fast" => cache = CacheMode::Fast,
+            "--no-cache" => cache = CacheMode::Off,
+            "--rebuild" => rebuild = true,
+            "--cache-dir" => {
+                let dir = rest.next();
+                cache_dir =
+                    Some(dir.ok_or_else(|| Failure::Usage("--cache-dir takes a folder".into()))?);
+            }
             "--time" => time = true,
             "--now" => {
                 let value = rest.next().and_then(|word| word.parse().ok());
@@ -270,7 +322,11 @@ pub fn search(args: &[&str]) -> Result<String, Failure> {
     let target = target(path)?;
 
     let started = Instant::now();
-    let built = workspace::index(&target.workspace, cache)?;
+    let cache = cache_of(&target.workspace, cache, cache_dir.copied());
+    if rebuild {
+        scan::clear_cache(&cache, &target.workspace);
+    }
+    let built = workspace::index(&target.workspace, &cache)?;
     let indexing = milliseconds(started);
     let index = built.index;
     let mut loaded = Loaded {

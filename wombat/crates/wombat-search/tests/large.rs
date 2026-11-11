@@ -23,7 +23,7 @@ use std::time::{Duration, Instant, SystemTime};
 use corpus::{queries, Corpus, NOW};
 use wombat_core::construct::Construct;
 use wombat_core::eval::Calc;
-use wombat_core::scan::{CacheMode, CACHE_DIR};
+use wombat_core::scan::{Cache, CacheMode};
 use wombat_core::{Command, Document, Editor, SeededIds, Workspace};
 use wombat_search::query::parse;
 use wombat_search::{naive, workspace, Options, SearchIndex};
@@ -104,7 +104,9 @@ fn report(what: &str, results: &[(String, usize, Duration)]) -> (Duration, Durat
 fn search_at_size() {
     let (docs, per_doc) = if SLOW { (10, 2_000) } else { (20, 5_000) };
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("search_large");
+    let cache_dir = dir.with_extension("cache");
     let _ = fs::remove_dir_all(&dir);
+    let _ = fs::remove_dir_all(&cache_dir);
     fs::create_dir_all(&dir).unwrap();
     let ws = Workspace::open(&dir).unwrap();
     let mut corpus = Corpus::new(6);
@@ -156,7 +158,8 @@ fn search_at_size() {
     );
 
     let limit = Duration::from_secs(if SLOW { 120 } else { 20 });
-    let (cold, cold_time) = timed(|| workspace::index(&ws, CacheMode::Verify).unwrap());
+    let (cold, cold_time) =
+        timed(|| workspace::index(&ws, &Cache::at(&cache_dir, CacheMode::Verify)).unwrap());
     println!(
         "search at size: build from the folder, parsing every document: {}",
         ms(cold_time)
@@ -164,12 +167,13 @@ fn search_at_size() {
     assert_eq!((cold.parsed, cold.reused), (docs, 0));
     assert!(cold.cache_written && cold_time < limit);
     assert_eq!(cold.index.encoded(), index.encoded());
-    let cache_bytes: u64 = fs::read_dir(dir.join(CACHE_DIR).join("search"))
+    let cache_bytes: u64 = fs::read_dir(cache_dir.join("search"))
         .unwrap()
         .map(|entry| entry.unwrap().metadata().unwrap().len())
         .sum();
     println!("search at size: cache: {cache_bytes} bytes");
-    let (warm, warm_time) = timed(|| workspace::index(&ws, CacheMode::Verify).unwrap());
+    let (warm, warm_time) =
+        timed(|| workspace::index(&ws, &Cache::at(&cache_dir, CacheMode::Verify)).unwrap());
     println!(
         "search at size: load from the cache, reading every document to check: {}",
         ms(warm_time)
@@ -185,9 +189,10 @@ fn search_at_size() {
         file.set_modified(SystemTime::now() - Duration::from_secs(3600))
             .unwrap();
     }
-    let settle = workspace::index(&ws, CacheMode::Fast).unwrap();
+    let settle = workspace::index(&ws, &Cache::at(&cache_dir, CacheMode::Fast)).unwrap();
     assert_eq!((settle.parsed, settle.reused), (0, docs));
-    let (fast, fast_time) = timed(|| workspace::index(&ws, CacheMode::Fast).unwrap());
+    let (fast, fast_time) =
+        timed(|| workspace::index(&ws, &Cache::at(&cache_dir, CacheMode::Fast)).unwrap());
     println!(
         "search at size: load from the cache, going by length and time: {}",
         ms(fast_time)
@@ -304,6 +309,7 @@ fn search_at_size() {
         ms(second)
     );
     fs::remove_dir_all(&dir).unwrap();
+    fs::remove_dir_all(&cache_dir).unwrap();
 }
 
 /// A million cells, in memory only (200 documents of 5,000 cells). By hand: it takes

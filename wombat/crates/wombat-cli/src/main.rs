@@ -41,7 +41,8 @@ Usage:
                                             documents of the folder; CELL as in `wombat edit`
   wombat broken <folder>                    list the links in a folder that point at nothing
                                             (links, backlinks and broken take --cache to keep
-                                            an index in <folder>/.wombat-index, safe to delete)
+                                            an index in the user's cache folder, safe to
+                                            delete: see `wombat search --help`)
   wombat copy-cell <from.wombat> <CELL> <to.wombat> <CELL>
                                             make the second cell a copy of the first, with
                                             all in it; links in it keep pointing at the same cells

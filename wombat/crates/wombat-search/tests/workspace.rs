@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use wombat_core::eval::Calc;
-use wombat_core::scan::{self, CacheMode, CacheUse};
+use wombat_core::scan::{self, Cache, CacheMode, CacheUse};
 use wombat_core::summary::Summary;
 use wombat_core::{Command, Document, Editor, SeededIds, Workspace};
 use wombat_search::query::parse;
@@ -27,8 +27,14 @@ fn folder(test: &str) -> PathBuf {
         .join("search_workspace")
         .join(test);
     let _ = fs::remove_dir_all(&dir);
+    let _ = fs::remove_dir_all(dir.with_extension("cache"));
     fs::create_dir_all(&dir).unwrap();
     dir
+}
+
+/// The cache of a workspace of these tests: a folder beside it, never inside it.
+fn cache_of(ws: &Workspace, mode: CacheMode) -> Cache {
+    Cache::at(ws.dir().with_extension("cache"), mode)
 }
 
 /// Three documents of made-up text, saved.
@@ -58,10 +64,10 @@ const QUERIES: [&str; 8] = [
 /// The index with the cache, which must be the index without it, and must answer as
 /// the reference scanner does on the documents as they are in the folder.
 fn checked(ws: &Workspace, mode: CacheMode) -> WorkspaceIndex {
-    let plain = index(ws, CacheMode::Off).unwrap();
+    let plain = index(ws, &cache_of(ws, CacheMode::Off)).unwrap();
     assert_eq!(plain.cache, CacheUse::Off);
     assert!(!plain.cache_written && plain.reused == 0);
-    let cached = index(ws, mode).unwrap();
+    let cached = index(ws, &cache_of(ws, mode)).unwrap();
     assert!(
         cached.index.encoded() == plain.index.encoded(),
         "the cache gave another index"
@@ -97,16 +103,19 @@ fn checked(ws: &Workspace, mode: CacheMode) -> WorkspaceIndex {
 }
 
 fn cache_files(ws: &Workspace) -> Vec<(String, Vec<u8>)> {
-    let mut files: Vec<_> = fs::read_dir(scan::cache_dir::<DocIndex>(ws))
-        .unwrap()
-        .map(|entry| {
-            let entry = entry.unwrap();
-            (
-                entry.file_name().into_string().unwrap(),
-                fs::read(entry.path()).unwrap(),
-            )
-        })
-        .collect();
+    let mut files: Vec<_> = fs::read_dir(scan::cache_dir::<DocIndex>(&cache_of(
+        ws,
+        CacheMode::Verify,
+    )))
+    .unwrap()
+    .map(|entry| {
+        let entry = entry.unwrap();
+        (
+            entry.file_name().into_string().unwrap(),
+            fs::read(entry.path()).unwrap(),
+        )
+    })
+    .collect();
     files.sort();
     files
 }
@@ -225,13 +234,13 @@ fn a_deleted_or_damaged_search_cache_is_rebuilt_and_never_believed() {
     let (ws, _) = workspace("damaged");
     let good = checked(&ws, CacheMode::Verify);
     let files = cache_files(&ws);
-    let path = scan::cache_path::<DocIndex>(&ws, "b.wombat");
+    let path = scan::cache_path::<DocIndex>(&cache_of(&ws, CacheMode::Verify), "b.wombat");
     let bytes = fs::read(&path).unwrap();
     let expected = good.index.encoded();
     let rebuilt = |what: &str, damage: &dyn Fn()| {
         for mode in [CacheMode::Fast, CacheMode::Verify] {
             damage();
-            let found = index(&ws, mode).unwrap();
+            let found = index(&ws, &cache_of(&ws, mode)).unwrap();
             assert!(found.index.encoded() == expected, "{what}");
             found.index.check().unwrap();
             assert_eq!(cache_files(&ws), files, "{what}: no good cache again");
@@ -239,7 +248,7 @@ fn a_deleted_or_damaged_search_cache_is_rebuilt_and_never_believed() {
     };
     rebuilt("deleted entry", &|| fs::remove_file(&path).unwrap());
     rebuilt("deleted folder", &|| {
-        fs::remove_dir_all(ws.dir().join(scan::CACHE_DIR)).unwrap()
+        fs::remove_dir_all(ws.dir().with_extension("cache")).unwrap()
     });
     rebuilt("empty", &|| fs::write(&path, b"").unwrap());
     rebuilt("cut short", &|| {
@@ -248,7 +257,11 @@ fn a_deleted_or_damaged_search_cache_is_rebuilt_and_never_believed() {
     rebuilt("one byte more", &|| {
         fs::write(&path, [bytes.as_slice(), b"x"].concat()).unwrap()
     });
-    let other = fs::read(scan::cache_path::<DocIndex>(&ws, "a.wombat")).unwrap();
+    let other = fs::read(scan::cache_path::<DocIndex>(
+        &cache_of(&ws, CacheMode::Verify),
+        "a.wombat",
+    ))
+    .unwrap();
     rebuilt("the entry of another document", &|| {
         fs::write(&path, &other).unwrap()
     });
@@ -272,7 +285,7 @@ fn a_deleted_or_damaged_search_cache_is_rebuilt_and_never_believed() {
         let mut damaged = bytes.clone();
         damaged[at] ^= 0x21;
         fs::write(&path, &damaged).unwrap();
-        let found = index(&ws, CacheMode::Verify).unwrap();
+        let found = index(&ws, &cache_of(&ws, CacheMode::Verify)).unwrap();
         assert!(found.index.encoded() == expected, "byte {at} changed");
         assert_eq!(found.parsed, 1, "byte {at} changed");
     }
@@ -488,4 +501,64 @@ fn a_replace_across_a_folder_says_what_was_saved_when_saving_fails() {
         (text("b.wombat"), text("d.wombat")),
         ("fig 11".into(), "=apple".into())
     );
+}
+
+/// The review's reproduction: the document fields of the current entry with the body of
+/// an older one, in a cache inside the workspace, made `apple` be found in a document
+/// that now says `pears`, also when every file was checked. A cache in the workspace is
+/// no longer looked at, so the entry cannot be planted where it would be read; and an
+/// entry put together like that is not believed anywhere, because its checksum is over
+/// all of it.
+#[test]
+fn a_planted_entry_is_not_believed() {
+    use wombat_core::construct::Construct;
+    let ws = Workspace::open(folder("planted")).unwrap();
+    let mut ids = SeededIds::from_u64(21);
+    let mut doc = Document::new(&mut ids);
+    let root = doc.root();
+    doc.cell_mut(root).unwrap().text = "apple".into();
+    ws.save(&doc, "fruit.wombat").unwrap();
+    let cache = cache_of(&ws, CacheMode::Verify);
+    let count = |cache: &Cache, word: &str| {
+        let built = index(&ws, cache).unwrap();
+        let query = parse(word, 0).unwrap().query;
+        let total = built
+            .index
+            .search(&query, &Options::default())
+            .unwrap()
+            .total;
+        (total, built.reused, built.cache)
+    };
+    assert_eq!(count(&cache, "apple"), (1, 0, CacheUse::Missing));
+    let entry = scan::cache_path::<DocIndex>(&cache, "fruit.wombat");
+    let old = fs::read(&entry).unwrap();
+    // The document now says pears, in the same number of bytes.
+    doc.cell_mut(root).unwrap().text = "pears".into();
+    ws.save(&doc, "fruit.wombat").unwrap();
+    assert_eq!(count(&cache, "pears"), (1, 0, CacheUse::Read));
+    let new = fs::read(&entry).unwrap();
+    // The planted entry: the first line of the new one, the body of the old one.
+    let line = |bytes: &[u8]| bytes.iter().position(|b| *b == b'\n').unwrap() + 1;
+    let planted = [&new[..line(&new)], &old[line(&old)..]].concat();
+    assert_eq!(planted.len(), new.len());
+    // In the workspace, where the cache used to be: not read, not touched.
+    let inside = ws.dir().join(scan::OLD_CACHE_DIR).join("search");
+    fs::create_dir_all(&inside).unwrap();
+    fs::write(inside.join("fruit.wombat.idx"), &planted).unwrap();
+    for mode in [CacheMode::Verify, CacheMode::Fast] {
+        let cache = cache_of(&ws, mode);
+        assert_eq!(count(&cache, "apple").0, 0);
+        assert_eq!(count(&cache, "pears").0, 1);
+        let pointed = Cache::at(ws.dir().join(scan::OLD_CACHE_DIR), mode);
+        assert_eq!(count(&pointed, "apple"), (0, 0, CacheUse::Unusable));
+        assert_eq!(count(&pointed, "pears"), (1, 0, CacheUse::Unusable));
+    }
+    assert_eq!(fs::read(inside.join("fruit.wombat.idx")).unwrap(), planted);
+    // In the real cache (which only the user can write to): refused, by its checksum.
+    for mode in [CacheMode::Verify, CacheMode::Fast] {
+        fs::write(&entry, &planted).unwrap();
+        let cache = cache_of(&ws, mode);
+        assert_eq!(count(&cache, "apple"), (0, 0, CacheUse::Read));
+        assert_eq!(fs::read(&entry).unwrap(), new, "and made good again");
+    }
 }
