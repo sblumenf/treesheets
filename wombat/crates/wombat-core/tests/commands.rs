@@ -555,7 +555,9 @@ proptest! {
             let mut at = row[leaf];
             for column in (0..leaf).rev() {
                 at = doc.cell(at).unwrap().parent().unwrap();
-                prop_assert_eq!(texts[column], doc.cell(at).unwrap().text.as_str());
+                // A parent that was a formula cell stands there with its result too.
+                let parent = before.iter().position(|c| *c == at).unwrap();
+                prop_assert_eq!(texts[column], shown[parent].as_str());
             }
             prop_assert_eq!(doc.cell(at).unwrap().parent(), Some(cell));
             prop_assert!(texts[leaf + 1..].iter().all(|t| t.is_empty()));
