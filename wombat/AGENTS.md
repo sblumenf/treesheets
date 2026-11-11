@@ -38,7 +38,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-CI (`.github/workflows/wombat.yml`) runs the same three on every push that touches `wombat/`.
+CI (`.github/workflows/wombat.yml`) runs the same three on every push that touches `wombat/`, and
+checks that the core and the search service build for the web, Android and iOS. The Rust version
+is pinned in `rust-toolchain.toml` so that CI and every machine use the same compiler and lints.
 
 ## Engineering rules
 

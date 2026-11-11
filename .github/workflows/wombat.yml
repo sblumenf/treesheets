@@ -27,3 +27,8 @@ jobs:
       run: cargo clippy --workspace --all-targets -- -D warnings
     - name: Test
       run: cargo test --workspace
+    - name: Build for the web and for phones
+      run: |
+        for target in wasm32-unknown-unknown aarch64-linux-android aarch64-apple-ios; do
+          cargo check --target "$target" -p wombat-core -p wombat-search
+        done
