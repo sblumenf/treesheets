@@ -21,11 +21,14 @@ that any interface (web technology or fully native) can sit on top of it later.
 | 3 | Editing, undo and redo | Add, delete, move, sort and restructure cells; edit and style text; fold; every change recorded as a reversible step; the core reports what changed | Make a series of edits, undo them all, get the original back | done ([3a](milestones/M3a.md), [3b](milestones/M3b.md)); the findings of the review are fixed (end of [3a](milestones/M3a.md)) |
 | 4 | Links and backlinks | Links that point at cell IDs, within and across documents; a list of what links to any cell | Rename a linked cell and see the link survive | done ([summary](milestones/M4.md)); the findings of the review are fixed (end of the summary) |
 | 5 | Formulas | TreeSheets' formula system, checked against the real app | Change a number and watch dependent cells recalculate | done ([summary](milestones/M5.md)); the findings of the review are fixed (end of the summary) |
-| 6 | Search service | Instant search across a workspace; results shown with their location trail; search within a branch; filters by tag, link and date; best matches first; a measured speed target | Search a large workspace and narrow it by tag | done ([summary](milestones/M6.md)) |
-| 7 | Import and export | Single-grid export; flattened export with the trail of parents; lookup-style export (one CSV per grid, ID columns placed for XLOOKUP); CSV and plain-text import | Export a nested document and join two tables with XLOOKUP | done ([summary](milestones/M7.md)) |
+| 6 | Search service | Instant search across a workspace; results shown with their location trail; search within a branch; filters by tag, link and date; best matches first; a measured speed target | Search a large workspace and narrow it by tag | done ([summary](milestones/M6.md)); the findings of the review are fixed (end of the summary) |
+| 7 | Import and export | Single-grid export; flattened export with the trail of parents; lookup-style export (one CSV per grid, ID columns placed for XLOOKUP); CSV and plain-text import | Export a nested document and join two tables with XLOOKUP | done ([summary](milestones/M7.md)); the findings of the review are fixed (end of the summary) |
 
 Each milestone builds on the ones before it. When a milestone is finished its status changes here
 and a summary is added under `docs/milestones/`.
+
+All eight milestones are done. [`POC_SUMMARY.md`](POC_SUMMARY.md) says what exists, how far it
+can be trusted, and what an interface needs next.
 
 ## How a milestone is judged finished
 

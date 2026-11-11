@@ -11,6 +11,7 @@ memory: sessions do not remember each other, so anything agreed must be written 
 | Path | Contents |
 | ---- | -------- |
 | `docs/PLAN.md` | The milestones, their status, scope and the future list |
+| `docs/POC_SUMMARY.md` | What the proof of concept achieved, how it was checked, known limits, and what comes next |
 | `docs/DECISIONS.md` | Design decisions and deliberate departures from TreeSheets |
 | `docs/FILE_FORMAT.md` | Specification of the `.wombat` format, the image folder and the view-state file |
 | `docs/milestones/` | One summary per finished milestone |
