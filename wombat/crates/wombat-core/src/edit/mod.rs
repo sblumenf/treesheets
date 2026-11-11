@@ -28,10 +28,10 @@ mod restructure;
 mod size;
 mod step;
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use crate::error::{refused, Error};
-use crate::id::{CellId, IdSource};
+use crate::id::{CellId, DocId, IdSource};
 use crate::limits::MAX_FILE_BYTES;
 use crate::model::{
     Cell, CellKind, Color, Document, DrawStyle, ImageRef, LinkTarget, Style, TextAlign, VertAlign,
@@ -510,8 +510,9 @@ pub enum Command {
     /// One half of moving cells between documents: the cells of `clip`, which was taken
     /// from another document, come into this one with the IDs they have, in the place of
     /// the empty cell `to`, which is removed. Refused if `to` is not empty or is the root,
-    /// or if one of the IDs is in use in this document or its history. The other half is
-    /// [`Command::ReleaseCell`] in the document they came from;
+    /// or if one of the IDs is in use in this document. Cells that left this document
+    /// before and are still in its history can come back (decision A84). The other half
+    /// is [`Command::ReleaseCell`] in the document they came from;
     /// [`crate::links::move_between`] does both.
     AdoptCells {
         /// An empty cell (no text, image or grid) whose place the top cell takes.
@@ -525,6 +526,19 @@ pub enum Command {
     ReleaseCell {
         /// The cell that leaves.
         cell: CellId,
+    },
+    /// Corrects links after cells went to another document: every link of this document
+    /// to one of `cells` that names the document `from` (`None`: no document, the cells
+    /// were its own) names `to` instead (`None`, or this document: no document). Nothing
+    /// else of a link changes: its range, its unknown fields and its neighbours stay
+    /// (decision A85). Reads every cell of the document.
+    RetargetLinks {
+        /// The cells that the links point at.
+        cells: Vec<CellId>,
+        /// The document that the links to correct name.
+        from: Option<DocId>,
+        /// The document that they are to name.
+        to: Option<DocId>,
     },
 }
 
@@ -567,7 +581,7 @@ pub(crate) struct Tx<'a> {
     inverses: Vec<Step>,
     seen: ChangeSet,
     /// The IDs of the cells that the history holds.
-    held: &'a HashSet<CellId>,
+    held: &'a HashMap<CellId, u32>,
     /// The largest file that the document may become.
     size_limit: u64,
     /// What milestone 5 added: the results of formula cells, and what a run leaves.
@@ -658,8 +672,10 @@ pub struct Editor {
     budget: Option<usize>,
     /// The sum of the costs of the undo entries.
     undo_cost: usize,
-    /// The IDs of the cells held by `undo`, `redo` and `group`.
-    held: HashSet<CellId>,
+    /// The IDs of the cells held by `undo`, `redo` and `group`, with the number of times
+    /// each is held: a cell that left for another document and came back is held by the
+    /// unit of its leaving and, once that of its return is undone, by that one too.
+    held: HashMap<CellId, u32>,
     /// The bound on the size of the saved file (`size.rs`).
     size: u64,
     size_limit: u64,
@@ -699,7 +715,7 @@ impl Editor {
             limit: Some(DEFAULT_HISTORY_UNITS),
             budget: Some(DEFAULT_HISTORY_BYTES),
             undo_cost: 0,
-            held: HashSet::new(),
+            held: HashMap::new(),
             size_limit: MAX_FILE_BYTES,
             fits: None,
         })
@@ -804,7 +820,7 @@ impl Editor {
         // and still fits; one that did not is not looked at again until an undo or redo.
         self.fits = Some(fitted);
         let steps: Vec<Step> = inverses.into_iter().rev().collect();
-        self.held.extend(held_ids(&steps));
+        Editor::hold(&mut self.held, &steps);
         self.forget_redo();
         if self.group_depth > 0 {
             self.group.push(steps);
@@ -839,9 +855,21 @@ impl Editor {
         fits
     }
 
-    fn forget(held: &mut HashSet<CellId>, steps: &[Step]) {
+    fn hold(held: &mut HashMap<CellId, u32>, steps: &[Step]) {
         for id in held_ids(steps) {
-            held.remove(&id);
+            let count = held.entry(id).or_insert(0);
+            *count = count.saturating_add(1);
+        }
+    }
+
+    fn forget(held: &mut HashMap<CellId, u32>, steps: &[Step]) {
+        for id in held_ids(steps) {
+            if let Some(count) = held.get_mut(&id) {
+                *count = count.saturating_sub(1);
+                if *count == 0 {
+                    held.remove(&id);
+                }
+            }
         }
     }
 
@@ -905,7 +933,7 @@ impl Editor {
         self.size = self.size.saturating_add_signed(seen.bytes);
         self.fits = None;
         let steps: Vec<Step> = inverses.into_iter().rev().collect();
-        self.held.extend(held_ids(&steps));
+        Editor::hold(&mut self.held, &steps);
         let changes = seen.finish(&self.doc);
         self.recalculate(None, &changes);
         Ok((Unit::new(steps, unit.typing), changes))
@@ -1007,6 +1035,14 @@ impl Editor {
         self.group_depth > 0
     }
 
+    /// Whether a cell with this ID is not in the document but in its history, so that
+    /// undo or redo can bring it back. After a move between documents was undone in the
+    /// document the cells went to and a new command there ended its redo, this is the only
+    /// place the cells are in: the history of the document they left (decision A86).
+    pub fn holds(&self, cell: CellId) -> bool {
+        self.held.contains_key(&cell) && self.doc.cell(cell).is_none()
+    }
+
     /// Forgets what could be redone; the document and the undo history stay as they are.
     pub fn clear_redo(&mut self) {
         self.forget_redo();
@@ -1018,8 +1054,9 @@ impl Editor {
         self.redo.clear();
         self.undo_cost = 0;
         self.held.clear();
-        self.held
-            .extend(self.group.iter().flat_map(|steps| held_ids(steps)));
+        for steps in &self.group {
+            Editor::hold(&mut self.held, steps);
+        }
     }
 
     /// An upper bound on the size of the file that saving the document as it is now would

@@ -18,7 +18,8 @@ use crate::limits::MAX_DEPTH;
 use crate::model::{validate_cell, Cell, Document, LinkTarget};
 
 use super::command::{
-    cell, check_room, depth, descendants, grid, has_content, new_cell, sync_cell, Fresh,
+    cell, check_room, depth, descendants, grid, has_content, new_cell, set_runs_links, sync_cell,
+    Fresh,
 };
 use super::step::Step;
 use super::Tx;
@@ -211,11 +212,10 @@ pub(super) fn adopt(tx: &mut Tx, to: CellId, clip: Clip) -> Result<(), Error> {
         if id.0 == own.0 || doc.cell(id).is_some() {
             return refused(format!("the ID {id} is already in use in this document"));
         }
-        if tx.held.contains(&id) {
-            return refused(format!(
-                "the ID {id} is that of a cell that undo or redo can bring back"
-            ));
-        }
+        // An ID that the history of this document holds is that of this very cell, which
+        // left before and comes back (IDs are never given twice, A5 and A48). The unit
+        // that holds it is older than this command, so undo reaches it only after this
+        // command is undone and the cell is gone again: never twice (decision A84).
     }
     check_room(tx, clip.cells.len().saturating_sub(1))?;
     if depth(doc, to)?.saturating_add(clip.height) > MAX_DEPTH {
@@ -264,4 +264,45 @@ pub(super) fn release(
         grid: Some(new_grid),
     })?;
     tx.step(Step::RemoveCells(gone))
+}
+
+/// `Command::RetargetLinks`: the links to `cells` that name `from` name `to`, in place.
+pub(super) fn retarget(
+    tx: &mut Tx,
+    cells: &[CellId],
+    from: Option<DocId>,
+    to: Option<DocId>,
+) -> Result<(), Error> {
+    let doc = tx.doc();
+    // A link to a cell of this document names no document (A47).
+    let own = doc.id();
+    let (from, to) = (from.filter(|d| *d != own), to.filter(|d| *d != own));
+    if from == to {
+        return Ok(());
+    }
+    let wanted: HashSet<CellId> = cells.iter().copied().collect();
+    let hit = |target: &LinkTarget| match target {
+        LinkTarget::Cell { doc, cell } => *doc == from && wanted.contains(cell),
+        _ => false,
+    };
+    let mut changed = Vec::new();
+    for id in doc.cells_in_order() {
+        let found = cell(doc, id)?;
+        if !found.links.iter().any(|link| hit(&link.target)) {
+            continue;
+        }
+        let mut links = found.links.clone();
+        for link in &mut links {
+            if hit(&link.target) {
+                if let LinkTarget::Cell { doc, .. } = &mut link.target {
+                    *doc = to;
+                }
+            }
+        }
+        changed.push((id, links));
+    }
+    for (id, links) in changed {
+        set_runs_links(tx, id, None, Some(links))?;
+    }
+    Ok(())
 }

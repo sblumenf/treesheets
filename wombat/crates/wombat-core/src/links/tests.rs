@@ -1059,7 +1059,7 @@ fn a_move_between_documents_that_cannot_be_done_leaves_both_as_they_were() {
     ));
     same(&source, &target);
 
-    // An ID that the target has, or that its history can bring back, is refused.
+    // An ID that the target has is refused.
     let moved = move_between(&mut source, apple, &mut target, to, None, &mut ids).unwrap();
     assert!(!moved.source.is_empty());
     source.undo().unwrap().unwrap();
@@ -1075,7 +1075,9 @@ fn a_move_between_documents_that_cannot_be_done_leaves_both_as_they_were() {
         None,
         &mut ids,
     ));
-    // ... nor after they were deleted from the target, while its undo can bring them back.
+    // After they were deleted from the target they can come again, although its undo can
+    // bring them back: it is the same cell, and the unit that holds it is undone only
+    // after the one that brings it in (decision A84; before it, this was refused).
     let delete = Command::ClearCells { cells: vec![apple] };
     let mut probe = target.clone();
     let grid = Command::CreateGrid {
@@ -1089,11 +1091,19 @@ fn a_move_between_documents_that_cannot_be_done_leaves_both_as_they_were() {
     assert!(target.document().cell(red).is_none());
     let clip = Clip::of(source.document(), red).unwrap();
     let adopt = Command::AdoptCells { to: empty, clip };
-    assert!(matches!(
-        target.apply(adopt, None, &mut ids),
-        Err(Error::Refused(_))
-    ));
+    target.apply(adopt, None, &mut ids).unwrap();
     target.document().validate().unwrap();
+    assert!(target.document().cell(red).is_some());
+    // Undoing both never has the cell twice: first it goes, then the deleted one returns.
+    target.undo().unwrap().unwrap();
+    assert!(target.document().cell(red).is_none());
+    target.undo().unwrap().unwrap();
+    assert!(target.document().cell(red).is_some());
+    target.document().validate().unwrap();
+    target.redo().unwrap().unwrap();
+    target.redo().unwrap().unwrap();
+    target.document().validate().unwrap();
+    assert!(target.document().cell(red).is_some());
 }
 
 #[test]

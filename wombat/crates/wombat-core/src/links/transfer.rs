@@ -3,12 +3,10 @@
 //! An [`Editor`] edits one document, so a move between documents is two changes: one in
 //! each document's history. [`move_between`] makes both, or neither.
 
-use std::collections::HashSet;
-
 use crate::edit::{Changes, Clip, Command, Editor};
 use crate::error::{refused, Error};
-use crate::id::{CellId, DocId, IdSource};
-use crate::model::{Document, LinkTarget};
+use crate::id::{CellId, IdSource};
+use crate::model::Document;
 
 /// Makes the cell `to` of the document in `target` a copy of the cell `cell` of `source`
 /// with everything inside it ([`Command::PasteCells`]). The copies inside get new IDs;
@@ -32,38 +30,6 @@ pub struct Moved {
     pub source: Changes,
     /// What changed in the document the cells arrived in.
     pub target: Changes,
-}
-
-/// The commands that make the links of `doc` to any of `cells`, which name the document
-/// `from` (`None`: no document, the cells were its own), name the document `to` instead.
-/// Reads the whole document.
-fn retarget(
-    doc: &Document,
-    cells: &HashSet<CellId>,
-    from: Option<DocId>,
-    to: DocId,
-) -> Vec<Command> {
-    let mut out = Vec::new();
-    for id in doc.cells_in_order() {
-        let Some(found) = doc.cell(id) else { continue };
-        for link in &found.links {
-            match link.target {
-                LinkTarget::Cell { doc: named, cell } if named == from && cells.contains(&cell) => {
-                    out.push(Command::SetLink {
-                        cell: id,
-                        start: link.start,
-                        len: link.len,
-                        target: Some(LinkTarget::Cell {
-                            doc: Some(to),
-                            cell,
-                        }),
-                    });
-                }
-                _ => {}
-            }
-        }
-    }
-    out
 }
 
 /// Applies commands as one group; on an error the group is taken back.
@@ -130,8 +96,9 @@ fn take_back(editor: &mut Editor) -> Result<(), Error> {
 /// with both documents as they were (what `target` could redo before is forgotten).
 ///
 /// Refused if the documents are the same (use [`Command::MoveCell`]), if `cell` is the
-/// root, if `to` is not empty, if an ID of the moved cells is in use in `target` or its
-/// history, or while a group is open in either editor. Reads both documents whole once,
+/// root, if `to` is not empty, if an ID of the moved cells is in use in `target`, or while
+/// a group is open in either editor. Cells can move back to a document they left, also
+/// while its history still holds them (decision A84). Reads both documents whole once,
 /// to find the links to correct.
 pub fn move_between(
     source: &mut Editor,
@@ -152,16 +119,31 @@ pub fn move_between(
         return refused("the root cell cannot leave its document");
     }
     let clip = Clip::of(source.document(), cell)?;
-    let moved: HashSet<CellId> = clip.cell_ids().collect();
+    let moved: Vec<CellId> = clip.cell_ids().collect();
 
     // The links of the target are corrected first: afterwards the moved cells' own links
-    // would be found among them.
-    let mut commands = retarget(target.document(), &moved, Some(from_doc), to_doc);
-    commands.push(Command::AdoptCells { to, clip });
+    // would be found among them. In place, so that a link keeps its range, its unknown
+    // fields and its neighbours (decision A85).
+    let commands = vec![
+        Command::RetargetLinks {
+            cells: moved.clone(),
+            from: Some(from_doc),
+            to: Some(to_doc),
+        },
+        Command::AdoptCells { to, clip },
+    ];
     let arrived = apply_all(target, commands, now, ids)?;
 
-    let mut commands = vec![Command::ReleaseCell { cell }];
-    commands.extend(retarget_after_release(source.document(), &moved, to_doc));
+    // In the source the release comes first: the links of the cells that leave are gone
+    // by then, and only those of the cells that stay are corrected.
+    let commands = vec![
+        Command::ReleaseCell { cell },
+        Command::RetargetLinks {
+            cells: moved,
+            from: None,
+            to: Some(to_doc),
+        },
+    ];
     match apply_all(source, commands, now, ids) {
         Ok(left) => Ok(Moved {
             source: left,
@@ -172,15 +154,4 @@ pub fn move_between(
             Err(error)
         }
     }
-}
-
-/// As [`retarget`] for the document the cells leave, without the links of the cells that
-/// leave (the release comes first in the group, and they are gone by then).
-fn retarget_after_release(doc: &Document, moved: &HashSet<CellId>, to: DocId) -> Vec<Command> {
-    let mut commands = retarget(doc, moved, None, to);
-    commands.retain(|command| match command {
-        Command::SetLink { cell, .. } => !moved.contains(cell),
-        _ => true,
-    });
-    commands
 }

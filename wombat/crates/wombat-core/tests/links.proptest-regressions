@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b71d0229bad7900a33c5556ee8a6a814583b609a7911e8ae80f6c7ca492bbd3a # shrinks to specs = [(0, [([], 2, 0), ([], 3, 2), ([0], 0, 0), ([], 0, 0), ([], 0, 0), ([], 2, 1), ([], 1, 1)]), (0, [([], 0, 0), ([0], 0, 0), ([], 1, 1), ([], 1, 2), ([], 0, 0), ([0], 0, 0), ([], 0, 0), ([], 0, 0)])], acts = [Apply(1, Op { kind: 22, n: [1376892920, 2480061779, 0, 0, 0], clusters: [], raw: false, color: (0, 0, 0) }), Link(0, [0, 0, 0, 0]), Link(2, [0, 0, 332580558, 620690075]), Move(0, 1, [107530683, 1095933077]), Repair(0), Move(5, 2, [920345344, 0])]
+cc ad71f8923e4b7bd19be365156cd0630ec46b0cad232b58ee5363273c07c24151 # shrinks to specs = [(0, [([], 0, 0)]), (0, [([], 0, 0)]), (0, [([], 0, 0), ([0], 0, 0), ([0], 2, 2), ([], 0, 0), ([], 0, 0), ([0], 0, 0), ([], 0, 0), ([], 0, 0)])], acts = [Link(2, [499125468, 0, 1337520403, 1994184427]), Apply(0, Op { kind: 0, n: [0, 0, 0, 0, 0], clusters: [], raw: false, color: (0, 0, 0) }), Move(2, 3, [70735812, 0])]
