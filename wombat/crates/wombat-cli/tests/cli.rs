@@ -262,7 +262,7 @@ fn import_converts_a_treesheets_file_with_its_images_and_view() {
         "{shown}"
     );
     assert!(
-        shown.contains("  [3,4] \"=SUM(Numbers) - 10\" (formula)\n"),
+        shown.contains("  [3,4] \"=SUM(Numbers) - 10\" (formula) = \"89.5\"\n"),
         "{shown}"
     );
     assert!(shown.contains("  [2,3] \"a web link and a file link\" links: 2\n"));

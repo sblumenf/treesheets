@@ -731,8 +731,8 @@ impl Calc {
             .collect()
     }
 
-    /// The formula cells whose results changed in the last command, undo, redo or group,
-    /// in document order after a full recalculation and by ID otherwise.
+    /// The formula cells whose results changed in the last command, undo or redo, in
+    /// document order; after a group, those of all its commands, by ID.
     pub fn recalculated(&self) -> &[CellId] {
         &self.recalculated
     }
@@ -1005,9 +1005,9 @@ impl Calc {
             self.readers.register(formula, children, tree);
         }
         let before: HashMap<CellId, Res> = old.into_iter().collect();
-        self.recalculated = affected
+        self.recalculated = order
             .iter()
-            .copied()
+            .map(|(_, id)| *id)
             .filter(|id| {
                 let now = self.results.get(id).map(|r| (&r.text, r.failed));
                 before.get(id).map(|r| (&r.text, r.failed)) != now

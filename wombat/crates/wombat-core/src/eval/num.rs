@@ -136,16 +136,19 @@ fn hex(s: &str) -> Option<f64> {
     let keep = if top >= -1022 {
         53
     } else {
-        53i64.saturating_sub(-1022i64.saturating_sub(top))
+        53i64.saturating_sub((-1022i64).saturating_sub(top))
     };
     if keep < 0 {
         return None;
     }
-    let keep = u32::try_from(keep).ok()?;
+    let keep = u32::try_from(keep).ok().filter(|keep| *keep <= 53)?;
     let (mut kept, rest) = if keep == 0 {
         (0u64, bits)
     } else {
-        (bits >> (64 - keep), bits << keep)
+        (
+            bits.checked_shr(64u32.saturating_sub(keep))?,
+            bits.checked_shl(keep)?,
+        )
     };
     let half = 1u64 << 63;
     if rest > half || (rest == half && (sticky || kept & 1 == 1)) {

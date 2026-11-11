@@ -102,6 +102,10 @@ pub fn to_document(rows: &[Row], ids: &mut dyn IdSource) -> Result<Document, Err
 fn set_text(doc: &mut Document, cell: CellId, text: Option<&String>) {
     if let (Some(cell), Some(text)) = (doc.cell_mut(cell), text) {
         cell.text.clone_from(text);
+        // As when typed into a cell: a text that starts with "=" is a formula.
+        if wombat_core::eval::is_formula_text(text) {
+            cell.kind = wombat_core::CellKind::Formula;
+        }
     }
 }
 

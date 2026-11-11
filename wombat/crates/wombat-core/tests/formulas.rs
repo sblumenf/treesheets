@@ -47,9 +47,7 @@ fn a_changed_number_recalculates_the_formulas_that_read_it_and_only_those() {
     assert_eq!(changes.changed, [cell]);
     assert_eq!(shown(&e)[2..], ["35", "3", "Totals", "71"]);
     // The sum, the formula in Totals, and the formula that reads Totals: not SUM(Prices).
-    let recalculated = [row(&e, 2), inside(&e, 4, 0, 0), row(&e, 5)];
-    let mut sorted = recalculated.to_vec();
-    sorted.sort();
+    let sorted = [row(&e, 2), inside(&e, 4, 0, 0), row(&e, 5)];
     assert_eq!(e.recalculated(), sorted);
     let stats = e.calc().stats();
     assert!(!stats.full);
