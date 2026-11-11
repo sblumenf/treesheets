@@ -13,7 +13,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::num::{is_name_char, is_space, lower, num_text, strict_num, trim, trim_end, upper};
+use super::num::{
+    is_letter, is_name_char, is_space, lower, num_text, strict_num, trim, trim_end, upper,
+};
 
 /// Deepest nesting of parentheses and function calls in one formula. TreeSheets has no
 /// limit and would run out of stack instead (decision B52).
@@ -658,7 +660,7 @@ impl<E: Env> Parser<'_, E> {
     fn argument(&mut self, tree: bool) -> Result<Collected<E::Node>, Wait> {
         self.space();
         let start = self.i;
-        while self.at(self.i).is_some_and(|c| c.is_ascii_alphabetic()) {
+        while self.at(self.i).is_some_and(is_letter) {
             self.i = self.i.saturating_add(1);
         }
         let function: String = self.mid(start, self.i).chars().map(upper).collect();
@@ -745,7 +747,7 @@ impl<E: Env> Parser<'_, E> {
         let mut grids = Vec::new();
         self.space();
         let start = self.i;
-        while self.at(self.i).is_some_and(|c| c.is_ascii_alphabetic()) {
+        while self.at(self.i).is_some_and(is_letter) {
             self.i = self.i.saturating_add(1);
         }
         let inner: String = self.mid(start, self.i).chars().map(upper).collect();

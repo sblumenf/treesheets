@@ -335,7 +335,23 @@ pub fn is_name_char(c: char) -> bool {
         return c.is_ascii_alphanumeric() || c == '_';
     }
     let code = u32::from(c);
-    c.is_alphanumeric() && !OTHER_NUMBERS.iter().any(|(a, b)| (*a..=*b).contains(&code))
+    c.is_alphanumeric()
+        && !OTHER_NUMBERS.iter().any(|(a, b)| (*a..=*b).contains(&code))
+        && !COMBINING_LETTERS
+            .iter()
+            .any(|(a, b)| (*a..=*b).contains(&code))
+}
+
+/// The small letters written above other letters (combining Latin small letter a and the
+/// like): letters to Unicode, which the Rust library follows, but not to the C library,
+/// which TreeSheets asks (found in review of milestone 5).
+const COMBINING_LETTERS: &[(u32, u32)] = &[(0x0363, 0x036F), (0x1DD3, 0x1DE6)];
+
+/// A letter of the name of `SUBSET` inside another function (the C library's `iswalpha` in
+/// a UTF-8 locale, which TreeSheets asks there): what can be in a name, except `_` and the
+/// digits `0` to `9`. Digits of other scripts are letters to that library.
+pub fn is_letter(c: char) -> bool {
+    is_name_char(c) && c != '_' && !c.is_ascii_digit()
 }
 
 /// A space between the parts of a formula (the C library's `iswspace` in a UTF-8 locale:
@@ -381,6 +397,64 @@ pub fn lower(c: char) -> char {
 #[allow(clippy::unwrap_used, clippy::float_cmp)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn name_characters_and_letters_are_the_c_librarys() {
+        // What `iswalnum` and `iswalpha` of glibc 2.39 (Unicode 15.1) say in C.UTF-8, which
+        // is what TreeSheets asks on Linux; `referee/formulas` has formulas with most of
+        // these. All code points were compared with that library once: the two functions
+        // here differ from it only for characters newer than its Unicode.
+        // (character, can be in a name, is a letter)
+        let table = [
+            ('a', true, true),
+            ('Z', true, true),
+            ('0', true, false),
+            ('9', true, false),
+            ('_', true, false),
+            (' ', false, false),
+            ('-', false, false),
+            ('é', true, true),
+            ('ß', true, true),
+            ('ſ', true, true),
+            ('ı', true, true),
+            ('\u{212a}', true, true), // Kelvin sign
+            ('日', true, true),
+            ('한', true, true),
+            ('\u{661}', true, true), // Arabic-Indic digit one: a letter to the C library
+            ('\u{2167}', true, true), // Roman numeral eight
+            ('\u{3007}', true, true), // ideographic zero
+            ('ª', true, true),
+            ('ʰ', true, true),
+            ('\u{e31}', true, true), // Thai vowel sign above
+            ('\u{345}', true, true), // combining Greek iota below
+            ('\u{903}', true, true), // Devanagari sign visarga
+            ('\u{1d400}', true, true),
+            ('²', false, false),
+            ('½', false, false),
+            ('①', false, false),
+            ('€', false, false),
+            ('·', false, false),
+            ('\u{300}', false, false), // combining grave accent
+            // The combining small letters, both ends of both ranges and around them.
+            ('\u{362}', false, false),
+            ('\u{363}', false, false),
+            ('\u{36f}', false, false),
+            ('\u{370}', true, true),
+            ('\u{1dd2}', false, false),
+            ('\u{1dd3}', false, false),
+            ('\u{1de6}', false, false),
+            ('\u{1de7}', true, true),
+        ];
+        for (c, name, letter) in table {
+            assert_eq!(is_name_char(c), name, "{c:?} in a name");
+            assert_eq!(is_letter(c), letter, "{c:?} as a letter");
+        }
+        let combining = (0x363..=0x36f).chain(0x1dd3..=0x1de6);
+        assert_eq!(combining.clone().count(), 33);
+        assert!(combining
+            .filter_map(char::from_u32)
+            .all(|c| !is_name_char(c) && c.is_alphanumeric()));
+    }
 
     #[test]
     fn strict_numbers_are_what_treesheets_takes() {

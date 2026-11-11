@@ -790,3 +790,38 @@ def random_sequences(count):
                 steps.append(["delete", r.choice([[[0, 0]], [[0, 1]]]), 0, 0, 1, 1])
                 changed = False
         yield f"random_{n:02}", steps
+
+
+# ---- found in review of milestone 5 -------------------------------------------------------
+
+def review_documents():
+    """Cases that the review of milestone 5 asked for: letters that are no ASCII letters in
+    the name of SUBSET inside an aggregate, and combining letters, which are no characters of
+    a name. Recorded in golden/review.jsonl, so that the older golden files stay as they are."""
+    table = G(D("Table"), [["1", "2"], ["3", T("4", "7")]])
+    yield "long_s_in_subset", column([
+        table,
+        F("=SUM(\u017fUBSET(Table,0,0))"),
+        F("=SUM(TREE\u017fUB\u017fET(Table,0,-,0-1))"),
+        F("=SUM(SUBSET(\u017fUBSET(Table,1,1),0,0))"),
+        F("=SUM(TREESUBSET(TREE\u017fUBSET(Table,1,1,0),0,0,0))"),
+        F("=MAX(\u017fubset(Table,-,-))"),
+        F("=\u017fUM(Table)+M\u0131N(Table)"),
+        F("=\u017fUBSET(Table,0,0)"),
+        F("=SUM(S\u00dcBSET(Table,0,0))"),
+        F("=SUM(\u212aUBSET(Table,0,0))"),
+        F("=SUM(sub\u017fet (Table,0,0))"),
+    ])
+    combining = [0x0363, 0x036f, 0x1dd3, 0x1de6, 0x0300, 0x0345, 0x0903]
+    cells = []
+    for code in combining:
+        name = "a" + chr(code)
+        cells += [T(name, "5"), F("=" + name), F("=SUM(" + name + ")"), F("=\"" + name + "\"*2")]
+    cells += [T("a", "1"), T("\u0363", "2"), F("=\u0363")]
+    yield "combining_letters", column(cells)
+    letters = ["\u00aa", "\u02b0", "\u00b2", "\u00bd", "\u2167", "\u2460", "\u0661", "\u3007",
+               "\u1e9e", "\u0e31", "\ud55c", "\U0001d400", "\U00010330", "\u20ac", "\u00b7"]
+    cells = []
+    for letter in letters:
+        cells += [T("n" + letter, "3"), F("=n" + letter + "+1")]
+    yield "name_characters", column(cells)
