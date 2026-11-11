@@ -175,12 +175,20 @@ pub(super) fn run_program(tx: &mut Tx, now: Option<i64>, fresh: &mut Fresh) -> R
             .map(|(text, _)| text.to_string())
     };
     let doc = tx.doc();
-    let outcome = eval::run(doc, &shown).map_err(|_| {
-        Error::Limit(format!(
-            "the program nests values deeper than {} or takes more than {} steps",
-            eval::MAX_VALUE_DEPTH,
-            eval::MAX_RUN_WORK
-        ))
+    let outcome = eval::run(doc, &shown).map_err(|limit| {
+        Error::Limit(match limit {
+            eval::OverLimit::Work => format!(
+                "the program nests values deeper than {} or takes more than {} steps",
+                eval::MAX_VALUE_DEPTH,
+                eval::MAX_RUN_WORK
+            ),
+            eval::OverLimit::Held => format!(
+                "the views and variables of the program would hold more than {} cells or \
+                 {} bytes of text with the document",
+                eval::MAX_RUN_CELLS,
+                eval::MAX_RUN_TEXT
+            ),
+        })
     })?;
     // Everything is made from the document as it is, before any of it changes: a view can
     // show a copy of a cell that another view overwrites.

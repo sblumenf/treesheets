@@ -35,6 +35,14 @@ pub const MAX_VALUE_DEPTH: u32 = 64;
 const MAX_RUN_DEPTH: u32 = 64;
 /// Most cells that one run may visit and copy together (decision B53).
 pub const MAX_RUN_WORK: u64 = 20_000_000;
+/// Most cells that a run may hold in its copy of the document, with what its views were
+/// filled with, and in its variables together: twice what a document may have (decision
+/// A82).
+pub const MAX_RUN_CELLS: u64 = 2 * crate::limits::MAX_CELLS as u64;
+/// Most bytes of text in those cells: twice what a file may have.
+pub const MAX_RUN_TEXT: u64 = 2 * crate::limits::MAX_FILE_BYTES;
+/// The bytes of text copied or made that count as one step of a run.
+const TEXT_BYTES_PER_WORK: u64 = 16;
 
 /// Where the look of a cell in a value comes from.
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -278,6 +286,21 @@ impl Value {
         Some(grid)
     }
 
+    /// The number of cells, this one included, and the bytes of their texts.
+    fn weight(&self) -> (u64, u64) {
+        let (mut cells, mut bytes) = (0u64, 0u64);
+        let mut todo = vec![self];
+        while let Some(v) = todo.pop() {
+            cells = cells.saturating_add(1);
+            let formula = v.formula.as_ref().map_or(0, String::len);
+            bytes = bytes.saturating_add(v.text.len().saturating_add(formula) as u64);
+            if let Some(grid) = &v.grid {
+                todo.extend(grid.cells.iter());
+            }
+        }
+        (cells, bytes)
+    }
+
     /// The number of cells inside, and how deep they nest.
     pub(crate) fn extent(&self) -> (usize, u32) {
         let (mut count, mut height) = (0usize, 0u32);
@@ -345,9 +368,14 @@ pub(crate) struct Outcome {
     pub(crate) failure: Option<Failure>,
 }
 
-/// The run stopped at a limit (depth or amount of work).
-#[derive(Debug)]
-pub(crate) struct OverLimit;
+/// The run stopped at a limit.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum OverLimit {
+    /// Values nested too deeply, or too many steps.
+    Work,
+    /// Too much held in views and variables.
+    Held,
+}
 
 #[derive(Clone, Copy)]
 enum Op {
@@ -423,15 +451,48 @@ struct Runner {
     work: u64,
     depth: u32,
     over: bool,
+    /// The cells, and the bytes of their texts, of the copy of the document and of the
+    /// variables; and whether they went over what a run may hold.
+    held: (u64, u64),
+    full: bool,
 }
 
 impl Runner {
     fn spend(&mut self) -> bool {
-        self.work = self.work.saturating_add(1);
+        self.spend_n(1)
+    }
+
+    fn spend_n(&mut self, n: u64) -> bool {
+        self.work = self.work.saturating_add(n);
         if self.work > MAX_RUN_WORK {
             self.over = true;
         }
         !self.over
+    }
+
+    /// Counts a text of `bytes` bytes that is about to be copied or made.
+    fn spend_text(&mut self, bytes: usize) -> bool {
+        self.spend_n(bytes as u64 / TEXT_BYTES_PER_WORK)
+    }
+
+    /// Whether `new` may be kept (in a view or a variable) in the place of `old`: not if
+    /// the run would then hold more than it may. Asked before `new` is copied.
+    fn keep(&mut self, new: &Value, old: Option<(u64, u64)>) -> bool {
+        let (cells, bytes) = new.weight();
+        let (old_cells, old_bytes) = old.unwrap_or((0, 0));
+        let held = (
+            self.held.0.saturating_sub(old_cells).saturating_add(cells),
+            self.held.1.saturating_sub(old_bytes).saturating_add(bytes),
+        );
+        // Giving back is always allowed; so is what the document itself holds.
+        let more = cells > old_cells || bytes > old_bytes;
+        if more && (held.0 > MAX_RUN_CELLS || held.1 > MAX_RUN_TEXT) {
+            self.over = true;
+            self.full = true;
+            return false;
+        }
+        self.held = held;
+        true
     }
 
     /// A copy that belongs to no place in the document (`Cell::Clone`).
@@ -448,7 +509,7 @@ impl Runner {
             Some(grid) => {
                 let mut cells = Vec::with_capacity(grid.cells.len());
                 for c in &grid.cells {
-                    if !self.spend() {
+                    if !self.spend() || !self.spend_text(c.text.len()) {
                         break;
                     }
                     cells.push(self.copy_at(c, level.saturating_add(1)));
@@ -485,24 +546,26 @@ impl Runner {
         }
     }
 
-    fn set_symbol(&mut self, name: &str, value: Value) {
-        if !name.is_empty() {
-            self.vars.insert(name.to_string(), value);
+    /// Gives the variable `name` a copy of `value`, unless the run may not hold that much.
+    fn set_symbol(&mut self, name: &str, value: &Value) {
+        let old = self.vars.get(name).map(Value::weight);
+        if name.is_empty() || !self.keep(value, old) {
+            return;
         }
+        let copy = self.copy(value);
+        self.vars.insert(name.to_string(), copy);
     }
 
     /// `Evaluator::Assign`: the value under the text of `sym`, and if both have grids of
     /// one size, each cell of the value under the text of the cell in the same place.
     fn assign(&mut self, sym: &Value, val: &Value) {
-        let copy = self.copy(val);
-        self.set_symbol(&sym.text, copy);
+        self.set_symbol(&sym.text, val);
         if let (Some(names), Some(values)) = (&sym.grid, &val.grid) {
             if names.size() == values.size() {
                 for x in 0..names.xs {
                     for y in 0..names.ys {
                         if let (Some(n), Some(v)) = (names.at(x, y), values.at(x, y)) {
-                            let copy = self.copy(v);
-                            self.set_symbol(&n.text, copy);
+                            self.set_symbol(&n.text, v);
                         }
                     }
                 }
@@ -648,12 +711,19 @@ impl Runner {
                     let copy = self.copy(grid.cells.get(i)?);
                     return Some(copy);
                 }
+                let nothing = Value {
+                    props: empty,
+                    ..Value::fresh(0)
+                };
+                if !self.keep(
+                    acc.as_ref().unwrap_or(&nothing),
+                    grid.cells.get(i).map(Value::weight),
+                ) {
+                    return None;
+                }
                 let mut new = match &acc {
                     Some(v) => self.copy(v),
-                    None => Value {
-                        props: empty,
-                        ..Value::fresh(0)
-                    },
+                    None => nothing,
                 };
                 let slot = grid.cells.get_mut(i)?;
                 new.kind = ct;
@@ -738,7 +808,10 @@ impl Runner {
                     let n = left.num();
                     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                     let bars = if n > 0.0 { n.min(1000.0) as usize } else { 0 };
-                    left.set_text("|".repeat(bars));
+                    // A thousand bars for a cell that held "1e3": counted four times.
+                    if self.spend_text(bars.saturating_mul(4)) {
+                        left.set_text("|".repeat(bars));
+                    }
                 } else if let Some(grid) = left.grid.as_mut() {
                     for c in &mut grid.cells {
                         let cell = std::mem::replace(c, Value::fresh(0));
@@ -931,7 +1004,7 @@ pub(crate) fn run(
     doc: &Document,
     shown: &dyn Fn(CellId) -> Option<String>,
 ) -> Result<Outcome, OverLimit> {
-    let mut root = snapshot(doc, shown).ok_or(OverLimit)?;
+    let mut root = snapshot(doc, shown).ok_or(OverLimit::Work)?;
     let mut runner = Runner {
         vars: Variables::new(),
         vert: false,
@@ -939,10 +1012,16 @@ pub(crate) fn run(
         work: 0,
         depth: 0,
         over: false,
+        held: root.weight(),
+        full: false,
     };
     let result = runner.eval(&mut root);
     if runner.over {
-        return Err(OverLimit);
+        return Err(if runner.full {
+            OverLimit::Held
+        } else {
+            OverLimit::Work
+        });
     }
     // The cells that views overwrote: the outermost ones, in document order.
     let mut views = Vec::new();
