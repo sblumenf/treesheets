@@ -392,7 +392,11 @@ fn a_deleted_or_damaged_cache_is_rebuilt_and_never_believed() {
         ),
         (
             "another checksum",
-            with_header(&|h| format!("{}0", &h[..h.len() - 1])),
+            // (Another last digit, whatever it is: the checksum depends on times now.)
+            with_header(&|h| {
+                let other = if h.ends_with('0') { '1' } else { '0' };
+                format!("{}{other}", &h[..h.len() - 1])
+            }),
         ),
         (
             "a body of nothing",
@@ -677,4 +681,34 @@ fn caches_are_kept_per_workspace_and_can_be_cleared() {
     assert_eq!(scan::clear_cache(&cache, &ws), 3);
     assert!(!cache.dir().exists(), "an empty cache folder is removed");
     assert_eq!(scan::clear_cache(&Cache::off(), &ws), 0);
+}
+
+/// Found in review of milestone 6: for two seconds after documents were saved, every
+/// fast scan wrote every entry again, to no effect (an entry written so soon after its
+/// file is not believed by length and time anyway). Told the time, the scan leaves them
+/// until writing them again can help.
+#[test]
+fn the_fast_way_leaves_entries_alone_that_are_too_new_to_settle() {
+    let (ws, _) = workspace("too_new");
+    let clock = || {
+        let since = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+        since.unwrap().as_nanos()
+    };
+    let fast = |now: u128| {
+        let cache = cache_of(&ws, CacheMode::Fast).with_now(now);
+        scan::link_index(&ws, &cache).unwrap()
+    };
+    assert_eq!(fast(clock()).parsed, 3);
+    let files = cache_files(&ws);
+    for _ in 0..2 {
+        let again = fast(clock());
+        assert_eq!((again.parsed, again.reused), (0, 3), "read and compared");
+        assert!(!again.cache_written, "and nothing written");
+        assert_eq!(cache_files(&ws), files);
+    }
+    // Ten seconds on by the caller's clock, writing them again is worth it.
+    assert!(fast(clock() + 10_000_000_000).cache_written);
+    // Not told the time, the scan writes them, as it always did.
+    let untold = scan::link_index(&ws, &cache_of(&ws, CacheMode::Fast)).unwrap();
+    assert!(untold.cache_written);
 }
