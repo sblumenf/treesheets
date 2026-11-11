@@ -8,8 +8,8 @@ existing users to migrate.
 link, search and save nested-grid documents. It is proven by automated tests and usable from a
 small command-line tool.
 
-The long-term aim is an app that is first-class on both desktop and mobile. The core is written so
-that any interface (web technology or fully native) can sit on top of it later.
+The long-term aim is an app that is first-class on both desktop and mobile, in the app stores. The
+interface will be built with Flutter on top of the core (decision A121).
 
 ## Milestones
 
@@ -60,8 +60,9 @@ can be trusted, and what an interface needs next.
 
 ## Future list
 
-- The interface, starting with a phone sketch to test nested grids on a small screen.
-- Native apps, which the Rust core keeps possible.
+- A minimal bridge between Flutter and the core, the next piece of work (`NEXT_BRIDGE.md`).
+- The Flutter interface, starting with a phone sketch on a real iPhone that tests nested grids on
+  a small screen and typing into cells.
 - Sync between devices.
 - A spreadsheet import/export wizard: a single Excel workbook with linked sheets, ready-made
   XLOOKUP formulas, and flattening of any number of tables.

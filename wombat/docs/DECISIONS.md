@@ -1234,6 +1234,15 @@ are where milestones 4, 5 and 6, built apart, meet).
     answer. Fewer than two lines, or no candidate: no answer, and the caller takes what
     the file's name says (comma). The tool does this for `.csv` only, `--delimiter`
     overrides it, and it prints which delimiter it used and why.
+121. **Flutter for the interface**, one codebase for the iPhone, Android, macOS, Windows and Linux
+    apps, calling the Rust core natively through `flutter_rust_bridge`. Replaces the interface part
+    of A2: WebAssembly is not a target. Flutter builds every app from one project with no separate
+    wrapper, draws identically on every platform, and gives smooth scrolling and gestures on
+    phones. The interface is designed for the phone first and widened for desktop.
+    (Recorded as A16 on the interface branch, where that number was still free; renumbered when
+    the two branches were merged. The core is still checked for WebAssembly in CI because it
+    costs nothing and catches file or thread use creeping into the pure core; it is no longer a
+    requirement and can be dropped if it gets in the way.)
 
 ## B. Deliberate departures from TreeSheets
 

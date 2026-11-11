@@ -80,9 +80,9 @@ It is worth knowing the pattern, because the same kinds of problem will come up 
 
 ## What a phone interface needs from the core next
 
-The interface will be built in Flutter, starting with the nested grid on a phone (see the
-interface documents on the branch `claude/fervent-hopper-8qg0ee`, which is still to be merged
-with this one; `PLAN.md`, `DECISIONS.md` and `AGENTS.md` will conflict in a few lines).
+The interface will be built in Flutter, starting with the nested grid on a phone (decision A121).
+`UI_SPEC.md` specifies it and `research/` holds the background. The first piece of work, a minimal
+bridge, is described in `NEXT_BRIDGE.md`.
 
 1. **A bridge.** Commands and results are plain data shaped to cross a language boundary, but
    they have no serialised form yet, and no Flutter-to-Rust binding exists.

@@ -15,6 +15,9 @@ memory: sessions do not remember each other, so anything agreed must be written 
 | `docs/DECISIONS.md` | Design decisions and deliberate departures from TreeSheets |
 | `docs/FILE_FORMAT.md` | Specification of the `.wombat` format, the image folder and the view-state file |
 | `docs/milestones/` | One summary per finished milestone |
+| `docs/UI_SPEC.md` | Specification of the Flutter interface |
+| `docs/NEXT_BRIDGE.md` | The next piece of work: a minimal bridge between Flutter and the core |
+| `docs/research/` | Background research behind the interface; not instructions |
 | `crates/wombat-core` | The core library: document model (`model.rs`), commands, undo and redo (`edit/`: `mod.rs` the editor and the list of commands, `command.rs` what each does, `restructure.rs` the same for sort, transpose, hierarchify, flatten, hierarchy swap, wrap and the like, `step.rs` the reversible steps, `size.rs` the running bound on the size of the saved file and the memory of the history, `program.rs` where editing meets calculating: the `Run` and `EnterText` commands), formulas and the program of a document (`eval/`: `num.rs` numbers and characters, `formula.rs` one formula, `calc.rs` the results kept up to date, `run.rs` Program > Run), text rules (`text.rs`), the construction layer for building documents (`construct.rs`), file format (`format.rs`), view state (`view.rs`), files and workspaces (`storage.rs`, `workspace.rs`), links and backlinks (`links/`: the link index, resolution, copying and moving between documents; `edit/paste.rs` the commands for that), indexes over a workspace (`summary.rs` what an index keeps per document, `scan.rs` reading a folder with a cache on disk), import and export (`convert/`: `delimited.rs` writing and reading CSV and TSV, finding the delimiter of a file, and the guard against formula injection, `export.rs` one grid, flattened, indented text, `lookup.rs` one table per grid with ID columns to join them, `names.rs` file names from cell text, `import.rs` reading files into a table of texts; `edit/import.rs` the command that puts one into a cell; `export_files.rs` writing an export to a file or folder, part of the file layer) |
 | `crates/wombat-cts` | Read-only importer of TreeSheets `.cts` files (all format versions up to 31), a testing tool; `tests/referee.rs` compares it with `referee/golden/`, `tests/quirks/` holds hand-built files with their own golden data |
 | `crates/wombat-search` | The search service: folding of text for comparison (`fold.rs`), queries and their text syntax (`query.rs`), what is indexed per document and how it follows edits (`index.rs`), searching and ranking (`engine.rs`), the slow reference scanner that the tests compare with (`naive.rs`), find and replace (`replace.rs`), the index of a workspace folder (`workspace.rs`, the only file access, through `wombat_core::scan`); `tests/support/` has the query generator and the made-up workspace of the size tests |
@@ -56,7 +59,7 @@ is pinned in `rust-toolchain.toml` so that CI and every machine use the same com
 - **Deterministic output.** Saving, exporting and iteration order never depend on hash-map order,
   the clock or the machine.
 - **Dependencies are a cost.** Add one only when it clearly earns its place, prefer widely used
-  crates, and check that it can compile to WebAssembly and for phones, since the core must.
+  crates, and check that it compiles for phones and desktops (iOS, Android, macOS, Windows, Linux).
 - **Keep it small.** No speculative features, options or abstractions. Three layers is enough.
 - **Public items have a doc comment** that says what they do. Comments explain why, not what.
 
