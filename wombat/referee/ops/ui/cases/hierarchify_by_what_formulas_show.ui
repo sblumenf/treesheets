@@ -1,0 +1,11 @@
+# The first cells of rows 1, 2, 4 and 5 all show "2": two formulas and two plain texts. They
+# are one group, under the first of them, which stays a formula cell.
+lobster ts.goto_column_row(0, 1) ; ts.goto_column_row(0, 0) ; ts.set_formula("=1+1")
+lobster ts.goto_column_row(0, 1) ; ts.goto_column_row(0, 1) ; ts.set_text("2")
+lobster ts.goto_column_row(0, 1) ; ts.goto_column_row(0, 3) ; ts.set_text("2")
+lobster ts.goto_column_row(0, 1) ; ts.goto_column_row(0, 4) ; ts.set_formula("=4/2")
+# In the second column: a formula that shows the text of the row above it within the group.
+lobster ts.goto_column_row(0, 1) ; ts.goto_column_row(1, 1) ; ts.set_formula("=10-8")
+lobster ts.goto_column_row(0, 1) ; ts.goto_column_row(1, 0) ; ts.set_text("2")
+select / 1 2 1 1
+action hierarchify

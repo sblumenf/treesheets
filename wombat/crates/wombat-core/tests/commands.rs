@@ -532,14 +532,20 @@ proptest! {
         let leaves = before.iter().filter(|c| doc.cell(**c).unwrap().grid().is_none()).count();
         let mut ids = SeededIds::from_u64(1);
         let mut editor = Editor::new(doc.clone()).unwrap();
+        // What each cell showed: its text, or of a formula cell its result, which is what
+        // the table gets (decision A83; before it, the formula).
+        let shown: Vec<String> = before
+            .iter()
+            .map(|id| editor.shown(*id).unwrap().to_string())
+            .collect();
         editor.apply(Command::Flatten { cell }, None, &mut ids).unwrap();
         let flat = editor.document().clone();
         let table = flat.cell(cell).unwrap().grid().unwrap();
         prop_assert_eq!(table.ys() as usize, leaves);
-        for id in &before {
+        for (id, shown) in before.iter().zip(&shown) {
             let now = flat.cell(*id).unwrap();
             prop_assert_eq!(now.parent(), Some(cell));
-            prop_assert_eq!(&now.text, &doc.cell(*id).unwrap().text);
+            prop_assert_eq!(&now.text, shown);
         }
         // A leaf stands in the column of its level, its parents to its left in order.
         for row in table.cells().chunks(table.xs() as usize) {

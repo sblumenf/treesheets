@@ -480,7 +480,8 @@ pub enum Command {
     /// Typing into a cell has ended with this text (also TreeSheets' formula bar): sets
     /// the text like `SetText`, and a data or formula cell becomes a formula cell if the
     /// text starts with `=` and has more than that, and a data cell if not. Cells of other
-    /// kinds keep their kind.
+    /// kinds keep their kind. A text that the cell has already (typed with the text
+    /// commands) keeps its styles and links, unless the cell is now a formula cell.
     EnterText {
         /// The cell.
         cell: CellId,

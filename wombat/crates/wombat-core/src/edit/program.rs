@@ -69,7 +69,11 @@ pub(super) fn enter_text(
     text: &str,
     now: Option<i64>,
 ) -> Result<(), Error> {
-    command::set_text(tx, id, text, now)?;
+    // The text as it is already (typed with the text commands, decision A65) keeps its
+    // styles and links, as in TreeSheets, where the end of typing changes only the kind.
+    if cell(tx.doc(), id)?.text != crate::text::clean(text) {
+        command::set_text(tx, id, text, now)?;
+    }
     let c = cell(tx.doc(), id)?;
     let kind = match c.kind {
         CellKind::Data | CellKind::Formula if is_formula_text(&c.text) => CellKind::Formula,
@@ -78,6 +82,10 @@ pub(super) fn enter_text(
     };
     if kind != c.kind {
         set(tx, id, Field::Kind(kind))?;
+    }
+    if kind == CellKind::Formula {
+        // What a formula cell shows is not the text that the ranges were for.
+        command::set_runs_links(tx, id, Some(Vec::new()), Some(Vec::new()))?;
     }
     Ok(())
 }
