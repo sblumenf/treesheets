@@ -20,7 +20,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde_json::Value;
-use wombat_core::{storage, Cell, CellId, Color, Document, LinkTarget, Style};
+use wombat_core::eval::Calc;
+use wombat_core::{storage, Cell, CellId, CellKind, Color, Document, LinkTarget, Style};
 
 fn ops() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../referee/ops")
@@ -81,9 +82,13 @@ fn golden_look(cell: &Value) -> Look {
     look
 }
 
-fn wombat_look(doc: &Document, cell: &Cell) -> Look {
+fn wombat_look(doc: &Document, cell: &Cell, shown: &str) -> Look {
     let base = (bits(cell.style), hex(cell.text_color), None);
-    let mut look = vec![base; cell.text.chars().count()];
+    let mut look = vec![base; shown.chars().count()];
+    if cell.kind == CellKind::Formula {
+        // What a formula cell shows has no styled ranges or links, in either program.
+        return look;
+    }
     for run in &cell.runs {
         for at in run.start..run.start + run.len {
             look[at as usize].0 = bits(run.style);
@@ -105,8 +110,10 @@ fn wombat_look(doc: &Document, cell: &Cell) -> Look {
 }
 
 /// Compares one cell and everything inside it; returns the number of cells compared.
-fn compare(doc: &Document, id: CellId, golden: &Value, case: &str) -> usize {
+fn compare(doc: &Document, calc: &Calc, id: CellId, golden: &Value, case: &str) -> usize {
     let cell = doc.cell(id).unwrap();
+    // In TreeSheets the text of a formula cell is what it shows.
+    let shown = calc.shown(doc, id).unwrap();
     let place = format!("{case} at {}", golden["path"]);
     let kind = match cell.kind.as_str() {
         "code" => "operation",
@@ -122,7 +129,7 @@ fn compare(doc: &Document, id: CellId, golden: &Value, case: &str) -> usize {
         other => other,
     };
     let ours = serde_json::json!({
-        "text": cell.text, "note": cell.note, "type": kind, "bg": hex(cell.cell_color),
+        "text": shown, "note": cell.note, "type": kind, "bg": hex(cell.cell_color),
         "fg": hex(cell.text_color), "relsize": -cell.rel_size, "stylebits": bits(cell.style),
         "align": cell.text_align.as_str(), "valign": cell.vert_align.as_str(),
         "render_style": draw, "has_image": cell.image.is_some(),
@@ -132,7 +139,7 @@ fn compare(doc: &Document, id: CellId, golden: &Value, case: &str) -> usize {
         assert_eq!(*value, golden[key], "{place}: {key}");
     }
     assert_eq!(
-        wombat_look(doc, cell),
+        wombat_look(doc, cell, shown),
         golden_look(golden),
         "{place}: styles, colours, links"
     );
@@ -167,7 +174,7 @@ fn compare(doc: &Document, id: CellId, golden: &Value, case: &str) -> usize {
             let cells = expected["cells"].as_array().unwrap();
             assert_eq!(grid.cells().len(), cells.len());
             for (child, expected) in grid.cells().iter().zip(cells) {
-                count += compare(doc, *child, expected, case);
+                count += compare(doc, calc, *child, expected, case);
             }
         }
         (ours, expected) => panic!(
@@ -220,7 +227,10 @@ fn run_set(set: &Path, how: &str, tmp: &str, at_least: usize) {
         );
         let doc = storage::load_document(&dir.join(&file)).unwrap();
         // Go on after a mismatch, so that one run shows every case that differs.
-        match std::panic::catch_unwind(|| compare(&doc, doc.root(), &golden(set, name), name)) {
+        let calc = Calc::new(&doc);
+        let compared =
+            std::panic::catch_unwind(|| compare(&doc, &calc, doc.root(), &golden(set, name), name));
+        match compared {
             Ok(count) => cells += count,
             Err(_) => failed.push(name.as_str()),
         }

@@ -1,0 +1,6 @@
+# Program > Run with views of styled cells: b1 becomes a view of a1 (whose "1" is italic), c3
+# of c2 above it (blue), a2 of a1 above it.
+lobster ts.goto_column_row(0, 3) ; ts.goto_column_row(1, 0) ; ts.set_cell_type(3)
+lobster ts.goto_column_row(0, 3) ; ts.goto_column_row(2, 2) ; ts.set_cell_type(5)
+lobster ts.goto_column_row(0, 3) ; ts.goto_column_row(0, 1) ; ts.set_cell_type(5)
+action run

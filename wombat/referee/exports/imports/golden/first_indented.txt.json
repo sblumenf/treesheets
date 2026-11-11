@@ -1,0 +1,40 @@
+{
+ "text": "",
+ "type": "data",
+ "grid": {
+  "cols": 1,
+  "rows": 4,
+  "cells": [
+   {
+    "text": "first is indented",
+    "type": "data",
+    "grid": {
+     "cols": 1,
+     "rows": 1,
+     "cells": [
+      {
+       "text": "inside",
+       "type": "data",
+       "grid": null
+      }
+     ]
+    }
+   },
+   {
+    "text": "less than the first",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "not at all",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "more again",
+    "type": "data",
+    "grid": null
+   }
+  ]
+ }
+}

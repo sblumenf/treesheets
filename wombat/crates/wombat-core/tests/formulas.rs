@@ -282,13 +282,8 @@ fn a_long_chain_of_formulas_needs_no_stack() {
     let last = inside(&e, n, 0, 0);
     enter(&mut e, &mut ids, last, "2");
     assert_eq!(e.shown(inside(&e, 0, 0, 0)), Some("20002"));
-    assert_eq!(
-        e.calc().stats(),
-        eval::Stats {
-            full: false,
-            evaluated: n as usize
-        }
-    );
+    let stats = e.calc().stats();
+    assert_eq!((stats.full, stats.evaluated), (false, n as usize));
     assert_eq!(e.recalculated().len(), n as usize);
 }
 
@@ -320,15 +315,18 @@ fn nesting_and_length_of_a_formula_are_bounded() {
 fn the_work_of_a_recalculation_is_bounded() {
     let mut items = vec![json!(["A", "1", "2", "3", "4", "5", "6", "7", "8"])];
     for _ in 0..10 {
-        items.push(json!("=SUM(A)"));
+        items.push(json!("=SUM(SUBSET(A,0,-))"));
     }
     let mut ids = SeededIds::from_u64(1);
     let doc = build(&formula_support::column(&items), &mut ids);
     let mut calc = Calc::new(&doc);
     assert_eq!(calc.results().values().filter(|r| **r == "36").count(), 10);
-    // Each formula reads 8 cells: with room for 30, three are worked out, the fourth
-    // goes over, and from there on nothing is.
-    calc.set_budget(&doc, 30);
+    // Each formula counts 6 for itself, 1 for finding A and 8 for the cells it reads
+    // (decision A81; before the review of milestone 5 only the cells counted, and the
+    // formulas were `=SUM(A)`, which now read A once between them: see below). With room
+    // for 50, three are worked out, the fourth goes over, and from there on nothing is.
+    assert_eq!(calc.stats().work, 150);
+    calc.set_budget(&doc, 50);
     let results: Vec<&str> = {
         let grid = doc.cell(doc.root()).unwrap().grid().unwrap();
         grid.cells()[1..]
@@ -343,6 +341,46 @@ fn the_work_of_a_recalculation_is_bounded() {
     let cell = inside(&e, 0, 0, 0);
     enter(&mut e, &mut ids, cell, "2");
     assert_eq!(shown(&e)[1], "37");
+}
+
+#[test]
+fn a_table_is_read_once_for_all_the_formulas_that_read_it() {
+    let table = json!(["A", "1", "2", "3", "4", "5", "6", "7", "8"]);
+    let mut items = vec![table.clone()];
+    for f in [
+        "=SUM(A)",
+        "=MAX(A)",
+        "=SUM(A)+MEDIAN(A)",
+        "=TREESUM(A)",
+        "=A",
+    ] {
+        items.push(json!(f));
+    }
+    // A formula inside the table does not count itself, so it reads for itself.
+    let own = json!(["B", "1", "2", "=SUM(B)"]);
+    items.extend([own, json!("=SUM(B)"), json!("=SUM(B)")]);
+    let mut ids = SeededIds::from_u64(1);
+    let doc = build(&formula_support::column(&items), &mut ids);
+    let calc = Calc::new(&doc);
+    let grid = doc.cell(doc.root()).unwrap().grid().unwrap();
+    let results: Vec<&str> = grid.cells()[1..6]
+        .iter()
+        .map(|id| calc.result(*id).unwrap().0)
+        .collect();
+    assert_eq!(results, ["36", "8", "40.5", "36", "#VALUE!"]);
+    assert_eq!(calc.result(grid.cells()[7]), Some(("6", false)));
+    assert_eq!(calc.result(grid.cells()[8]), Some(("6", false)));
+    let inner = doc.cell(grid.cells()[6]).unwrap().grid().unwrap().cells();
+    assert_eq!(calc.result(inner[2]), Some(("3", false)));
+    // Per formula 6, and 1 per name for finding it. A's eight cells are counted twice: by
+    // the first formula that reads the grid and by the one that reads all inside it; the
+    // other four readings count 1 each. B's three cells are counted by the formula inside,
+    // and once by the two outside. One more for a name 16 characters into a formula.
+    let formulas = 8 * 6;
+    let names = 6 + 3;
+    let a = 8 + 1 + 1 + 1 + 8 + 1;
+    let b = 3 + 3 + 1;
+    assert_eq!(calc.stats().work, formulas + names + a + b + 1);
 }
 
 #[test]

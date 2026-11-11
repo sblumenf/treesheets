@@ -22,18 +22,27 @@
 //! the order matters.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::rc::Rc;
 
 use crate::edit::Changes;
 use crate::id::CellId;
 use crate::model::{CellKind, Document};
 
-use super::formula::{self, formula_of, Check, Contents, Env, Memo, Outcome, Wait};
+use super::formula::{self, formula_of, Check, Collected, Contents, Env, Memo, Outcome, Wait};
 use super::num::strict_num;
 use super::run::{Failure, Value, Variables};
 
-/// Most cells that the formulas of one document may read in one recalculation; formulas
-/// beyond it show `#LIMIT!` (decision B52).
-pub const MAX_WORK: u64 = 50_000_000;
+/// Most work that the formulas of one document may take in one recalculation; formulas
+/// beyond it show `#LIMIT!` (decisions B52, A81). Work is: one for every cell of a grid
+/// that is read (a table that was read before in the same recalculation counts one), one
+/// for every 16 bytes of text made, a little for every name in a long formula, and
+/// [`FORMULA_WORK`] for every formula. Measured, one unit of work is at most about 0.4
+/// microseconds, so the limit is just under a second.
+pub const MAX_WORK: u64 = 2_000_000;
+/// The work that every formula counts for, whatever it does: finding it, reading it and
+/// keeping its result takes about as long as reading six cells; and one more for every 32
+/// bytes of its text.
+pub const FORMULA_WORK: u64 = 6;
 
 /// What a formula cell shows.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -68,43 +77,34 @@ struct Index {
 }
 
 impl Index {
+    /// One walk over the document, in document order, with one look at each cell: this is
+    /// what working everything out costs before any formula is read (decision A81).
     fn build(doc: &Document) -> Index {
-        let order = doc.cells_in_order();
+        let count = doc.cell_count();
         let mut index = Index {
-            place: HashMap::with_capacity(order.len()),
-            parent: vec![0; order.len()],
-            depth: vec![0; order.len()],
-            end: vec![0; order.len()],
+            place: HashMap::with_capacity(count),
+            parent: Vec::with_capacity(count),
+            depth: Vec::with_capacity(count),
+            end: Vec::with_capacity(count),
             ..Index::default()
         };
-        for (n, id) in order.iter().enumerate() {
-            index
-                .place
-                .insert(*id, u32::try_from(n).unwrap_or(u32::MAX));
-        }
-        for (n, id) in order.iter().enumerate() {
-            let Some(cell) = doc.cell(*id) else { continue };
-            let here = u32::try_from(n).unwrap_or(u32::MAX);
-            let parent = cell
-                .parent()
-                .and_then(|p| index.place.get(&p).copied())
-                .unwrap_or(here);
-            let depth = if parent == here {
-                0
-            } else {
-                index
-                    .depth
-                    .get(parent as usize)
-                    .copied()
-                    .unwrap_or(0)
-                    .saturating_add(1)
-            };
-            if let (Some(p), Some(d)) = (index.parent.get_mut(n), index.depth.get_mut(n)) {
-                *p = parent;
-                *d = depth;
+        let mut order = Vec::with_capacity(count);
+        // A cell, the place of its parent (none for the root), and its depth.
+        let mut stack: Vec<(CellId, Option<u32>, u32)> = vec![(doc.root(), None, 0)];
+        while let Some((id, parent, depth)) = stack.pop() {
+            // A valid document never revisits a cell; this keeps a broken one from looping.
+            if order.len() >= count {
+                break;
             }
+            let Some(cell) = doc.cell(id) else { continue };
+            let here = u32::try_from(order.len()).unwrap_or(u32::MAX);
+            order.push(id);
+            index.place.insert(id, here);
+            index.parent.push(parent.unwrap_or(here));
+            index.depth.push(depth);
+            index.end.push(here.saturating_add(1));
             if cell.kind == CellKind::VarAssign {
-                index.assign_cells.insert(*id);
+                index.assign_cells.insert(id);
                 if !cell.text.is_empty() {
                     index.assigned.insert(cell.text.clone());
                 }
@@ -115,8 +115,8 @@ impl Index {
                     }
                 }
             }
-            if cell.grid().is_some() {
-                index.grid_cells.insert(*id, (cell.text.clone(), cell.kind));
+            if let Some(grid) = cell.grid() {
+                index.grid_cells.insert(id, (cell.text.clone(), cell.kind));
                 match cell.kind {
                     CellKind::VarAssign => {}
                     CellKind::Formula => index.fgrid.push(here),
@@ -126,6 +126,8 @@ impl Index {
                         .or_default()
                         .push(here),
                 }
+                let inside = depth.saturating_add(1);
+                stack.extend(grid.cells().iter().rev().map(|c| (*c, Some(here), inside)));
             }
         }
         // The end of a cell is the end of the last cell inside it: later cells first.
@@ -177,6 +179,10 @@ struct Readers {
 
 impl Readers {
     fn register(&mut self, formula: CellId, mut children: Vec<CellId>, mut tree: Vec<CellId>) {
+        if children.is_empty() && tree.is_empty() {
+            // Most formulas of a large document: nothing to keep, nothing to forget.
+            return;
+        }
         children.sort_unstable();
         children.dedup();
         tree.sort_unstable();
@@ -220,6 +226,9 @@ pub struct Stats {
     pub full: bool,
     /// How many formulas were worked out.
     pub evaluated: usize,
+    /// The work that took (see [`MAX_WORK`]), with that of an attempt to work out only
+    /// some formulas that had to be given up for all of them.
+    pub work: u64,
 }
 
 /// What the last run of the program reported.
@@ -270,10 +279,13 @@ struct Ctx<'a, 'r> {
     /// Formulas whose results are missing; while there are any the attempt only looks for
     /// more of them.
     need: Vec<CellId>,
-    /// The cost of the formula so far, and the part of it done in this attempt.
+    /// The cost of the formula so far, and what is left for it. The cost is the same
+    /// however often the formula had to wait for others: what is done while only looking
+    /// for missing formulas is not counted, and is done again, and counted, afterwards.
     work: u64,
-    fresh: u64,
     budget: u64,
+    /// The contents of the grids read in this recalculation, to read each once.
+    cache: &'r mut Cache<'a>,
     over: bool,
     tainted: bool,
     reads_children: Vec<CellId>,
@@ -288,10 +300,48 @@ enum Known {
 
 impl<'a> Ctx<'a, '_> {
     fn spend(&mut self, n: u64) {
+        if !self.need.is_empty() || self.over {
+            return;
+        }
         self.work = self.work.saturating_add(n);
-        self.fresh = self.fresh.saturating_add(n);
-        if self.fresh > self.budget {
+        if self.work > self.budget {
+            // Nothing is read or made from here on, so this is all it cost.
+            self.work = self.budget.saturating_add(1);
             self.over = true;
+        }
+    }
+
+    /// Counts the reading of `cells` cells; an error if that is more than is allowed, so
+    /// that they are then not read at all.
+    fn charge(&mut self, cells: u64) -> Check {
+        self.spend(cells);
+        if self.over {
+            return Err("#LIMIT!".to_string());
+        }
+        Ok(())
+    }
+
+    /// The number of cells inside a cell of the document, itself included.
+    fn extent(&self, id: CellId) -> u64 {
+        let index = self.index;
+        index.place(id).map_or(1, |place| {
+            let end = index.end.get(place as usize).copied().unwrap_or(place);
+            u64::from(end.saturating_sub(place)).max(1)
+        })
+    }
+
+    /// Whether the formula's own cell is among the cells of the grid of `id` (with `tree`:
+    /// anywhere inside). Its contents are then its own and not for other formulas.
+    fn within(&self, id: CellId, tree: bool) -> bool {
+        let index = self.index;
+        let (Some(me), Some(place)) = (index.place(self.me), index.place(id)) else {
+            return true;
+        };
+        if tree {
+            let end = index.end.get(place as usize).copied().unwrap_or(place);
+            place < me && me < end
+        } else {
+            index.parent.get(me as usize).copied() == Some(place)
         }
     }
 
@@ -339,10 +389,6 @@ impl<'a> Ctx<'a, '_> {
         sub: bool,
         into: &mut Contents<Node<'a>>,
     ) -> Check {
-        if self.over {
-            return Err("#LIMIT!".to_string());
-        }
-        self.spend(1);
         let Some(cell) = self.doc.cell(id) else {
             return Ok(());
         };
@@ -489,13 +535,15 @@ impl<'a> Env for Ctx<'a, '_> {
                 if tree {
                     self.reads_tree.push(id);
                 }
+                self.charge(if tree { self.extent(id) } else { 1 })?;
                 self.collect_doc(id, tree, sub, into)
             }
             Node::Var(v) => self.collect_value(v, tree, sub, into, 0),
         }
     }
 
-    fn collect_grid(&mut self, node: Node<'a>, tree: bool, into: &mut Contents<Node<'a>>) -> Check {
+    fn collect_grid(&mut self, node: Node<'a>, tree: bool) -> Collected<Node<'a>> {
+        let mut into = Contents::default();
         match node {
             Node::Doc(id) => {
                 if tree {
@@ -503,17 +551,44 @@ impl<'a> Env for Ctx<'a, '_> {
                 } else {
                     self.reads_children.push(id);
                 }
-                let cells = self.doc.cell(id).and_then(|c| c.grid());
-                for child in cells.map_or(&[][..], |g| g.cells()) {
-                    self.collect_doc(*child, tree, false, into)?;
+                // What another formula read here before in this recalculation is what
+                // this one would read, unless its own cell is in there.
+                let shared = !self.within(id, tree);
+                if shared {
+                    if let Some(known) = self.cache.get(&(id, tree)) {
+                        let known = known.clone();
+                        self.charge(1)?;
+                        return known;
+                    }
                 }
-                Ok(())
+                let cells = self.doc.cell(id).and_then(|c| c.grid());
+                let cells = cells.map_or(&[][..], |g| g.cells());
+                self.charge(if tree {
+                    self.extent(id).saturating_sub(1)
+                } else {
+                    cells.len() as u64
+                })?;
+                let clean = !self.tainted;
+                let mut result = Ok(());
+                for child in cells {
+                    result = self.collect_doc(*child, tree, false, &mut into);
+                    if result.is_err() {
+                        break;
+                    }
+                }
+                let result = result.map(|()| Rc::new(into));
+                // Not if it met a formula that is not worked out yet, or one in progress
+                // (what that one shows depends on who asks).
+                if shared && clean && !self.tainted && self.need.is_empty() {
+                    self.cache.insert((id, tree), result.clone());
+                }
+                result
             }
             Node::Var(v) => {
                 for child in v.grid.as_deref().map_or(&[][..], |g| g.cells.as_slice()) {
-                    self.collect_value(child, tree, false, into, 1)?;
+                    self.collect_value(child, tree, false, &mut into, 1)?;
                 }
-                Ok(())
+                Ok(Rc::new(into))
             }
         }
     }
@@ -524,10 +599,10 @@ impl<'a> Env for Ctx<'a, '_> {
         }
     }
 
-    fn text(&self, node: Node<'a>) -> String {
+    fn text(&self, node: Node<'a>) -> &str {
         match node {
-            Node::Doc(id) => self.shown(id).to_string(),
-            Node::Var(v) => v.text.clone(),
+            Node::Doc(id) => self.shown(id),
+            Node::Var(v) => &v.text,
         }
     }
 
@@ -539,10 +614,15 @@ impl<'a> Env for Ctx<'a, '_> {
         self.work
     }
 
-    fn add_work(&mut self, work: u64) {
-        self.work = self.work.saturating_add(work);
+    fn add_work(&mut self, work: u64) -> bool {
+        self.spend(work);
+        !self.over
     }
 }
+
+/// What reading the grid of a cell gave in this recalculation, without or with everything
+/// inside.
+type Cache<'a> = HashMap<(CellId, bool), Collected<Node<'a>>>;
 
 /// A formula in progress.
 struct Frame<'a> {
@@ -563,17 +643,57 @@ struct Pass<'a> {
     results: &'a mut HashMap<CellId, Res>,
     readers: &'a mut Readers,
     busy: HashSet<CellId>,
-    work: u64,
+    /// The cost of the formulas worked out so far.
+    done: u64,
     budget: u64,
     over: bool,
     tainted: bool,
     evaluated: usize,
+    cache: Cache<'a>,
 }
 
 impl<'a> Pass<'a> {
+    fn new(
+        doc: &'a Document,
+        index: &'a Index,
+        variables: &'a Variables,
+        results: &'a mut HashMap<CellId, Res>,
+        readers: &'a mut Readers,
+        budget: u64,
+    ) -> Pass<'a> {
+        Pass {
+            doc,
+            index,
+            variables,
+            results,
+            readers,
+            busy: HashSet::new(),
+            done: 0,
+            budget,
+            over: false,
+            tainted: false,
+            evaluated: 0,
+            cache: HashMap::new(),
+        }
+    }
+
     /// Brings the result of formula cell `start` up to date, after those it reads.
     fn ensure(&mut self, start: CellId) {
         if self.results.contains_key(&start) {
+            return;
+        }
+        if self.over {
+            // Nothing is worked out any more: no more than writing the result down.
+            let outcome = limit();
+            self.results.insert(
+                start,
+                Res {
+                    text: outcome.text,
+                    failed: outcome.failed,
+                    cost: 0,
+                },
+            );
+            self.evaluated = self.evaluated.saturating_add(1);
             return;
         }
         let frame = |cell| Frame {
@@ -618,6 +738,7 @@ impl<'a> Pass<'a> {
                         },
                     );
                     self.busy.remove(&cell);
+                    self.done = self.done.saturating_add(cost);
                     self.evaluated = self.evaluated.saturating_add(1);
                     if let Some(done) = stack.pop() {
                         self.readers
@@ -645,15 +766,15 @@ impl<'a> Pass<'a> {
             me: frame.cell,
             need: Vec::new(),
             work: 0,
-            fresh: 0,
-            budget: self.budget.saturating_sub(self.work),
+            budget: self.budget.saturating_sub(self.done),
+            cache: &mut self.cache,
             over: false,
             tainted: false,
             reads_children: Vec::new(),
             reads_tree: Vec::new(),
         };
+        ctx.spend(FORMULA_WORK.saturating_add(text.len() as u64 / 32));
         let outcome = formula::evaluate(&formula_of(text), &mut ctx, &mut frame.memo);
-        self.work = self.work.saturating_add(ctx.fresh);
         self.tainted |= ctx.tainted;
         frame.reads_children.append(&mut ctx.reads_children);
         frame.reads_tree.append(&mut ctx.reads_tree);
@@ -756,6 +877,7 @@ impl Calc {
     /// interfaces with little time).
     pub fn set_budget(&mut self, doc: &Document, cells: u64) {
         self.budget = cells;
+        self.stats = Stats::default();
         self.full(doc);
         self.recalculated.clear();
     }
@@ -837,6 +959,7 @@ impl Calc {
             self.stats = Stats {
                 full: true,
                 evaluated: 0,
+                work: self.stats.work,
             };
             return;
         }
@@ -847,19 +970,14 @@ impl Calc {
             .filter_map(|id| Some((index.place(*id)?, *id)))
             .collect();
         order.sort_unstable();
-        let mut pass = Pass {
+        let mut pass = Pass::new(
             doc,
-            index: &index,
-            variables: &self.variables,
-            results: &mut self.results,
-            readers: &mut self.readers,
-            busy: HashSet::new(),
-            work: 0,
-            budget: self.budget,
-            over: false,
-            tainted: false,
-            evaluated: 0,
-        };
+            &index,
+            &self.variables,
+            &mut self.results,
+            &mut self.readers,
+            self.budget,
+        );
         for (_, id) in &order {
             pass.ensure(*id);
         }
@@ -868,6 +986,7 @@ impl Calc {
         self.stats = Stats {
             full: true,
             evaluated: pass.evaluated,
+            work: self.stats.work.saturating_add(pass.done),
         };
         self.total_cost = self
             .results
@@ -943,6 +1062,11 @@ impl Calc {
         {
             return false;
         }
+        // With so much to do in all that the part could not be trusted afterwards (see the
+        // end), everything is worked out straight away, once, not after a wasted attempt.
+        if !affected.is_empty() && self.total_cost.saturating_mul(2) > self.budget {
+            return false;
+        }
         // Cells that stopped being formulas.
         let mut old: Vec<(CellId, Res)> = Vec::new();
         for id in changed {
@@ -964,23 +1088,19 @@ impl Calc {
         order.sort_unstable();
         // The readers of the old attempts stay until the new ones are known to stand.
         let mut readers = Readers::default();
-        let mut pass = Pass {
+        let mut pass = Pass::new(
             doc,
             index,
-            variables: &self.variables,
-            results: &mut self.results,
-            readers: &mut readers,
-            busy: HashSet::new(),
-            work: 0,
-            budget: self.budget,
-            over: false,
-            tainted: false,
-            evaluated: 0,
-        };
+            &self.variables,
+            &mut self.results,
+            &mut readers,
+            self.budget,
+        );
         for (_, id) in &order {
             pass.ensure(*id);
         }
         let (tainted, over, evaluated) = (pass.tainted, pass.over, pass.evaluated);
+        self.stats.work = pass.done;
         let cost = |results: &HashMap<CellId, Res>, ids: &mut dyn Iterator<Item = CellId>| {
             ids.filter_map(|id| results.get(&id))
                 .fold(0u64, |a, r| a.saturating_add(r.cost))
@@ -988,7 +1108,7 @@ impl Calc {
         let spent = cost(&self.results, &mut affected.iter().copied());
         let saved = old.iter().fold(0u64, |a, (_, r)| a.saturating_add(r.cost));
         let total = self.total_cost.saturating_sub(saved).saturating_add(spent);
-        if tainted || over || total.saturating_mul(2) > self.budget {
+        if tainted || over || (evaluated > 0 && total.saturating_mul(2) > self.budget) {
             // Put back what was there, so that the full recalculation reports the
             // difference to it.
             for id in &affected {
@@ -1016,7 +1136,105 @@ impl Calc {
         self.stats = Stats {
             full: false,
             evaluated,
+            work: self.stats.work,
         };
         true
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::edit::{Command, Editor};
+    use crate::id::SeededIds;
+
+    struct Rng(u64);
+
+    impl Rng {
+        fn below(&mut self, n: usize) -> usize {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 % n.max(1) as u64) as usize
+        }
+    }
+
+    const TEXTS: &[&str] = &[
+        "1",
+        "2",
+        "",
+        "abc",
+        "=SUM(N0)",
+        "=SUM(N1)+SUM(N2)",
+        "=N3&N3&N3&N3",
+        "=SUM(SUBSET(N1,0,-))+MAX(N0)",
+        "=TREESUM(N2)",
+        "=1/0",
+        "=LEN(N4&'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')",
+        "=SUM(N5)+SUM(N4)+SUM(N3)+SUM(N2)+SUM(N1)+SUM(N0)",
+        "=Missing",
+    ];
+
+    /// With any limit on the work, however small, keeping the results up to date change by
+    /// change gives what working everything out gives: which formulas show `#LIMIT!` must
+    /// not depend on what was worked out before, or on who had to wait for whom.
+    #[test]
+    fn a_limit_on_work_gives_the_same_whether_results_are_kept_or_worked_out_anew() {
+        let mut limited = 0;
+        for seed in 1..=300u64 {
+            let mut r = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
+            let mut ids = SeededIds::from_u64(seed);
+            let mut doc = Document::new(&mut ids);
+            let root = doc.root();
+            doc.add_grid(root, 1, 6, &mut ids).unwrap();
+            let mut cells = Vec::new();
+            for n in 0..6u32 {
+                let table = doc.child(root, 0, n).unwrap();
+                doc.cell_mut(table).unwrap().text = format!("N{n}");
+                let rows = 1 + r.below(4) as u32;
+                doc.add_grid(table, 1, rows, &mut ids).unwrap();
+                for y in 0..rows {
+                    let cell = doc.child(table, 0, y).unwrap();
+                    let text = TEXTS[r.below(TEXTS.len())];
+                    let c = doc.cell_mut(cell).unwrap();
+                    c.text = text.to_string();
+                    if text.starts_with('=') {
+                        c.kind = CellKind::Formula;
+                    }
+                    cells.push(cell);
+                }
+            }
+            let budget = 10 + r.below(400) as u64;
+            let mut editor = Editor::new(doc).unwrap();
+            let mut calc = Calc::new(editor.document());
+            calc.set_budget(editor.document(), budget);
+            for _ in 0..30 {
+                let cell = cells[r.below(cells.len())];
+                let text = TEXTS[r.below(TEXTS.len())].to_string();
+                let command = if r.below(4) == 0 {
+                    Command::SetText { cell, text }
+                } else {
+                    Command::EnterText { cell, text }
+                };
+                let changes = editor.apply(command, None, &mut ids).unwrap();
+                calc.update(editor.document(), &changes);
+                let mut fresh = Calc::new(editor.document());
+                fresh.set_budget(editor.document(), budget);
+                // The same shown; what it cost can differ (who read a table first).
+                assert_eq!(
+                    calc.results(),
+                    fresh.results(),
+                    "seed {seed}, budget {budget}"
+                );
+                for (id, res) in &calc.results {
+                    assert_eq!(Some(res.failed), fresh.results.get(id).map(|r| r.failed));
+                }
+                assert!(calc.stats.work <= budget.saturating_mul(2).saturating_add(2));
+                limited += usize::from(fresh.over);
+            }
+        }
+        // The limit was met often, and often not.
+        assert!((1000..8000).contains(&limited), "{limited}");
     }
 }

@@ -1,0 +1,7 @@
+# All of a formula deleted while editing: an empty data cell.
+type /1,4/2,1 "=1+1"
+cursor /1,4/2,1 0
+keys ctrl+a BackSpace Return
+type /1,4/3,1 "=7"
+cursor /1,4/3,1 1
+keys BackSpace Return

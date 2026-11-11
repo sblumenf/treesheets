@@ -36,6 +36,21 @@ pub enum Error {
     NotFound(String),
     /// A document with this name is already in the workspace.
     AlreadyExists(PathBuf),
+    /// Two files were to be saved together ([`crate::storage::save_two`]), the second
+    /// could not be, and the first could not be put back either: the two no longer fit
+    /// each other.
+    HalfSaved {
+        /// The file that has its new content.
+        saved: PathBuf,
+        /// The file that still has its old content.
+        not_saved: PathBuf,
+        /// Where the old content of `saved` is, if it had any.
+        backup: Option<PathBuf>,
+        /// Why the second file could not be saved.
+        source: std::io::Error,
+        /// Why the first could not be put back.
+        restore: std::io::Error,
+    },
 }
 
 impl fmt::Display for Error {
@@ -54,6 +69,32 @@ impl fmt::Display for Error {
             Error::Limit(m) => write!(f, "over a limit: {m}"),
             Error::NotFound(m) => write!(f, "not found: {m}"),
             Error::AlreadyExists(p) => write!(f, "{} already exists", p.display()),
+            Error::HalfSaved {
+                saved,
+                not_saved,
+                backup,
+                source,
+                restore,
+            } => {
+                write!(
+                    f,
+                    "{} could not be saved ({source}) and still has its old content, but {} \
+                     has its new content already and could not be put back ({restore}): the \
+                     two files do not fit each other now",
+                    not_saved.display(),
+                    saved.display()
+                )?;
+                match backup {
+                    Some(backup) => write!(
+                        f,
+                        "; the old content of {} is in {}: copy it back, or save {} again",
+                        saved.display(),
+                        backup.display(),
+                        not_saved.display()
+                    ),
+                    None => write!(f, "; save {} again", not_saved.display()),
+                }
+            }
         }
     }
 }
@@ -61,7 +102,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Error::Io { source, .. } => Some(source),
+            Error::Io { source, .. } | Error::HalfSaved { source, .. } => Some(source),
             _ => None,
         }
     }

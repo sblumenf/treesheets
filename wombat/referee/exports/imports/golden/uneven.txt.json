@@ -1,0 +1,50 @@
+{
+ "text": "",
+ "type": "data",
+ "grid": {
+  "cols": 1,
+  "rows": 2,
+  "cells": [
+   {
+    "text": "A",
+    "type": "data",
+    "grid": {
+     "cols": 1,
+     "rows": 3,
+     "cells": [
+      {
+       "text": "deep",
+       "type": "data",
+       "grid": null
+      },
+      {
+       "text": "shallower",
+       "type": "data",
+       "grid": {
+        "cols": 1,
+        "rows": 1,
+        "cells": [
+         {
+          "text": "deeper",
+          "type": "data",
+          "grid": null
+         }
+        ]
+       }
+      },
+      {
+       "text": "back",
+       "type": "data",
+       "grid": null
+      }
+     ]
+    }
+   },
+   {
+    "text": "B",
+    "type": "data",
+    "grid": null
+   }
+  ]
+ }
+}

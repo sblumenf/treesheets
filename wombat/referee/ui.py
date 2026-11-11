@@ -15,11 +15,16 @@ A case file (`*.ui`) is a list of lines; places and numbers are written as for `
     action NAME [unchanged]               press the key of a menu action (see ACTIONS); the
                                           document must change, or with `unchanged` must not
     cursor CELL POSITION                  edit the text of CELL with the cursor at POSITION
+    type CELL "TEXT"                      select CELL, type TEXT (which replaces what the cell
+                                          had) and press Enter, which ends the editing
+    retype CELL "TEXT"                    the same after F2: TEXT is added at the end of what
+                                          the cell has (of a formula cell: its formula)
     keys KEY...                           raw xdotool key names
     lobster CODE ; CODE ...               lines of Lobster (the current cell is the root)
 
 Needs Xvfb, xdotool and a TreeSheets built with Lobster (see README.md).
 """
+import json
 import os
 import shutil
 import stat
@@ -62,6 +67,8 @@ ACTIONS = {
     "reset-color": ("Reset &colors", None, "ctrl+shift+c"),
     "bold": ("Toggle cell &BOLD", None, "ctrl+b"),
     "undo": ("&Undo", None, "ctrl+z"),
+    # Program > Run has Ctrl+Alt+F5, which never arrives (the X server takes it).
+    "run": ("&Run", "CTRL+ALT+N", "ctrl+alt+n"),
 }
 
 
@@ -206,12 +213,21 @@ class Instance(referee.Instance):
             self.lobster(_steps(words[1]) + ["ts.select()"])
             # F2 edits with the cursor at the end, Ctrl+Home takes it to the start.
             self.keys("F2", "ctrl+Home", *["Right"] * int(words[2]))
+        elif verb in ("type", "retype"):
+            # The text as a JSON string, so that spaces at its ends and quotes can be typed.
+            text = json.loads(line.split(None, 2)[2])
+            self.lobster(_steps(words[1]) + ["ts.select()"])
+            if verb == "retype":
+                self.keys("F2")
+            _xdotool(self.display, "type", "--delay", "40", text)
+            time.sleep(0.2)
+            self.keys("Return")
         elif verb == "keys":
             self.keys(*words[1:])
         elif verb == "lobster":
             self.lobster(["ts.goto_root()"] + line.split(None, 1)[1].split(" ; "))
         else:
-            raise ValueError("not select, action, cursor, keys or lobster")
+            raise ValueError("not select, action, cursor, type, retype, keys or lobster")
 
     def check_keys_arrive(self):
         """Presses a key that always changes the document, to tell a refused action from a

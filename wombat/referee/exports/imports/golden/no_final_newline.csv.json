@@ -1,0 +1,30 @@
+{
+ "text": "",
+ "type": "data",
+ "grid": {
+  "cols": 4,
+  "rows": 1,
+  "cells": [
+   {
+    "text": "last",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "line",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "without",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "end",
+    "type": "data",
+    "grid": null
+   }
+  ]
+ }
+}

@@ -107,6 +107,27 @@ fn formulas_match_treesheets() {
     check(&r, "formulas", 10_000);
 }
 
+/// The cases added after the review of milestone 5: letters outside ASCII in the name of
+/// `SUBSET`, and which characters can be part of a name.
+#[test]
+fn review_cases_match_treesheets() {
+    let mut r = Report::default();
+    for case in &golden("review") {
+        let mut ids = SeededIds::from_u64(1);
+        let editor = Editor::new(build(&case["doc"], &mut ids)).unwrap();
+        let name = case["name"].as_str().unwrap();
+        compare(
+            editor.document(),
+            editor.calc(),
+            editor.document().root(),
+            &case["shown"],
+            name,
+            &mut r,
+        );
+    }
+    check(&r, "review cases", 70);
+}
+
 /// Formula cells with a grid, whose result is their name (decision B51).
 #[test]
 fn formula_cells_with_grids_match_treesheets() {

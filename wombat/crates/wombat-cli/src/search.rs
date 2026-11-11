@@ -61,21 +61,24 @@ Options:
   --in FILE CELL       only inside this cell of FILE (CELL as in `wombat edit`)
   --next FILE CELL     only the next match after this cell in FILE, in the order of the
   --prev FILE CELL     document, going round at the end (or the previous one)
-  --no-cache           do not keep an index between runs. Otherwise one is kept, outside
-                       the folder that is searched: in a folder of its own under
-                       $WOMBAT_CACHE_DIR, or else the cache directory of the system
-                       ($XDG_CACHE_HOME or ~/.cache, ~/Library/Caches, %LOCALAPPDATA%)
-                       with /wombat. Every document is still read and compared with
-                       it on every run, so the index is never out of date; only the
-                       parsing is saved. (A .wombat-index folder inside the searched
+  --no-cache  --cache-dir DIR  --cache=fast  --rebuild
+                       the index kept between runs: see below
+  --now MILLISECONDS   the time that edited: counts from (default: the clock)
+  --time               also print how long indexing and searching took
+
+The index kept between runs (the same for search, links, backlinks and broken):
+  --no-cache           keep none. Otherwise one is kept, outside the folder that is
+                       read: under $WOMBAT_CACHE_DIR, or else under wombat in the cache
+                       directory of the system ($XDG_CACHE_HOME or ~/.cache,
+                       ~/Library/Caches, %LOCALAPPDATA%). Every document is still read
+                       and compared with it on every run, so it is never out of date;
+                       only the parsing is saved. (A .wombat-index folder inside the
                        folder is from an older version and is not used.)
   --cache-dir DIR      keep the indexes under DIR instead
   --cache=fast         do not read a document whose length, times and (on Unix) inode
                        are what they were. Faster, and it can miss a change made by a
                        tool that restores a file's times; --rebuild then helps
   --rebuild            throw the kept index of this folder away and make it again
-  --now MILLISECONDS   the time that edited: counts from (default: the clock)
-  --time               also print how long indexing and searching took
 ";
 
 /// The text of `wombat replace --help`.
@@ -144,6 +147,54 @@ pub fn cache_of(workspace: &Workspace, mode: CacheMode, dir: Option<&str>) -> Ca
         (Some(cache), Some(now)) => cache.with_now(now.as_nanos()),
         (Some(cache), None) => cache,
         (None, _) => Cache::off(),
+    }
+}
+
+/// What the commands that index a folder (`search`, `links`, `backlinks`, `broken`) are
+/// told about the cache: the same options for all of them.
+pub struct CacheOptions {
+    mode: CacheMode,
+    dir: Option<String>,
+    rebuild: bool,
+}
+
+impl CacheOptions {
+    /// Takes the cache options out of the arguments of a command; returns them and
+    /// the other arguments.
+    pub fn split<'a>(args: &[&'a str]) -> Result<(CacheOptions, Vec<&'a str>), Failure> {
+        let mut options = CacheOptions {
+            mode: CacheMode::Verify,
+            dir: None,
+            rebuild: false,
+        };
+        let mut others = Vec::new();
+        let mut rest = args.iter();
+        while let Some(word) = rest.next() {
+            match *word {
+                // (`--cache` asked for a cache when none was kept unasked.)
+                "--cache" | "--cache=verify" => options.mode = CacheMode::Verify,
+                "--cache=fast" => options.mode = CacheMode::Fast,
+                "--no-cache" => options.mode = CacheMode::Off,
+                "--rebuild" => options.rebuild = true,
+                "--cache-dir" => {
+                    let dir = rest.next();
+                    let dir =
+                        dir.ok_or_else(|| Failure::Usage("--cache-dir takes a folder".into()));
+                    options.dir = Some((*dir?).to_owned());
+                }
+                other => others.push(other),
+            }
+        }
+        Ok((options, others))
+    }
+
+    /// The cache of a workspace as these options say, emptied first if asked.
+    pub fn cache(&self, workspace: &Workspace) -> Cache {
+        let cache = cache_of(workspace, self.mode, self.dir.as_deref());
+        if self.rebuild {
+            scan::clear_cache(&cache, workspace);
+        }
+        cache
     }
 }
 
@@ -272,8 +323,8 @@ fn milliseconds(started: Instant) -> String {
 /// `wombat search`.
 pub fn search(args: &[&str]) -> Result<String, Failure> {
     let mut words: Vec<&str> = Vec::new();
-    let (mut limit, mut offset, mut cache, mut time) = (20usize, 0usize, CacheMode::Verify, false);
-    let (mut cache_dir, mut rebuild) = (None, false);
+    let (mut limit, mut offset, mut time) = (20usize, 0usize, false);
+    let (cache, args) = CacheOptions::split(args)?;
     let mut now: Option<i64> = None;
     let mut within: Option<(&str, &str)> = None;
     let mut next: Option<(&str, &str, bool)> = None;
@@ -285,15 +336,6 @@ pub fn search(args: &[&str]) -> Result<String, Failure> {
         match *word {
             "--limit" => limit = number(rest.next(), "--limit")?,
             "--offset" => offset = number(rest.next(), "--offset")?,
-            "--cache" | "--cache=verify" => cache = CacheMode::Verify,
-            "--cache=fast" => cache = CacheMode::Fast,
-            "--no-cache" => cache = CacheMode::Off,
-            "--rebuild" => rebuild = true,
-            "--cache-dir" => {
-                let dir = rest.next();
-                cache_dir =
-                    Some(dir.ok_or_else(|| Failure::Usage("--cache-dir takes a folder".into()))?);
-            }
             "--time" => time = true,
             "--now" => {
                 let value = rest.next().and_then(|word| word.parse().ok());
@@ -322,10 +364,7 @@ pub fn search(args: &[&str]) -> Result<String, Failure> {
     let target = target(path)?;
 
     let started = Instant::now();
-    let cache = cache_of(&target.workspace, cache, cache_dir.copied());
-    if rebuild {
-        scan::clear_cache(&cache, &target.workspace);
-    }
+    let cache = cache.cache(&target.workspace);
     let built = workspace::index(&target.workspace, &cache)?;
     let indexing = milliseconds(started);
     let index = built.index;

@@ -504,3 +504,87 @@ fn replace_reports_the_places_it_leaves_alone() {
     );
     assert!(ok(&dir, &["show", "de.wombat"]).contains("\"ﬁnance\""));
 }
+
+/// Where the milestones meet: `import-all` and `replace` (milestone 6) write documents,
+/// image folders, images and view states. A link planted at a name that the program
+/// chooses is never written through (decision A87, from the review of milestone 4, holds
+/// for them through the storage layer); a link at a document's own name is the user's.
+#[cfg(unix)]
+#[test]
+fn import_all_and_replace_write_through_no_planted_link() {
+    use std::os::unix::fs::symlink;
+    let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../TS/examples");
+    // An example with images, alone in a folder.
+    let source = folder("planted-source");
+    fs::copy(
+        examples.join("tutorial-de.cts"),
+        source.join("tutorial.cts"),
+    )
+    .unwrap();
+    let source = source.to_str().unwrap();
+    let elsewhere = |test: &str| {
+        let outside = folder(&format!("{test}-outside"));
+        fs::write(outside.join("important.txt"), "do not touch").unwrap();
+        outside
+    };
+    let untouched = |outside: &Path, test: &str| {
+        let precious = fs::read_to_string(outside.join("important.txt")).unwrap();
+        assert_eq!(precious, "do not touch", "{test}");
+        assert_eq!(fs::read_dir(outside).unwrap().count(), 1, "{test}");
+    };
+    // Without a link: the folder of images and the folder of view states are made.
+    let dir = folder("planted-none");
+    ok(&dir, &["import-all", source, "all"]);
+    let images = fs::read_dir(dir.join("all/tutorial.wombat.images")).unwrap();
+    assert!(images.count() > 0);
+    assert!(dir.join("all/.wombat-view").is_dir());
+
+    // The folders that the importer would make are links to a folder elsewhere.
+    for link in ["tutorial.wombat.images", ".wombat-view"] {
+        let test = format!("planted-folder-{}", link.len());
+        let (dir, outside) = (folder(&test), elsewhere(&test));
+        fs::create_dir(dir.join("all")).unwrap();
+        symlink(&outside, dir.join("all").join(link)).unwrap();
+        let output = wombat(&dir, &["import-all", source, "all"]);
+        assert_eq!(output.status.code(), Some(1), "{test}");
+        untouched(&outside, &test);
+    }
+    // (An image gets a new random name, so no link can wait at it; the importer's own
+    // test, in `wombat-cts`, plants one at a name it is given.)
+    // A link at the name of the document: to a file, the import takes another name; to
+    // nothing, it is refused and no file appears where the link points.
+    let (dir, outside) = (folder("planted-doc"), elsewhere("planted-doc"));
+    fs::create_dir(dir.join("all")).unwrap();
+    symlink(
+        outside.join("important.txt"),
+        dir.join("all/tutorial.wombat"),
+    )
+    .unwrap();
+    ok(&dir, &["import-all", source, "all"]);
+    assert!(dir.join("all/tutorial-2.wombat").is_file());
+    untouched(&outside, "planted-doc");
+    let (dir, outside) = (folder("planted-dangling"), elsewhere("planted-dangling"));
+    fs::create_dir(dir.join("all")).unwrap();
+    symlink(outside.join("new.wombat"), dir.join("all/tutorial.wombat")).unwrap();
+    let output = wombat(&dir, &["import-all", source, "all"]);
+    assert_eq!(output.status.code(), Some(1));
+    untouched(&outside, "planted-dangling");
+
+    // `replace` saves documents at their own names, where a link is the user's and is
+    // followed (decision A27): the document that a link in the folder leads to is
+    // changed as the others, the link stays, and nothing else appears beside the file.
+    let (dir, outside) = (two("planted-replace"), elsewhere("planted-replace"));
+    let other = outside.join("important.txt");
+    fs::copy(dir.join("shop.wombat"), &other).unwrap();
+    fs::remove_file(dir.join("shop.wombat")).unwrap();
+    symlink(&other, dir.join("shop.wombat")).unwrap();
+    let out = ok(&dir, &["replace", ".", "apple", "quince"]);
+    assert!(out.contains("replaced"), "{out}");
+    let changed = fs::read_to_string(&other).unwrap();
+    assert!(changed.contains("quince") && !changed.contains("pple"));
+    assert_eq!(fs::read_dir(&outside).unwrap().count(), 1);
+    assert!(fs::symlink_metadata(dir.join("shop.wombat"))
+        .unwrap()
+        .is_symlink());
+    assert!(ok(&dir, &["check", "shop.wombat"]).ends_with("deep\n"));
+}

@@ -419,49 +419,116 @@ fn documents_that_are_not_open_are_searched_by_their_results() {
     assert_eq!(find(CacheMode::Verify, "550.5"), (2, 1));
 }
 
-/// A document made to be slow cannot hold a scan up for ever: the evaluator's limit on
-/// work (decision A67) applies to a scan as to an editor, the formulas past it show
-/// `#LIMIT!`, and the summary is the same every time. Measured in a release build:
-/// 4.9 seconds for this document, which is what the limit of 50 million cells costs;
-/// ten times that in a debug build, so it runs in release builds only
-/// (`cargo test --release -p wombat-search --test formulas`).
+/// A document made to be slow cannot hold a scan up for long: the evaluator's limits on
+/// work and on text (decisions A80 and A81, which replaced the limit of A67 after the
+/// review of milestone 5) apply to a scan as to an editor, the formulas past the limit
+/// show `#LIMIT!` and are found by that, and the summary is the same every time.
+///
+/// Two documents. The first asks for 150 million cell reads and took a scan 4.9 seconds
+/// under the old limit of 50 million cells; a table is now read once for all formulas,
+/// and it is over the limit after 12 ms. The second is the most that the limit allows
+/// now: sums over `SUBSET`s, which nothing can share. Measured in a release build: 0.7
+/// seconds for its summary, results and indexing of its 100,000 cells together (3.2 s in
+/// a debug build).
 #[test]
-#[cfg_attr(debug_assertions, ignore = "takes two minutes in a debug build")]
 fn a_document_of_heavy_formulas_is_summarised_in_bounded_time() {
     use wombat_core::summary::Summary;
     let mut ids = SeededIds::from_u64(9);
+    // A table of `numbers` numbers, and `formulas` cells with the formula.
+    let mut build = |numbers: usize, formulas: usize, formula: &str| {
+        let mut doc = Document::new(&mut ids);
+        let root = doc.root();
+        doc.add_grid(root, 1, formulas as u32 + 1, &mut ids)
+            .unwrap();
+        let cells = doc.cell(root).unwrap().grid().unwrap().cells().to_vec();
+        doc.cell_mut(cells[0]).unwrap().text = "T".into();
+        doc.add_grid(cells[0], 1, numbers as u32, &mut ids).unwrap();
+        let table = doc.cell(cells[0]).unwrap().grid().unwrap().cells().to_vec();
+        for (n, cell) in table.iter().enumerate() {
+            doc.cell_mut(*cell).unwrap().text = (n % 97).to_string();
+        }
+        for cell in &cells[1..] {
+            let heavy = doc.cell_mut(*cell).unwrap();
+            heavy.text = formula.to_owned();
+            heavy.kind = CellKind::Formula;
+        }
+        doc.validate().unwrap();
+        (doc, cells)
+    };
+    // 60 formulas that each add up a table of 5,000 numbers 500 times; and 30 that each
+    // add up a part of a table of 100,000 numbers, the part read anew every time.
+    let shared = build(5000, 60, &format!("={}0", "SUM(T)+".repeat(500)));
+    let unshared = build(100_000, 30, "=SUM(SUBSET(T,0,-))");
+    for (name, (doc, cells), bound) in [("shared", shared, 2), ("unshared", unshared, 20)] {
+        let started = std::time::Instant::now();
+        let summary = wombat_search::DocIndex::of(&doc);
+        let took = started.elapsed();
+        println!("summary of a document of heavy formulas ({name}): {took:?}");
+        // (Generous: a debug build takes ten times as long as a release build.)
+        assert!(took < std::time::Duration::from_secs(bound), "{took:?}");
+        let calc = Calc::new(&doc);
+        assert_eq!(calc.stats().work, wombat_core::eval::MAX_WORK + 1);
+        let last = cells.last().copied().unwrap();
+        assert!(calc.result(cells[1]).unwrap().0.parse::<u64>().is_ok());
+        assert_eq!(calc.result(last).unwrap().0, "#LIMIT!");
+        let over = cells
+            .iter()
+            .filter(|c| calc.result(**c).is_some_and(|r| r.0 == "#LIMIT!"))
+            .count();
+        assert!(over >= 10 && over < cells.len() - 10, "{name}: {over}");
+        // The index has what the calculation gave, and finds the cells by it.
+        let mut index = SearchIndex::new();
+        index.insert(summary.clone(), "heavy.wombat");
+        let query = parse("#LIMIT!", 0).unwrap().query;
+        let found = index.search(&query, &Options::default()).unwrap();
+        assert_eq!(found.total, over, "{name}");
+        assert!(summary.encode() == wombat_search::DocIndex::of(&doc).encode());
+    }
+}
+
+/// Where the limits on calculating (decisions A80, A81) meet search and replace: a
+/// formula that a replace turns into one whose text would grow without end shows
+/// `#LIMIT!`, the index follows that like any result, and the undo brings the old result
+/// back.
+#[test]
+fn a_replace_that_puts_a_formula_over_the_limit_shows_it_and_search_follows() {
+    use wombat_core::construct::Construct;
+    // The formula of the review of milestone 5, with `q` where it had 32 letters.
+    let mut formula = String::from("'q'");
+    for _ in 0..7 {
+        formula = format!("SUBSTITUTE({formula},'a','q')");
+    }
+    let mut ids = SeededIds::from_u64(3);
     let mut doc = Document::new(&mut ids);
-    let root = doc.root();
-    // A table of 5,000 numbers, and 60 formulas that each add it up 500 times: 150
-    // million cells to read, three times what one recalculation may read.
-    doc.add_grid(root, 1, 61, &mut ids).unwrap();
-    let cells = doc.cell(root).unwrap().grid().unwrap().cells().to_vec();
-    doc.cell_mut(cells[0]).unwrap().text = "T".into();
-    doc.add_grid(cells[0], 1, 5000, &mut ids).unwrap();
-    let numbers = doc.cell(cells[0]).unwrap().grid().unwrap().cells().to_vec();
-    for (n, cell) in numbers.iter().enumerate() {
-        doc.cell_mut(*cell).unwrap().text = n.to_string();
-    }
-    let heavy = format!("={}0", "SUM(T)+".repeat(500));
-    for cell in &cells[1..] {
-        let formula = doc.cell_mut(*cell).unwrap();
-        formula.text = heavy.clone();
-        formula.kind = CellKind::Formula;
-    }
-    doc.validate().unwrap();
-    let started = std::time::Instant::now();
-    let summary = wombat_search::DocIndex::of(&doc);
-    let took = started.elapsed();
-    println!("summary of a document that asks for 150 million cell reads: {took:?}");
-    assert!(took < std::time::Duration::from_secs(30), "{took:?}");
-    let calc = Calc::new(&doc);
-    let last = cells.last().copied().unwrap();
-    assert_eq!(calc.result(cells[1]).unwrap().0, "6248750000");
-    assert_eq!(calc.result(last).unwrap().0, "#LIMIT!");
-    let mut index = SearchIndex::new();
-    index.insert(summary.clone(), "heavy.wombat");
-    let query = parse("#LIMIT!", 0).unwrap().query;
-    let found = index.search(&query, &Options::default()).unwrap();
-    assert!(found.total > 10 && found.total < 60, "{}", found.total);
-    assert!(summary.encode() == wombat_search::DocIndex::of(&doc).encode());
+    let cell = doc.root();
+    doc.cell_mut(cell).unwrap().text = format!("=LEN({formula})");
+    doc.cell_mut(cell).unwrap().kind = CellKind::Formula;
+    let mut desk = Desk::new(doc);
+    assert_eq!(desk.editor.shown(cell), Some("1"));
+    assert!(desk.find("#LIMIT!").is_empty());
+    assert_eq!(desk.find("formula:substitute kind:formula").len(), 1);
+    let term = Term::new("q");
+    let with = "a".repeat(32);
+    let go = |desk: &mut Desk, formulas: bool| {
+        let options = ReplaceOptions { formulas };
+        let (editor, ids) = (&mut desk.editor, &mut desk.ids);
+        let done = replace(editor, &term, &with, Scope::Document, options, None, ids).unwrap();
+        desk.follow(&done.changes);
+        (done.counts.places, done.counts.formula_places)
+    };
+    // Unasked, the formula is left alone.
+    assert_eq!(go(&mut desk, false), (0, 8));
+    assert_eq!(desk.editor.shown(cell), Some("1"));
+    assert_eq!(go(&mut desk, true), (8, 8));
+    assert_eq!(desk.editor.shown(cell), Some("#LIMIT!"));
+    // Found by what it shows, as its text for `text:`, and still by its formula.
+    let limited = desk.find("#LIMIT!");
+    assert_eq!((limited.len(), limited[0].field), (1, Field::Shown));
+    assert_eq!(desk.find("limit").len(), 1);
+    assert_eq!(desk.find("text:#LIMIT!").len(), 1);
+    assert_eq!(desk.find("formula:substitute").len(), 1);
+    assert_eq!(desk.find("formula:limit").len(), 0);
+    desk.undo();
+    assert!(desk.find("#LIMIT!").is_empty());
+    assert_eq!(desk.editor.shown(cell), Some("1"));
 }

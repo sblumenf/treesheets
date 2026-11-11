@@ -152,12 +152,23 @@ fn documents(specs: &[Spec]) -> Vec<Document> {
 }
 
 fn follow(docs: Vec<Document>, acts: &[Act], seed: u64, queries: usize, early: bool) -> Compared {
+    follow_counting(docs, acts, seed, queries, early).0
+}
+
+/// [`follow`], and what the run did to the documents.
+fn follow_counting(
+    docs: Vec<Document>,
+    acts: &[Act],
+    seed: u64,
+    queries: usize,
+    early: bool,
+) -> (Compared, link_support::Stats) {
     let mut follower = Follower::new(&docs, seed, queries);
     if early {
         follower = follower.compact_early();
     }
-    run_with(docs, acts, &mut follower);
-    follower.stats
+    let did = run_with(docs, acts, &mut follower);
+    (follower.stats, did)
 }
 
 proptest! {
@@ -190,6 +201,7 @@ proptest! {
 fn the_comparison_with_the_reference_compares_enough() {
     let mut runner = TestRunner::deterministic();
     let mut total = Compared::default();
+    let mut did = link_support::Stats::default();
     for case in 0..40u64 {
         let specs = proptest::collection::vec(spec(), 1..4)
             .new_tree(&mut runner)
@@ -199,9 +211,14 @@ fn the_comparison_with_the_reference_compares_enough() {
             .new_tree(&mut runner)
             .unwrap()
             .current();
-        total.add(follow(documents(&specs), &acts, case + 1, 4, case % 2 == 0));
+        let (compared, done) =
+            follow_counting(documents(&specs), &acts, case + 1, 4, case % 2 == 0);
+        total.add(compared);
+        did.add(done);
     }
-    println!("search against the reference: {total:?}");
+    println!("search against the reference: {total:?}, {did:?}");
+    // Links corrected in place (`RetargetLinks`, by itself and in moves) are followed too.
+    assert!(did.retargets > 5 && did.moves > 5, "{did:?}");
     assert!(total.queries > 3000, "{total:?}");
     assert!(total.selective * 3 > total.queries, "{total:?}");
     assert!(

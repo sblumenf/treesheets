@@ -1,0 +1,9 @@
+# Typing over a formula cell: plain text makes it a data cell, a formula over that a formula
+# cell again.
+type /1,4/2,1 "=1+1"
+type /1,4/2,1 "plain"
+type /1,4/3,1 "=1+1"
+type /1,4/3,1 "=2*3"
+type /1,4/1,1 "=5"
+type /1,4/1,1 "x"
+type /1,4/1,1 "=6"

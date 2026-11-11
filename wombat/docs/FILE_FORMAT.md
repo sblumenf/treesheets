@@ -29,6 +29,13 @@ folder/
 - If `x` is a symbolic link, Wombat saves to the file the link leads to (the temporary file is
   beside that file) and leaves the link in place; a link that leads nowhere is an error. The
   image folder and the view state stay beside the name the document was opened by.
+- Only the document's own name may be a link. The image folder, the files in it, the
+  `.wombat-view` folder and the files in it are names that Wombat chooses: a link at one of
+  them is not followed. A file is written beside it and renamed over it, and a folder that is
+  a link is refused (decision A87).
+- When two documents are saved together (cells moved from one to the other), the old content
+  of the first is kept as `.x.bak` until both are in place (decision A89). A leftover
+  `.x.bak` means that this was interrupted: `x` is then the new file and `.x.bak` the old one.
 - On Unix a saved file keeps the permissions of the file it replaces. Its owner and group become
   those of whoever saved it.
 - **Copying a document** is not copying its file: the copy would have the same document ID and

@@ -690,7 +690,132 @@ numbers of its own (A50 on and B40 on for milestone 4, A60 on and B50 on for mil
     following one edit takes over 0.5 ms, or if the index takes over 16 times the
     text. The measured numbers are in `milestones/M6.md`.
 
-Numbers 80 to 89 are not used: 90 on are where milestones 4, 5 and 6, built apart, meet.
+Numbers 80 to 89 are from the review of milestones 4 and 5 (they stand before 90 on, which
+are where milestones 4, 5 and 6, built apart, meet).
+
+80. **A text that a formula makes is at most 1 MiB** (adds to A67; found in review of
+    milestone 5). Texts had no bound: `SUBSTITUTE` seven deep on 32 characters, or 41
+    cells that each join the one before to itself, asked for gigabytes, and the process
+    was aborted, also when such a document was only loaded. Now every text value of a
+    formula (what `&`, `SUBSTITUTE`, `UPPER`, `LEFT` and the like make, a literal, and
+    the text of a cell that a name or `SUBSET` stands for) is at most
+    `eval::MAX_TEXT_BYTES` = 1,048,576 bytes: a sixteenth of the 16,777,216 code points
+    that the text of a cell may have (A20). A cell can hold a pasted document; a
+    calculated text is for showing, and each one a formula holds while it is worked out
+    counts. A longer one is `#LIMIT!`, an error like `#NUM!` that carries over to
+    whoever reads it; the length is worked out before anything is allocated. And making
+    text is work (A81): 16 bytes count as one cell read, so that all the texts of one
+    recalculation, results included, stay under 32 MB. Running the program does not
+    join texts; there the bytes of copied texts count as steps (16 bytes as one) and
+    `graph` counts its bars four times.
+81. **What a recalculation may cost: 2,000,000 units of work, each formula's cost the
+    same however it is reached** (replaces the 50,000,000 cells of A67, and how A63
+    decides between part and all; found in review). Measured, 45,000,000 cell reads
+    took 13 seconds; a part of the formulas was tried and thrown away first (30
+    seconds); and an edit of a cell that no formula reads worked everything out, because
+    the check on the total came after the attempt and did not ask whether anything had
+    been done. Now:
+    - *Work* (`eval::MAX_WORK`) is: one per cell of a grid that is read (all inside it
+      for `TREE`), counted when the reading starts, so that it is the same whether the
+      reading ends early at an error; one for a grid that was read before in the same
+      recalculation (its contents are shared between the formulas, and each aggregate
+      of it is worked out once), unless the formula is inside that grid, since its own
+      cell does not count for it; one per 16 bytes of text made; 6 per formula and one
+      per 32 bytes of its text (finding it, reading it and keeping its result takes as
+      long as reading six cells); and at every name, once more what the texts made so
+      far cost and a sixteenth of the position in the formula, which is what reading
+      the formula again from its start costs if that name has to wait for another
+      formula. Measured, a unit is at most about 0.45 microseconds, so the limit is 0.9
+      seconds on this machine; `Calc::stats().work` says what the last update took.
+      (3,000,000 was tried first and took 1.3 seconds.)
+    - *What a formula costs does not depend on who waited for whom*: while an attempt
+      only looks for the formulas it has to wait for, nothing is counted, and it is
+      counted when the attempt is made again. So "over the limit" is a property of the
+      document, and keeping results up to date gives what working everything out gives
+      at any limit (tested with limits of 10 to 410 units on random documents).
+    - *A change that no formula reads works nothing out*, whatever the total; when
+      the total is over half the limit, everything is worked out straight away, once.
+      Circles and `#LIMIT!` still mean everything after every change (A63).
+    - Beside the limit stands the time that does not depend on what the formulas do:
+      before everything is worked out, the document is walked once to know what names
+      mean, 0.8 microseconds per cell (0.55 seconds for the 700,000 cells a document may
+      have; it was two walks and 1.1 microseconds), and a formula that is over the
+      limit still takes 0.6 microseconds to say so. `milestones/M5.md` has the worst
+      case measured.
+82. **A run holds at most twice a document** (adds to A67; found in review). The
+    20,000,000 steps of A67 let one row with a grid of 100,000 cells and 150
+    variable-assign cells copy 15 million cells into variables: 2.5 GB, which the
+    editor then kept. The cells that a run holds in its copy of the document, in what
+    its views were filled with, and in its variables may together be at most
+    `eval::MAX_RUN_CELLS` = 1,400,000 (twice A43's limit) with at most
+    `eval::MAX_RUN_TEXT` = 64 MiB of text; it is asked before a value is copied into a
+    view or a variable, and the run is refused with nothing changed. Variables are still
+    copies, not shared: a value in hand is changed in place by the operations after it,
+    and sharing would need every such place to copy first. What the editor keeps after
+    a run (the variables, and the value of the root cell) is within the same bound.
+83. **Hierarchify, flatten, collapse and hierarchy swap go by what cells show**
+    (completes A66; the real app was asked, `referee/ops/ui`). Hierarchify groups rows
+    by what their first cells show. Flatten leaves, for a formula cell, a data cell with
+    its result; so does the copy of a parent in a hierarchy swap, which finds cells by
+    what they show. Collapse appends what the cells show; if the first cell of the block
+    is a formula cell, it stays as it is and the other texts are gone (TreeSheets
+    appends them to the result and then works the formula out again, which comes to
+    the same). And `EnterText` with the text that the cell has already (typed with the
+    text commands, A65) leaves it alone, styles and links included, unless the cell is
+    a formula cell now: TreeSheets changes only the kind when typing ends. Found by
+    typing into the real app.
+84. **A moved cell can come back** (replaces the last rule of A52; found in review of
+    milestone 4). `AdoptCells` refused an ID that the history of the document held, so
+    a cell moved from A to B could not move back to A, or on to C and back to B, until
+    the history was cleared. The refusal protected nothing: IDs are never given twice
+    (A5, A36, A48), so an ID in the history is that of the very cell that arrives, and
+    the unit that holds it is older than the command that brings it in. Undo is last
+    in, first out: it reaches the older unit only after the newer one took the cell
+    out again, so the cell is never in the document twice. `AdoptCells` now refuses only
+    an ID that is in the document. The editor counts how often each ID is held, since
+    two units can hold one cell now. Tested for A to B to A and A to B to C to B, with
+    undo and redo in every order of the editors.
+85. **Links are corrected in place** (replaces the last sentence of A51; found in
+    review). A new command, `RetargetLinks`, changes the document that links to given
+    cells name and nothing else; `move_between` and `LinkIndex::repairs` use it where
+    they made new links with `SetLink` before, which lost unknown fields and joined two
+    neighbouring links to one cell into one. 45 commands now, with `Import` of milestone 7. `resolve_unknown` still
+    makes a new link: it gives a target to a link that had none.
+86. **What "nothing is lost" means after a move undone on one side** (corrects A52).
+    Undone in the document the cells arrived in, the cells are in neither document;
+    they are in that document's redo and in the other's undo. A new command in the first
+    document ends its redo, and then the cells exist only in the history of the
+    document they left, until that is undone, forgotten or closed. `Editor::holds(cell)`
+    says that a cell is in an editor's history and not in its document, so that an
+    interface can warn before such a history goes; the core does not know which
+    editors are open together, and warns of nothing itself.
+87. **Nothing is written through a link at a name the program chose** (adds to A27;
+    the second finding of this kind). A27 lets a save follow a link at the document's
+    own path, because someone put it there on purpose. Every other name is the
+    program's: temporary and backup files, the image folder and the files in it, the
+    folder of view states and its files. A link at such a name is planted: files are
+    written beside it and renamed over it (`storage::write_own`), and a folder that is a
+    link is refused. An image that is a link in the source's folder is not copied out as
+    if it were the file. Names that come from a document cannot leave its folder
+    (A30). The cache of an index is not covered here (it is reworked in milestone 6).
+88. **Images, tags and folds go with cells between documents** (adds to A51; found in
+    review). `storage::carry_images` copies the image files that a clip's cells show
+    into the image folder of the other document: used as it is if the same bytes are
+    there under the name, under a new name if another picture has the name (and the
+    clip is changed to say so), refused with nothing copied if a file is missing, since
+    after a move the picture would be gone for good. The tags that the cells have are
+    added to the other document if it lacks them (B70). On a move the folds of the
+    cells go to the other document's view state; a copy has new cells and no folds,
+    as a copy within a document. `storage::transfer_cell` does all of it for two files
+    and then removes from the source's image folder what nothing there shows any more;
+    `links::paste_clip` and `links::move_clip` are the same for editors.
+89. **Two documents are saved together** (`storage::save_two`; found in review). Both
+    are written beside their files first; the old first file is kept under a second
+    name; then each is put in place. If the second cannot be, the first is put back, and
+    both are as they were. If that fails too, the error (`Error::HalfSaved`) names the
+    file that is new, the one that is old, and where the old content of the first is.
+    Between the two renames a crash leaves the first new and the second old, with the
+    backup beside them: two files cannot be replaced in one step.
 
 90. **An index gets formula results from the editor, and works them out itself for a
     document that nobody edits** (A61, A76; `Summary` in `summary.rs`). Results are
@@ -718,7 +843,7 @@ Numbers 80 to 89 are not used: 90 on are where milestones 4, 5 and 6, built apar
       holds for a scan as for an editor, so that a document is indexed the same open
       or not: a document made to reach the limit costs a scan what it costs an editor
       to open (4.9 s at the limit of 50 million cells; the limit is the place to
-      change that).
+      change that, and A81 did: under a second since).
     - *Variables of a run* are in the editor's results and in no file, so a formula
       that reads one is indexed by its number while the document is open and by `#N/A`
       after it was saved and scanned, as it shows in each case.
@@ -739,6 +864,140 @@ Numbers 80 to 89 are not used: 90 on are where milestones 4, 5 and 6, built apar
     result), and the tool prints them as `wombat show` does, `"=SUM(Costs)" = "1050.5"`.
     Filters that ask about a cell's text (`text:`, `tag:`, `has:text`) and the "shorter
     text first" of the ranking still go by the stored text.
+95. **Import and export are conversions between values; files are another layer**
+    (milestone 7; the numbers A93 and A94 are not used here). `convert` turns a document
+    into text and text into a `Table` of texts, and touches no file. An export reads a
+    `Source`: the document and the results of its formula cells (`Calc`), both by
+    reference, so an export cannot change a document and makes no entry in a history. An
+    import gives a `Table`, which becomes a new document (`to_document`) or goes into a
+    cell through the editing engine. Writing is `export_files`, reading is the caller's
+    (`storage::read_bounded`). The same document and options give the same bytes.
+96. **What a cell exports as.** What it shows: for a formula cell the result, as
+    TreeSheets exports it and as A66 says for whatever shows a cell. The option
+    `formulas` exports the formula instead. Only text is exported, and with the option
+    `notes` the note as a column of its own after each column; styles, colours, images,
+    links and the kind of a cell have no place in delimited text. The complete form of a
+    document is its `.wombat` file.
+97. **Defaults of delimited text: comma, quotes only where needed, a UTF-8 byte-order
+    mark, CR LF.** Each is what the most common reader, a spreadsheet, takes without
+    questions. *The mark:* without it Excel reads a CSV file in the system's old encoding
+    and shows every non-ASCII letter wrong, silently; with it, a few other programs show
+    three junk bytes in the first field, visibly, and Wombat's own importer drops it. The
+    silent damage is the worse one. *CR LF* is what RFC 4180 says. *Quoting* only where
+    needed keeps the file readable; a row that is one empty cell is written `""`, since
+    an empty line is no row to most readers. All can be switched (`--no-bom`, `--lf`,
+    `--quote-all`, `--delimiter`), and `ExportOptions::treesheets` is the set that gives
+    TreeSheets' own bytes.
+98. **Exported text cannot run as a formula in a spreadsheet, by default** ("CSV
+    injection"). A spreadsheet that opens a CSV file treats a field that starts with `=`,
+    `+`, `-`, `@`, a tab or a carriage return as a formula, which can read other cells,
+    fetch from the network, or on old systems start a program. A document may hold text
+    from anywhere, so every field of cell content (texts, notes, column names taken from
+    cells, the trail and text in `index.csv`) that starts with one of those gets a single
+    quote in front, as OWASP recommends. **Numbers are left alone:** a sign followed by
+    digits with at most one decimal point or comma and an optional exponent (`-5`,
+    `+2.5`, `-1,5`, `-2e10`) is a number or text to every spreadsheet, never more.
+    The price: the quote is visible in the spreadsheet's cell, and a file exported this
+    way and imported again has it in the text (`'=1+1`). `--raw` (`guard: false`)
+    exports the text as it is, for files that go to a program and not to a spreadsheet.
+    IDs, counts and file names are made by the program and are not guarded: an ID starts
+    with a hexadecimal digit, a file name with a letter or digit.
+99. **The flattened export is by rows, with one block of columns per level of nesting.**
+    One line per innermost row (a row none of whose cells has a grid), after the rows it
+    is inside of, outermost first. Level 1 is the exported grid; each level's block is as
+    wide as the widest grid at that level, so the table is a rectangle and a column means
+    the same on every line. Rows of narrower grids are padded on the right; a row nested
+    less deep than others has empty fields in the deeper blocks; a row with a nested grid
+    has no line of its own (its cells, the text of the cell that has the grid included,
+    are on every line from that grid); a row with several nested grids gives the lines of
+    each in turn after the same outer row; empty cells and entirely empty rows are kept.
+    Where every grid has one column this is exactly the table that `Flatten` makes (a
+    test compares them). There is no header line: grids have none.
+100. **The lookup-style export (B7): one table per grid, joined by IDs.** A folder with
+    one CSV file per grid of the exported cell and below, `index.csv` and `README.txt`.
+    - *Columns:* the content first (`A`, `B`, `C`, ..., the names the columns have in the
+      spreadsheet they land in; with notes, `A_note` after each), then `row_id`, then
+      `A_id`, `B_id`, ... (the ID of every cell), then `<column>_table` for each column
+      that has nested grids (the file of the table inside the cell, or empty), then, in
+      every table but the top one, `parent_table`, `parent_row_id`, `parent_cell_id`.
+      XLOOKUP does not need the key in the first column, so what a person reads is first.
+    - *`row_id` is the ID of the row's first cell.* Cells have permanent IDs (A5) and rows
+      have none; a nested grid sits in one cell, whose row is found by that row's first
+      cell. The key is the same in every export for as long as that cell exists and is
+      first in its row; moving columns or deleting the first cell changes it. Giving rows
+      IDs of their own in the model was not done for an export.
+    - *The join:* `parent_row_id` of any row of a nested table is found exactly once in
+      the `row_id` column of the table named in `parent_table`. `parent_cell_id` says
+      which cell of that row, and is found in one of its `_id` columns.
+    - *`index.csv`:* per table its file, trail (the texts on the way to its cell; a cell
+      without text is called by the first text of its row), rows, columns, whether the
+      first row was taken as names, parent table, parent row, parent column, and the ID
+      and text of the cell it sits in.
+    - *`README.txt`* explains this and gives an XLOOKUP formula for the first nested
+      table and its parent, with the real sheet names and column letters.
+    - *Column names:* letters by default, and every row is data, because a grid has no
+      header row and guessing one would silently drop a row of data from some tables.
+      With `header_row`, a table takes its names from its first row and leaves that row
+      out, unless it has only one row or a nested grid in that row (whose rows would
+      lose their parent); names that repeat, or that are those of key columns, get a
+      number. The key columns are found by position, not by name.
+    - *Nothing is lost:* with the default names, the tree of texts and IDs is rebuilt
+      from the folder alone by a test. A single "long" table of one row per cell was
+      considered as a second lossless form and not built: the tables already are one.
+101. **File names of exported tables come from cell text and are trusted with nothing.**
+    `<words>-<suffix>.csv`: the words are the trail with every character that is not a
+    letter or digit (of any script) made `-`, at most 22 characters, the end kept; the
+    suffix is the first eight digits of the ID of the cell the grid sits in. So a name
+    has no separator, no dot, no space; is never `.`, `..`, hidden, an option, or a
+    reserved name of Windows; is at most 31 characters, the limit of a sheet name in
+    Excel, so that a file opens as a sheet of its own name and the README's formula
+    fits; and is unique by its ASCII suffix alone, whatever a file system does with case
+    or accents. A table keeps its name between exports while its cell and trail stay.
+    If two suffixes of one export are equal (which random IDs do not do; a crafted file
+    can) every table is numbered instead (`n1`, `n2`, ...). The writer checks names
+    again and refuses anything that is not one plain name.
+102. **Import: a table of texts, bounded, plain by default; into a cell it is one
+    command.**
+    - Delimited text is read as RFC 4180 says, and where a file is not valid, as
+      TreeSheets reads it (B82 has the two exceptions). Rows are padded to a rectangle.
+      Line breaks inside a quoted field become one space and other control characters
+      spaces, since cell text has none (A32). Indented text is read exactly as TreeSheets
+      does.
+    - Bytes are taken as UTF-8 (with or without a mark), as UTF-16 if they start with
+      its mark, and otherwise as Windows-1252, which is what Excel on Windows writes as
+      plain "CSV" and cannot fail.
+    - **Text that starts with `=` stays plain text** unless the import is asked for
+      formulas. A file from somewhere else was written for another program; its formulas
+      would mean something else here, or start calculating unasked. TreeSheets' import
+      does the same. With the option it is as if each text had been typed (A65).
+    - *Bounds:* the file is at most 32 MiB (the caller reads it with
+      `storage::read_bounded`); rows times columns after padding, and lines of an
+      outline, are under the limit on cells, checked before the rectangle is made; a
+      field is at most as long as a text may be; nesting stops at the depth a document
+      may have (deeper lines become rows of the last level, as in TreeSheets). Reading
+      takes time in proportion to the file.
+    - *`Command::Import { cell, table }`* gives the cell the table as its grid, in place
+      of the grid it may have, and leaves the cell's own text. The cells are new, with
+      IDs from the `IdSource`, and look like the cells of a new grid of that cell
+      (`CreateGrid`). It may be the root. It is one unit of undo, reports what changed
+      like every command, and is refused if the document would have too many cells, nest
+      too deep or be too large to save.
+103. **An export writes only where it was told, and never through a link.** Two reviews
+    found writes that followed a planted symbolic link. For exports (`export_files`):
+    an existing file, or a folder with anything in it, is not written to without
+    `overwrite`; a symbolic link at the file, at the folder or at a file in the folder is
+    refused, with or without `overwrite`, and is neither followed nor removed; a file is
+    written as a new temporary file beside it (created so that an existing name fails,
+    after removing what was there) and renamed into place, which replaces a name and
+    follows nothing; every name of a folder export is checked to be one plain name, and
+    all of this is checked before the first file is written. With `overwrite`, files in
+    the folder that the export does not name are left alone, so tables of an earlier
+    export whose grids are gone stay there; `index.csv` says which tables are current.
+    Links in the folders above the one named are the user's own and are followed.
+104. **An export is bounded too.** At most 512 MiB of text per export (a flattened
+    export repeats the outer rows on every line, so it can be far larger than the
+    document) and at most 10,000 tables in a lookup export; beyond that it is refused
+    with the advice to export a part by its cell.
     *Since changed:* A110: filters and the tie-break go by what is shown too.
 105. **Replace changes only whole characters** (review of milestone 6; numbers 93 to 104
     are used by other work). A match in folded text can cover part of a character: `s`
@@ -864,7 +1123,8 @@ Numbers 80 to 89 are not used: 90 on are where milestones 4, 5 and 6, built apar
       program cannot set back. `scan::clear_cache` ("rebuild the index", `--rebuild`)
       discards the cache of a workspace.
     - *The tool keeps a cache by default* (`--no-cache` to keep none), since with
-      `Verify` it cannot make a result stale.
+      `Verify` it cannot make a result stale: `search`, `links`, `backlinks` and
+      `broken` alike, with the same options.
     - The symbolic-link rules of A71 hold for the new place: the cache folder of the
       workspace, the folders in it and the entries must be real.
 
@@ -1064,6 +1324,56 @@ Numbers 44 to 49 are not used.
     or exactly (one switch, exact by default). Wombat looks in text, note, image name,
     link targets and linked cells' texts of every document of the workspace, ignoring
     case, accents and width (A72) unless the word says `case:`.
+
+Numbers 66 to 69 are not used. 70 to 79 are from the review of milestones 4 and 5.
+
+70. **Tags go with cells to another document** (A88). TreeSheets keeps tags per document
+    and has no rule for pasting between documents: a pasted cell is a tag only if the
+    document it arrives in has a tag of its text. Wombat adds the tags that the copied or
+    moved cells have to the other document, with their colours, if it has none of that
+    name, so that a tagged cell stays tagged.
+71. **Limits on calculating, tightened** (A80 to A82; changes B52 and B53). A text that a
+    formula makes is at most 1 MiB; one recalculation is at most 2,000,000 units of work,
+    of which every formula takes at least 6, so a document cannot have more than about
+    330,000 formula cells that are worked out; a run holds at most twice a
+    document in views and variables. TreeSheets has none of these and would run out of
+    memory or time.
+
+80. **Exported CSV is made for spreadsheets, not for TreeSheets' bytes** (milestone 7;
+    numbers B66 to B69 are not used; B70 to B79 are from the review of milestones 4 and 5). TreeSheets quotes every field, ends rows with
+    the system's line end, writes no byte-order mark and exports text as it is. Wombat by
+    default quotes where needed, writes CR LF and the mark (A97), and guards text that a
+    spreadsheet would run (A98). `--treesheets` gives the bytes TreeSheets writes on
+    Linux and macOS: all 38 examples and the 10 cases of the referee compare equal.
+81. **Where TreeSheets' TSV is not valid delimited text, Wombat's is.** TreeSheets
+    quotes a field of its TSV only if it starts with a quote or holds a tab, so `say
+    "hi"` and `a"b` are written bare (a quote in a field that is not quoted), and a row
+    that is one empty cell is an empty line, which no reader takes for a row, its own
+    included. Wombat quotes any field that holds a quote and writes such a row as `""`.
+    Three of the ten cases differ for these two reasons and no other. (TreeSheets' CSV
+    is valid, apart from the line end being LF on Linux.)
+82. **Two things are read differently when importing delimited text.** A delimiter at
+    the end of a line is followed by an empty field, as RFC 4180 says; TreeSheets drops
+    it, so that a table whose last column is empty comes back one column short. And
+    text between a closing quote and the next delimiter stays with the field
+    (`"abc"x,def` is `abcx` and `def`); TreeSheets drops one character there, whatever
+    it is, and so reads `abc`, an empty field and `def`. In the other 23 of the 25
+    files compared the result is the same. A file with no line at all is refused;
+    TreeSheets silently does nothing.
+83. **An import can go into a cell, and then replaces its grid.** TreeSheets' import
+    always makes a new document. Its paste of text does go into the selected cell, and
+    if that cell has no text merges the new grid into the grid around it; Wombat's
+    `Import` never changes anything outside the cell it is given.
+84. **Imports are bounded** (A102): TreeSheets reads a file of any size into memory,
+    nests indented text up to 500 deep, and has no limit on cells. Wombat stops at 32
+    MiB, 700,000 cells, 16 million characters per cell and 32 levels.
+85. **Flattening for export goes by rows and changes nothing.** TreeSheets' Flatten
+    (and `Command::Flatten`) changes the document and makes one row per innermost
+    *cell*, so a table inside a cell comes out with one row per cell of the table. The
+    flattened export makes one line per innermost *row* and keeps the columns of a table
+    side by side (A99); for grids of one column the two are the same.
+86. **A file not in UTF-8 is read as Windows-1252, or as UTF-16 if it says so**
+    (A102). TreeSheets leaves it to wxWidgets' guess, which depends on the system.
 90. **`tag:` narrows to rows** (A109; numbers B66 to B89 are not used here). TreeSheets'
     "filter by tags" shows the cells that are a tag, and its "show entire row" setting
     draws their rows. In a search a result is a cell, so the setting has to become

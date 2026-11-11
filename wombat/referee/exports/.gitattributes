@@ -1,0 +1,3 @@
+# What the real TreeSheets wrote, and the files it read: compared byte for byte, line ends included.
+golden/** -text
+imports/** -text

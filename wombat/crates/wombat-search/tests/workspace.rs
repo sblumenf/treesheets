@@ -562,3 +562,77 @@ fn a_planted_entry_is_not_believed() {
         assert_eq!(fs::read(&entry).unwrap(), new, "and made good again");
     }
 }
+
+/// Replace across a folder saves through the storage layer's one way of writing a
+/// document (`storage::save_document`). A document that is a symbolic link is the user's
+/// (decision A27): the file it leads to is replaced whole and the link stays. A link that
+/// leads nowhere, or round in a circle, is no document: it is not read, nothing is
+/// written through it, and saving to it is refused.
+#[cfg(unix)]
+#[test]
+fn a_replace_across_a_folder_follows_a_linked_document_and_no_broken_link() {
+    use std::os::unix::fs::symlink;
+    use wombat_core::construct::Construct;
+    use wombat_core::storage;
+    use wombat_search::query::Term;
+    use wombat_search::replace::ReplaceOptions;
+    use wombat_search::workspace::replace_in_folder;
+
+    let ws = Workspace::open(folder("replace_links")).unwrap();
+    let outside = folder("replace_links_outside");
+    let mut ids = SeededIds::from_u64(5);
+    let mut doc = Document::new(&mut ids);
+    let root = doc.root();
+    doc.cell_mut(root).unwrap().text = "apple".into();
+    let real = outside.join("real.wombat");
+    storage::save_document(&doc, &real).unwrap();
+    symlink(&real, ws.dir().join("linked.wombat")).unwrap();
+    symlink(
+        outside.join("nothing.wombat"),
+        ws.dir().join("dangling.wombat"),
+    )
+    .unwrap();
+    symlink(ws.dir().join("loop.wombat"), ws.dir().join("loop.wombat")).unwrap();
+    let targets: Vec<(String, Option<wombat_core::CellId>)> =
+        ["dangling.wombat", "linked.wombat", "loop.wombat"]
+            .iter()
+            .map(|name| (name.to_string(), None))
+            .collect();
+    let done = replace_in_folder(
+        &ws,
+        &targets,
+        &Term::new("apple"),
+        "fig",
+        ReplaceOptions::default(),
+        false,
+        None,
+        &mut ids,
+        &mut storage::save_document,
+    )
+    .unwrap();
+    assert_eq!(done.saved, ["linked.wombat"]);
+    let unreadable: Vec<&str> = done
+        .unreadable
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect();
+    assert_eq!(unreadable, ["dangling.wombat", "loop.wombat"]);
+    // The real file has the change, whole; the link is still a link; nothing else was
+    // made beside either, and nothing where the dangling link points.
+    let saved = storage::load_document(&real).unwrap();
+    assert_eq!(saved.cell(saved.root()).unwrap().text, "fig");
+    for name in ["linked.wombat", "dangling.wombat", "loop.wombat"] {
+        let found = fs::symlink_metadata(ws.dir().join(name)).unwrap();
+        assert!(found.file_type().is_symlink(), "{name}");
+    }
+    assert_eq!(fs::read_dir(&outside).unwrap().count(), 1);
+    assert_eq!(fs::read_dir(ws.dir()).unwrap().count(), 3);
+    // Saving to such a link is refused outright.
+    for name in ["dangling.wombat", "loop.wombat"] {
+        assert!(
+            storage::save_document(&doc, &ws.dir().join(name)).is_err(),
+            "{name}"
+        );
+    }
+    assert!(!outside.join("nothing.wombat").exists());
+}

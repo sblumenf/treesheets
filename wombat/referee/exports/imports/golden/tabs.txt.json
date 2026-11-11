@@ -1,0 +1,45 @@
+{
+ "text": "",
+ "type": "data",
+ "grid": {
+  "cols": 1,
+  "rows": 2,
+  "cells": [
+   {
+    "text": "Root",
+    "type": "data",
+    "grid": {
+     "cols": 1,
+     "rows": 2,
+     "cells": [
+      {
+       "text": "child",
+       "type": "data",
+       "grid": {
+        "cols": 1,
+        "rows": 1,
+        "cells": [
+         {
+          "text": "grandchild",
+          "type": "data",
+          "grid": null
+         }
+        ]
+       }
+      },
+      {
+       "text": "child 2",
+       "type": "data",
+       "grid": null
+      }
+     ]
+    }
+   },
+   {
+    "text": "Root 2",
+    "type": "data",
+    "grid": null
+   }
+  ]
+ }
+}

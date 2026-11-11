@@ -1,5 +1,6 @@
 //! The `wombat` command-line tool: a thin layer over the core.
 
+mod convert;
 mod edit;
 mod links;
 mod outline;
@@ -25,6 +26,13 @@ Usage:
                                             formula cell as its formula = what it shows
   wombat import <file.cts> <file.wombat>    convert a TreeSheets file: writes the document,
                                             its images and its view state (folds, selection)
+  wombat import <file.csv|.tsv|.txt> <file.wombat>
+                                            make a document from comma or tab separated
+                                            values or indented text; `wombat import --help`
+  wombat export <file> --format csv|tsv|flat|lookup|text <output>
+                                            export a grid as a table, flattened with what is
+                                            nested in it, as a folder of tables to join with
+                                            XLOOKUP, or as indented text; `wombat export --help`
   wombat copy <file.wombat> <new.wombat>    save a copy that has its own document and cell
                                             IDs, with its images and view state (copying
                                             the file itself would duplicate the IDs)
@@ -40,9 +48,10 @@ Usage:
   wombat backlinks <folder> <file> <CELL>   list the links to a cell of <file> from all
                                             documents of the folder; CELL as in `wombat edit`
   wombat broken <folder>                    list the links in a folder that point at nothing
-                                            (links, backlinks and broken take --cache to keep
-                                            an index in the user's cache folder, safe to
-                                            delete: see `wombat search --help`)
+                                            (links, backlinks, broken and search keep an
+                                            index in the user's cache folder, never in
+                                            <folder>; --no-cache, --cache-dir DIR,
+                                            --cache=fast, --rebuild: `wombat search --help`)
   wombat copy-cell <from.wombat> <CELL> <to.wombat> <CELL>
                                             make the second cell a copy of the first, with
                                             all in it; links in it keep pointing at the same cells
@@ -117,16 +126,12 @@ fn run(args: &[&str]) -> Result<String, Failure> {
         ["edit", file, "--script", script] | ["edit", "--script", script, file] => {
             edit(file, script)
         }
-        ["import", source, file] => import(source, file),
+        ["import", "--help" | "-h" | "help"] => Ok(convert::IMPORT_HELP.to_string()),
+        ["import", rest @ ..] => convert::import(rest),
+        ["export", "--help" | "-h" | "help"] => Ok(convert::EXPORT_HELP.to_string()),
+        ["export", rest @ ..] => convert::export(rest),
         ["copy", source, file] => copy(source, file),
-        ["links", file] => links::links(file, false),
-        ["links", file, "--cache"] | ["links", "--cache", file] => links::links(file, true),
-        ["backlinks", folder, file, cell] => links::backlinks(folder, file, cell, false),
-        ["backlinks", folder, file, cell, "--cache"] => links::backlinks(folder, file, cell, true),
-        ["broken", folder] => links::broken(folder, false),
-        ["broken", folder, "--cache"] | ["broken", "--cache", folder] => {
-            links::broken(folder, true)
-        }
+        ["links" | "backlinks" | "broken", ..] => links::command(args),
         ["copy-cell", from, cell, to, place] => links::transfer(from, cell, to, place, false),
         ["move-cell", from, cell, to, place] => links::transfer(from, cell, to, place, true),
         ["search", "--help" | "-h" | "help"] => Ok(search::HELP.to_string()),

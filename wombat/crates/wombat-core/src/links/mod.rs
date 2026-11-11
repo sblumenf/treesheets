@@ -30,7 +30,7 @@ use crate::id::{CellId, DocId};
 use crate::model::{Cell, Document, Link, LinkTarget};
 use crate::summary::{Reader, Summary, Writer};
 
-pub use transfer::{copy_between, move_between, Moved};
+pub use transfer::{copy_between, move_between, move_clip, paste_clip, Moved};
 
 /// The unknown field in which the `.cts` importer keeps the text that a link without a
 /// target pointed at in TreeSheets (decision B14).
@@ -662,26 +662,29 @@ impl LinkIndex {
 
     /// The commands that correct the links of `doc` whose cell has moved to another
     /// document than they say ([`Resolved::Cell`] with `moved`): each becomes a link that
-    /// names the document the cell is in now. In the order of [`LinkIndex::outgoing`].
-    /// Unknown fields of a corrected link are lost.
+    /// names the document the cell is in now. One command for all the links to one cell
+    /// that name the same document, in the order of [`LinkIndex::outgoing`]. A corrected
+    /// link keeps its range and its unknown fields (decision A85).
     pub fn repairs(&self, doc: &Document) -> Vec<Command> {
         let mut out = Vec::new();
+        let mut seen = HashSet::new();
         for link in self.outgoing(doc.id()) {
-            if let Resolved::Cell {
-                doc: found,
-                cell,
-                moved: true,
-            } = link.resolved
+            if let (
+                Resolved::Cell {
+                    doc: found,
+                    cell,
+                    moved: true,
+                },
+                LinkTarget::Cell { doc: named, .. },
+            ) = (link.resolved, &link.link.target)
             {
-                out.push(Command::SetLink {
-                    cell: link.cell,
-                    start: link.link.start,
-                    len: link.link.len,
-                    target: Some(LinkTarget::Cell {
-                        doc: Some(found),
-                        cell,
-                    }),
-                });
+                if seen.insert((*named, cell)) {
+                    out.push(Command::RetargetLinks {
+                        cells: vec![cell],
+                        from: *named,
+                        to: Some(found),
+                    });
+                }
             }
         }
         out
