@@ -1357,3 +1357,85 @@ fn following_a_document_that_is_not_in_the_index_is_an_error() {
         .apply(&w.shop, &w.calcs[0], &Default::default())
         .is_ok());
 }
+
+/// A hit carries the first thousand highlight ranges and says how many there are; a
+/// query with many words (read in one pass over each cell) and one that says a word
+/// twice give what the reference gives.
+#[test]
+fn many_matches_and_many_words() {
+    use wombat_search::engine::MAX_RANGES;
+    let mut ids = SeededIds::from_u64(4);
+    let mut doc = Document::new(&mut ids);
+    let root = doc.root();
+    let cells = column(
+        &mut doc,
+        &mut ids,
+        root,
+        &[
+            &"a b ".repeat(1500),
+            "one two three four five six",
+            "a-a-a-a xa-a-a",
+            "Two, one; FIVE",
+            "seven",
+        ],
+    );
+    doc.cell_mut(cells[1]).unwrap().note = "six and seven\nthree".into();
+    link(
+        &mut doc,
+        cells[4],
+        0,
+        5,
+        LinkTarget::Cell {
+            doc: None,
+            cell: cells[1],
+        },
+    );
+    doc.validate().unwrap();
+    let calc = Calc::new(&doc);
+    let mut index = SearchIndex::new();
+    index.insert_document(&doc, &calc, "d.wombat");
+    let docs = [("d.wombat", &doc, &calc)];
+    let find = |text: &str| {
+        let query = parse(text, NOW).unwrap().query;
+        let mut all = Vec::new();
+        for order in search_support::ORDERS {
+            let options = Options::all(order);
+            let found = index.search(&query, &options).unwrap();
+            assert_eq!(
+                found,
+                naive::search(&docs, &query, &options).unwrap(),
+                "{text} {order:?}"
+            );
+            all = found.hits;
+        }
+        all
+    };
+    let hits = find("a");
+    let long = hits.iter().find(|hit| hit.cell == cells[0]).unwrap();
+    assert_eq!((long.ranges.len(), long.range_count), (MAX_RANGES, 1500));
+    assert_eq!(long.ranges[999], (3996, 1));
+    let both = find("a b");
+    let long = both.iter().find(|hit| hit.cell == cells[0]).unwrap();
+    assert_eq!((long.ranges.len(), long.range_count), (MAX_RANGES, 3000));
+    assert_eq!(find("one")[0].range_count, 1);
+    // Many words: all, any, none, in text, note and linked text, overlapping ones, and
+    // a word that overlaps itself (each place starts after the one before it ends).
+    for text in [
+        "one two three four five six",
+        "one OR two OR three OR four OR five OR six OR seven",
+        "one two three four five six seven",
+        "-one -two -three -four -five -six",
+        "o on one ne e tw two",
+        "a-a OR a OR - OR xa OR a-a-a",
+        "a-a a - xa b",
+        "seven six five OR four three OR two one zero",
+        "on ne tw wo th hr re ee fo ou ur fi iv ve si ix se ev en",
+        "one OR one OR one OR ONE OR case:one OR case:one OR -one",
+        "e OR é OR E OR è",
+    ] {
+        find(text);
+    }
+    // A word said twice counts twice, as two words do.
+    let twice = find("five OR five");
+    assert_eq!(twice[0].score, 2 * find("five")[0].score.max(1));
+}

@@ -270,8 +270,21 @@ pub fn is_wordless(c: char) -> bool {
     )
 }
 
+/// The bytes before and after the byte `at`, if both are plain (ASCII): then they are
+/// the characters there, and no plain character is of a script without spaces.
+fn plain_around(text: &str, at: usize) -> Option<(u8, u8)> {
+    let bytes = text.as_bytes();
+    let before = *bytes.get(at.checked_sub(1)?)?;
+    let after = *bytes.get(at)?;
+    (before.is_ascii() && after.is_ascii()).then_some((before, after))
+}
+
 /// Whether a word starts at the byte `at` of `text` (which must be a character boundary).
 pub fn word_starts(text: &str, at: usize) -> bool {
+    // Most text is plain: no need to take characters apart.
+    if let Some((before, _)) = plain_around(text, at) {
+        return !before.is_ascii_alphanumeric();
+    }
     let before = text.get(..at).and_then(|t| t.chars().next_back());
     let after = text.get(at..).and_then(|t| t.chars().next());
     match (before, after) {
@@ -284,6 +297,9 @@ pub fn word_starts(text: &str, at: usize) -> bool {
 
 /// Whether a word ends at the byte `at` of `text` (which must be a character boundary).
 pub fn word_ends(text: &str, at: usize) -> bool {
+    if let Some((_, after)) = plain_around(text, at) {
+        return !after.is_ascii_alphanumeric();
+    }
     let before = text.get(..at).and_then(|t| t.chars().next_back());
     let after = text.get(at..).and_then(|t| t.chars().next());
     match (before, after) {
@@ -478,6 +494,23 @@ mod tests {
         assert!(word_ends(text, 10) && word_ends(text, text.len()));
         assert!(is_wordless('日') && is_wordless('の') && is_wordless('ก') && !is_wordless('한'));
         assert!(is_word_char('é') && is_word_char('한') && is_word_char('٣') && !is_word_char('-'));
+        // The shortcut for plain neighbours says what the characters say.
+        let mixed = "a1 b-c_dé e日f\tg.h";
+        for at in (0..=mixed.len()).filter(|at| mixed.is_char_boundary(*at)) {
+            let before = mixed[..at].chars().next_back();
+            let after = mixed[at..].chars().next();
+            let starts = before.is_none_or(|b| {
+                !is_word_char(b) || is_wordless(b) || after.is_some_and(is_wordless)
+            });
+            let ends = after.is_none_or(|a| {
+                !is_word_char(a) || is_wordless(a) || before.is_some_and(is_wordless)
+            });
+            assert_eq!(
+                (word_starts(mixed, at), word_ends(mixed, at)),
+                (starts, ends),
+                "{at}"
+            );
+        }
         // The fingerprint is a number that stays the same from run to run.
         assert_eq!(fingerprint(), fingerprint());
     }

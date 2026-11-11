@@ -3,16 +3,28 @@
 //!
 //! A [`DocSearch`] holds, for every cell: its ID, the cell it is in and its place there,
 //! what is searched (the texts as they are and in folded form), and the properties that
-//! filters ask about. Over these it keeps a table from every pair of neighbouring folded
-//! characters (and every single character of a script written without spaces) to the
-//! cells that have it, which is what makes a search look at a few cells instead of all.
+//! filters ask about. Over these it keeps a table that says, for every folded character
+//! and every pair of neighbouring folded characters, which cells may have it: this is
+//! what makes a search look at a few cells instead of all.
 //!
 //! The table only ever proposes cells; whether a cell matches is always decided by
-//! looking at its text. So the table may name too many cells but never too few, and an
-//! edit only adds to it: what an edit makes stale is counted, and when half of the table
-//! is stale it is built again from the cells (an amount of work that the edits before it
-//! pay for). Following a change report costs in proportion to the cells it names, plus
-//! the cells directly inside a grid that gained, lost or reordered cells.
+//! looking at its text. So the table may name too many cells but never too few, which
+//! allows three economies (decision A111):
+//!
+//! - A key is not stored: it is hashed into one of a fixed number of lists (twice the
+//!   number of cells, a power of two), and keys that share a list share its cells. A
+//!   document of very varied text (every pair of characters a new one, as in Chinese)
+//!   therefore costs four bytes for each pair and no more.
+//! - A list that more than one cell in 32 would be on is kept as one bit per cell.
+//!   Nothing is "too common to list": the letter `e` has its bits like any other key.
+//! - An edit only adds: the lists are one packed array built in one go, additions go
+//!   to a small table beside it, and what an edit makes stale is counted. When half of
+//!   the table is stale, or it has doubled, it is built again from the cells (an
+//!   amount of work that the edits before it pay for).
+//!
+//! Following a change report costs in proportion to the cells it names (to the length
+//! of their texts), plus the cells directly inside a grid that gained, lost or
+//! reordered cells.
 //!
 //! A formula cell is kept with its formula (its text) and with what it shows (its
 //! result). Results are not in the document: they come from the [`Calc`] of the
@@ -33,18 +45,125 @@ use crate::fold::{self, fold_into};
 
 /// "No cell": the parent of the root.
 pub(crate) const NONE: u32 = u32::MAX;
-/// In place of a list of the table: so many cells have the key that the list would
-/// say little, and is not kept (see [`DocSearch::common_at`]).
-const COMMON: u32 = u32::MAX;
 
-/// What the table says about a key.
-pub(crate) enum Proposed<'a> {
-    /// No cell has it.
+/// What the table says about a key: the cells that may have it. No other cell does.
+#[derive(Clone, Copy)]
+enum Proposed<'a> {
+    /// No cell.
     None,
-    /// Too many cells have it to list them: any cell may.
-    Any,
-    /// These cells may have it; no other does.
-    Some(&'a [u32]),
+    /// These cells: the ones listed when the table was built, and the ones added since.
+    List(&'a [u32], &'a [u32]),
+    /// The cells whose bit is set (bit `slot % 64` of word `slot / 64`).
+    Bits(&'a [u64]),
+}
+
+impl Proposed<'_> {
+    fn has(&self, slot: u32) -> bool {
+        match self {
+            Proposed::None => false,
+            Proposed::List(built, added) => built.contains(&slot) || added.contains(&slot),
+            Proposed::Bits(bits) => bit(bits, slot as usize),
+        }
+    }
+}
+
+/// Whether bit `at` is set.
+pub(crate) fn bit(bits: &[u64], at: usize) -> bool {
+    bits.get(at / 64)
+        .is_some_and(|word| word >> (at % 64) & 1 == 1)
+}
+
+/// Sets bit `at`, if `bits` reaches that far.
+pub(crate) fn set_bit(bits: &mut [u64], at: usize) {
+    if let Some(word) = bits.get_mut(at / 64) {
+        *word |= 1 << (at % 64);
+    }
+}
+
+/// The table: see the module documentation.
+#[derive(Clone, Debug, Default)]
+struct Table {
+    /// The number of lists is two to this power.
+    log: u32,
+    /// The lists as built, packed: list `n` is `slots[starts[n]..starts[n + 1]]`.
+    starts: Vec<u32>,
+    slots: Vec<u32>,
+    /// The lists that are kept as bits instead (and then not in `slots`).
+    dense: FastMap<u32, Vec<u64>>,
+    /// What edits added since the table was built.
+    added: FastMap<u32, Vec<u32>>,
+}
+
+impl Table {
+    fn list_of(&self, key: u64) -> u32 {
+        // The top bits of a multiplication mix all bits of the key.
+        let mixed = key.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+        mixed.checked_shr(64 - self.log).unwrap_or(0) as u32
+    }
+
+    fn built(&self, list: u32) -> &[u32] {
+        let from = self.starts.get(list as usize).copied().unwrap_or(0) as usize;
+        let to = self.starts.get(list as usize + 1).copied().unwrap_or(0) as usize;
+        self.slots.get(from..to).unwrap_or_default()
+    }
+
+    fn get(&self, list: u32) -> Proposed<'_> {
+        if let Some(bits) = self.dense.get(&list) {
+            return Proposed::Bits(bits);
+        }
+        let added = self.added.get(&list).map_or(&[][..], Vec::as_slice);
+        match (self.built(list), added) {
+            ([], []) => Proposed::None,
+            (built, added) => Proposed::List(built, added),
+        }
+    }
+
+    /// Puts a slot on a list; the caller knows that it is not on it yet (or does not
+    /// mind). Returns whether anything was added.
+    fn post(&mut self, list: u32, slot: u32, common_at: usize) -> bool {
+        if let Some(bits) = self.dense.get_mut(&list) {
+            let word = slot as usize / 64;
+            if bits.len() <= word {
+                bits.resize(word + 1, 0);
+            }
+            let had = bit(bits, slot as usize);
+            set_bit(bits, slot as usize);
+            return !had;
+        }
+        let mut added = self.added.remove(&list).unwrap_or_default();
+        added.push(slot);
+        let built = self.built(list);
+        if built.len() + added.len() <= common_at {
+            self.added.insert(list, added);
+            return true;
+        }
+        // It has become common: as bits from here on.
+        let all = added.iter().chain(built);
+        let words = all.clone().max().map_or(0, |last| *last as usize / 64 + 1);
+        let mut bits = vec![0u64; words];
+        for slot in all {
+            set_bit(&mut bits, *slot as usize);
+        }
+        self.dense.insert(list, bits);
+        true
+    }
+
+    fn bytes(&self) -> usize {
+        let map = |len: usize, each: usize| len * (each + 1);
+        let dense: usize = self.dense.values().map(|bits| bits.capacity() * 8).sum();
+        let added: usize = self.added.values().map(|list| list.capacity() * 4).sum();
+        (self.starts.capacity() + self.slots.capacity()) * 4
+            + map(
+                self.dense.capacity(),
+                std::mem::size_of::<(u32, Vec<u64>)>(),
+            )
+            + map(
+                self.added.capacity(),
+                std::mem::size_of::<(u32, Vec<u32>)>(),
+            )
+            + dense
+            + added
+    }
 }
 
 /// What of a cell is searched. **Every reader of a cell's searchable content goes
@@ -152,6 +271,9 @@ pub(crate) struct Entry {
     /// How many columns the cell's grid has; 0 without a grid. With `pos` of the cells
     /// inside, this says which of them are in one row.
     pub cols: u32,
+    /// How many characters (code points) the cell shows ([`Entry::display`]): results
+    /// are ordered by it, and so it is asked of every cell that matches.
+    pub shown_len: u32,
 }
 
 /// Which field of the folded form a place is in, by the number of line breaks before it.
@@ -181,6 +303,7 @@ impl Entry {
         }
         folded.truncate(folded.trim_end_matches('\n').len());
         let any = !note.is_empty() || shown.is_some() || image.is_some() || !urls.is_empty();
+        let shown_len = shown.as_deref().unwrap_or(&text).chars().count() as u32;
         let rare = any.then(|| {
             Box::new(Rare {
                 note,
@@ -205,6 +328,7 @@ impl Entry {
             has_links: false,
             live: true,
             cols: 0,
+            shown_len,
         }
     }
 
@@ -279,31 +403,26 @@ impl Entry {
     }
 }
 
-/// The keys of the table for a folded form: one per pair of neighbouring characters
-/// within a field, and one per character of a script written without spaces (so that a
-/// search for one such character need not look at every cell). Sorted, each once.
-pub(crate) fn keys(folded: &str, out: &mut Vec<u64>) {
-    out.clear();
+/// Calls `each` with every key of a folded form: one per character, and one per pair of
+/// neighbouring characters within a field. (With the single characters, a search for
+/// one letter need not look at every cell.) Keys come as often as they occur.
+pub(crate) fn each_key(folded: &str, mut each: impl FnMut(u64)) {
     let mut before: Option<char> = None;
     for c in folded.chars() {
         if c == '\n' {
             before = None;
             continue;
         }
-        if single_key(c) {
-            out.push(u64::from(c));
-        }
+        each(single_key(c));
         if let Some(before) = before {
-            out.push(pair_key(before, c));
+            each(pair_key(before, c));
         }
         before = Some(c);
     }
-    out.sort_unstable();
-    out.dedup();
 }
 
-pub(crate) fn single_key(c: char) -> bool {
-    u32::from(c) >= 0x2e80
+pub(crate) fn single_key(c: char) -> u64 {
+    u64::from(c)
 }
 
 pub(crate) fn pair_key(first: char, second: char) -> u64 {
@@ -325,19 +444,22 @@ pub struct DocSearch {
     pub(crate) entries: Vec<Entry>,
     free: Vec<u32>,
     slots: FastMap<CellId, u32>,
-    table: FastMap<u64, Vec<u32>>,
-    /// How many entries of the table were added, and how many of them are known stale.
+    table: Table,
+    /// How many entries the table had when it was built, how many were added since,
+    /// and how many of all of them are known stale.
+    built: usize,
     posted: usize,
     stale: usize,
     compact_at: usize,
-    /// A key that this many cells have is common: its list is dropped, and a search
-    /// for something made of common keys only looks at every cell. That costs such a
-    /// search little (it would have looked at a large part of the cells anyway) and
-    /// saves most of the table, which is mostly the lists of a few very common keys.
-    /// An eighth of the cells when the table was last built, and at least 64.
+    /// A list that more than this many cells are on is kept as bits, which is smaller
+    /// from one cell in 32 on. A 32nd of the cells when the table was last built, and
+    /// at least 64.
     common_at: usize,
     common_floor: usize,
     tags: BTreeSet<String>,
+    /// One bit per slot: whether the cell has links. Made when asked for, dropped by
+    /// every edit.
+    linking: OnceLock<Vec<u64>>,
     /// For each slot its place in document order and its depth; made when asked for,
     /// dropped when cells are added, removed or moved.
     layout: OnceLock<Layout>,
@@ -371,13 +493,56 @@ impl DocSearch {
         self.tags.contains(name)
     }
 
-    /// The cells that the table proposes for a key; `None` if no cell has the key.
-    pub(crate) fn proposed(&self, key: u64) -> Proposed<'_> {
-        match self.table.get(&key).map(Vec::as_slice) {
-            None => Proposed::None,
-            Some([COMMON, ..]) => Proposed::Any,
-            Some(list) => Proposed::Some(list),
+    /// Sets, in `out` (one bit per slot), the cells that may have every one of `keys`:
+    /// all cells that do, and perhaps others. `keys` must not be empty.
+    pub(crate) fn candidates(&self, keys: &[u64], out: &mut [u64]) {
+        let mut lists: Vec<u32> = keys.iter().map(|key| self.table.list_of(*key)).collect();
+        lists.sort_unstable();
+        lists.dedup();
+        let mut shortest: Option<(&[u32], &[u32])> = None;
+        let mut bits: Vec<&[u64]> = Vec::new();
+        for list in lists {
+            match self.table.get(list) {
+                Proposed::None => return,
+                Proposed::Bits(found) => bits.push(found),
+                Proposed::List(built, added) => {
+                    let len = |pair: (&[u32], &[u32])| pair.0.len() + pair.1.len();
+                    if shortest.is_none_or(|shortest| len((built, added)) < len(shortest)) {
+                        shortest = Some((built, added));
+                    }
+                }
+            }
         }
+        match shortest {
+            // The shortest list, without the cells that some list of bits rules out.
+            Some((built, added)) => {
+                for slot in built.iter().chain(added) {
+                    if bits.iter().all(|bits| bit(bits, *slot as usize)) {
+                        set_bit(out, *slot as usize);
+                    }
+                }
+            }
+            // Bits only: the cells that are in all of them.
+            None => {
+                for (n, word) in out.iter_mut().enumerate() {
+                    let all = bits.iter().map(|bits| bits.get(n).copied().unwrap_or(0));
+                    *word = all.fold(u64::MAX, |all, next| all & next);
+                }
+            }
+        }
+    }
+
+    /// One bit per slot: whether the cell there has links.
+    pub(crate) fn linking(&self) -> &[u64] {
+        self.linking.get_or_init(|| {
+            let mut bits = vec![0u64; self.entries.len().div_ceil(64)];
+            for (slot, entry) in self.entries.iter().enumerate() {
+                if entry.live && entry.has_links {
+                    set_bit(&mut bits, slot);
+                }
+            }
+            bits
+        })
     }
 
     /// How many slots there are, with or without a cell.
@@ -386,7 +551,7 @@ impl DocSearch {
     }
 
     /// Sets after how many stale entries the table is built again (when they are also
-    /// half of it), and the fewest cells that make a key common, and builds the table
+    /// half of it), and the fewest cells that make a list common, and builds the table
     /// again. For tests, which want to see both happen in small documents.
     #[doc(hidden)]
     pub fn set_thresholds(&mut self, stale: usize, common: usize) {
@@ -396,10 +561,10 @@ impl DocSearch {
     }
 
     /// How many times more entries the table has than a table built now would have,
-    /// roughly: (entries added, entries known to be stale).
+    /// roughly: (entries built and added, entries known to be stale).
     #[doc(hidden)]
     pub fn table_load(&self) -> (usize, usize) {
-        (self.posted, self.stale)
+        (self.built + self.posted, self.stale)
     }
 
     /// The memory the index of this document takes, in bytes, as far as it can be
@@ -409,13 +574,13 @@ impl DocSearch {
         let texts: usize = self.entries.iter().map(Entry::bytes).sum();
         // A hash table keeps about one byte of bookkeeping per place and is at most 7/8 full.
         let slots = self.slots.capacity() * (std::mem::size_of::<(CellId, u32)>() + 1);
-        let table = self.table.capacity() * (std::mem::size_of::<(u64, Vec<u32>)>() + 1);
-        let lists: usize = self.table.values().map(|list| list.capacity() * 4).sum();
         let order = self
             .layout
             .get()
             .map_or(0, |layout| layout.places.capacity() * 5);
-        entries + texts + slots + table + lists + order + self.free.capacity() * 4
+        let linking = self.linking.get().map_or(0, |bits| bits.capacity() * 8);
+        let table = self.table.bytes();
+        entries + texts + slots + table + order + linking + self.free.capacity() * 4
     }
 
     /// The bytes of text that are searched (texts, notes, image names, link targets).
@@ -437,77 +602,46 @@ impl DocSearch {
             entries: Vec::new(),
             free: Vec::new(),
             slots: FastMap::default(),
-            table: FastMap::default(),
+            table: Table::default(),
+            built: 0,
             posted: 0,
             stale: 0,
             compact_at: 4096,
             common_at: 64,
             common_floor: 64,
             tags: BTreeSet::new(),
+            linking: OnceLock::new(),
             layout: OnceLock::new(),
         }
     }
 
-    /// Adds a slot to the list of a key, unless the key is common or becomes so now.
-    /// The same slot is not added twice in a row. Returns the change in the number of
-    /// entries of the table.
-    fn post_one(
-        table: &mut FastMap<u64, Vec<u32>>,
-        key: u64,
-        slot: u32,
-        common_at: usize,
-    ) -> isize {
-        let list = table.entry(key).or_default();
-        if list.first() == Some(&COMMON) || list.last() == Some(&slot) {
-            0
-        } else if list.len() >= common_at {
-            let dropped = list.len() as isize;
-            *list = vec![COMMON];
-            -dropped
-        } else {
-            list.push(slot);
-            1
+    /// The lists of the table that a folded form is on, sorted, each once.
+    fn lists(table: &Table, folded: &str, out: &mut Vec<u32>) {
+        out.clear();
+        let count = 1usize << table.log;
+        if folded.len() < count / 4 {
+            each_key(folded, |key| out.push(table.list_of(key)));
+            out.sort_unstable();
+            out.dedup();
+            return;
+        }
+        // A long text is on a large part of the lists: mark them, then read them off,
+        // which costs its length and not the sorting of it.
+        let mut seen = vec![0u64; count.div_ceil(64)];
+        each_key(folded, |key| {
+            set_bit(&mut seen, table.list_of(key) as usize)
+        });
+        for (n, word) in seen.iter().enumerate() {
+            let mut word = *word;
+            while word != 0 {
+                out.push((n * 64) as u32 + word.trailing_zeros());
+                word &= word - 1;
+            }
         }
     }
 
-    fn post(&mut self, slot: u32, keys: &[u64]) {
-        let mut posted = 0isize;
-        for key in keys {
-            posted += DocSearch::post_one(&mut self.table, *key, slot, self.common_at);
-        }
-        self.posted = self.posted.saturating_add_signed(posted);
-    }
-
-    /// Adds a slot to the table under every key of a folded form, and returns the
-    /// change in the number of entries. While one cell is added its entries are the
-    /// last of their lists, so no list gets it twice.
-    fn post_all(
-        table: &mut FastMap<u64, Vec<u32>>,
-        slot: u32,
-        folded: &str,
-        common_at: usize,
-    ) -> isize {
-        let mut posted = 0isize;
-        let mut post = |key: u64| posted += DocSearch::post_one(table, key, slot, common_at);
-        let mut before: Option<char> = None;
-        for c in folded.chars() {
-            if c == '\n' {
-                before = None;
-                continue;
-            }
-            if single_key(c) {
-                post(u64::from(c));
-            }
-            if let Some(before) = before {
-                post(pair_key(before, c));
-            }
-            before = Some(c);
-        }
-        posted
-    }
-
-    /// Puts a cell in a new slot.
-    fn add(&mut self, entry: Entry) -> u32 {
+    /// Puts a cell in a new slot, without telling the table.
+    fn push(&mut self, entry: Entry) -> u32 {
         let id = entry.id;
         let slot = match self.free.pop() {
             Some(slot) => {
@@ -522,44 +656,71 @@ impl DocSearch {
             }
         };
         self.slots.insert(id, slot);
-        let folded = self
-            .entries
-            .get(slot as usize)
-            .map_or("", |entry| entry.folded());
-        let posted = DocSearch::post_all(&mut self.table, slot, folded, self.common_at);
-        self.posted = self.posted.saturating_add_signed(posted);
+        slot
+    }
+
+    fn post(&mut self, slot: u32, lists: &[u32]) {
+        for list in lists {
+            let added = self.table.post(*list, slot, self.common_at);
+            self.posted += usize::from(added);
+        }
+    }
+
+    /// Puts a cell in a new slot.
+    fn add(&mut self, entry: Entry, scratch: &mut Vec<u32>) -> u32 {
+        let slot = self.push(entry);
+        let folded = self.entries.get(slot as usize).map_or("", Entry::folded);
+        DocSearch::lists(&self.table, folded, scratch);
+        self.post(slot, scratch);
         slot
     }
 
     /// Puts new content in the slot of a cell that changed, keeping its place.
-    fn replace(&mut self, slot: u32, mut entry: Entry, scratch: &mut Vec<u64>) {
+    fn replace(&mut self, slot: u32, mut entry: Entry, scratch: &mut Vec<u32>) {
         let Some(old) = self.entries.get_mut(slot as usize) else {
             return;
         };
-        let mut old_keys = Vec::new();
-        keys(old.folded(), &mut old_keys);
-        keys(entry.folded(), scratch);
+        let mut old_lists = Vec::new();
+        DocSearch::lists(&self.table, old.folded(), &mut old_lists);
+        DocSearch::lists(&self.table, entry.folded(), scratch);
         entry.parent = old.parent;
         entry.pos = old.pos;
         *old = entry;
-        // Only what is new is added; what is no longer there stays, as stale.
-        let fresh: Vec<u64> = scratch
-            .iter()
-            .filter(|key| old_keys.binary_search(key).is_err())
-            .copied()
-            .collect();
-        let gone = old_keys
-            .iter()
-            .filter(|key| scratch.binary_search(key).is_err());
-        self.stale = self.stale.saturating_add(gone.count());
+        // Only what is new is added; what is no longer there stays, as stale. (Both
+        // are sorted: one walk through the two.)
+        let mut fresh: Vec<u32> = Vec::new();
+        let mut gone = 0usize;
+        let (mut a, mut b) = (old_lists.iter().peekable(), scratch.iter().peekable());
+        loop {
+            match (a.peek(), b.peek()) {
+                (Some(old), Some(new)) if old == new => {
+                    a.next();
+                    b.next();
+                }
+                (Some(old), Some(new)) if old < new => {
+                    gone += 1;
+                    a.next();
+                }
+                (_, Some(new)) => {
+                    fresh.push(**new);
+                    b.next();
+                }
+                (Some(_), None) => {
+                    gone += 1;
+                    a.next();
+                }
+                (None, None) => break,
+            }
+        }
+        self.stale = self.stale.saturating_add(gone);
         self.post(slot, &fresh);
     }
 
-    fn kill(&mut self, slot: u32, scratch: &mut Vec<u64>) {
+    fn kill(&mut self, slot: u32, scratch: &mut Vec<u32>) {
         let Some(entry) = self.entries.get_mut(slot as usize) else {
             return;
         };
-        keys(entry.folded(), scratch);
+        DocSearch::lists(&self.table, entry.folded(), scratch);
         self.stale = self.stale.saturating_add(scratch.len());
         entry.live = false;
         entry.text = Box::default();
@@ -569,26 +730,77 @@ impl DocSearch {
     }
 
     fn common_for(&self, cells: usize) -> usize {
-        (cells / 8).max(self.common_floor)
+        (cells / 32).max(self.common_floor)
     }
 
-    /// Builds the table again from the cells, without what is stale.
+    /// Builds the table again from the cells, without what is stale: count how long
+    /// each list gets, then fill them.
     fn compact(&mut self) {
-        let mut table: FastMap<u64, Vec<u32>> = FastMap::default();
-        let mut posted = 0isize;
-        self.common_at = self.common_for(self.slots.len());
-        for (slot, entry) in self.entries.iter().enumerate() {
+        let cells = self.slots.len();
+        self.common_at = self.common_for(cells);
+        let log = (cells.saturating_mul(2).max(64))
+            .next_power_of_two()
+            .trailing_zeros()
+            .min(24);
+        let mut table = Table {
+            log,
+            ..Table::default()
+        };
+        let count = 1usize << log;
+        let mut lens = vec![0u32; count + 1];
+        let mut scratch = Vec::new();
+        // The lists of every cell, one after the other, and how many each cell has:
+        // kept between counting and filling, so that they are worked out once.
+        let mut all: Vec<u32> = Vec::new();
+        let mut counts: Vec<u32> = Vec::with_capacity(self.entries.len());
+        for entry in &self.entries {
+            scratch.clear();
             if entry.live {
-                posted +=
-                    DocSearch::post_all(&mut table, slot as u32, entry.folded(), self.common_at);
+                DocSearch::lists(&table, entry.folded(), &mut scratch);
+            }
+            for list in &scratch {
+                if let Some(len) = lens.get_mut(*list as usize) {
+                    *len += 1;
+                }
+            }
+            counts.push(scratch.len() as u32);
+            all.extend_from_slice(&scratch);
+        }
+        // Where each list starts; the common ones get bits and no room here.
+        let words = self.entries.len().div_ceil(64);
+        let mut total = 0u32;
+        for (list, len) in lens.iter_mut().enumerate() {
+            let own = *len;
+            *len = total;
+            if own as usize > self.common_at {
+                table.dense.insert(list as u32, vec![0u64; words]);
+            } else {
+                total += own;
             }
         }
-        let posted = posted.max(0) as usize;
-        for list in table.values_mut() {
-            list.shrink_to_fit();
+        let mut next = lens.clone();
+        let mut slots = vec![0u32; total as usize];
+        let mut rest = all.as_slice();
+        for (slot, count) in counts.iter().enumerate() {
+            let (lists, after) = rest.split_at_checked(*count as usize).unwrap_or_default();
+            rest = after;
+            for list in lists {
+                if let Some(bits) = table.dense.get_mut(list) {
+                    set_bit(bits, slot);
+                } else if let Some(at) = next.get_mut(*list as usize) {
+                    if let Some(place) = slots.get_mut(*at as usize) {
+                        *place = slot as u32;
+                    }
+                    *at += 1;
+                }
+            }
         }
+        let built = all.len();
+        table.starts = lens;
+        table.slots = slots;
         self.table = table;
-        self.posted = posted;
+        self.built = built;
+        self.posted = 0;
         self.stale = 0;
     }
 
@@ -735,12 +947,11 @@ impl DocSearch {
             if self.slot(entry.id) != Some(slot as u32) {
                 return Err(format!("cell {} is not found by its ID", entry.id));
             }
-            keys(entry.folded(), &mut scratch);
-            for key in &scratch {
-                let list = self.table.get(key).map_or(&[][..], Vec::as_slice);
-                if list.first() != Some(&COMMON) && !list.contains(&(slot as u32)) {
+            DocSearch::lists(&self.table, entry.folded(), &mut scratch);
+            for list in &scratch {
+                if !self.table.get(*list).has(slot as u32) {
                     return Err(format!(
-                        "cell {} is missing under the key {key:x}",
+                        "cell {} is missing from the list {list} of the table",
                         entry.id
                     ));
                 }
@@ -763,7 +974,6 @@ impl DocSearch {
     pub fn with(doc: &Document, calc: &Calc) -> DocSearch {
         let mut index = DocSearch::empty(doc.id());
         let order = doc.cells_in_order();
-        index.common_at = index.common_for(order.len());
         index.entries.reserve_exact(order.len());
         index.slots.reserve(order.len());
         for id in &order {
@@ -771,7 +981,7 @@ impl DocSearch {
                 .cell(*id)
                 .map(|cell| Entry::new(*id, cell, searchable(calc, *id, cell)));
             if let Some(entry) = read {
-                index.add(entry);
+                index.push(entry);
             }
         }
         for id in &order {
@@ -779,9 +989,7 @@ impl DocSearch {
         }
         index.root = index.slot(doc.root()).unwrap_or(NONE);
         index.tags = doc.tags().keys().cloned().collect();
-        for list in index.table.values_mut() {
-            list.shrink_to_fit();
-        }
+        index.compact();
         index
     }
 
@@ -824,7 +1032,7 @@ impl Summary for DocSearch {
                     // A new cell says where it is itself; the cell it is in gives the rest.
                     moved.push(*id);
                     moved.extend(doc.cell(*id).and_then(Cell::parent));
-                    self.add(entry);
+                    self.add(entry, &mut scratch);
                 }
                 (None, Some(slot)) => {
                     self.slots.remove(id);
@@ -853,7 +1061,12 @@ impl Summary for DocSearch {
         if !(changes.removed.is_empty() && changes.created.is_empty() && moved.is_empty()) {
             self.layout = OnceLock::new();
         }
-        if self.stale >= self.compact_at && self.stale.saturating_mul(2) >= self.posted {
+        self.linking = OnceLock::new();
+        // Built again when half of it is stale, or when it has doubled by additions
+        // (which are kept less compactly, and by then the lists are too few).
+        let all = self.built.saturating_add(self.posted);
+        let stale = self.stale >= self.compact_at && self.stale.saturating_mul(2) >= all;
+        if stale || self.posted >= self.compact_at.max(self.built) {
             self.compact();
         }
     }
@@ -947,7 +1160,6 @@ impl Summary for DocSearch {
         }
         index.entries.reserve_exact(count);
         index.slots.reserve(count);
-        index.common_at = index.common_for(count);
         // How many cells each cell has had so far: the place of the next one.
         let mut children = vec![0u32; count];
         let mut parents: Vec<u32> = Vec::with_capacity(count);
@@ -1031,7 +1243,7 @@ impl Summary for DocSearch {
                 entry.pos = *taken;
                 *taken += 1;
             }
-            index.add(entry);
+            index.push(entry);
         }
         for (entry, count) in index.entries.iter_mut().zip(&children) {
             entry.has_grid = *count > 0;
@@ -1045,10 +1257,11 @@ impl Summary for DocSearch {
             }
         }
         index.root = 0;
-        for list in index.table.values_mut() {
-            list.shrink_to_fit();
+        if !read.is_empty() {
+            return None;
         }
-        read.is_empty().then_some(index)
+        index.compact();
+        Some(index)
     }
 }
 

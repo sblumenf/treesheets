@@ -465,7 +465,11 @@ impl<'a> Reference<'a> {
                     .find(|(f, s, _)| (*f, *s) == (field, sub));
                 let matched = matched.map_or(String::new(), |(_, _, text)| text.text.clone());
                 let in_field = found.iter().filter(|(f, s, _, _)| (*f, *s) == (field, sub));
-                let ranges = merged(in_field.map(|(_, _, start, len)| (*start, *len)).collect());
+                let mut ranges =
+                    merged(in_field.map(|(_, _, start, len)| (*start, *len)).collect());
+                // An interface gets the first thousand and the count of all.
+                let range_count = ranges.len();
+                ranges.truncate(crate::engine::MAX_RANGES);
                 let depth = doc.depth(id).unwrap_or(0);
                 let recency = match cell.last_edit {
                     None => u64::MAX,
@@ -489,6 +493,7 @@ impl<'a> Reference<'a> {
                     snippet: Default::default(),
                     matched,
                     ranges,
+                    range_count,
                     text: cell.text.clone(),
                     shown: (cell.kind == CellKind::Formula)
                         .then(|| calc.shown(doc, id).map(str::to_owned))
