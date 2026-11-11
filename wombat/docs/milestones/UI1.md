@@ -75,7 +75,9 @@ taps on it. Both are fixed, and the test now checks both.
 - **How it looks, and how it feels.** No person has seen the screen: taking a picture of
   the window under Xvfb gave an empty image. The test finds widgets and reads their text;
   it does not judge layout, sizes or colours.
-- Anything on Android, iOS or a phone; the on-screen keyboard; touch.
+- Anything running on Android, iOS or a phone; the on-screen keyboard; touch. The app with
+  this screen builds for Android (`flutter build apk --release`); `docs/ANDROID.md` says how
+  to run it there.
 - A large grid. All of a grid's cells are built at once; with a thousand cells that is
   untried, and with many more it will be slow.
 - Text that needs more room than six lines is cut off with an ellipsis and can only be
