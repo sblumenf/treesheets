@@ -93,6 +93,52 @@ impl Clip {
     pub fn cell_count(&self) -> usize {
         self.cells.len()
     }
+
+    /// The texts of the cells, the top cell first.
+    pub fn texts(&self) -> impl Iterator<Item = &str> + '_ {
+        self.cells.iter().map(|c| c.text.as_str())
+    }
+
+    /// The distinct names of the image files that the cells show, sorted.
+    pub fn image_names(&self) -> Vec<String> {
+        let names: std::collections::BTreeSet<&str> = self
+            .cells
+            .iter()
+            .filter_map(|c| c.image.as_ref())
+            .map(|image| image.file.as_str())
+            .collect();
+        names.into_iter().map(String::from).collect()
+    }
+
+    /// Makes every cell that shows the image file `from` show the file `to` instead: for
+    /// an image that has another name in the image folder of the document the cells go
+    /// to (see [`crate::storage::carry_images`]). Fails if `to` is no name for an image.
+    pub fn rename_image(&mut self, from: &str, to: &str) -> Result<(), Error> {
+        if !crate::model::is_valid_image_name(to) {
+            return invalid(format!("{to:?} is not a valid image file name"));
+        }
+        for image in self.cells.iter_mut().filter_map(|c| c.image.as_mut()) {
+            if image.file == from {
+                image.file = to.to_string();
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether these are the cell `top` of `doc` and the cells inside it as they are now,
+    /// but for the names of image files.
+    pub(crate) fn is_of(&self, doc: &Document, top: CellId) -> bool {
+        let Ok(mut now) = Clip::of(doc, top) else {
+            return false;
+        };
+        let mut own = self.clone();
+        for image in own.cells.iter_mut().chain(&mut now.cells) {
+            if let Some(image) = image.image.as_mut() {
+                image.file.clear();
+            }
+        }
+        own == now
+    }
 }
 
 /// Rewrites the links of a cell that came from the document `from` for the document `own`

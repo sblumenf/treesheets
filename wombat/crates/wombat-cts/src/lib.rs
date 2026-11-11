@@ -362,13 +362,9 @@ impl Imported {
     /// cells show in its image folder, and the view state beside it.
     pub fn save(&self, path: &Path) -> Result<(), CtsError> {
         storage::save_document(&self.document, path)?;
-        let folder = storage::images_dir(path);
         for image in self.images.iter().filter(|image| image.used) {
-            std::fs::create_dir_all(&folder).map_err(|source| Error::Io {
-                path: folder.clone(),
-                source,
-            })?;
-            storage::write_atomic(&storage::image_path(path, &image.file)?, &image.data)?;
+            // Not through a link at the image's name or at the folder's (decision A87).
+            storage::write_image(path, &image.file, &image.data)?;
         }
         let folder = path.parent().unwrap_or(Path::new(""));
         storage::save_view_state(folder, &self.view)?;

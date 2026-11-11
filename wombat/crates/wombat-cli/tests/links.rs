@@ -292,3 +292,117 @@ fn an_imported_treesheets_link_without_a_target_can_be_given_one_later() {
     );
     assert!(!fs::read_to_string(&path).unwrap().contains("cts_target"));
 }
+
+/// Found in review of milestone 4: a copied or moved cell took the name of its image along
+/// and not the file.
+#[test]
+fn images_tags_and_folds_go_with_cells_between_documents() {
+    let dir = folder("images");
+    fs::write(
+        dir.join("a.txt"),
+        "A\n  pic\n    x\n    y\n  other\n  third\n",
+    )
+    .unwrap();
+    fs::write(dir.join("b.txt"), "B\n  e1\n  e2\n  e3\n  has one\n").unwrap();
+    ok(&dir, &["new", "a.wombat", "--from", "a.txt"]);
+    ok(&dir, &["new", "b.wombat", "--from", "b.txt"]);
+    for (folder, file, bytes) in [
+        ("a.wombat.images", "pic.png", "picture of a"),
+        ("a.wombat.images", "two.png", "second picture"),
+        (
+            "b.wombat.images",
+            "pic.png",
+            "another picture with the same name",
+        ),
+    ] {
+        fs::create_dir_all(dir.join(folder)).unwrap();
+        fs::write(dir.join(folder).join(file), bytes).unwrap();
+    }
+    edited(
+        &dir,
+        "a.wombat",
+        "set /1,1 image=pic.png\nset /1,2 image=two.png\nset /1,3 image=pic.png\n\
+         tag \"pic\" #ff0000 #00ff00\nfold /1,1\nsave\n",
+    );
+    edited(
+        &dir,
+        "b.wombat",
+        "clear /1,1 /1,2 /1,3\nset /1,4 image=pic.png\nsave\n",
+    );
+    let read = |file: &str| fs::read_to_string(dir.join(file)).unwrap();
+    let image = |folder: &str, file: &str| fs::read_to_string(dir.join(folder).join(file));
+
+    // A copy: the file comes along. B has another picture called pic.png, so the copy's
+    // gets a new name, and B's own cell still shows its own.
+    let out = ok(&dir, &["copy-cell", "a.wombat", "/1,1", "b.wombat", "/1,1"]);
+    assert!(out.contains("1 image file copied"), "{out}");
+    assert_eq!(
+        image("b.wombat.images", "pic.png").unwrap(),
+        "another picture with the same name"
+    );
+    let b = wombat_core::storage::load_document(&dir.join("b.wombat")).unwrap();
+    let cell = |doc: &wombat_core::Document, y: u32| {
+        doc.cell(doc.child(doc.root(), 0, y).unwrap())
+            .unwrap()
+            .clone()
+    };
+    let renamed = cell(&b, 0).image.unwrap().file;
+    assert_ne!(renamed, "pic.png");
+    assert!(renamed.ends_with(".png"), "{renamed}");
+    assert_eq!(image("b.wombat.images", &renamed).unwrap(), "picture of a");
+    assert_eq!(cell(&b, 3).image.unwrap().file, "pic.png");
+    assert!(ok(&dir, &["check", "b.wombat"]).ends_with("deep\n"));
+    // The tag that the copied cell has comes along.
+    assert!(read("b.wombat").contains("\"pic\""));
+    assert!(b.tags().contains_key("pic"));
+
+    // A second copy of the same cell finds the picture there already, under that name.
+    let out = ok(&dir, &["copy-cell", "a.wombat", "/1,3", "b.wombat", "/1,2"]);
+    assert!(out.contains("0 image files copied"), "{out}");
+    let b = wombat_core::storage::load_document(&dir.join("b.wombat")).unwrap();
+    assert_eq!(cell(&b, 1).image.unwrap().file, renamed);
+    assert_eq!(
+        fs::read_dir(dir.join("b.wombat.images")).unwrap().count(),
+        2
+    );
+
+    // A move: the file goes over (no other two.png is there), and the source, which no
+    // longer shows it, loses its copy; pic.png stays, another cell of A still shows it.
+    let out = ok(&dir, &["move-cell", "a.wombat", "/1,2", "b.wombat", "/1,3"]);
+    assert!(out.contains("1 image file copied"), "{out}");
+    assert_eq!(
+        image("b.wombat.images", "two.png").unwrap(),
+        "second picture"
+    );
+    assert!(image("a.wombat.images", "two.png").is_err());
+    assert_eq!(image("a.wombat.images", "pic.png").unwrap(), "picture of a");
+    for file in ["a.wombat", "b.wombat"] {
+        assert!(ok(&dir, &["check", file]).ends_with("deep\n"), "{file}");
+    }
+
+    // A fold moves with its cell, and is not copied.
+    let folded = |file: &str| {
+        let doc = wombat_core::storage::load_document(&dir.join(file)).unwrap();
+        let view = wombat_core::storage::load_view_state(&dir, doc.id()).unwrap();
+        view.map_or(0, |v| {
+            doc.cells_in_order()
+                .iter()
+                .filter(|c| v.is_folded(**c))
+                .count()
+        })
+    };
+    assert_eq!((folded("a.wombat"), folded("b.wombat")), (1, 0));
+    edited(&dir, "b.wombat", "clear /1,2\nsave\n");
+    ok(&dir, &["move-cell", "a.wombat", "/1,1", "b.wombat", "/1,2"]);
+    assert_eq!((folded("a.wombat"), folded("b.wombat")), (0, 1));
+
+    // An image that is not there: refused before anything is written.
+    fs::remove_file(dir.join("a.wombat.images").join("pic.png")).unwrap();
+    edited(&dir, "b.wombat", "clear /1,1\nsave\n");
+    let (a, b) = (read("a.wombat"), read("b.wombat"));
+    let output = wombat(&dir, &["copy-cell", "a.wombat", "/1,3", "b.wombat", "/1,1"]);
+    assert_eq!(output.status.code(), Some(1));
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("pic.png"), "{error}");
+    assert_eq!((read("a.wombat"), read("b.wombat")), (a, b));
+}

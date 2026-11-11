@@ -640,3 +640,39 @@ fn every_example_survives_saving_and_loading_as_wombat() {
         }
     }
 }
+
+/// Found in review of milestone 4: the images of an imported file were written through
+/// whatever stood at their names. The names are the importer's own, so a link there was
+/// planted; it is replaced, and an image folder that is a link is refused (decision A87).
+#[cfg(unix)]
+#[test]
+fn saving_an_import_does_not_write_images_through_links() {
+    use std::os::unix::fs::symlink;
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("cts-referee-links");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let bytes = fs::read(referee_dir().join("fixtures/features.cts")).unwrap();
+    let imported = import(&bytes, &mut SeededIds::from_u64(5)).unwrap();
+    let image = imported.images.iter().find(|i| i.used).unwrap();
+
+    let victim = dir.join("victim.txt");
+    fs::write(&victim, b"precious").unwrap();
+    let path = dir.join("a.wombat");
+    fs::create_dir(storage::images_dir(&path)).unwrap();
+    let planted = storage::image_path(&path, &image.file).unwrap();
+    symlink(&victim, &planted).unwrap();
+    imported.save(&path).unwrap();
+    assert_eq!(fs::read(&victim).unwrap(), b"precious");
+    assert!(!fs::symlink_metadata(&planted)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert_eq!(fs::read(&planted).unwrap(), image.data);
+
+    let elsewhere = dir.join("elsewhere");
+    fs::create_dir(&elsewhere).unwrap();
+    let path = dir.join("b.wombat");
+    symlink(&elsewhere, storage::images_dir(&path)).unwrap();
+    assert!(imported.save(&path).is_err());
+    assert_eq!(fs::read_dir(&elsewhere).unwrap().count(), 0);
+}

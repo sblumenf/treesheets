@@ -30,7 +30,7 @@ use crate::id::{CellId, DocId};
 use crate::model::{Cell, Document, Link, LinkTarget};
 use crate::summary::{id_from_hex, id_to_hex, Summary};
 
-pub use transfer::{copy_between, move_between, Moved};
+pub use transfer::{copy_between, move_between, move_clip, paste_clip, Moved};
 
 /// The unknown field in which the `.cts` importer keeps the text that a link without a
 /// target pointed at in TreeSheets (decision B14).
