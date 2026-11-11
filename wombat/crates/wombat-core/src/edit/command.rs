@@ -128,7 +128,7 @@ pub(super) fn replace_text(
     stamp(tx, id, now)
 }
 
-fn set_text(tx: &mut Tx, id: CellId, new: &str, now: Option<i64>) -> Result<(), Error> {
+pub(super) fn set_text(tx: &mut Tx, id: CellId, new: &str, now: Option<i64>) -> Result<(), Error> {
     let c = cell(tx.doc(), id)?;
     let ins = text::clean(new);
     if code_points(&ins) > MAX_TEXT_CODE_POINTS {
@@ -1004,6 +1004,8 @@ pub(super) fn run(
             text,
         } => replace_text(tx, cell, start, len, &text, now),
         Command::SetText { cell, text } => set_text(tx, cell, &text, now),
+        Command::Run => super::program::run_program(tx, now, &mut fresh),
+        Command::EnterText { cell, text } => super::program::enter_text(tx, cell, &text, now),
         Command::SetRangeStyle {
             cell,
             start,

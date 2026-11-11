@@ -23,8 +23,10 @@ the part that matched with the matches between « and ».
 
 The query (several arguments are joined with spaces; quote it for the shell):
   apple pie            cells that have both words, anywhere: in their text, their note,
-                       the name of their image, the address of a link, or the text of a
-                       cell that a link of theirs leads to
+                       the name of their image, the address of a link, or what a cell
+                       shows that a link of theirs leads to
+  1050.5               a formula cell is found by its formula and by what it shows; it
+                       is printed as \"=SUM(Costs)\" = \"1050.5\"
   app                  a word need not be complete, and need not start a word
   \"apple pie\"          the words together
   apple OR pear        either (also: apple | pear)       -apple   not
@@ -64,6 +66,8 @@ wombat replace <folder | file.wombat> <text> <replacement> [options]
 Replaces every place where <text> is found in the text of a cell (not in notes), in every
 document of the folder or in the one file, and saves the documents that changed. As in
 `wombat search`, upper and lower case, accents and full-width forms count as the same.
+In a formula cell the formula is what is searched and replaced, never the result it
+shows; the result follows from the new formula.
 
 Options:
   --case               only exactly these characters
@@ -180,7 +184,11 @@ fn print_hit(hit: &Hit, loaded: &mut Loaded, out: &mut String) {
     } else {
         format!(" (in: {})", trail.join(" > "))
     };
-    out.push_str(&format!("{name} {place} {:?}{inside}\n", short(&hit.text)));
+    // A formula cell as `wombat show` prints it: the formula, and what it shows.
+    let shows = hit.shown.as_ref();
+    let shows = shows.map_or(String::new(), |shown| format!(" = {:?}", short(shown)));
+    let text = short(&hit.text);
+    out.push_str(&format!("{name} {place} {text:?}{shows}{inside}\n"));
     let field = match hit.field {
         Field::Text => "text",
         Field::Shown => "shows",

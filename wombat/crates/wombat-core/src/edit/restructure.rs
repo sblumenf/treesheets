@@ -119,7 +119,7 @@ pub(super) fn sort_rows(
         .map(|row| {
             (0..width)
                 .filter_map(|k| row.get((k + column as usize) % width))
-                .map(|c| doc.cell(*c).map_or("", |c| c.text.as_str()))
+                .map(|c| tx.shown(*c))
                 .collect()
         })
         .collect();

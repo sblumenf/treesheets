@@ -3,9 +3,10 @@
 //! # What matches
 //!
 //! A word or phrase matches a cell if its folded form ([`crate::fold`]) is found
-//! anywhere in the folded form of one of the cell's fields: its text, its note, the
-//! file name of its image, the external targets of its links, or the text of a cell
-//! that one of its links leads to. "Anywhere" means that a word need not be complete
+//! anywhere in the folded form of one of the cell's fields: its text (of a formula cell
+//! the formula), what a formula cell shows (its result), its note, the file name of its
+//! image, the external targets of its links, or what a cell shows that one of its links
+//! leads to. "Anywhere" means that a word need not be complete
 //! (`app` finds `apple` while it is being typed) and need not start a word (`apple`
 //! finds `pineapple`, and any part of a Chinese sentence is found); how good a match
 //! is decides the order instead.
@@ -30,6 +31,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use unicode_segmentation::UnicodeSegmentation;
+use wombat_core::eval::Calc;
 use wombat_core::links::{DocLinks, Resolved};
 use wombat_core::summary::Summary;
 use wombat_core::{CellId, Changes, DocId, Document, LinkIndex, LinkTarget};
@@ -87,8 +89,9 @@ pub struct Hit {
     pub cell: CellId,
     /// The field with the best match; [`Field::Text`] when the query has no words.
     pub field: Field,
-    /// The content of that field: the cell's text, its note, the image name, the text
-    /// of the linked cell, or the link target (of several links, the first that has a
+    /// The content of that field: the cell's text, what it shows (the result of a
+    /// formula cell), its note, the image name, what the linked cell shows, or the
+    /// link target (of several links, the first that has a
     /// word of the query; the points are for the best).
     pub matched: String,
     /// Where the words of the query are in `matched`: start and length in code points,
@@ -96,10 +99,12 @@ pub struct Hit {
     pub ranges: Vec<(u32, u32)>,
     /// A short stretch of `matched` around the first match.
     pub snippet: Snippet,
-    /// The text of the cell.
+    /// The text of the cell, as stored: of a formula cell its formula.
     pub text: String,
-    /// The location trail: the texts of the cells the cell is inside of, from the root
-    /// cell down (as [`wombat_core::links::place`] gives it).
+    /// What a formula cell shows: its result. `None` for any other cell.
+    pub shown: Option<String>,
+    /// The location trail: what the cells that the cell is inside of show, from the
+    /// root cell down (as [`wombat_core::links::place_shown`] gives it).
     pub trail: Vec<String>,
     /// The points of the match (see the ranking rule); fewer is better.
     pub score: u32,
@@ -284,9 +289,11 @@ impl SearchIndex {
     }
 
     /// Reads a document into the index, in place of what the index had under its ID.
+    /// `calc` holds the results of its formula cells: [`wombat_core::Editor::calc`] of
+    /// the editor that has it open, or `Calc::new(doc)` for a document as loaded.
     /// `name` is what the document is called in results and by `doc:` (its file name).
-    pub fn insert_document(&mut self, doc: &Document, name: &str) {
-        self.insert(DocIndex::of(doc), name);
+    pub fn insert_document(&mut self, doc: &Document, calc: &Calc, name: &str) {
+        self.insert(DocIndex::with(doc, calc), name);
     }
 
     /// Puts the summary of a document into the index, in place of what the index had
@@ -305,15 +312,18 @@ impl SearchIndex {
     }
 
     /// Brings the index up to date after a command, undo, redo or group changed `doc`:
-    /// `changes` is what the editor returned, `doc` the document afterwards. A document
-    /// that the index does not have yet is read whole, under an empty name.
-    pub fn apply(&mut self, doc: &Document, changes: &Changes) {
+    /// `changes` is what the editor returned, `doc` the document afterwards and `calc`
+    /// the editor's results at that moment ([`wombat_core::Editor::calc`]), which also
+    /// say which formula cells now show something else (decision A90). Call it once
+    /// for every change report, before the next command. A document that the index
+    /// does not have yet is read whole, under an empty name.
+    pub fn apply(&mut self, doc: &Document, calc: &Calc, changes: &Changes) {
         match self.docs.get_mut(&doc.id()) {
             Some(held) => {
-                held.search.update(doc, changes);
+                held.search.update(doc, calc, changes);
                 self.links.apply(doc, changes);
             }
-            None => self.insert_document(doc, ""),
+            None => self.insert_document(doc, calc, ""),
         }
     }
 
@@ -871,7 +881,7 @@ impl<'a> Run<'a> {
                     continue;
                 };
                 find_in(
-                    target.folded_text(),
+                    target.folded_display(),
                     &needle.text,
                     Field::LinkedText,
                     0,
@@ -960,9 +970,9 @@ impl<'a> Run<'a> {
                 continue;
             };
             let text = if needle.exact {
-                &*target.text
+                target.display()
             } else {
-                target.folded_text()
+                target.folded_display()
             };
             find_in(text, &needle.text, Field::LinkedText, n as u32, each);
         }
@@ -988,7 +998,7 @@ impl<'a> Run<'a> {
             Field::LinkedText => {
                 let links = self.index.links.document(doc)?.links_of(entry.id);
                 let target = self.target(doc, &links.get(sub as usize)?.target)?;
-                Some(&target.text)
+                Some(target.display())
             }
         }
     }
@@ -1037,6 +1047,7 @@ impl<'a> Run<'a> {
             matched: matched.to_owned(),
             ranges,
             text: entry.text.to_string(),
+            shown: entry.shown().map(str::to_owned),
             trail: search.trail(found.slot),
             score: found.score,
             depth: search.depth(found.slot),

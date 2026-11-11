@@ -27,7 +27,7 @@ use serde_json::Value;
 
 use crate::edit::{Changes, Command};
 use crate::id::{CellId, DocId};
-use crate::model::{Cell, CellKind, Document, Link, LinkTarget};
+use crate::model::{Cell, Document, Link, LinkTarget};
 use crate::summary::{Reader, Summary, Writer};
 
 pub use transfer::{copy_between, move_between, Moved};
@@ -206,7 +206,8 @@ impl Summary for DocLinks {
         }
     }
 
-    fn update(&mut self, doc: &Document, changes: &Changes) {
+    /// Links are kept by target, never by what the target shows, so results are not read.
+    fn update(&mut self, doc: &Document, _calc: &crate::eval::Calc, changes: &Changes) {
         self.follow(None, doc, changes);
     }
 
@@ -698,8 +699,25 @@ pub struct Place {
     pub trail: Vec<String>,
 }
 
-/// The text and location trail of a cell of `doc`; `None` if there is no such cell.
+/// The text and location trail of a cell of `doc`, as stored: of a formula cell its
+/// formula. `None` if there is no such cell. To show a cell to someone, use
+/// [`place_shown`].
 pub fn place(doc: &Document, cell: CellId) -> Option<Place> {
+    place_by(doc, cell, &|id| doc.cell(id).map(|c| c.text.as_str()))
+}
+
+/// The text and location trail of a cell of `doc` as the cells show them: for a formula
+/// cell its result (`calc` holds the results of `doc`), as links go by what cells show
+/// (decision A66).
+pub fn place_shown(doc: &Document, calc: &crate::eval::Calc, cell: CellId) -> Option<Place> {
+    place_by(doc, cell, &|id| calc.shown(doc, id))
+}
+
+fn place_by<'a>(
+    doc: &'a Document,
+    cell: CellId,
+    text: &dyn Fn(CellId) -> Option<&'a str>,
+) -> Option<Place> {
     let found = doc.cell(cell)?;
     let mut trail = Vec::new();
     let mut up = found.parent();
@@ -709,12 +727,12 @@ pub fn place(doc: &Document, cell: CellId) -> Option<Place> {
             return None;
         }
         let parent = doc.cell(id)?;
-        trail.push(parent.text.clone());
+        trail.push(text(id)?.to_string());
         up = parent.parent();
     }
     trail.reverse();
     Some(Place {
-        text: found.text.clone(),
+        text: text(cell)?.to_string(),
         trail,
     })
 }
@@ -771,13 +789,13 @@ pub struct UnknownLink {
     pub len: u32,
     /// The text of the cell that the link pointed at in TreeSheets.
     pub hint: String,
-    /// The cells of the document that have exactly that text now, in document order,
-    /// without the root, the linking cell and formula cells (decision B15).
+    /// The cells of the document that show exactly that text now (a formula cell its
+    /// result, decision A66), in document order, without the root and the linking cell.
     pub candidates: Vec<CellId>,
 }
 
 /// The links of `doc` that were imported from TreeSheets without a target, in document
-/// order, each with the cells that now have the text it named. Reads the whole document.
+/// order, each with the cells that now show the text it named. Reads the whole document.
 pub fn unknown_links(doc: &Document) -> Vec<UnknownLink> {
     let order = doc.cells_in_order();
     let mut found = Vec::new();
@@ -802,12 +820,14 @@ pub fn unknown_links(doc: &Document) -> Vec<UnknownLink> {
         .iter()
         .map(|link| (link.hint.as_str(), Vec::new()))
         .collect();
+    // TreeSheets' links name a cell by what it shows, which for a formula cell is its
+    // result.
+    let calc = crate::eval::Calc::new(doc);
     for id in order.iter().skip(1) {
-        let Some(cell) = doc.cell(*id) else { continue };
-        if cell.kind == CellKind::Formula {
+        let Some(shown) = calc.shown(doc, *id) else {
             continue;
-        }
-        if let Some(list) = by_text.get_mut(cell.text.as_str()) {
+        };
+        if let Some(list) = by_text.get_mut(shown) {
             list.push(*id);
         }
     }

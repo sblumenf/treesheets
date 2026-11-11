@@ -63,7 +63,7 @@ fn every_place_is_replaced_in_one_step_that_undo_takes_back_exactly() {
     let mut editor = Editor::new(doc).unwrap();
     let mut ids = SeededIds::from_u64(1);
     let mut index = SearchIndex::new();
-    index.insert_document(editor.document(), "d.wombat");
+    index.insert_document(editor.document(), editor.calc(), "d.wombat");
     // An earlier step, to see that undo takes back the replacing and no more.
     let style = Command::SetStyle {
         cells: vec![outer[2]],
@@ -74,7 +74,7 @@ fn every_place_is_replaced_in_one_step_that_undo_takes_back_exactly() {
         clear: Style::default(),
     };
     let changes = editor.apply(style, None, &mut ids).unwrap();
-    index.apply(editor.document(), &changes);
+    index.apply(editor.document(), editor.calc(), &changes);
     let styled = format::to_string(editor.document()).unwrap();
 
     let done = replace(
@@ -111,9 +111,9 @@ fn every_place_is_replaced_in_one_step_that_undo_takes_back_exactly() {
     assert_eq!(editor.document().cell(outer[2]).unwrap().last_edit, None);
     assert_eq!(done.changes.changed.len(), 6);
     // The search index follows the report it was given.
-    index.apply(editor.document(), &done.changes);
+    index.apply(editor.document(), editor.calc(), &done.changes);
     let mut fresh = SearchIndex::new();
-    fresh.insert_document(editor.document(), "d.wombat");
+    fresh.insert_document(editor.document(), editor.calc(), "d.wombat");
     assert_eq!(index.encoded(), fresh.encoded());
     let count = |index: &SearchIndex, text: &str| {
         let query = parse(text, 0).unwrap().query;
@@ -123,7 +123,7 @@ fn every_place_is_replaced_in_one_step_that_undo_takes_back_exactly() {
     // One undo: everything back, to the byte. One redo: replaced again.
     assert_eq!(editor.undo_len(), 2);
     let back = editor.undo().unwrap().unwrap();
-    index.apply(editor.document(), &back);
+    index.apply(editor.document(), editor.calc(), &back);
     assert_eq!(format::to_string(editor.document()).unwrap(), styled);
     assert_eq!(count(&index, "apple"), 7);
     editor.redo().unwrap().unwrap();

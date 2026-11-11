@@ -12,12 +12,14 @@ mod search_support;
 
 use search_support::{check_hit, Rng};
 use wombat_core::construct::Construct;
+use wombat_core::eval::Calc;
+use wombat_core::summary::Summary;
 use wombat_core::{
     CellId, CellKind, Color, Command, Document, Editor, ImageRef, Link, LinkTarget, SeededIds,
     Style, Tag,
 };
 use wombat_search::query::{parse, Filter, Has, Order, Query, Term};
-use wombat_search::{naive, DocIndex, DocSearch, Field, Hit, Options, SearchIndex, Searchable};
+use wombat_search::{naive, DocIndex, Field, Hit, Options, SearchIndex};
 
 const NOW: i64 = 1_800_000_000_000;
 const DAY: i64 = 86_400_000;
@@ -44,6 +46,8 @@ fn link(doc: &mut Document, cell: CellId, start: u32, len: u32, target: LinkTarg
 struct World {
     shop: Document,
     notes: Document,
+    /// The results of the formula cells of the two, as after loading.
+    calcs: [Calc; 2],
     fruit: Vec<CellId>,
     apple_kinds: Vec<CellId>,
     lines: Vec<CellId>,
@@ -145,6 +149,7 @@ fn world() -> World {
     shop.validate().unwrap();
     notes.validate().unwrap();
     World {
+        calcs: [Calc::new(&shop), Calc::new(&notes)],
         shop,
         notes,
         fruit,
@@ -154,14 +159,17 @@ fn world() -> World {
 }
 
 impl World {
-    fn docs(&self) -> Vec<(&str, &Document)> {
-        vec![("shop.wombat", &self.shop), ("notes.wombat", &self.notes)]
+    fn docs(&self) -> Vec<naive::Named<'_>> {
+        vec![
+            ("shop.wombat", &self.shop, &self.calcs[0]),
+            ("notes.wombat", &self.notes, &self.calcs[1]),
+        ]
     }
 
     fn index(&self) -> SearchIndex {
         let mut index = SearchIndex::new();
-        for (name, doc) in self.docs() {
-            index.insert_document(doc, name);
+        for (name, doc, calc) in self.docs() {
+            index.insert_document(doc, calc, name);
         }
         index
     }
@@ -848,7 +856,7 @@ fn the_index_follows_edits_and_trails_follow_moved_cells() {
     let mut ids = SeededIds::from_u64(99);
     let mut apply = |editor: &mut Editor, index: &mut SearchIndex, command: Command| {
         let changes = editor.apply(command, Some(NOW), &mut ids).unwrap();
-        index.apply(editor.document(), &changes);
+        index.apply(editor.document(), editor.calc(), &changes);
     };
     let green = parse("green", NOW).unwrap().query;
     let trail = |index: &SearchIndex| {
@@ -909,7 +917,7 @@ fn the_index_follows_edits_and_trails_follow_moved_cells() {
     );
     // Undo everything: as at the start, and equal to an index made afresh.
     while let Some(changes) = editor.undo().unwrap() {
-        index.apply(editor.document(), &changes);
+        index.apply(editor.document(), editor.calc(), &changes);
     }
     assert_eq!(trail(&index), ["Shop", "Apple"]);
     assert_eq!(index.encoded(), w.index().encoded());
@@ -920,46 +928,53 @@ fn the_index_follows_edits_and_trails_follow_moved_cells() {
     assert_eq!(count(&index, "has:broken-link"), 2);
 }
 
-/// Milestone 5 will give formula cells a displayed result that is not their stored
-/// text. The index has the field for it; this is what filling it will do.
+/// A formula cell is searched by its formula (its text) and, as a field of its own, by
+/// the result it shows, which is worked out for a document that nobody edits.
 #[test]
 fn a_displayed_result_is_searched_as_a_field_of_its_own() {
-    let w = world();
-    let shown = |doc: &Document, cell: &wombat_core::Cell| Searchable {
-        shown: (cell.kind == CellKind::Formula).then(|| "Total: 42 Äpfel".to_owned()),
-        ..wombat_search::searchable(doc, cell)
-    };
-    let mut index = SearchIndex::new();
-    let summary = DocIndex {
-        search: DocSearch::of_with(&w.shop, &shown),
-        links: wombat_core::summary::Summary::of(&w.shop),
-    };
+    let mut w = world();
+    let pie = w.fruit[2];
+    assert_eq!(w.shop.cell(pie).unwrap().kind, CellKind::Formula);
+    w.shop.cell_mut(pie).unwrap().text = "='Total: ' & 6 * 7 & ' Äpfel'".into();
+    w.calcs[0] = Calc::new(&w.shop);
+    let summary = <DocIndex as Summary>::of(&w.shop);
+    assert!(summary.encode() == DocIndex::with(&w.shop, &w.calcs[0]).encode());
     // It survives the cache.
-    let bytes = wombat_core::summary::Summary::encode(&summary);
-    let back: DocIndex = wombat_core::summary::Summary::decode(&bytes).unwrap();
-    assert_eq!(wombat_core::summary::Summary::encode(&back), bytes);
+    let bytes = summary.encode();
+    let back = DocIndex::decode(&bytes).unwrap();
+    assert_eq!(back.encode(), bytes);
+    let mut index = w.index();
     index.insert(back, "shop.wombat");
     index.check().unwrap();
-    let find = |text: &str| {
-        let query = parse(text, NOW).unwrap().query;
-        index.search(&query, &Options::default()).unwrap().hits
-    };
-    let hits = find("apfel 42");
+    assert_eq!(index.encoded(), w.index().encoded());
+    let find = |text: &str| w.find(text);
+    let hits = find("42");
     assert_eq!(hits.len(), 1);
     assert_eq!(
         (hits[0].text.as_str(), hits[0].field),
-        ("apple pie", Field::Shown)
+        ("='Total: ' & 6 * 7 & ' Äpfel'", Field::Shown)
     );
+    assert_eq!(hits[0].shown.as_deref(), Some("Total: 42 Äpfel"));
     assert_eq!(hits[0].matched, "Total: 42 Äpfel");
-    assert_eq!(hits[0].ranges, [(7, 2), (10, 5)]);
+    assert_eq!(hits[0].ranges, [(7, 2)]);
     assert_eq!(
         hits[0].score,
-        (4 + 1) + (4 + 1),
+        4 + 1,
         "a displayed result counts just after the text"
     );
-    // The stored text is still found, and ranks before a result.
-    assert_eq!(find("pie")[0].field, Field::Text);
+    // One word in the formula and one only in the result: both count, and the hit
+    // shows the better field.
+    let hits = find("apfel 42");
+    assert_eq!(hits.len(), 1);
+    assert_eq!((hits[0].field, hits[0].score), (Field::Text, 1 + (4 + 1)));
+    // The formula is still found, and ranks before the result.
+    assert_eq!(find("total")[0].field, Field::Text);
+    assert_eq!(find("total")[0].ranges, [(2, 5)]);
     assert_eq!(find("case:Total").len(), 1);
+    // What is only in the result is found there; what is only in the formula, there.
+    assert_eq!(find("\"Total: 42\"")[0].field, Field::Shown);
+    assert_eq!(find("\"6 * 7\"")[0].field, Field::Text);
+    assert!(find("kind:formula")[0].shown.is_some());
 }
 
 #[test]
@@ -967,12 +982,11 @@ fn arbitrary_documents_agree_with_the_reference_for_handwritten_queries() {
     let w = world();
     let index = w.index();
     let docs = w.docs();
-    let plain: Vec<&Document> = docs.iter().map(|(_, doc)| *doc).collect();
     let mut rng = Rng(0x5eed);
     let mut stats = search_support::Compared::default();
     let reference = naive::Reference::new(&docs);
     for _ in 0..1500 {
-        let query = search_support::query(&mut rng, &plain, 0);
+        let query = search_support::query(&mut rng, &docs, 0);
         search_support::compare(
             &[&index],
             &reference,
@@ -1021,13 +1035,13 @@ fn a_word_in_several_fields_counts_for_the_best_of_them() {
     );
     doc.validate().unwrap();
     let mut index = SearchIndex::new();
-    index.insert_document(&doc, "d.wombat");
+    index.insert_document(&doc, &Calc::new(&doc), "d.wombat");
     let query = parse("report", NOW).unwrap().query;
     let options = Options::all(Order::Document);
     let found = index.search(&query, &options).unwrap();
     assert_eq!(
         found,
-        naive::search(&[("d.wombat", &doc)], &query, &options).unwrap()
+        naive::search(&[("d.wombat", &doc, &Calc::new(&doc))], &query, &options).unwrap()
     );
     let seen: Vec<(Field, u32)> = found
         .hits

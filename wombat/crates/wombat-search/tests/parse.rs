@@ -9,6 +9,7 @@
 
 use proptest::prelude::*;
 use wombat_core::construct::Construct;
+use wombat_core::eval::Calc;
 use wombat_core::{Document, SeededIds};
 use wombat_search::query::{parse, Query};
 use wombat_search::{naive, Options, SearchIndex};
@@ -79,10 +80,10 @@ proptest! {
         // Whatever was accepted is searched without trouble, and as the reference says.
         let doc = document();
         let mut index = SearchIndex::new();
-        index.insert_document(&doc, "d.wombat");
+        index.insert_document(&doc, &Calc::new(&doc), "d.wombat");
         let options = Options::default();
         let found = index.search(&parsed.query, &options).unwrap();
-        let expected = naive::search(&[("d.wombat", &doc)], &parsed.query, &options).unwrap();
+        let expected = naive::search(&[("d.wombat", &doc, &Calc::new(&doc))], &parsed.query, &options).unwrap();
         prop_assert_eq!(found, expected);
         // Nothing typed, or only spaces: everything.
         if text.trim().is_empty() {

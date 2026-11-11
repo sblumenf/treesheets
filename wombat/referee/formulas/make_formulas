@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""Records what the real TreeSheets calculates, for the tests of Wombat's evaluator.
+
+Usage: make_formulas [formulas] [fgrid] [programs] [sequences] [links]   (all if none is named)
+
+Builds every case of cases.py in the real app through its script API, and writes what the app
+shows to golden/*.jsonl, one case per line:
+
+    formulas.jsonl    {"name", "doc", "shown"}: a document and what every cell shows
+    fgrid.jsonl       the same for formula cells that have a grid (see README.md)
+    programs.jsonl    {"name", "doc", "shown", "result", "after"}: also what ts.evaluate
+                      returned for the root cell, and the document after it
+    sequences.jsonl   {"name", "doc", "shown", "steps": [{"do", "shown"}]}: the document
+                      after each of a series of edits
+
+and with `links` the file links.cts, a document with links to what formula cells show.
+
+Every case is built twice in different app instances and must come out the same. Needs Xvfb,
+xdotool and a TreeSheets built with Lobster (set TREESHEETS_BIN, see ../README.md). The
+tests (crates/wombat-core/tests/formulas_referee.rs) read the golden files and need none
+of that.
+"""
+import json
+import os
+import sys
+
+sys.dont_write_bytecode = True
+import app  # noqa: E402
+import cases
+from app import referee, ui
+
+GOLDEN = os.path.join(app.HERE, "golden")
+BATCH = 40  # documents per app instance: each one is a tab
+
+
+def write(name, lines):
+    os.makedirs(GOLDEN, exist_ok=True)
+    path = os.path.join(GOLDEN, name + ".jsonl")
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        for line in lines:
+            f.write(json.dumps(line, ensure_ascii=False, separators=(",", ":")) + "\n")
+    print(f"{len(lines)} cases written to {path}")
+
+
+def batches(items):
+    items = list(items)
+    for n in range(0, len(items), BATCH):
+        yield items[n:n + BATCH]
+
+
+def record_documents(display, documents, program):
+    out = []
+    for batch in batches(documents):
+        with referee.Instance(display, app.HERE + "/../fixtures/features.cts") as ts:
+            for name, doc in batch:
+                try:
+                    ts.eval(app.build(doc))
+                    case = {"name": name, "doc": doc, "shown": app.shown(ts)}
+                    if program:
+                        case["result"] = referee.unix_lines(
+                            ts.eval("ts.goto_root()\nts.agent_result(ts.evaluate(0))"))
+                        case["after"] = app.shown(ts)
+                except (referee.RefereeError, OSError) as e:
+                    # A case that crashes the app has to go (see README.md on what does).
+                    sys.exit(f"error: case {name}: {e}")
+                out.append(case)
+    return out
+
+
+def twice(what, record):
+    first, second = record(), record()
+    for a, b in zip(first, second):
+        if a != b:
+            sys.exit(f"{what}: {a['name']} came out differently the second time")
+    return first
+
+
+def step_code(step):
+    verb = step[0]
+    if verb == "text":
+        return app.goto(step[1]) + [f"ts.set_text({app.lit(step[2])})"]
+    if verb == "formula":
+        return app.goto(step[1]) + [f"ts.set_formula({app.lit(step[2])})"]
+    if verb == "kind":
+        return app.goto(step[1]) + [f"ts.set_cell_type({step[2]})"]
+    if verb == "insert-row":
+        return app.goto(step[1]) + [f"ts.insert_row({step[2]})"]
+    if verb == "insert-column":
+        return app.goto(step[1]) + [f"ts.insert_column({step[2]})"]
+    if verb == "delete":
+        x, y, xs, ys = step[2:6]
+        return app.goto(step[1]) + [f"ts.delete(int2 {{ {x}, {y} }}, int2 {{ {xs}, {ys} }})"]
+    if verb == "undo":
+        return ["ts.undo()"]
+    if verb == "redo":
+        return ["ts.redo()"]
+    raise ValueError(step)
+
+
+def record_sequences(display, sequences):
+    out = []
+    start = cases.sequence_start()
+    for name, steps in sequences:
+        # The start document as a file, so that the app opens with it as its only tab.
+        with ui.Instance(display, START) as ts:
+            case = {"name": name, "doc": start, "shown": app.shown(ts), "steps": []}
+            for step in steps:
+                try:
+                    do_step(ts, step)
+                except referee.RefereeError as e:
+                    if name.startswith("random_") and "ts.goto_column_row" in str(e):
+                        continue  # the cell is gone after an earlier random step: leave it out
+                    sys.exit(f"error: sequence {name}, step {step}: {e}")
+                case["steps"].append({"do": step, "shown": app.shown(ts)})
+            out.append(case)
+    return out
+
+
+def do_step(ts, step):
+    if True:
+        if True:
+            if True:
+                if step[0] == "sort":
+                    x, y, count, descending = step[2:6]
+                    ts.lobster(app.goto(step[1]) + [
+                        f"ts.select_range(int2 {{ {x}, {y} }}, int2 {{ 1, {count} }})"])
+                    ts.keys(ui.ACTIONS["sort-descending" if descending else "sort"][2])
+                elif step[0] == "run":
+                    ts.keys(ui.ACTIONS["run"][2])
+                else:
+                    ts.lobster(step_code(step))
+
+
+START = os.path.join(app.HERE, "start.cts")
+LINKS = os.path.join(app.HERE, "links.cts")
+
+
+def make_links(display):
+    """links.cts: links whose target text is what a formula cell shows, saved by the app, for
+    the importer's test (crates/wombat-cts/tests/formulas.rs)."""
+    from cases import D, F, T, column
+    doc = column([F("=1+1"), D("see 2 there"), D("2"), T("Box", D("to 4"), F("=2+2")), D("4"),
+                  D("to none"), F("='none'")])
+    with referee.Instance(display, app.HERE + "/../fixtures/features.cts") as ts:
+        ts.eval(app.build(doc))
+        ts.eval("\n".join(
+            app.goto([[0, 1]]) + ['ts.set_link(4, 1, "2", true)']
+            + app.goto([[0, 3], [0, 0]]) + ['ts.set_link(3, 1, "4", true)']
+            + app.goto([[0, 5]]) + ['ts.set_link(3, 4, "none", true)', 'ts.agent_result("ok")']))
+        path = os.path.join(ts.workdir, "links.cts")
+        ts.eval(f'ts.agent_result(if ts.save_document_as("{path}"): "ok" else: "failed")')
+        with open(path, "rb") as f:
+            data = f.read()
+    with open(LINKS, "wb") as f:
+        f.write(data)
+
+
+def make_start(display):
+    """start.cts: the document that the sequences begin with, saved by the app."""
+    with referee.Instance(display, app.HERE + "/../fixtures/features.cts") as ts:
+        ts.eval(app.build(cases.sequence_start()))
+        path = os.path.join(ts.workdir, "start.cts")
+        ts.eval(f'ts.agent_result(if ts.save_document_as("{path}"): "ok" else: "failed")')
+        with open(path, "rb") as f:
+            data = f.read()
+    with open(START, "wb") as f:
+        f.write(data)
+
+
+def main():
+    which = sys.argv[1:] or ["formulas", "fgrid", "programs", "sequences", "links"]
+    with referee.xvfb() as display:
+        if "formulas" in which:
+            docs = list(cases.formula_documents()) + list(cases.random_formula_documents(400))
+            write("formulas", twice("formulas", lambda: record_documents(display, docs, False)))
+        if "fgrid" in which:
+            docs = list(cases.formula_cells_with_grids())
+            write("fgrid", twice("fgrid", lambda: record_documents(display, docs, False)))
+        if "programs" in which:
+            docs = list(cases.program_documents()) + list(cases.random_program_documents(300))
+            write("programs", twice("programs", lambda: record_documents(display, docs, True)))
+        if "links" in which:
+            make_links(display)
+        if "sequences" in which:
+            make_start(display)
+            seqs = list(cases.sequences()) + list(cases.random_sequences(30))
+            write("sequences", twice("sequences", lambda: record_sequences(display, seqs)))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except referee.RefereeError as e:
+        sys.exit(f"error: {e}")

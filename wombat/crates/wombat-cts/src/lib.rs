@@ -12,7 +12,9 @@
 //! - **Fold state, selection and zoom** go to a [`ViewState`] (decision A8).
 //! - **Images** are returned as bytes with a file name; [`Imported::save`] writes them into the
 //!   document's image folder. The display scale is copied to every cell showing the image.
-//! - **Formulas are not calculated** (milestone 5): a formula cell has its formula as text.
+//! - **A formula cell has its formula as text.** What it shows is worked out by the core
+//!   (`wombat_core::eval`), here only to find the targets of links, which go by what cells
+//!   show (decision A66).
 //!
 //! Arbitrary bytes are safe to pass in: every count and length is checked against the data
 //! that is really there, the decompressed size is bounded, and nothing recurses.
@@ -201,7 +203,10 @@ fn import_bounded(
             .flat_map(|(_, links)| links.iter().map(|link| link.target.as_str()))
             .collect();
         let wanted: Vec<&str> = wanted.into_iter().collect();
-        let resolver = links::Resolver::new(&document, &wanted);
+        // What formula cells show, if there is any link to find a target for: only then
+        // is the work of calculating needed.
+        let calc = (!wanted.is_empty()).then(|| wombat_core::eval::Calc::new(&document));
+        let resolver = links::Resolver::new(&document, &wanted, calc.as_ref());
         max_depth = resolver.max_depth();
         for (cell, links) in &text_links {
             let mut made = Vec::with_capacity(links.len());

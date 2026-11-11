@@ -31,8 +31,8 @@ use wombat_search::query::parse;
 use wombat_search::{DocIndex, Options, SearchIndex};
 
 impl Hook for Follower {
-    fn changed(&mut self, doc: &Document, changes: &Changes) {
-        Follower::changed(self, doc, changes);
+    fn changed(&mut self, editor: &Editor, changes: &Changes) {
+        Follower::changed(self, editor, changes);
     }
     fn step(&mut self, editors: &[Editor], what: &str) {
         Follower::step(self, editors, what);
@@ -89,9 +89,11 @@ fn search_over_all_imported_documents_agrees_with_the_reference() {
         .map(|(n, (name, doc))| (format!("{n:02}-{name}.wombat"), doc))
         .collect();
     let named: Vec<(&str, &Document)> = named.iter().map(|(n, d)| (n.as_str(), *d)).collect();
+    let calcs = search_support::calcs(&named);
+    let named = search_support::named(&named, &calcs);
     let mut index = SearchIndex::new();
     let (mut cells, mut bytes) = (0, 0);
-    for (name, doc) in &named {
+    for (name, doc, _) in &named {
         let summary = DocIndex::of(doc);
         let encoded = summary.encode();
         let back = DocIndex::decode(&encoded).unwrap_or_else(|| panic!("{name}: not read back"));
@@ -102,12 +104,11 @@ fn search_over_all_imported_documents_agrees_with_the_reference() {
     }
     index.check().unwrap();
     assert_eq!(index.cell_count(), cells);
-    let plain: Vec<&Document> = named.iter().map(|(_, doc)| *doc).collect();
     let mut rng = Rng(0xc75);
     let mut stats = Compared::default();
     let reference = wombat_search::naive::Reference::new(&named);
     for _ in 0..120 {
-        let query = query(&mut rng, &plain, 0);
+        let query = query(&mut rng, &named, 0);
         compare(
             &[&index],
             &reference,

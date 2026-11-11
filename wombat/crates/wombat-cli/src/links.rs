@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use wombat_core::eval::Calc;
 use wombat_core::links::{self, Broken, LinkEntry, Resolved};
 use wombat_core::scan::{self, WorkspaceLinks};
 use wombat_core::{storage, CellId, DocId, Document, Editor, LinkTarget, Workspace};
@@ -66,7 +67,8 @@ pub fn place_of(doc: &Document, id: CellId) -> String {
 struct Folder {
     workspace: Workspace,
     links: WorkspaceLinks,
-    loaded: HashMap<DocId, Option<Document>>,
+    /// With what their formula cells show.
+    loaded: HashMap<DocId, Option<(Document, Calc)>>,
 }
 
 impl Folder {
@@ -101,16 +103,22 @@ impl Folder {
         let (workspace, names) = (&self.workspace, &self.links.names);
         self.loaded
             .entry(id)
-            .or_insert_with(|| workspace.open_name(names.get(&id)?).ok())
+            .or_insert_with(|| {
+                let doc = workspace.open_name(names.get(&id)?).ok()?;
+                let calc = Calc::new(&doc);
+                Some((doc, calc))
+            })
             .as_ref()
+            .map(|(doc, _)| doc)
     }
 
     /// A cell for showing: its place, its text and the texts of the cells around it.
     fn cell(&mut self, doc: DocId, cell: CellId) -> String {
-        let Some(found) = self.doc(doc) else {
+        self.doc(doc);
+        let Some(Some((found, calc))) = self.loaded.get(&doc) else {
             return format!("cell {cell}");
         };
-        match links::place(found, cell) {
+        match links::place_shown(found, calc, cell) {
             Some(place) if place.trail.is_empty() => {
                 format!("{} {:?}", place_of(found, cell), place.text)
             }

@@ -13,11 +13,18 @@
 //! is stale it is built again from the cells (an amount of work that the edits before it
 //! pay for). Following a change report costs in proportion to the cells it names, plus
 //! the cells directly inside a grid that gained, lost or reordered cells.
+//!
+//! A formula cell is kept with its formula (its text) and with what it shows (its
+//! result). Results are not in the document: they come from the [`Calc`] of the
+//! document's editor, or are worked out here for a document that nobody edits, and after
+//! an edit the cells whose results changed are read again like the cells that the change
+//! report names (decision A90).
 
 use std::collections::{BTreeSet, HashMap};
 use std::hash::{BuildHasherDefault, Hasher};
 use std::sync::OnceLock;
 
+use wombat_core::eval::Calc;
 use wombat_core::links::DocLinks;
 use wombat_core::summary::{Reader, Summary, Writer};
 use wombat_core::{Cell, CellId, CellKind, Changes, Color, DocId, Document, LinkTarget, Style};
@@ -48,8 +55,8 @@ pub struct Searchable {
     /// The text of the cell, as stored. Ranges of a match in the text refer to this.
     pub text: String,
     /// What the cell displays, where that is not its stored text: the result of a
-    /// formula. Nothing computes one yet (milestone 5); when something does, it is
-    /// returned here and is searched as a field of its own ([`crate::Field::Shown`]).
+    /// formula cell, also when it happens to read the same as the formula. It is
+    /// searched as a field of its own ([`crate::Field::Shown`]).
     pub shown: Option<String>,
     /// The note.
     pub note: String,
@@ -59,16 +66,17 @@ pub struct Searchable {
     pub urls: Vec<String>,
 }
 
-/// What of `cell` is searched: see [`Searchable`]. `doc` is the cell's document, for
-/// what milestone 5 will need to find a displayed result.
-pub fn searchable(_doc: &Document, cell: &Cell) -> Searchable {
+/// What of the cell `id` is searched: see [`Searchable`]. `calc` holds the results of
+/// the formula cells of the cell's document.
+pub fn searchable(calc: &Calc, id: CellId, cell: &Cell) -> Searchable {
+    let result = || calc.result(id).map(|(text, _)| text.to_owned());
     let urls = cell.links.iter().filter_map(|link| match &link.target {
         LinkTarget::External(target) => Some(target.clone()),
         _ => None,
     });
     Searchable {
         text: cell.text.clone(),
-        shown: None,
+        shown: (cell.kind == CellKind::Formula).then(result).flatten(),
         note: cell.note.clone(),
         image: cell.image.as_ref().map(|image| image.file.clone()),
         urls: urls.collect(),
@@ -230,6 +238,20 @@ impl Entry {
 
     pub fn shown(&self) -> Option<&str> {
         self.rare.as_ref()?.shown.as_deref()
+    }
+
+    /// What the cell shows: the result of a formula cell, the text of any other. This
+    /// is what a link to the cell and a location trail go by (decision A66).
+    pub fn display(&self) -> &str {
+        self.shown().unwrap_or(&self.text)
+    }
+
+    /// The folded form of [`Entry::display`].
+    pub fn folded_display(&self) -> &str {
+        if self.shown().is_none() {
+            return self.folded_text();
+        }
+        self.folded().split('\n').nth(FIELD_SHOWN).unwrap_or("")
     }
 
     pub fn urls(&self) -> &[String] {
@@ -680,13 +702,13 @@ impl DocSearch {
         false
     }
 
-    /// The texts of the cells around a cell, from the root down, as
-    /// [`wombat_core::links::place`] gives them.
+    /// What the cells around a cell show, from the root down, as
+    /// [`wombat_core::links::place_shown`] gives it.
     pub(crate) fn trail(&self, slot: u32) -> Vec<String> {
         let mut trail = Vec::new();
         let mut at = self.entries.get(slot as usize).map_or(NONE, |e| e.parent);
         while let Some(entry) = self.entries.get(at as usize).filter(|_| trail.len() < 1024) {
-            trail.push(entry.text.to_string());
+            trail.push(entry.display().to_owned());
             at = entry.parent;
         }
         trail.reverse();
@@ -730,11 +752,9 @@ impl DocSearch {
         Ok(())
     }
 
-    /// [`Summary::of`] with another reading of what a cell's searchable content is
-    /// than [`searchable`]. For tests of the displayed-result field, which nothing
-    /// fills before milestone 5; an index made this way cannot follow edits.
-    #[doc(hidden)]
-    pub fn of_with(doc: &Document, what: &dyn Fn(&Document, &Cell) -> Searchable) -> DocSearch {
+    /// Reads a whole document, with the results of its formula cells: those of its
+    /// editor ([`wombat_core::Editor::calc`]) for a document that is being edited.
+    pub fn with(doc: &Document, calc: &Calc) -> DocSearch {
         let mut index = DocSearch::empty(doc.id());
         let order = doc.cells_in_order();
         index.common_at = index.common_for(order.len());
@@ -743,7 +763,7 @@ impl DocSearch {
         for id in &order {
             let read = doc
                 .cell(*id)
-                .map(|cell| Entry::new(*id, cell, what(doc, cell)));
+                .map(|cell| Entry::new(*id, cell, searchable(calc, *id, cell)));
             if let Some(entry) = read {
                 index.add(entry);
             }
@@ -759,25 +779,27 @@ impl DocSearch {
         index
     }
 
-    fn read(doc: &Document, id: CellId) -> Option<Entry> {
+    fn read(doc: &Document, calc: &Calc, id: CellId) -> Option<Entry> {
         let cell = doc.cell(id)?;
-        Some(Entry::new(id, cell, searchable(doc, cell)))
+        Some(Entry::new(id, cell, searchable(calc, id, cell)))
     }
 }
 
 impl Summary for DocSearch {
     const KIND: &'static str = "words";
-    const VERSION: u32 = 1;
+    /// 2: what formula cells show is kept (the bytes have the same layout as in 1).
+    const VERSION: u32 = 2;
 
     fn fingerprint() -> u64 {
         fold::fingerprint()
     }
 
+    /// Works the formulas out, as after loading (without the variables of a run).
     fn of(doc: &Document) -> DocSearch {
-        DocSearch::of_with(doc, &searchable)
+        DocSearch::with(doc, &Calc::new(doc))
     }
 
-    fn update(&mut self, doc: &Document, changes: &Changes) {
+    fn update(&mut self, doc: &Document, calc: &Calc, changes: &Changes) {
         let mut scratch = Vec::new();
         for id in &changes.removed {
             if let Some(slot) = self.slots.remove(id) {
@@ -785,8 +807,11 @@ impl Summary for DocSearch {
             }
         }
         let mut moved: Vec<CellId> = changes.grids.clone();
-        for id in changes.created.iter().chain(&changes.changed) {
-            match (DocSearch::read(doc, *id), self.slot(*id)) {
+        // The cells whose results changed are not in the report (they did not change),
+        // but what is kept of them did.
+        let named = changes.created.iter().chain(&changes.changed);
+        for id in named.chain(calc.recalculated()) {
+            match (DocSearch::read(doc, calc, *id), self.slot(*id)) {
                 (Some(entry), Some(slot)) => self.replace(slot, entry, &mut scratch),
                 (Some(entry), None) => {
                     // A new cell says where it is itself; the cell it is in gives the rest.
@@ -1020,6 +1045,17 @@ pub struct DocIndex {
     pub links: DocLinks,
 }
 
+impl DocIndex {
+    /// Reads a whole document, with the results of its formula cells
+    /// ([`DocSearch::with`]).
+    pub fn with(doc: &Document, calc: &Calc) -> DocIndex {
+        DocIndex {
+            search: DocSearch::with(doc, calc),
+            links: DocLinks::of(doc),
+        }
+    }
+}
+
 impl Summary for DocIndex {
     const KIND: &'static str = "search";
     const VERSION: u32 = 1;
@@ -1031,15 +1067,12 @@ impl Summary for DocIndex {
     }
 
     fn of(doc: &Document) -> DocIndex {
-        DocIndex {
-            search: DocSearch::of(doc),
-            links: DocLinks::of(doc),
-        }
+        DocIndex::with(doc, &Calc::new(doc))
     }
 
-    fn update(&mut self, doc: &Document, changes: &Changes) {
-        self.search.update(doc, changes);
-        self.links.update(doc, changes);
+    fn update(&mut self, doc: &Document, calc: &Calc, changes: &Changes) {
+        self.search.update(doc, calc, changes);
+        self.links.update(doc, calc, changes);
     }
 
     fn encode(&self) -> Vec<u8> {

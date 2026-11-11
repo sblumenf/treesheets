@@ -15,6 +15,7 @@
 //! file access, so an index can also be built where there are no files.
 
 use crate::edit::Changes;
+use crate::eval::Calc;
 use crate::id::Id;
 use crate::model::Document;
 
@@ -27,13 +28,18 @@ pub trait Summary: Sized {
     /// [`Summary::decode`] would misread; a cache written with another number is not used.
     const VERSION: u32;
 
-    /// Reads a whole document.
+    /// Reads a whole document that nobody is editing, as it is after loading. A summary
+    /// that keeps what formula cells show works that out itself
+    /// ([`crate::eval::Calc::new`]): results are never in the file (decision A61).
     fn of(doc: &Document) -> Self;
 
     /// Brings the summary up to date after a command, undo, redo or group changed `doc`:
-    /// `changes` is what the editor returned, `doc` the document afterwards. The result
-    /// must equal [`Summary::of`] of the document; the cost must not depend on its size.
-    fn update(&mut self, doc: &Document, changes: &Changes);
+    /// `changes` is what the editor returned, `doc` the document afterwards and `calc`
+    /// its editor's results ([`crate::Editor::calc`]). A summary that keeps what formula
+    /// cells show reads the cells of `changes` and those of
+    /// [`Calc::recalculated`] again (decision A90). The result must equal the summary
+    /// of the document with those results; the cost must not depend on its size.
+    fn update(&mut self, doc: &Document, calc: &Calc, changes: &Changes);
 
     /// A number that changes when the rules by which a summary is made change (how text
     /// is folded or cut up, say), computed by applying those rules to fixed samples, so

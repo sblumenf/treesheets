@@ -21,6 +21,7 @@ use std::path::Path;
 use std::time::{Duration, Instant, SystemTime};
 
 use corpus::{queries, Corpus, NOW};
+use wombat_core::eval::Calc;
 use wombat_core::scan::{CacheMode, CACHE_DIR};
 use wombat_core::{Command, Document, Editor, SeededIds, Workspace};
 use wombat_search::query::parse;
@@ -127,7 +128,7 @@ fn search_at_size() {
     let (index, build) = timed(|| {
         let mut index = SearchIndex::new();
         for (name, doc) in &documents {
-            index.insert_document(doc, name);
+            index.insert_document(doc, &Calc::new(doc), name);
         }
         index
     });
@@ -221,6 +222,12 @@ fn search_at_size() {
     );
     // The answers are the right ones: a few against the reference, which reads all.
     let named: Vec<(&str, &Document)> = documents.iter().map(|(n, d)| (n.as_str(), d)).collect();
+    let calcs: Vec<Calc> = named.iter().map(|(_, doc)| Calc::new(doc)).collect();
+    let named: Vec<naive::Named> = named
+        .iter()
+        .zip(&calcs)
+        .map(|((n, d), c)| (*n, *d, c))
+        .collect();
     let reference = naive::Reference::new(&named);
     for text in queries(&corpus).iter().step_by(9) {
         let parsed = parse(text, NOW).unwrap();
@@ -263,7 +270,7 @@ fn search_at_size() {
         };
         let (changes, time) = timed(|| editor.apply(command, Some(NOW), &mut ids).unwrap());
         apply_time += time;
-        let (_, time) = timed(|| index.apply(editor.document(), &changes));
+        let (_, time) = timed(|| index.apply(editor.document(), editor.calc(), &changes));
         follow_time += time;
     }
     let per_edit = follow_time / rounds as u32;
@@ -279,7 +286,7 @@ fn search_at_size() {
     // It followed rightly: equal to an index of the document as it is now.
     index.check().unwrap();
     let mut fresh = SearchIndex::new();
-    fresh.insert_document(editor.document(), "doc003.wombat");
+    fresh.insert_document(editor.document(), editor.calc(), "doc003.wombat");
     let followed = index.encoded();
     let of_doc = followed
         .iter()
@@ -311,7 +318,8 @@ fn search_in_a_million_cells() {
     for n in 0..200 {
         let doc = corpus.document(5_000);
         cells += doc.cell_count();
-        let (_, time) = timed(|| index.insert_document(&doc, &format!("doc{n:03}.wombat")));
+        let (_, time) =
+            timed(|| index.insert_document(&doc, &Calc::new(&doc), &format!("doc{n:03}.wombat")));
         build += time;
     }
     let after = memory();

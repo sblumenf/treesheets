@@ -1207,9 +1207,10 @@ fn an_imported_link_without_a_target_gets_one_when_exactly_one_cell_has_its_text
         },
     ];
     doc.cell_mut(from).unwrap().links.sort_by_key(|l| l.start);
-    // A formula cell is never a target (decision B15), nor is the root.
+    // A formula cell counts by what it shows (decision A66): this one shows `#NAME?`,
+    // not "nothing". The root never counts.
     let formula = at(&doc, &[(0, 4)]);
-    doc.cell_mut(formula).unwrap().kind = CellKind::Formula;
+    doc.cell_mut(formula).unwrap().kind = crate::CellKind::Formula;
     doc.cell_mut(formula).unwrap().text = "nothing".into();
     doc.validate().unwrap();
 

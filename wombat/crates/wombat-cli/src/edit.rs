@@ -31,6 +31,9 @@ Colours are written #rrggbb.
 
 Text
   text CELL \"text\"                    replace the whole text (drops styles and links)
+  enter CELL \"text\"                   the same, as typed into the cell: a text that starts
+                                      with = makes it a formula cell (=SUM(Costs) * 2),
+                                      any other text a data cell again
   insert CELL POSITION \"text\"         insert text
   delete CELL POSITION LENGTH         delete text
   replace CELL POSITION LENGTH \"text\" replace a range of text
@@ -106,6 +109,12 @@ Sizes and checkboxes
                                       add DELTA to the widths of COUNT columns; deep: also
                                       all columns of the grids inside them
   toggle-check CELL...                add to-do checkboxes, tick them, or remove them
+
+Calculating
+  run                                 run the program of the document, as Program > Run in
+                                      TreeSheets: fills the view cells, assigns variables
+  (formula cells are kept up to date after every command; `changes` lists the ones whose
+  result changed, and `show` prints each as its formula = what it shows)
 
 Tags
   tag \"name\" #rrggbb #rrggbb          add a tag (cell colour, text colour) or recolour it
@@ -201,6 +210,8 @@ pub struct Session<'a> {
     ids: SeededIds,
     now: Option<i64>,
     last: Changes,
+    /// The formula cells whose results that changed.
+    recalculated: Vec<CellId>,
     path: &'a Path,
     saved: bool,
 }
@@ -320,6 +331,7 @@ impl<'a> Session<'a> {
             ids,
             now: None,
             last: Changes::default(),
+            recalculated: Vec::new(),
             path,
             saved: true,
         })
@@ -363,6 +375,7 @@ impl<'a> Session<'a> {
         self.view_changed |= self.view.folded.len() != folds;
         self.saved &= changes.is_empty();
         self.last = changes;
+        self.recalculated = self.editor.recalculated().to_vec();
     }
 
     fn history(&mut self, args: &mut Args, undo: bool) -> Result<(), String> {
@@ -413,6 +426,11 @@ impl<'a> Session<'a> {
         for tag in &self.last.tags {
             out.push_str(&format!("tag {tag:?}\n"));
         }
+        for id in &self.recalculated {
+            if let Some(result) = self.editor.shown(*id) {
+                out.push_str(&format!("recalculated {} = {result:?}\n", self.place(*id)));
+            }
+        }
         if out.is_empty() {
             out.push_str("nothing changed\n");
         }
@@ -434,6 +452,25 @@ impl<'a> Session<'a> {
                 let text = next(args, "the text")?.to_string();
                 done(args)?;
                 self.apply(Command::SetText { cell, text })?;
+            }
+            "enter" => {
+                let cell = self.next_cell(args, "a cell")?;
+                let text = next(args, "the text")?.to_string();
+                done(args)?;
+                self.apply(Command::EnterText { cell, text })?;
+            }
+            "run" => {
+                done(args)?;
+                self.apply(Command::Run)?;
+                let failure = self
+                    .editor
+                    .calc()
+                    .last_run()
+                    .and_then(|r| r.failure.clone());
+                out = match failure {
+                    Some(failure) => format!("run: {failure}\n"),
+                    None => "run: finished\n".to_string(),
+                };
             }
             "insert" => {
                 let cell = self.next_cell(args, "a cell")?;
@@ -555,7 +592,7 @@ impl<'a> Session<'a> {
                 let parsed = wombat_search::parse(&query, self.now.unwrap_or(0))
                     .map_err(|e| e.to_string())?;
                 let mut index = wombat_search::SearchIndex::new();
-                index.insert_document(self.doc(), "");
+                index.insert_document(self.doc(), self.editor.calc(), "");
                 let hits = match from {
                     Some((cell, reverse)) => {
                         let hit =
@@ -816,7 +853,10 @@ impl<'a> Session<'a> {
             "redo" => self.history(args, false)?,
             "begin" => self.editor.begin_group(),
             // After a group, `changes` shows what the group changed as a whole.
-            "end" => self.last = self.editor.end_group(),
+            "end" => {
+                self.last = self.editor.end_group();
+                self.recalculated = self.editor.recalculated().to_vec();
+            }
             "now" => {
                 self.now = match next(args, "a time in milliseconds, or `none`")? {
                     "none" => None,
@@ -832,7 +872,12 @@ impl<'a> Session<'a> {
                     Some("ids") => true,
                     Some(word) => return Err(format!("unexpected: {word:?}")),
                 };
-                out = crate::show_document(self.doc(), Some(&self.view), with_ids);
+                out = crate::show_document(
+                    self.doc(),
+                    self.editor.calc(),
+                    Some(&self.view),
+                    with_ids,
+                );
             }
             "changes" => out = self.report(),
             "check" => {

@@ -126,7 +126,7 @@ proptest! {
                 _ => continue,
             };
             if let Ok(changes) = editors[d].apply(command, None, &mut ids) {
-                summaries[d].update(editors[d].document(), &changes);
+                summaries[d].update(editors[d].document(), editors[d].calc(), &changes);
             }
             let fresh = DocLinks::of(editors[d].document());
             prop_assert!(summaries[d] == fresh);
@@ -157,6 +157,7 @@ fn the_random_runs_exercise_links_copies_and_moves() {
     assert!(total.survived > 2000 && total.broken > 60, "{total:?}");
     assert!(total.pastes > 100 && total.moves > 100, "{total:?}");
     assert!(total.repairs > 10 && total.links > 5, "{total:?}");
+    assert!(total.formulas > 300 && total.formula_cells > 5, "{total:?}");
 }
 
 #[test]

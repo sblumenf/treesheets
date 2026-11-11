@@ -23,6 +23,7 @@
 
 mod command;
 mod paste;
+mod program;
 mod restructure;
 mod size;
 mod step;
@@ -468,6 +469,24 @@ pub enum Command {
         /// Also every column of every grid inside the cells of those columns.
         recursive: bool,
     },
+    /// TreeSheets' Program > Run: works the program of the document out (its operation,
+    /// variable and view cells, see [`crate::eval`]) and overwrites every view cell with
+    /// the value that reached it. A view cell keeps its ID; the cells of a grid it gets
+    /// are new. The variables the run assigned are kept for the formulas
+    /// ([`crate::eval::Calc::variables`]), and what went wrong first is in
+    /// [`crate::eval::Calc::last_run`]. Refused if the program nests too deeply or takes
+    /// too much work.
+    Run,
+    /// Typing into a cell has ended with this text (also TreeSheets' formula bar): sets
+    /// the text like `SetText`, and a data or formula cell becomes a formula cell if the
+    /// text starts with `=` and has more than that, and a data cell if not. Cells of other
+    /// kinds keep their kind.
+    EnterText {
+        /// The cell.
+        cell: CellId,
+        /// The text typed.
+        text: String,
+    },
     /// TreeSheets' Toggle to-do checkbox: cells without a checkbox (U+2610 or U+2611 at
     /// the start of the text) get an open one; if all have one they become ticked; if all
     /// are ticked the checkboxes are removed. Stamps the last-edit time.
@@ -550,6 +569,8 @@ pub(crate) struct Tx<'a> {
     held: &'a HashSet<CellId>,
     /// The largest file that the document may become.
     size_limit: u64,
+    /// What milestone 5 added: the results of formula cells, and what a run leaves.
+    ext: program::Ext<'a>,
 }
 
 impl Tx<'_> {
@@ -641,6 +662,8 @@ pub struct Editor {
     /// The bound on the size of the saved file (`size.rs`).
     size: u64,
     size_limit: u64,
+    /// The results of the formula cells, brought up to date after every change.
+    calc: crate::eval::Calc,
     /// Whether the document as it is now can be saved within the limit, if that is known
     /// from having tried. Only looked at while `size` is over the limit.
     fits: Option<bool>,
@@ -665,6 +688,7 @@ impl Editor {
         doc.validate()?;
         Ok(Editor {
             size: size::document(&doc),
+            calc: crate::eval::Calc::new(&doc),
             doc,
             undo: Vec::new(),
             redo: Vec::new(),
@@ -745,13 +769,25 @@ impl Editor {
             seen: ChangeSet::default(),
             held: &self.held,
             size_limit: self.size_limit,
+            ext: program::Ext {
+                calc: Some(&self.calc),
+                ran: None,
+            },
         };
         if let Err(error) = command::run(&mut tx, command, now, ids) {
             tx.roll_back()?;
             return Err(error);
         }
-        let Tx { inverses, seen, .. } = tx;
+        let Tx {
+            inverses,
+            seen,
+            ext,
+            ..
+        } = tx;
+        let ran = ext.ran;
         if inverses.is_empty() {
+            // A run that fills no view can still assign variables that formulas read.
+            self.recalculate(ran, &Changes::default());
             return Ok(Changes::default());
         }
         let size = self.size.saturating_add_signed(seen.bytes);
@@ -786,7 +822,9 @@ impl Editor {
                 _ => self.push_undo(Unit::new(steps, typing)),
             }
         }
-        Ok(seen.finish(&self.doc))
+        let changes = seen.finish(&self.doc);
+        self.recalculate(ran, &changes);
+        Ok(changes)
     }
 
     /// Whether the document as it is can be saved within the limit, by writing it out.
@@ -851,6 +889,7 @@ impl Editor {
             seen: ChangeSet::default(),
             held: &self.held,
             size_limit: self.size_limit,
+            ext: program::Ext::default(),
         };
         for step in unit.steps {
             if let Err(error) = tx.step(step) {
@@ -866,7 +905,9 @@ impl Editor {
         self.fits = None;
         let steps: Vec<Step> = inverses.into_iter().rev().collect();
         self.held.extend(held_ids(&steps));
-        Ok((Unit::new(steps, unit.typing), seen.finish(&self.doc)))
+        let changes = seen.finish(&self.doc);
+        self.recalculate(None, &changes);
+        Ok((Unit::new(steps, unit.typing), changes))
     }
 
     /// Undoes the latest unit of the history: one command, or one group. Returns what that
@@ -901,6 +942,7 @@ impl Editor {
     /// Opens a group: the commands applied until the matching [`Editor::end_group`] are
     /// undone and redone as one unit. Groups may be nested; only the outermost counts.
     pub fn begin_group(&mut self) {
+        self.calc.begin_group();
         self.group_depth = self.group_depth.saturating_add(1);
     }
 
@@ -922,6 +964,7 @@ impl Editor {
             let steps = self.group.drain(..).rev().flatten().collect();
             self.push_undo(Unit::new(steps, None));
         }
+        self.calc.end_group(&self.doc);
         std::mem::take(&mut self.group_seen).finish(&self.doc)
     }
 

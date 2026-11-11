@@ -14,6 +14,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+use wombat_core::eval::Calc;
 use wombat_core::scan::{self, CacheMode, CacheUse};
 use wombat_core::summary::Summary;
 use wombat_core::{Command, Document, Editor, SeededIds, Workspace};
@@ -75,6 +76,12 @@ fn checked(ws: &Workspace, mode: CacheMode) -> WorkspaceIndex {
         .map(|name| (name.clone(), ws.open_name(name).unwrap()))
         .collect();
     let named: Vec<(&str, &Document)> = docs.iter().map(|(n, d)| (n.as_str(), d)).collect();
+    let calcs: Vec<Calc> = named.iter().map(|(_, doc)| Calc::new(doc)).collect();
+    let named: Vec<naive::Named> = named
+        .iter()
+        .zip(&calcs)
+        .map(|((n, d), c)| (*n, *d, c))
+        .collect();
     let reference = naive::Reference::new(&named);
     for text in QUERIES {
         let parsed = parse(text, corpus::NOW).unwrap();
@@ -163,7 +170,7 @@ fn the_workspace_index_covers_documents_that_are_not_open_and_follows_the_folder
     ];
     for command in commands {
         let changes = editor.apply(command, Some(corpus::NOW), &mut ids).unwrap();
-        live.apply(editor.document(), &changes);
+        live.apply(editor.document(), editor.calc(), &changes);
     }
     ws.save(editor.document(), name).unwrap();
     let third = checked(&ws, CacheMode::Verify);

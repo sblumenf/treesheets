@@ -9,6 +9,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
+use wombat_core::eval::Calc;
 use wombat_core::limits::MAX_FILE_BYTES;
 use wombat_core::{storage, CellId, CellKind, Document, SeededIds, ViewState, Workspace};
 
@@ -20,7 +21,8 @@ Usage:
   wombat new <file.wombat> --from <outline> create a document from an indented text outline
                                             (\"-\" reads the outline from standard input)
   wombat show <file> [--ids]                print a document (.wombat, or a TreeSheets .cts
-                                            read on the spot) as an indented outline
+                                            read on the spot) as an indented outline; a
+                                            formula cell as its formula = what it shows
   wombat import <file.cts> <file.wombat>    convert a TreeSheets file: writes the document,
                                             its images and its view state (folds, selection)
   wombat copy <file.wombat> <new.wombat>    save a copy that has its own document and cell
@@ -57,7 +59,8 @@ Usage:
   wombat help                               show this text
 
 Outline format: one line per row of a grid, cells separated by \" | \"; lines indented
-further than a row become the grid inside that row's first cell.
+further than a row become the grid inside that row's first cell. A cell that starts with =
+is a formula cell, for example =SUM(Costs) * 2 (see docs/milestones/M5.md).
 ";
 
 /// What went wrong: a mistake in the command line (exit code 2) or a failed command (1).
@@ -270,16 +273,27 @@ fn load_for_show(file: &str) -> Result<(Document, Option<ViewState>), Failure> {
 
 fn show(file: &str, with_ids: bool) -> Result<String, Failure> {
     let (doc, view) = load_for_show(file)?;
-    Ok(show_document(&doc, view.as_ref(), with_ids))
+    Ok(show_document(
+        &doc,
+        &Calc::new(&doc),
+        view.as_ref(),
+        with_ids,
+    ))
 }
 
 /// A document as an indented outline.
-fn show_document(doc: &Document, view: Option<&ViewState>, with_ids: bool) -> String {
+fn show_document(doc: &Document, calc: &Calc, view: Option<&ViewState>, with_ids: bool) -> String {
     let mut out = format!("document {} ({} cells)\n", doc.id(), doc.cell_count());
     for tag in doc.tags().keys() {
         out.push_str(&format!("tag {tag:?}\n"));
     }
-    show_cell(doc, view, doc.root(), 0, "", with_ids, &mut out);
+    let showing = Showing {
+        doc,
+        calc,
+        view,
+        with_ids,
+    };
+    show_cell(&showing, doc.root(), 0, "", &mut out);
     out
 }
 
@@ -313,21 +327,31 @@ fn edit(file: &str, script: &str) -> Result<String, Failure> {
     Ok(out)
 }
 
-/// Prints a cell, then its grid: a "grid" line and one line per cell, marked [column,row].
-fn show_cell(
-    doc: &Document,
-    view: Option<&ViewState>,
-    id: CellId,
-    indent: usize,
-    label: &str,
+/// What `show_cell` prints from.
+struct Showing<'a> {
+    doc: &'a Document,
+    calc: &'a Calc,
+    view: Option<&'a ViewState>,
     with_ids: bool,
-    out: &mut String,
-) {
+}
+
+/// Prints a cell, then its grid: a "grid" line and one line per cell, marked [column,row].
+/// A formula cell is printed as its formula, then `=` and what it shows.
+fn show_cell(showing: &Showing, id: CellId, indent: usize, label: &str, out: &mut String) {
+    let Showing {
+        doc,
+        calc,
+        view,
+        with_ids,
+    } = *showing;
     let Some(cell) = doc.cell(id) else { return };
     let pad = " ".repeat(indent);
     out.push_str(&format!("{pad}{label}{:?}", cell.text));
     if cell.kind != CellKind::Data {
         out.push_str(&format!(" ({})", cell.kind.as_str()));
+    }
+    if let Some((result, _)) = calc.result(id) {
+        out.push_str(&format!(" = {result:?}"));
     }
     if !cell.note.is_empty() {
         out.push_str(&format!(" note: {:?}", cell.note));
@@ -355,7 +379,7 @@ fn show_cell(
             for x in 0..grid.xs() {
                 if let Some(child) = grid.at(x, y) {
                     let label = format!("[{},{}] ", x.saturating_add(1), y.saturating_add(1));
-                    show_cell(doc, view, child, inner, &label, with_ids, out);
+                    show_cell(showing, child, inner, &label, out);
                 }
             }
         }

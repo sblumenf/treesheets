@@ -1,4 +1,4 @@
-//! The Wombat search service (milestone 6; decisions A13, B3, A70-A79).
+//! The Wombat search service (milestone 6; decisions A13, B3, A70-A79, A90-A92).
 //!
 //! - [`fold`]: the form in which text is compared (case, accents, width).
 //! - [`query`]: what to look for, as a value and as text.

@@ -343,3 +343,63 @@ fn the_search_cache_is_never_written_through_a_symbolic_link() {
         assert!(fs::symlink_metadata(&link).unwrap().is_symlink());
     }
 }
+
+const BUDGET: &str = "Costs | =SUM(Costs) | =SUM(Costs) * 1.2\n  Rent | 800\n  Food | 250.5\n\
+                      Income | =SUM(Income) - SUM(Costs)\n  2000\n";
+
+/// Formula cells (milestone 5) in search: found by what they show and by their formula,
+/// printed with both; replace changes formulas and never results.
+#[test]
+fn formula_cells_are_found_by_result_and_replaced_by_formula() {
+    let dir = folder("formulas");
+    fs::write(dir.join("budget.txt"), BUDGET).unwrap();
+    ok(&dir, &["new", "budget.wombat", "--from", "budget.txt"]);
+    // A computed value, from a document that is not open, with and without the cache.
+    let expected = "budget.wombat /2,1 \"=SUM(Costs)\" = \"1050.5\" (in: \"\")\n    \
+                    shows: «1050.5»\n1 results in 12 cells of 1 documents\n";
+    assert_eq!(ok(&dir, &["search", ".", "1050.5"]), expected);
+    assert_eq!(ok(&dir, &["search", ".", "1050.5", "--cache"]), expected);
+    let cached = ok(&dir, &["search", ".", "1050.5", "--cache", "--time"]);
+    assert!(cached.starts_with(expected), "{cached}");
+    assert!(cached.contains("1 from the cache"), "{cached}");
+    // The formula is searched too, and shown with what it comes to.
+    let by_formula = ok(&dir, &["search", ".", "sum", "income"]);
+    assert!(
+        by_formula.starts_with(
+            "budget.wombat /2,2 \"=SUM(Income) - SUM(Costs)\" = \"949.5\" (in: \"\")\n    \
+             text: =«SUM»(«Income») - «SUM»(Costs)\n"
+        ),
+        "{by_formula}"
+    );
+    // In an editing session the index goes by the results of the moment.
+    let session = edited(
+        &dir,
+        "budget.wombat",
+        "find \"1050.5\"\ntext /1,1/2,1 \"300\"\nfind \"1050.5\"\nfind \"550.5\"\n\
+         replace-all \"1050.5\" \"7\"\nreplace-all \"sum\" \"MAX\"\nfind \"case:MAX\"\n\
+         find \"1700\"\nundo\nfind \"550.5\"\nsave\n",
+    );
+    assert_eq!(
+        session,
+        "/2,1 «1050.5»\n1 found\n0 found\n/2,1 «550.5»\n1 found\n\
+         0 places in 0 cells\n4 places in 3 cells\n\
+         /2,1 =«MAX»(Costs)\n/3,1 =«MAX»(Costs) * 1.2\n/2,2 =«MAX»(Income) - «MAX»(Costs)\n\
+         3 found\n/2,2 «1700»\n1 found\n/2,1 «550.5»\n1 found\nsaved budget.wombat\n"
+    );
+    // The saved document has the new number; the scan sees the new result.
+    assert!(ok(&dir, &["search", ".", "1050.5", "--cache"]).starts_with("0 results"));
+    assert!(ok(&dir, &["search", ".", "550.5", "--cache"]).contains("shows: «550.5»"));
+    // Across the folder: a result is not replaced, a formula is, and it recalculates.
+    let dry = ok(&dir, &["replace", ".", "550.5", "7", "--dry-run"]);
+    assert_eq!(
+        dry,
+        "0 places in 0 cells of 0 documents would be replaced\n"
+    );
+    let done = ok(&dir, &["replace", ".", "costs", "Kosten"]);
+    assert!(done.contains("4 places in 4 cells"), "{done}");
+    let shown = ok(&dir, &["show", "budget.wombat"]);
+    assert!(
+        shown.contains("[2,1] \"=SUM(Kosten)\" (formula) = \"550.5\""),
+        "{shown}"
+    );
+}

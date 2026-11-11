@@ -11,6 +11,7 @@
 )]
 
 use proptest::prelude::*;
+use wombat_core::eval::Calc;
 use wombat_core::links::{move_between, Resolved};
 use wombat_core::{
     CellId, Changes, Clip, Command, DocId, Document, Editor, Id, LinkIndex, LinkTarget, SeededIds,
@@ -35,6 +36,9 @@ pub enum Act {
     Move(usize, usize, [u32; 2]),
     /// Corrects the links of a document to cells that have moved.
     Repair(usize),
+    /// Types a formula or a number into a cell, or runs the program (milestone 5): links
+    /// and formulas have to hold together.
+    Formula(usize, [u32; 3]),
 }
 
 pub fn act() -> impl Strategy<Value = Act> {
@@ -48,6 +52,7 @@ pub fn act() -> impl Strategy<Value = Act> {
         3 => (doc(), doc(), any::<[u32; 2]>()).prop_map(|(a, b, n)| Act::Paste(a, b, n)),
         4 => (doc(), doc(), any::<[u32; 2]>()).prop_map(|(a, b, n)| Act::Move(a, b, n)),
         1 => doc().prop_map(Act::Repair),
+        6 => (doc(), any::<[u32; 3]>()).prop_map(|(d, n)| Act::Formula(d, n)),
     ]
 }
 
@@ -63,6 +68,10 @@ pub struct Stats {
     pub pastes: usize,
     pub moves: usize,
     pub repairs: usize,
+    /// Formulas and numbers entered, and runs of the program.
+    pub formulas: usize,
+    /// The most formula cells that the documents held at one time.
+    pub formula_cells: usize,
     /// The most links the index held at one time.
     pub links: usize,
 }
@@ -75,6 +84,8 @@ impl Stats {
         self.pastes += other.pastes;
         self.moves += other.moves;
         self.repairs += other.repairs;
+        self.formulas += other.formulas;
+        self.formula_cells = self.formula_cells.max(other.formula_cells);
         self.links = self.links.max(other.links);
     }
 }
@@ -90,6 +101,16 @@ fn rebuilt(editors: &[Editor]) -> LinkIndex {
 /// The heart of it: the index that followed the changes is the index built from scratch.
 fn check(editors: &[Editor], index: &LinkIndex, what: &str) {
     assert!(*index == rebuilt(editors), "the index drifted after {what}");
+    // And the rule of milestone 5: the results of the formula cells, kept up to date
+    // through every command, copy and move, are those of working everything out.
+    for editor in editors {
+        let calc = editor.calc();
+        let full = Calc::with_variables(editor.document(), calc.variables().clone());
+        assert!(
+            calc.results() == full.results(),
+            "the results drifted after {what}"
+        );
+    }
 }
 
 fn pick(doc: &Document, n: u32, keep: impl Fn(&Document, CellId) -> bool) -> Option<CellId> {
@@ -179,8 +200,9 @@ fn check_survival(
 /// `wombat-search`): it is told of every change report, and asked to check itself after
 /// every step.
 pub trait Hook {
-    /// A command, undo, redo or group changed `doc`.
-    fn changed(&mut self, doc: &Document, changes: &Changes);
+    /// A command, undo, redo or group changed the document of `editor`, whose results
+    /// are up to date with it.
+    fn changed(&mut self, editor: &Editor, changes: &Changes);
     /// A step is over; `editors` hold the documents as they are now.
     fn step(&mut self, editors: &[Editor], what: &str);
 }
@@ -188,13 +210,13 @@ pub trait Hook {
 struct NoHook;
 
 impl Hook for NoHook {
-    fn changed(&mut self, _: &Document, _: &Changes) {}
+    fn changed(&mut self, _: &Editor, _: &Changes) {}
     fn step(&mut self, _: &[Editor], _: &str) {}
 }
 
-fn follow(index: &mut LinkIndex, hook: &mut dyn Hook, doc: &Document, changes: &Changes) {
-    index.apply(doc, changes);
-    hook.changed(doc, changes);
+fn follow(index: &mut LinkIndex, hook: &mut dyn Hook, editor: &Editor, changes: &Changes) {
+    index.apply(editor.document(), changes);
+    hook.changed(editor, changes);
 }
 
 /// Runs the steps on the documents, with every check after each. At the end everything is
@@ -227,17 +249,17 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                 if changes.is_empty() {
                     continue;
                 }
-                follow(&mut index, hook, editors[d].document(), &changes);
+                follow(&mut index, hook, &editors[d], &changes);
                 check(&editors, &index, &what);
                 check_survival(&before, &editors, &index, id, &changes, &mut stats, &what);
                 stats.applied += 1;
                 // Undo mends what the command broke; redo breaks it again, the same way.
                 let new = index.clone();
                 let back = editors[d].undo().unwrap().unwrap();
-                follow(&mut index, hook, editors[d].document(), &back);
+                follow(&mut index, hook, &editors[d], &back);
                 assert!(index == old, "undo of {what}");
                 let again = editors[d].redo().unwrap().unwrap();
-                follow(&mut index, hook, editors[d].document(), &again);
+                follow(&mut index, hook, &editors[d], &again);
                 assert!(index == new, "redo of {what}");
             }
             Act::Link(d, n) => {
@@ -281,7 +303,7 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                     target: Some(target),
                 };
                 if let Ok(changes) = editors[d].apply(command, None, &mut ids) {
-                    follow(&mut index, hook, editors[d].document(), &changes);
+                    follow(&mut index, hook, &editors[d], &changes);
                 }
             }
             Act::Group(d, ops) => {
@@ -292,18 +314,18 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                     let _ = editors[d].apply(command, None, &mut ids);
                 }
                 let changes = editors[d].end_group();
-                follow(&mut index, hook, editors[d].document(), &changes);
+                follow(&mut index, hook, &editors[d], &changes);
             }
             Act::Undo(d) => {
                 let d = d % count;
                 if let Some(changes) = editors[d].undo().unwrap() {
-                    follow(&mut index, hook, editors[d].document(), &changes);
+                    follow(&mut index, hook, &editors[d], &changes);
                 }
             }
             Act::Redo(d) => {
                 let d = d % count;
                 if let Some(changes) = editors[d].redo().unwrap() {
-                    follow(&mut index, hook, editors[d].document(), &changes);
+                    follow(&mut index, hook, &editors[d], &changes);
                 }
             }
             Act::Paste(from, to, n) => {
@@ -319,7 +341,7 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                     // As for every command: an exact report, and a size bound that holds.
                     support::check_report(&before, editors[to].document(), &changes, &what);
                     support::check_bound(&editors[to], &what);
-                    follow(&mut index, hook, editors[to].document(), &changes);
+                    follow(&mut index, hook, &editors[to], &changes);
                     stats.pastes += usize::from(!changes.is_empty());
                 }
             }
@@ -351,8 +373,8 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                 };
                 match move_between(source, cell, target, place, None, &mut ids) {
                     Ok(moved) => {
-                        follow(&mut index, hook, source.document(), &moved.source);
-                        follow(&mut index, hook, target.document(), &moved.target);
+                        follow(&mut index, hook, source, &moved.source);
+                        follow(&mut index, hook, target, &moved.target);
                         let (old_source, old_target) = (before.0.document(), before.1.document());
                         support::check_report_loose(old_source, source.document(), &moved.source);
                         support::check_report_loose(old_target, target.document(), &moved.target);
@@ -371,6 +393,39 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                     }
                 }
             }
+            Act::Formula(d, n) => {
+                let d = d % count;
+                let doc = editors[d].document();
+                let Some(cell) = pick(doc, n[0], not_root) else {
+                    continue;
+                };
+                // A name: the text of some cell that has a grid.
+                let has_grid = |doc: &Document, c: CellId| doc.cell(c).unwrap().grid().is_some();
+                let name = pick(doc, n[1], has_grid)
+                    .map(|c| doc.cell(c).unwrap().text.replace('"', ""))
+                    .unwrap_or_default();
+                let text = match n[2] % 8 {
+                    0 => format!("=SUM(\"{name}\")"),
+                    1 => format!("=TREECOUNT(\"{name}\") + 1"),
+                    2 => format!("=COUNT(SUBSET(\"{name}\", 0, -)) & 'x'"),
+                    3 => "=1/3".to_string(),
+                    4 => format!("{}", n[1] % 50),
+                    5 => name,
+                    _ => String::new(),
+                };
+                let command = if n[2] % 8 == 7 {
+                    Command::Run
+                } else {
+                    Command::EnterText { cell, text }
+                };
+                let before = editors[d].document().clone();
+                if let Ok(changes) = editors[d].apply(command, None, &mut ids) {
+                    support::check_report(&before, editors[d].document(), &changes, &what);
+                    support::check_bound(&editors[d], &what);
+                    follow(&mut index, hook, &editors[d], &changes);
+                    stats.formulas += 1;
+                }
+            }
             Act::Repair(d) => {
                 let d = d % count;
                 let commands = index.repairs(editors[d].document());
@@ -378,7 +433,7 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                 for command in commands {
                     match editors[d].apply(command, None, &mut ids) {
                         Ok(changes) => {
-                            follow(&mut index, hook, editors[d].document(), &changes);
+                            follow(&mut index, hook, &editors[d], &changes);
                             stats.repairs += 1;
                         }
                         Err(_) => all = false,
@@ -399,12 +454,14 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
         for editor in &editors {
             editor.document().validate().unwrap();
         }
+        let formulas: usize = editors.iter().map(|e| e.calc().results().len()).sum();
+        stats.formula_cells = stats.formula_cells.max(formulas);
         let links: usize = index.documents().map(|d| d.links().count()).sum();
         stats.links = stats.links.max(links);
     }
     for editor in &mut editors {
         while let Some(changes) = editor.undo().unwrap() {
-            follow(&mut index, hook, editor.document(), &changes);
+            follow(&mut index, hook, editor, &changes);
         }
     }
     check(&editors, &index, "undoing everything");

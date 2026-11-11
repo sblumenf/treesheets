@@ -6,11 +6,13 @@
 //! What it shares with the index is the definition of the things themselves: the folded
 //! form of text ([`crate::fold::fold`]), what of a cell is searched
 //! ([`crate::index::searchable`]), which characters make words, how a snippet is cut,
-//! and the link index of milestone 4 for what a link leads to.
+//! the link index of milestone 4 for what a link leads to, and the results of formula
+//! cells, which it is given ([`Calc`]) and reads cell by cell.
 
 use unicode_segmentation::UnicodeSegmentation;
+use wombat_core::eval::Calc;
 use wombat_core::links::{self, Resolved};
-use wombat_core::{Cell, CellId, DocId, Document, LinkIndex, LinkTarget};
+use wombat_core::{Cell, CellId, CellKind, DocId, Document, LinkIndex, LinkTarget};
 
 use crate::engine::{snippet, Field, Hit, Options, Results, ABSENT, SNIPPET_WIDTH};
 use crate::fold::{fold, is_word_char, is_wordless};
@@ -61,20 +63,24 @@ impl Prepared {
     }
 }
 
+/// A document to search: its name, the document, and the results of its formula cells
+/// (its editor's, or `Calc::new` of a document as loaded).
+pub type Named<'a> = (&'a str, &'a Document, &'a Calc);
+
 struct World<'a> {
-    docs: &'a [(&'a str, &'a Document)],
+    docs: &'a [Named<'a>],
     links: LinkIndex,
 }
 
 impl World<'_> {
-    fn doc(&self, id: DocId) -> Option<&Document> {
-        let found = self.docs.iter().find(|(_, doc)| doc.id() == id);
-        found.map(|(_, doc)| *doc)
+    fn doc(&self, id: DocId) -> Option<(&Document, &Calc)> {
+        let found = self.docs.iter().find(|(_, doc, _)| doc.id() == id);
+        found.map(|(_, doc, calc)| (*doc, *calc))
     }
 
     /// Every field of a cell that is searched.
-    fn fields(&self, doc: &Document, cell: &Cell) -> Vec<FieldText> {
-        let what = searchable(doc, cell);
+    fn fields(&self, doc: &Document, calc: &Calc, id: CellId, cell: &Cell) -> Vec<FieldText> {
+        let what = searchable(calc, id, cell);
         let mut out = vec![(Field::Text, 0, Prepared::new(what.text))];
         out.extend(
             what.shown
@@ -100,13 +106,10 @@ impl World<'_> {
             else {
                 continue;
             };
-            let found = self.doc(to).and_then(|doc| Some((doc, doc.cell(target)?)));
-            if let Some((doc, target)) = found {
-                out.push((
-                    Field::LinkedText,
-                    n as u32,
-                    Prepared::new(searchable(doc, target).text),
-                ));
+            // What the cell at the other end shows (decision A66).
+            let shown = self.doc(to).and_then(|(doc, calc)| calc.shown(doc, target));
+            if let Some(shown) = shown {
+                out.push((Field::LinkedText, n as u32, Prepared::new(shown.to_owned())));
             }
         }
         out
@@ -224,7 +227,7 @@ impl Look<'_> {
             Filter::LinksTo(target) => {
                 resolved().any(|to| matches!(to, Resolved::Cell { cell, .. } if cell == *target))
             }
-            Filter::LinkedFrom(source) => world.docs.iter().any(|(_, from)| {
+            Filter::LinkedFrom(source) => world.docs.iter().any(|(_, from, _)| {
                 let links = from.cell(*source).map_or(&[][..], |cell| cell.links.as_slice());
                 links.iter().any(|link| {
                     let to = world.links.resolve(from.id(), &link.target);
@@ -322,18 +325,23 @@ pub struct Reference<'a> {
 
 impl<'a> Reference<'a> {
     /// Reads the documents, each given with its name.
-    pub fn new(docs: &'a [(&'a str, &'a Document)]) -> Reference<'a> {
+    pub fn new(docs: &'a [Named<'a>]) -> Reference<'a> {
         let mut links = LinkIndex::new();
-        for (_, doc) in docs {
+        for (_, doc, _) in docs {
             links.insert_document(doc);
         }
         let world = World { docs, links };
-        let of_doc = |doc: &Document| {
+        let of_doc = |doc: &Document, calc: &Calc| {
             let cells = doc.cells_in_order();
-            let cells = cells.iter().filter_map(|id| doc.cell(*id));
-            cells.map(|cell| world.fields(doc, cell)).collect()
+            let cells = cells.iter().filter_map(|id| Some((*id, doc.cell(*id)?)));
+            cells
+                .map(|(id, cell)| world.fields(doc, calc, id, cell))
+                .collect()
         };
-        let fields = docs.iter().map(|(_, doc)| of_doc(doc)).collect();
+        let fields = docs
+            .iter()
+            .map(|(_, doc, calc)| of_doc(doc, calc))
+            .collect();
         Reference { world, fields }
     }
 
@@ -359,7 +367,7 @@ impl<'a> Reference<'a> {
     ) -> Result<Option<Hit>, QueryError> {
         query.check()?;
         let docs = self.world.docs;
-        let Some((_, document)) = docs.iter().find(|(_, d)| d.id() == doc) else {
+        let Some((_, document, _)) = docs.iter().find(|(_, d, _)| d.id() == doc) else {
             return Ok(None);
         };
         let found = self.all(query, Order::Document).into_iter();
@@ -390,7 +398,7 @@ impl<'a> Reference<'a> {
         let mut terms = Vec::new();
         positive(query, &mut terms);
         let mut out = Vec::new();
-        for ((name, doc), fields) in docs.iter().zip(&self.fields) {
+        for ((name, doc, calc), fields) in docs.iter().zip(&self.fields) {
             let cells = doc.cells_in_order().into_iter();
             let cells = cells.filter_map(|id| Some((id, doc.cell(id)?)));
             for ((place, (id, cell)), fields) in cells.enumerate().zip(fields) {
@@ -464,6 +472,9 @@ impl<'a> Reference<'a> {
                     matched,
                     ranges,
                     text: cell.text.clone(),
+                    shown: (cell.kind == CellKind::Formula)
+                        .then(|| calc.shown(doc, id).map(str::to_owned))
+                        .flatten(),
                     trail: Vec::new(),
                     score,
                     depth,
@@ -478,26 +489,22 @@ impl<'a> Reference<'a> {
 }
 
 /// Gives a hit its snippet and its location trail.
-fn finish(docs: &[(&str, &Document)], mut hit: Hit) -> Hit {
+fn finish(docs: &[Named], mut hit: Hit) -> Hit {
     hit.snippet = snippet(&hit.matched, &hit.ranges, SNIPPET_WIDTH);
-    let doc = docs.iter().find(|(_, doc)| doc.id() == hit.doc);
-    let place = doc.and_then(|(_, doc)| links::place(doc, hit.cell));
+    let doc = docs.iter().find(|(_, doc, _)| doc.id() == hit.doc);
+    let place = doc.and_then(|(_, doc, calc)| links::place_shown(doc, calc, hit.cell));
     hit.trail = place.map(|place| place.trail).unwrap_or_default();
     hit
 }
 
 /// [`Reference::search`] of these documents, each given with its name.
-pub fn search(
-    docs: &[(&str, &Document)],
-    query: &Query,
-    options: &Options,
-) -> Result<Results, QueryError> {
+pub fn search(docs: &[Named], query: &Query, options: &Options) -> Result<Results, QueryError> {
     Reference::new(docs).search(query, options)
 }
 
 /// [`Reference::next_match`] of these documents.
 pub fn next_match(
-    docs: &[(&str, &Document)],
+    docs: &[Named],
     query: &Query,
     doc: DocId,
     from: Option<CellId>,

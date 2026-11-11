@@ -356,6 +356,8 @@ TreeSheets.
     refused like one that is in the document. When the history forgets a unit, the IDs of
     the cells in it are free again.
 
+Number 49 is not used.
+
 50. **Resolving a link** (milestone 4; numbers A50-A59 and B40-B49 are this milestone's,
     A49 is not used). A link to a cell is looked for where it says: in its own document,
     or in the document it names, found by document ID wherever the file is. If the cell
@@ -431,13 +433,117 @@ TreeSheets.
 56. **Imported links without a target are resolved later only when there is no doubt**
     (settles B14's "milestone 4 may"). `links::unknown_links` lists them with the cells
     that now have the text they named; `links::resolve_unknown` gives a target to those
-    with exactly one such cell (never the root, the linking cell or a formula cell,
-    B15) and leaves the others. TreeSheets' "nearest cell" rule is applied once, at
+    with exactly one such cell (never the root or the linking cell; a formula cell
+    counts by what it shows, A66) and leaves the others. TreeSheets' "nearest cell" rule is applied once, at
     import (B1), and not again: on a document that has since been edited, "nearest"
     would be a guess. Any `SetLink` on the range converts the link by hand.
 
+Numbers 57 to 59 are not used: milestones 4 and 5 were built at the same time, each with
+numbers of its own (A50 on and B40 on for milestone 4, A60 on and B50 on for milestone 5).
+
+60. **Calculating gives the same on every machine** (milestone 5; carries out A14 under
+    the rule of deterministic output). TreeSheets takes the reading and writing of
+    numbers, letter classes and upper and lower case from the C and C++ libraries of the
+    machine it runs on. Wombat writes them out (`eval/num.rs`), as the real app behaves on
+    Linux in a UTF-8 locale, which is what the referee records:
+    - *A cell is a number* if its whole text, spaces around it aside, is one: `12`,
+      `-1.5`, `.5`, `5.`, `1e3`, one `+` in front, hexadecimal after `0x` (`0x10` is 16).
+      Not `1,5`, not `12abc`, not too large for a double, not so small that it would be
+      zero. A number that starts with a zero is read without that zero, so `0e5` and `0.`
+      are no numbers and `0-5` is minus five: oddities of the library TreeSheets is built
+      with, kept because the referee shows them.
+    - *The operations of a program* read the number a text starts with (`12abc` is 12,
+      `abc` is 0, an empty text is not a number), as a C++ stream does.
+    - *A result is written* with at most ten decimals, no exponent and no zeroes at the
+      end; "not a number" as `nan` or `-nan` with the sign an x86 processor gives.
+    - *Letters, digits and spaces* are Unicode's (a name may be `Größe` or `日本`),
+      upper and lower case map one character to one (`ß` stays `ß`), text lengths and
+      positions count code points.
+    Never from the locale: the decimal point is always `.`. B56 lists where a TreeSheets
+    on another system differs.
+61. **A formula cell's text is its formula; what it shows is worked out, never saved**
+    (settles what milestones 2 and 3 left open). TreeSheets keeps the result in the
+    cell's text and the formula beside it; its file has the formula only. In Wombat a
+    cell of kind `formula` has the formula as its text (with `=` assumed in front if it
+    is not there, as TreeSheets adds it when a cell is marked as a formula), and
+    `eval::Calc` holds what each formula cell shows. The editor owns a `Calc` and brings
+    it up to date after every command, undo and redo; `Editor::shown(cell)` is "the
+    displayed text of a cell" (the result for a formula cell, the text for any other), and
+    `Editor::recalculated()` lists the formula cells whose result the last change
+    altered, for an interface or a search index. The file format does not change. After
+    loading, results are worked out from the document alone.
+62. **Formulas are worked out in TreeSheets' order, without its recursion.** TreeSheets
+    goes through the formula cells in document order and works each one out after the
+    formulas whose results it reads, by calling itself. The order matters where formulas
+    refer to each other in a circle (which of them says `#CYCLE!`, and which error a
+    formula with two bad inputs shows), so Wombat keeps it exactly; but it keeps its own
+    list of the formulas in progress instead of calling itself, so that a chain of any
+    length costs no stack. An attempt that meets a result it does not have yet stops; the
+    missing formulas are worked out (as many of them as TreeSheets would reach before the
+    first that fails); the attempt is made again, remembering what it had already read.
+63. **What is worked out again after a change** (carries out A10 for results).
+    `Calc::update` gets the change report of every command, undo and redo.
+    - If only cells without a grid changed, and none of them has to do with assigning
+      variables: the formulas that read a changed cell, and those that read the results
+      of these, and so on, are worked out again; nothing else. `Calc` remembers per
+      formula which grids it read the cells of and which cells it read everything
+      inside of (not each cell: a sum over a thousand cells is one entry).
+    - Everything is worked out again if cells were created, removed or moved, if a cell
+      with a grid changed its text or kind, if a variable-assign cell or a cell in its
+      grid changed, after a run that assigned other variables, and whenever a circle of
+      formulas or the limit on work is involved. The reason: a name in a formula means
+      "the nearest cell with this text that has a grid", so any of these can change what
+      a name means, for formulas anywhere; and with a circle the order decides.
+    - A cell with a grid whose text and kind are as they were (a new colour, say) changes
+      nothing.
+    Correctness was put first: the rule "keeping up to date equals working everything
+    out" is tested on random commands. Measured (release build, 10,001 formulas in 22,005
+    cells): everything 57 ms; after one changed number 4 ms, nearly all of it one
+    formula that sums the whole document; after an inserted row 45 ms. A document
+    without formula cells pays nothing.
+64. **Running the program is a command** (`Command::Run`, TreeSheets' Program > Run).
+    The run is worked out on a private copy of the document, in TreeSheets' order
+    (`eval/run.rs`); then every view cell that got other content is overwritten with it
+    by ordinary steps, so the run is one unit of undo with an exact change report. A
+    view cell keeps its ID and place and takes text, kind and looks of the value, as in
+    TreeSheets; the cells of a grid it gets are new, those it had are removed. A run
+    that leaves every view as it was is nothing (A44). The variables that the run
+    assigned and its first failure are kept in the editor's `Calc` (`variables`,
+    `last_run`): formulas can read variables by name. Like TreeSheets, the variables are
+    not part of the document: they are not saved, a loaded document has none (a formula
+    that reads one shows `#N/A` until the program runs), and undoing a run leaves them.
+65. **How a cell becomes a formula cell.** `Command::EnterText` is "typing into the cell
+    has ended" (TreeSheets' `EndFormulaEdit`, also its formula bar and its paste of one
+    line): it sets the text, and a data or formula cell becomes a formula cell if the
+    text starts with `=` and has more than that, a data cell if not; cells of other kinds
+    keep their kind. `SetProps` with a kind is TreeSheets' Program > Mark as. The text
+    commands of milestone 3 (`SetText`, `InsertText`, `DeleteText`, `ReplaceText`) leave
+    the kind alone: on a formula cell they edit the formula. An interface that lets
+    someone type sends `EnterText` at the end, or the text commands while typing and
+    `EnterText` to finish.
+66. **Commands go by what a cell shows.** In TreeSheets the text of a formula cell is its
+    result, so everything that compares texts compares results. Done: `SortRows` sorts
+    by what cells show; a run reads formula cells by their results; the importer of
+    `.cts` files finds the target of a link by what cells show, so a formula cell can be
+    a target (replaces B15), `links::unknown_links` counts them the same way, and
+    `links::place_shown` shows a link's target and its trail by what cells show. Not done, and still by the formula: hierarchify (which
+    compares texts), flatten, collapse and hierarchy swap (which copy texts into new
+    data cells).
+67. **Limits on calculating** (A12; B52 and B53 say how TreeSheets differs). A formula
+    longer than 4,096 code points, or with parentheses and function calls nested deeper
+    than 64, shows `#ERROR!`. The formulas of one document may read 50,000,000 cells in
+    one recalculation; from the formula that goes over on, formulas show `#LIMIT!`, and
+    every later change works everything out again. A run may visit and copy 20,000,000
+    cells and nest values 64 deep, and may not leave grids nested deeper than 32 or more
+    cells than a document holds; otherwise the command is refused with nothing changed.
+    Nothing in the evaluator calls itself deeper than these bounds.
+68. **References stay by name** (A14). A formula names a grid by the text of its cell
+    and finds it again at every recalculation, so renaming a table breaks the formulas
+    that name it (`#NAME?`), as in TreeSheets. A cheap way to make references survive
+    renaming is described in `milestones/M5.md` as a proposal; it is not built.
+
 70. **The search engine is a small index of Wombat's own, not Tantivy** (milestone 6;
-    numbers A70-A79 and B60-B69 are this milestone's, A57-A69 are not used; settles the
+    numbers A70-A79 and B60-B69 are this milestone's, A69 is not used; settles the
     open question of the plan). Tantivy 0.24 was tried with its default features off:
     - *It does not build for the web as it is.* `cargo check --target
       wasm32-unknown-unknown` fails in `getrandom` and then in `uuid`: both need their
@@ -560,12 +666,10 @@ TreeSheets.
 76. **What of a cell is searched comes through one function**
     (`wombat_search::index::searchable`), used by the index and by the reference
     scanner alike. It returns the text, the note, the image name, the link targets,
-    and `shown`: what the cell displays where that is not its stored text, which is
-    `None` until milestone 5 computes formula results. The field is built all the way
-    through (indexed, ranked just after the text, written to the cache, highlighted)
-    and tested with a stand-in. For it to stay right under editing, the change report
-    must name every cell whose displayed result changed, not only the cells that were
-    edited.
+    and `shown`: what the cell displays where that is not its stored text, the result
+    of a formula cell. The field is built all the way through (indexed, ranked just
+    after the text, written to the cache, highlighted). Where the results come from
+    and how the field stays right under editing is A90.
 77. **Replace is `ReplaceText` commands in one group** (`replace.rs`). Every place where
     the word is found in a cell's text is replaced, left to right, no place overlapping
     another; notes are not touched (as in TreeSheets). One call is one unit of undo for
@@ -581,6 +685,55 @@ TreeSheets.
     takes over 10 ms or the worst over 50 ms (ten times that in a debug build), if
     following one edit takes over 0.5 ms, or if the index takes over 16 times the
     text. The measured numbers are in `milestones/M6.md`.
+
+Numbers 80 to 89 are not used: 90 on are where milestones 4, 5 and 6, built apart, meet.
+
+90. **An index gets formula results from the editor, and works them out itself for a
+    document that nobody edits** (A61, A76; `Summary` in `summary.rs`). Results are
+    beside the document, never in it, so an index that keeps what cells show cannot be
+    made from a document alone.
+    - *An open document.* `SearchIndex::insert_document(doc, calc, name)` and
+      `SearchIndex::apply(doc, calc, changes)` take the editor's `Calc`
+      (`Editor::calc()`) with the document: it has the results, and
+      `Calc::recalculated()` says which formula cells show something else since the
+      last command, undo, redo or group. The index reads those cells again like the
+      cells that the change report names. The change report itself was not widened: it
+      says what changed in the document (A35), and a recalculated formula cell did
+      not change, so a report that named it would make every other reader of reports
+      (undo sizes, the link index, a view) do work for nothing. The cost of following
+      an edit is the cells of the report plus the recalculated cells.
+    - *A document that is not open.* `Summary::of(doc)`, which the scan of a workspace
+      calls, works the results out as after loading (`Calc::new`, no variables of a
+      run) and the cache keeps them, so a cached scan calculates nothing. `Summary::update`
+      takes the `Calc`; the link index ignores it, since it keeps targets and no texts.
+    - *Cost* (release build, measured): for documents without formula cells 0.28 ms
+      per 1,000 cells on top of 1.6 ms of indexing and about 2.3 ms of parsing (under a
+      tenth more); for a document of 22,000 cells with 10,000 formulas 44 ms on top of
+      53 ms of parsing and 17 ms of indexing.
+    - *Hostile documents* are bounded by the evaluator's own limit on work (A67), which
+      holds for a scan as for an editor, so that a document is indexed the same open
+      or not: a document made to reach the limit costs a scan what it costs an editor
+      to open (4.9 s at the limit of 50 million cells; the limit is the place to
+      change that).
+    - *Variables of a run* are in the editor's results and in no file, so a formula
+      that reads one is indexed by its number while the document is open and by `#N/A`
+      after it was saved and scanned, as it shows in each case.
+91. **Replace works on what is stored: of a formula cell the formula, never the result**
+    (A77, A65). A result is not text that anyone typed; replacing in it would mean
+    turning the formula into a constant. `replace` looks at `cell.text` only, so a
+    search for a computed value finds the cell and a replace of the same word changes
+    nothing in it. A replace that changes a formula is `ReplaceText` like any other:
+    the cell stays a formula cell (text commands never change the kind, A65), is in
+    the change report, and its result and those of its readers are worked out again
+    before the command returns. Replacing a table's name in the whole document renames
+    it in the formulas that name it too, since both are text.
+92. **Where search shows or follows a cell, it goes by what the cell shows** (A66,
+    as `links::place_shown` does for links): the location trail of a result, and the
+    field "text of a linked cell", are the results of formula cells, not their
+    formulas. A hit carries both of its own cell: `text` (the formula) and `shown` (the
+    result), and the tool prints them as `wombat show` does, `"=SUM(Costs)" = "1050.5"`.
+    Filters that ask about a cell's text (`text:`, `tag:`, `has:text`) and the "shorter
+    text first" of the ranking still go by the stored text.
 
 ## B. Deliberate departures from TreeSheets
 
@@ -612,7 +765,8 @@ TreeSheets.
     cell with that text, the link keeps its range, has no target (`LinkTarget::Unknown`), and
     carries the text in the field `cts_target`, which the file format keeps as an unknown
     field. Nothing re-resolves it later; milestone 4 may.
-15. **At import, a formula cell is never the target of a link.** In TreeSheets the text of a
+15. *(Replaced by A66 in milestone 5: a formula cell is a target by what it shows.)*
+    **At import, a formula cell is never the target of a link.** In TreeSheets the text of a
     formula cell is its calculated result, so a link can go to a cell by what it shows. The
     importer has the formula, not the result (milestone 5), and would rather leave such a link
     without a target (B14) than point it at the wrong cell.
@@ -685,6 +839,9 @@ TreeSheets.
     which the random tests check for every command. Setting the root's text and
     properties stays possible; TreeSheets' interface cannot do that, but its script API
     can.
+
+Numbers 34 to 39 are not used.
+
 40. **Following a link gives its target; nothing is opened by the core.** TreeSheets'
     "open link in browser" and "open file" launch a browser or a program. The core
     says what a link points at (`LinkIndex::resolve`), which link the cursor is on
@@ -701,8 +858,52 @@ TreeSheets.
     Wombat it is a broken link, listed as such (A55).
 43. **Cells can move between documents and keep their identity** (A51). TreeSheets
     moves cells between files only by cut and paste, which makes new cells.
+
+Numbers 44 to 49 are not used.
+
+50. **A formula cell that stops being one shows its formula again.** In TreeSheets the
+    text of a formula cell is its result, and stays so when the cell is marked as data
+    (or `ts.set_formula("")`): the formula is lost. In Wombat the text is the formula
+    (A61), so the cell shows the formula again and nothing is lost.
+51. **A formula cell with a grid is named by its result of now.** A name in a formula
+    can stand for a formula cell that has a grid, by its result. TreeSheets compares with
+    the result the cell showed last, which depends on what was calculated before (right
+    after loading it is the formula itself). Wombat works that result out when a name is
+    looked up, which is what TreeSheets settles on; a cell whose result is still being
+    worked out at that moment (it is looking up a name itself) has no name. The
+    referee's four cases agree.
+52. **Limits on formulas** (A67): length, nesting and work. TreeSheets has none; it would
+    run out of stack or time instead.
+53. **Limits on a run, and a run that TreeSheets cannot survive** (A67). TreeSheets has
+    no limits; a grid inside a grid is run up to three times per level, so a deep
+    document takes it very long. And where a variable-assign cell is reached with
+    nothing in hand (at the start of a row, after an operation that failed), TreeSheets
+    reads through an empty value and crashes; Wombat then takes the result of the cell's
+    own grid, or goes on with nothing in hand if it has none.
+54. **Formula cells inside a variable's value count by the result they had at the run.**
+    TreeSheets would work such a copy out again, looking up names inside the copy. And
+    the names that count as "assigned by the program" (`#N/A` instead of `#NAME?` before
+    a run) are taken from the texts of the cells in a variable-assign cell's grid; for a
+    formula cell there, Wombat takes the formula, TreeSheets the result.
+55. **A run that changes nothing is nothing** (A44, A64); TreeSheets adds an undo step
+    for every run.
+56. **Where a TreeSheets on another system calculates differently from Wombat** (A60).
+    In the plain `C` locale (TreeSheets started without a language setting on Linux)
+    only ASCII letters and digits can be in a name without quotes and only ASCII letters
+    change case. On Windows text is counted in UTF-16 units, so `LEN` of an emoji is 2
+    there and 1 in Wombat (and in TreeSheets on Linux). Which characters are letters
+    follows the Unicode tables of the C library there and of the Rust standard library
+    here, which can be of different Unicode versions. The median of more than three
+    numbers that has both `0` and `-0` in the middle can come out as either zero in
+    TreeSheets; Wombat takes them in the order of the cells.
+57. **Typing over a formula cell.** In TreeSheets, typing into a selected formula cell
+    replaces it and makes it a data cell at the first key; `ts.set_text` also makes a
+    formula cell a data cell, even if the new text starts with `=`. Wombat has one rule
+    for text that was typed (`EnterText`, A65), and its plain text commands never change
+    the kind.
+
 60. **A filter is part of a query, not a state of the document** (milestone 6; numbers
-    B44-B59 are not used). TreeSheets' filters
+    B58 and B59 are not used). TreeSheets' filters
     mark cells as hidden until the filter is turned off, and three settings say how
     (show whole rows, show sub-grids, keep previous matches). In Wombat a filter is a
     condition in a search that returns cells; nothing is hidden and nothing is kept.

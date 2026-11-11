@@ -9,6 +9,7 @@
     clippy::indexing_slicing
 )]
 
+use wombat_core::eval::Calc;
 use wombat_core::{CellId, CellKind, Changes, DocId, Document, Editor, LinkTarget};
 use wombat_search::query::{Filter, Has, Order, Query, Term};
 use wombat_search::{naive, Options, SearchIndex};
@@ -41,15 +42,33 @@ pub const ORDERS: [Order; 4] = [
     Order::Document,
 ];
 
-/// A piece of some text of some cell: of its text, note, image name or link target,
-/// sometimes in another case, sometimes a single character, sometimes absent everywhere.
-fn word(rng: &mut Rng, docs: &[&Document]) -> Term {
-    let doc = docs[rng.below(docs.len())];
+/// A document with its name and the results of its formula cells.
+pub type Named<'a> = naive::Named<'a>;
+
+/// Documents as loaded, with their results worked out.
+pub fn calcs(docs: &[(&str, &Document)]) -> Vec<Calc> {
+    docs.iter().map(|(_, doc)| Calc::new(doc)).collect()
+}
+
+/// Puts each document together with its results.
+pub fn named<'a>(docs: &[(&'a str, &'a Document)], calcs: &'a [Calc]) -> Vec<Named<'a>> {
+    let both = docs.iter().zip(calcs);
+    both.map(|((name, doc), calc)| (*name, *doc, calc))
+        .collect()
+}
+
+/// A piece of some text of some cell: of its text, of what it shows if it is a formula
+/// cell, of its note, image name or link target, sometimes in another case, sometimes a
+/// single character, sometimes absent everywhere.
+fn word(rng: &mut Rng, docs: &[Named]) -> Term {
+    let (_, doc, calc) = docs[rng.below(docs.len())];
     let cells = doc.cells_in_order();
+    let formulas: Vec<&str> = calc.results().into_values().collect();
     let mut source = String::new();
     for _ in 0..6 {
         let cell = doc.cell(cells[rng.below(cells.len())]).unwrap();
-        source = match rng.below(8) {
+        source = match rng.below(9) {
+            3 => rng.pick(&formulas).copied().unwrap_or_default().to_owned(),
             0 => cell.note.clone(),
             1 => cell
                 .image
@@ -81,6 +100,10 @@ fn word(rng: &mut Rng, docs: &[&Document]) -> Term {
             chars[from..to].iter().collect()
         }
     };
+    // A result can be longer than a word of a query may be.
+    while text.len() > 1000 {
+        text.pop();
+    }
     match rng.below(6) {
         0 => text = text.to_uppercase(),
         1 => text = text.to_lowercase(),
@@ -92,8 +115,8 @@ fn word(rng: &mut Rng, docs: &[&Document]) -> Term {
     }
 }
 
-fn filter(rng: &mut Rng, docs: &[&Document]) -> Filter {
-    let doc = docs[rng.below(docs.len())];
+fn filter(rng: &mut Rng, docs: &[Named]) -> Filter {
+    let (_, doc, _) = docs[rng.below(docs.len())];
     let cells = doc.cells_in_order();
     let id = cells[rng.below(cells.len())];
     let cell = doc.cell(id).unwrap();
@@ -139,7 +162,7 @@ fn filter(rng: &mut Rng, docs: &[&Document]) -> Filter {
 }
 
 /// A random query about what the documents contain.
-pub fn query(rng: &mut Rng, docs: &[&Document], depth: usize) -> Query {
+pub fn query(rng: &mut Rng, docs: &[Named], depth: usize) -> Query {
     let part = |rng: &mut Rng| query(rng, docs, depth + 1);
     match rng.below(if depth >= 2 { 9 } else { 16 }) {
         0..=4 => Query::Term(word(rng, docs)),
@@ -164,6 +187,10 @@ pub struct Compared {
     pub hits: usize,
     pub highlighted: usize,
     pub by_linked_text: usize,
+    /// Results found by what a formula cell shows.
+    pub by_shown: usize,
+    /// Results that are formula cells, however found.
+    pub formula_cells: usize,
 }
 
 impl Compared {
@@ -173,6 +200,8 @@ impl Compared {
         self.hits += other.hits;
         self.highlighted += other.highlighted;
         self.by_linked_text += other.by_linked_text;
+        self.by_shown += other.by_shown;
+        self.formula_cells += other.formula_cells;
     }
 }
 
@@ -182,14 +211,14 @@ impl Compared {
 pub fn compare(
     indexes: &[&SearchIndex],
     reference: &naive::Reference,
-    docs: &[(&str, &Document)],
+    docs: &[Named],
     query: &Query,
     rng: &mut Rng,
     what: &str,
     stats: &mut Compared,
 ) {
     let order = ORDERS[rng.below(4)];
-    let cells: usize = docs.iter().map(|(_, doc)| doc.cell_count()).sum();
+    let cells: usize = docs.iter().map(|(_, doc, _)| doc.cell_count()).sum();
     // All results where there are few cells; of many, mostly a stretch somewhere in
     // the list (making and checking a hundred thousand hits takes long).
     let mut options = Options::all(order);
@@ -204,6 +233,8 @@ pub fn compare(
     for hit in &expected.hits {
         stats.highlighted += usize::from(!hit.ranges.is_empty());
         stats.by_linked_text += usize::from(hit.field == wombat_search::Field::LinkedText);
+        stats.by_shown += usize::from(hit.field == wombat_search::Field::Shown);
+        stats.formula_cells += usize::from(hit.shown.is_some());
         check_hit(hit, docs);
     }
     // A page of the list, and the next and previous match from some cell.
@@ -216,7 +247,7 @@ pub fn compare(
         offset,
         limit,
     };
-    let (_, doc) = docs[rng.below(docs.len())];
+    let (_, doc, _) = docs[rng.below(docs.len())];
     let cells = doc.cells_in_order();
     let from = (rng.below(5) != 0).then(|| cells[rng.below(cells.len())]);
     for index in indexes {
@@ -268,11 +299,18 @@ pub fn compare(
 
 /// What must hold for any hit: its ranges are whole user-perceived characters of the
 /// matched text, in order and apart; the snippet is a part of it with the same marks.
-pub fn check_hit(hit: &wombat_search::Hit, docs: &[(&str, &Document)]) {
-    let doc = docs.iter().find(|(_, d)| d.id() == hit.doc).unwrap().1;
+pub fn check_hit(hit: &wombat_search::Hit, docs: &[Named]) {
+    let (_, doc, calc) = *docs.iter().find(|(_, d, _)| d.id() == hit.doc).unwrap();
     let cell = doc.cell(hit.cell).unwrap();
     assert_eq!(hit.text, cell.text);
-    let place = wombat_core::links::place(doc, hit.cell).unwrap();
+    // A formula cell comes with its result, and no other cell with any.
+    let result = calc.result(hit.cell).map(|(text, _)| text.to_owned());
+    let formula = cell.kind == CellKind::Formula;
+    assert_eq!(hit.shown, result.filter(|_| formula), "{hit:?}");
+    if hit.field == wombat_search::Field::Shown {
+        assert_eq!(Some(&hit.matched), hit.shown.as_ref(), "{hit:?}");
+    }
+    let place = wombat_core::links::place_shown(doc, calc, hit.cell).unwrap();
     assert_eq!(hit.trail, place.trail);
     let len = hit.matched.chars().count() as u32;
     let mut last_end = 0;
@@ -317,13 +355,14 @@ pub struct Follower {
 }
 
 impl Follower {
+    /// The documents as loaded: the editors of a run start with the same results.
     pub fn new(docs: &[Document], seed: u64, queries: usize) -> Follower {
         let mut index = SearchIndex::new();
         let mut names = Vec::new();
         for (n, doc) in docs.iter().enumerate() {
             // Names not in the order of the IDs, and two that differ only in case.
             let name = ["d1.wombat", "D0.wombat", "d2.wombat", "d0.wombat"][n % 4].to_owned();
-            index.insert_document(doc, &name);
+            index.insert_document(doc, &Calc::new(doc), &name);
             names.push((doc.id(), name));
         }
         Follower {
@@ -348,8 +387,8 @@ impl Follower {
         self
     }
 
-    pub fn changed(&mut self, doc: &Document, changes: &Changes) {
-        self.index.apply(doc, changes);
+    pub fn changed(&mut self, editor: &Editor, changes: &Changes) {
+        self.index.apply(editor.document(), editor.calc(), changes);
     }
 
     pub fn step(&mut self, editors: &[Editor], what: &str) {
@@ -361,27 +400,32 @@ impl Follower {
                 .1
                 .as_str()
         };
-        let docs: Vec<(&str, &Document)> = editors
+        let docs: Vec<Named> = editors
             .iter()
-            .map(|editor| (name(editor.document().id()), editor.document()))
+            .map(|editor| {
+                (
+                    name(editor.document().id()),
+                    editor.document(),
+                    editor.calc(),
+                )
+            })
             .collect();
         self.index
             .check()
             .unwrap_or_else(|error| panic!("{error} after {what}"));
         let mut rebuilt = SearchIndex::new();
-        for (name, doc) in &docs {
-            rebuilt.insert_document(doc, name);
+        for (name, doc, calc) in &docs {
+            rebuilt.insert_document(doc, calc, name);
         }
         assert!(
             self.index.encoded() == rebuilt.encoded(),
             "the index drifted after {what}"
         );
-        let plain: Vec<&Document> = docs.iter().map(|(_, doc)| *doc).collect();
         // The index that followed the edits, and one built from scratch (whose table
         // has nothing stale): both say what reading every cell says.
         let reference = naive::Reference::new(&docs);
         for _ in 0..self.queries {
-            let query = query(&mut self.rng, &plain, 0);
+            let query = query(&mut self.rng, &docs, 0);
             let both = [&self.index, &rebuilt];
             let (rng, stats) = (&mut self.rng, &mut self.stats);
             compare(&both, &reference, &docs, &query, rng, what, stats);

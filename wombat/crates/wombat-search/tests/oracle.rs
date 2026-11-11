@@ -1,6 +1,7 @@
 //! The search index under random editing (the main test of milestone 6): after any
 //! sequence of commands, groups, undos, redos, copies and moves on one or several
-//! documents, the index that followed the change reports equals an index built from
+//! documents with formula cells in them, formulas and numbers typed in and programs run
+//! (`EnterText` and `Run` of milestone 5) among the commands, the index that followed the change reports equals an index built from
 //! scratch, and both give, for queries made from what the documents contain, exactly
 //! the results of the reference scanner that reads every cell.
 #![allow(
@@ -29,8 +30,8 @@ use wombat_core::{
 };
 
 impl Hook for Follower {
-    fn changed(&mut self, doc: &Document, changes: &Changes) {
-        Follower::changed(self, doc, changes);
+    fn changed(&mut self, editor: &Editor, changes: &Changes) {
+        Follower::changed(self, editor, changes);
     }
     fn step(&mut self, editors: &[Editor], what: &str) {
         Follower::step(self, editors, what);
@@ -90,6 +91,7 @@ fn document((seed, cells): &Spec, salt: u64) -> Document {
     let all = doc.cells_in_order();
     for id in &all {
         let other = all[rng.below(all.len())];
+        let named = doc.cell(doc.root()).unwrap().text.clone();
         let cell = doc.cell_mut(*id).unwrap();
         if rng.below(3) == 0 {
             cell.text = WORDS[rng.below(WORDS.len())].to_owned();
@@ -117,6 +119,18 @@ fn document((seed, cells): &Spec, salt: u64) -> Document {
             }
             6 => cell.kind = wombat_core::CellKind::ALL[rng.below(7)],
             7 => cell.style.bold = true,
+            // Formula cells, whose results are searched: some that read a grid by the
+            // text of its cell (so edits elsewhere change what they show), some not.
+            8 | 9 => {
+                cell.kind = wombat_core::CellKind::Formula;
+                cell.text = match rng.below(5) {
+                    0 => "='apple ' & 6 * 7".to_owned(),
+                    1 => "=1/3".to_owned(),
+                    2 => format!("=TREECOUNT(\"{}\") & ' cafés'", named.replace('"', "")),
+                    3 => format!("=SUM(\"{}\") + 1", named.replace('"', "")),
+                    _ => format!("=COUNT(\"{}\")", named.replace('"', "")),
+                };
+            }
             _ => {}
         }
     }
@@ -192,6 +206,11 @@ fn the_comparison_with_the_reference_compares_enough() {
     assert!(total.selective * 3 > total.queries, "{total:?}");
     assert!(
         total.highlighted > 3000 && total.by_linked_text > 20,
+        "{total:?}"
+    );
+    // Formula cells are among the results, and found by what they show.
+    assert!(
+        total.formula_cells > 500 && total.by_shown > 50,
         "{total:?}"
     );
 }
