@@ -211,8 +211,9 @@ X server takes them); and a new binding must not be a key that another menu item
   remove its socket and token files themselves.
 - Menu actions are reached only through their keyboard shortcuts (`ui.py`). Still out of reach:
   anything that needs the mouse (dragging cells, clicking a checkbox, resizing a column by
-  hand), dialogs (colour pickers, file choosers, search and replace), and typing into a cell
-  (inserting and deleting text in the middle of a cell is compared with TreeSheets' own
-  `src/textruns.h` instead, compiled into `ops/textruns.cpp`).
+  hand) and dialogs (colour pickers, file choosers, search and replace). Text can be typed
+  into a cell (`type` and `retype` in a `.ui` case: xdotool types, Enter ends the editing;
+  Escape would cancel it); inserting and deleting text in the middle of a cell is compared
+  with TreeSheets' own `src/textruns.h` instead, compiled into `ops/textruns.cpp`.
 - What the dump cannot show cannot be compared: which cell is which (TreeSheets has no IDs), a
   tag's colours, grid spacing, image scale, edit times (see "What no golden kind has").

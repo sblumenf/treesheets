@@ -37,8 +37,8 @@ use super::run::{Failure, Value, Variables};
 /// that is read (a table that was read before in the same recalculation counts one), one
 /// for every 16 bytes of text made, a little for every name in a long formula, and
 /// [`FORMULA_WORK`] for every formula. Measured, one unit of work is at most about 0.4
-/// microseconds, so the limit is a good second.
-pub const MAX_WORK: u64 = 3_000_000;
+/// microseconds, so the limit is just under a second.
+pub const MAX_WORK: u64 = 2_000_000;
 /// The work that every formula counts for, whatever it does: finding it, reading it and
 /// keeping its result takes about as long as reading six cells; and one more for every 32
 /// bytes of its text.
@@ -77,43 +77,34 @@ struct Index {
 }
 
 impl Index {
+    /// One walk over the document, in document order, with one look at each cell: this is
+    /// what working everything out costs before any formula is read (decision A81).
     fn build(doc: &Document) -> Index {
-        let order = doc.cells_in_order();
+        let count = doc.cell_count();
         let mut index = Index {
-            place: HashMap::with_capacity(order.len()),
-            parent: vec![0; order.len()],
-            depth: vec![0; order.len()],
-            end: vec![0; order.len()],
+            place: HashMap::with_capacity(count),
+            parent: Vec::with_capacity(count),
+            depth: Vec::with_capacity(count),
+            end: Vec::with_capacity(count),
             ..Index::default()
         };
-        for (n, id) in order.iter().enumerate() {
-            index
-                .place
-                .insert(*id, u32::try_from(n).unwrap_or(u32::MAX));
-        }
-        for (n, id) in order.iter().enumerate() {
-            let Some(cell) = doc.cell(*id) else { continue };
-            let here = u32::try_from(n).unwrap_or(u32::MAX);
-            let parent = cell
-                .parent()
-                .and_then(|p| index.place.get(&p).copied())
-                .unwrap_or(here);
-            let depth = if parent == here {
-                0
-            } else {
-                index
-                    .depth
-                    .get(parent as usize)
-                    .copied()
-                    .unwrap_or(0)
-                    .saturating_add(1)
-            };
-            if let (Some(p), Some(d)) = (index.parent.get_mut(n), index.depth.get_mut(n)) {
-                *p = parent;
-                *d = depth;
+        let mut order = Vec::with_capacity(count);
+        // A cell, the place of its parent (none for the root), and its depth.
+        let mut stack: Vec<(CellId, Option<u32>, u32)> = vec![(doc.root(), None, 0)];
+        while let Some((id, parent, depth)) = stack.pop() {
+            // A valid document never revisits a cell; this keeps a broken one from looping.
+            if order.len() >= count {
+                break;
             }
+            let Some(cell) = doc.cell(id) else { continue };
+            let here = u32::try_from(order.len()).unwrap_or(u32::MAX);
+            order.push(id);
+            index.place.insert(id, here);
+            index.parent.push(parent.unwrap_or(here));
+            index.depth.push(depth);
+            index.end.push(here.saturating_add(1));
             if cell.kind == CellKind::VarAssign {
-                index.assign_cells.insert(*id);
+                index.assign_cells.insert(id);
                 if !cell.text.is_empty() {
                     index.assigned.insert(cell.text.clone());
                 }
@@ -124,8 +115,8 @@ impl Index {
                     }
                 }
             }
-            if cell.grid().is_some() {
-                index.grid_cells.insert(*id, (cell.text.clone(), cell.kind));
+            if let Some(grid) = cell.grid() {
+                index.grid_cells.insert(id, (cell.text.clone(), cell.kind));
                 match cell.kind {
                     CellKind::VarAssign => {}
                     CellKind::Formula => index.fgrid.push(here),
@@ -135,6 +126,8 @@ impl Index {
                         .or_default()
                         .push(here),
                 }
+                let inside = depth.saturating_add(1);
+                stack.extend(grid.cells().iter().rev().map(|c| (*c, Some(here), inside)));
             }
         }
         // The end of a cell is the end of the last cell inside it: later cells first.
@@ -186,6 +179,10 @@ struct Readers {
 
 impl Readers {
     fn register(&mut self, formula: CellId, mut children: Vec<CellId>, mut tree: Vec<CellId>) {
+        if children.is_empty() && tree.is_empty() {
+            // Most formulas of a large document: nothing to keep, nothing to forget.
+            return;
+        }
         children.sort_unstable();
         children.dedup();
         tree.sort_unstable();
@@ -683,6 +680,20 @@ impl<'a> Pass<'a> {
     /// Brings the result of formula cell `start` up to date, after those it reads.
     fn ensure(&mut self, start: CellId) {
         if self.results.contains_key(&start) {
+            return;
+        }
+        if self.over {
+            // Nothing is worked out any more: no more than writing the result down.
+            let outcome = limit();
+            self.results.insert(
+                start,
+                Res {
+                    text: outcome.text,
+                    failed: outcome.failed,
+                    cost: 0,
+                },
+            );
+            self.evaluated = self.evaluated.saturating_add(1);
             return;
         }
         let frame = |cell| Frame {

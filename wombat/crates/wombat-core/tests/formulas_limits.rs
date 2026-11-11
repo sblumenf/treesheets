@@ -172,10 +172,10 @@ fn a_table_that_one_formula_reads_450_times_is_read_once() {
 
 #[test]
 fn the_most_work_a_change_can_cost_is_one_recalculation_within_the_limit() {
-    // Nothing here can be shared: every SUBSET is read anew. 20 of them over 100,000
-    // cells is two thirds of the work allowed, so everything is worked out after every
-    // change that a formula reads: once, not twice.
-    let formula = format!("={}", ["SUM(SUBSET(T,0,-))"; 20].join("+"));
+    // Nothing here can be shared: every SUBSET is read anew. 14 of them over 100,000
+    // cells is over two thirds of the work allowed, so everything is worked out after
+    // every change that a formula reads: once, not twice.
+    let formula = format!("={}", ["SUM(SUBSET(T,0,-))"; 14].join("+"));
     let cells = vec![table(100_000), json!([formula, 6]), json!(["x", 0])];
     let mut ids = SeededIds::from_u64(1);
     let doc = build(&json!(["", 0, 1, 3, cells]), &mut ids);
@@ -183,10 +183,10 @@ fn the_most_work_a_change_can_cost_is_one_recalculation_within_the_limit() {
     let mut editor = Editor::new(doc).unwrap();
     let load = start.elapsed();
     let cells = top(editor.document());
-    let total: u64 = (0..100_000u64).map(|i| i % 97).sum::<u64>() * 20;
+    let total: u64 = (0..100_000u64).map(|i| i % 97).sum::<u64>() * 14;
     assert_eq!(editor.shown(cells[1]), Some(total.to_string().as_str()));
     let all = editor.calc().stats().work;
-    assert!(all > 2_000_000 && all * 2 > eval::MAX_WORK && all < eval::MAX_WORK);
+    assert!(all > 1_400_000 && all * 2 > eval::MAX_WORK && all < eval::MAX_WORK);
     let other = set(&mut editor, &mut ids, cells[2], "y");
     let stats = editor.calc().stats();
     assert_eq!((stats.full, stats.evaluated, stats.work), (false, 0, 0));
@@ -195,7 +195,7 @@ fn the_most_work_a_change_can_cost_is_one_recalculation_within_the_limit() {
     let stats = editor.calc().stats();
     assert_eq!((stats.full, stats.evaluated, stats.work), (true, 1, all));
     // One more and it is over the limit, in no more time.
-    let formula = format!("={}", ["SUM(SUBSET(T,0,-))"; 11].join("+"));
+    let formula = format!("={}", ["SUM(SUBSET(T,0,-))"; 7].join("+"));
     let start = Instant::now();
     let text = formula.clone();
     editor
@@ -212,7 +212,7 @@ fn the_most_work_a_change_can_cost_is_one_recalculation_within_the_limit() {
     assert_eq!(editor.shown(cells[2]), Some("#LIMIT!"));
     assert!(editor.calc().stats().work <= eval::MAX_WORK + 1);
     println!(
-        "20 x SUM(SUBSET) of 100,000 cells ({all} of {} work): load {load:?}, edit \
+        "14 x SUM(SUBSET) of 100,000 cells ({all} of {} work): load {load:?}, edit \
          elsewhere {other:?}, edit in the table {inside:?}; over the limit {over:?}",
         eval::MAX_WORK
     );

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Records what the real TreeSheets calculates, for the tests of Wombat's evaluator.
 
-Usage: make_formulas [formulas] [fgrid] [programs] [sequences] [links] [review] [typing]
+Usage: make_formulas [formulas] [fgrid] [programs] [sequences] [links] [review]
        (all if none is named)
 
 Builds every case of cases.py in the real app through its script API, and writes what the app
@@ -170,8 +170,7 @@ def make_start(display):
 
 
 def main():
-    which = sys.argv[1:] or ["formulas", "fgrid", "programs", "sequences", "links", "review",
-                             "typing"]
+    which = sys.argv[1:] or ["formulas", "fgrid", "programs", "sequences", "links", "review"]
     with referee.xvfb() as display:
         if "formulas" in which:
             docs = list(cases.formula_documents()) + list(cases.random_formula_documents(400))

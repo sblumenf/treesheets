@@ -556,10 +556,10 @@ Numbers 69 to 79 are not used here. 80 to 89 are from the review of milestones 4
     counts. A longer one is `#LIMIT!`, an error like `#NUM!` that carries over to
     whoever reads it; the length is worked out before anything is allocated. And making
     text is work (A81): 16 bytes count as one cell read, so that all the texts of one
-    recalculation, results included, stay under 48 MB. Running the program does not
+    recalculation, results included, stay under 32 MB. Running the program does not
     join texts; there the bytes of copied texts count as steps (16 bytes as one) and
     `graph` counts its bars four times.
-81. **What a recalculation may cost: 3,000,000 units of work, each formula's cost the
+81. **What a recalculation may cost: 2,000,000 units of work, each formula's cost the
     same however it is reached** (replaces the 50,000,000 cells of A67, and how A63
     decides between part and all; found in review). Measured, 45,000,000 cell reads
     took 13 seconds; a part of the formulas was tried and thrown away first (30
@@ -576,8 +576,9 @@ Numbers 69 to 79 are not used here. 80 to 89 are from the review of milestones 4
       long as reading six cells); and at every name, once more what the texts made so
       far cost and a sixteenth of the position in the formula, which is what reading
       the formula again from its start costs if that name has to wait for another
-      formula. Measured, a unit is at most about 0.45 microseconds, so the limit is 1.3
+      formula. Measured, a unit is at most about 0.45 microseconds, so the limit is 0.9
       seconds on this machine; `Calc::stats().work` says what the last update took.
+      (3,000,000 was tried first and took 1.3 seconds.)
     - *What a formula costs does not depend on who waited for whom*: while an attempt
       only looks for the formulas it has to wait for, nothing is counted, and it is
       counted when the attempt is made again. So "over the limit" is a property of the
@@ -586,9 +587,12 @@ Numbers 69 to 79 are not used here. 80 to 89 are from the review of milestones 4
     - *A change that no formula reads works nothing out*, whatever the total; when
       the total is over half the limit, everything is worked out straight away, once.
       Circles and `#LIMIT!` still mean everything after every change (A63).
-    - Beside the limit stands the time that does not depend on formulas: finding what
-      names mean takes about 1.2 microseconds per cell of the document whenever
-      everything is worked out (0.9 seconds for the 700,000 cells a document may have).
+    - Beside the limit stands the time that does not depend on what the formulas do:
+      before everything is worked out, the document is walked once to know what names
+      mean, 0.8 microseconds per cell (0.55 seconds for the 700,000 cells a document may
+      have; it was two walks and 1.1 microseconds), and a formula that is over the
+      limit still takes 0.6 microseconds to say so. `milestones/M5.md` has the worst
+      case measured.
 82. **A run holds at most twice a document** (adds to A67; found in review). The
     20,000,000 steps of A67 let one row with a grid of 100,000 cells and 150
     variable-assign cells copy 15 million cells into variables: 2.5 GB, which the
@@ -839,8 +843,8 @@ Numbers 58 to 69 are not used. 70 to 79 are from the review of milestones 4 and 
     moved cells have to the other document, with their colours, if it has none of that
     name, so that a tagged cell stays tagged.
 71. **Limits on calculating, tightened** (A80 to A82; changes B52 and B53). A text that a
-    formula makes is at most 1 MiB; one recalculation is at most 3,000,000 units of work,
+    formula makes is at most 1 MiB; one recalculation is at most 2,000,000 units of work,
     of which every formula takes at least 6, so a document cannot have more than about
-    half a million formula cells that are worked out; a run holds at most twice a
+    330,000 formula cells that are worked out; a run holds at most twice a
     document in views and variables. TreeSheets has none of these and would run out of
     memory or time.
