@@ -1,0 +1,8 @@
+set /1,6/3,1 kind=view_h
+set /1,6/3,2 kind=view_h
+set /1,4/3,3 kind=view_h
+text /1,4/1,2 "5"
+text /1,4/2,2 "inc"
+set /1,4/2,2 kind=code
+set /1,4/3,2 kind=view_h
+run

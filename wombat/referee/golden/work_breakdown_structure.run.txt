@@ -1,0 +1,28 @@
+  This is an example of how to represent a Work Breakdown Structure in TreeSheets
+    https://en.wikipedia.org/wiki/Work_breakdown_structure
+    Update any of the leaf values, and press Run (blue triangle above) to see all the sums update.. through any level of nesting!
+  Main Project
+    Sub Project 1
+      
+        Sub Task 1
+          10
+        Sub Task 2
+          20
+      sum
+      30
+    Sub Project 2
+      
+        Sub Task 1
+          30
+        Sub Task 2
+          
+            SubSub Task 1
+              15
+            SubSub Task 2
+              25
+          sum
+          40
+      sum
+      70
+  sum
+  100

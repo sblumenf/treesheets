@@ -1,0 +1,34 @@
+name: Wombat
+
+on:
+  push:
+    paths:
+      - 'wombat/**'
+      - '.github/workflows/wombat.yml'
+  pull_request:
+    paths:
+      - 'wombat/**'
+      - '.github/workflows/wombat.yml'
+
+jobs:
+  check:
+    name: Format, lint and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wombat
+    steps:
+    - uses: actions/checkout@v7
+    - name: Show toolchain
+      run: rustc --version && cargo --version
+    - name: Format
+      run: cargo fmt --all -- --check
+    - name: Lint
+      run: cargo clippy --workspace --all-targets -- -D warnings
+    - name: Test
+      run: cargo test --workspace
+    - name: Build for the web and for phones
+      run: |
+        for target in wasm32-unknown-unknown aarch64-linux-android aarch64-apple-ios; do
+          cargo check --target "$target" -p wombat-core -p wombat-search
+        done

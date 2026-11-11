@@ -1,0 +1,109 @@
+  Personel File
+    
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+    First
+    Fred
+    Harry
+    Nico
+    Bert
+    Cindy
+    Alfred
+    Chuck
+    Robert
+    Dwight
+    Lucy
+    Peter
+    Last
+    Smith
+    Johnson
+    Williams
+    Jones
+    Brown
+    Davis
+    Miller
+    Wilson
+    Moore
+    Taylor
+    Anderson
+    Position
+    CEO
+    CFO
+    CTO
+    COO
+    CIO
+    Sales
+    Sales
+    PR
+    Marketing
+    Marketing
+    Accounting
+    Salary
+    540k
+    too much?
+    90k
+    230k
+    180k
+    210k
+    190k
+    60k
+    120k
+    110k
+    160k
+    Status
+     
+    
+     
+     
+    
+     
+     
+    
+     
+    
+     
+    Qualifications
+    ?
+    His dad is our biggest client
+    Stanford
+    Harry says he's good
+    Lost her file
+    Nice smile
+    Used to be a top car salesman
+    Can't fire the guy for.. personal reasons
+    Knows Photoshop
+    Harry wanted to hire her
+    Always makes the books match... pay him more?
+  Notes
+    Hire this guy?
+       
+      Resume
+        Site Manager October 2004 - Present
+        Treatment (group and individual). Special Female - COPSD
+        CCP- Star Council on Drug Abuse - Mineral Wells - Texas.
+        Training Specialist November 2002- October 2004
+        Instruct new employee orientation and refresher classes. Define training curriculum. Course preparation and presentations.
+        MHMRTC - Fort Worth- Texas- USA
+        CEO. (Phoenix Project) 1990 - 2000.
+        Casa de Saude Santana (Psychiatric Hospital) Sao Paulo- SP Brazil.
+        Teacher / Coordinator. 1992 - 2000.
+        Preparation course to help Health and Educational professionals deal with drug addiction.
+        Paulista Medical Association. Sao Paulo, Brazil.
+        Consultant Physician. (Private Practice) 1982 - 2000.
+        Teacher. 1998 - 2000.
+        Post Doctoral course. (Traffic Medicine)
+        Legal and Forensic Medicine Department- University of San Paulo.
+    Should we hire more programmers?
+      Nah, Nico handles it fine
+      Don't want our clients thinking we're wasteful
+    Contact outsourcing firm, see if they can do a delicate job on Robert
+    Maybe add the coffee lady?

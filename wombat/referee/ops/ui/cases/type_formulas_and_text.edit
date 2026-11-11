@@ -1,0 +1,4 @@
+enter /1,4/1,1 "=1+1"
+enter /1,4/2,1 "=SUM(sort) / 2"
+enter /1,4/3,1 "plain"
+enter /1,4/2,2 "=b1 & 1"

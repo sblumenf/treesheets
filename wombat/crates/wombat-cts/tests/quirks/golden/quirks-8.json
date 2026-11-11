@@ -1,0 +1,6 @@
+{"selection": {"x": 0, "y": 0, "cols": 1, "rows": 1}, "autoexport_html": 0, "autoexport_pdf": false, "root":
+{"path": [], "text": "", "note": "", "type": "data", "formula": null, "bg": "#FFFFFF", "fg": "#000000", "relsize": 0, "stylebits": 0, "align": "auto", "valign": "auto", "render_style": "grid", "vertical_layout": true, "filtered": false, "is_tag": false, "has_image": false, "last_edit": null, "runs": [], "links": [], "grid": {"cols": 2, "rows": 1, "folded": false, "border_color": "#A0A0A0", "col_widths": [80, 80], "cells": [
+ {"path": [[0, 0]], "text": "image", "note": "", "type": "data", "formula": null, "bg": "#FFFFFF", "fg": "#000000", "relsize": 0, "stylebits": 3, "align": "auto", "valign": "auto", "render_style": "grid", "vertical_layout": true, "filtered": false, "is_tag": false, "has_image": true, "last_edit": null, "runs": [], "links": [], "grid": null},
+ {"path": [[1, 0]], "text": "", "note": "", "type": "data", "formula": null, "bg": "#FFFFFF", "fg": "#000000", "relsize": 0, "stylebits": 0, "align": "auto", "valign": "auto", "render_style": "grid", "vertical_layout": true, "filtered": false, "is_tag": false, "has_image": false, "last_edit": null, "runs": [], "links": [], "grid": null}
+]}}
+}

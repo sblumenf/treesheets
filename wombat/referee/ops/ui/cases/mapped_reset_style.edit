@@ -1,0 +1,4 @@
+begin
+cell-style /1,1/1,2 -bold
+color /1,1/1,6 0 6 none
+end

@@ -1,0 +1,7 @@
+# Pinned so that the checks give the same answer here and in CI: a newer clippy adds lints,
+# and with -D warnings a new lint fails the build. Raise it on purpose, fixing what it finds.
+[toolchain]
+channel = "1.97.0"
+components = ["rustfmt", "clippy"]
+# The core and the search service must build for the web and for phones.
+targets = ["wasm32-unknown-unknown", "aarch64-linux-android", "aarch64-apple-ios"]

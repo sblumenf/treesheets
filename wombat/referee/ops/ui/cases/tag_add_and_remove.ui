@@ -1,0 +1,4 @@
+select /1,2 1 1 1 6
+action tag-add
+select /1,2 1 3 1 1
+action tag-remove

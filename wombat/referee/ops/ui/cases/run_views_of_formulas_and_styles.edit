@@ -1,0 +1,5 @@
+enter /1,4/1,1 "=1+1"
+set /1,4/2,1 kind=view_h
+set /1,2/3,4 kind=view_h
+set /1,2/2,2 kind=view_h
+run

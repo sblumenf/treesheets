@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""Asks the real TreeSheets what it shows for a document: probe '<document as JSON>' [run]
+
+Prints the document as the app shows it; with `run`, also after ts.evaluate and its result.
+A tool for whoever works on the evaluator. See app.py for how a document is written.
+"""
+import json
+import sys
+
+sys.dont_write_bytecode = True
+import app  # noqa: E402
+from app import referee
+
+
+def main():
+    doc = json.loads(sys.argv[1])
+    with referee.xvfb() as display, \
+            referee.Instance(display, app.HERE + "/../fixtures/features.cts") as ts:
+        ts.eval(app.build(doc))
+        print(json.dumps(app.shown(ts), ensure_ascii=False))
+        if sys.argv[2:] == ["run"]:
+            print(repr(ts.eval("ts.goto_root()\nts.agent_result(ts.evaluate(0))")))
+            print(json.dumps(app.shown(ts), ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

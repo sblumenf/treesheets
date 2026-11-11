@@ -1,0 +1,390 @@
+   
+  Welcome to TreeSheets!
+  (1) This file is a live tutorial. Simply by following along with the numbers in front of the text, you can learn to use all TreeSheets functionality quickly and easily!
+    The basics
+      (2) You found step 2! Good, now lets try inserting text. Each of these text boxes is called a "cell". See the empty cell between (2) and (3)? Click anywhere inside it to select it 
+      
+      (3) The cell above should be selected (have a thick black border around it). Now type something, and you see any text ends up in the selected cell. Notice how when you started typing, a cursor appeared, and the selection box became thinner. This signals the cell is in text edit mode, so things like cursor keys, delete etc, work on the current text. You can also double click to get into text edit mode, or press enter. To exit, press enter again, or press escape, or just select another cell.
+      (4) There is an even better way to insert text however. See the dotted lines between cells? These we call "grid lines". Select (click on) the grid line between (4) and (5)
+      (5) The line above here should be highlighted. Now start typing text again, and notice how a new cell automatically got inserted between (4) and (5). This also works on the borders of the cells. This is the natural way to extend any TreeSheet: find a location where you want to add information, and just start typing!
+      (6) You can also navigate across grid lines and cells without using the mouse, for even quicker editing: make sure this cell is selected, and then press cursor key UP and DOWN a few times.
+      (7) Deleting cells works in just the same way. Make sure you got any grid line above selected, and then press BACKSPACE to remove the cell above it (or before it), or press DELETE to remove the cell below it (or after it). This works analogous to how text editors and word processors work. Alternatively, simply selecting any cells (by clicking/dragging) and then pressing DELETE to remove all of them also works.
+      (8) If you have deleted a bunch of lines above (hopefully not this one!) now is a good time to try out undo! Press CTRL+Z repeatedly to bring your deletions back. TreeSheets has unlimited undo, so just holding down CTRL+Z for a while will restore the document back to its original state. CTRL+Y redoes.
+        On OS X, wherever this tutorial refers to CTRL, use CMD instead. ALT is the same as the OPTION key.
+    Grids
+      (9) As you may have already noticed, TreeSheets can nest grids of cells. Each cell can contain its own grid. This cell for example has a sub grid.
+        Tequila
+        2
+        Gran Marnier
+        1
+        Lime juice
+        0.5
+      (10) To add a grid to any cell, select the cell and press INSERT or SHIFT+ENTER. Try it on this cell, you should get a 1x1 grid below this text
+      (11) Try expanding the cell you made in (10) by selecting one of its 4 gridlines and typing text until you have at least a 3x3 grid. Also try moving around it with the cursor keys in all directions.
+      (12) Now let's try moving things around in grids. Select an entire column in a grid (such as the numbers in the grid contained in (9)) by dragging from the top cell in the row to the bottom. Much like in spreadsheets (and unlike some other applications), dragging in TreeSheets is for expanding a selection, not for moving. Now Press CTRL+LEFT cursor key or CTRL+RIGHT to shift the data around.
+      (13) You can copy cells, for example, select this one, copy with CTRL+C, then select any grid line above and press CTRL+V. If you select multiple cells, the selection will be inserted at the destination as multiple lines. Try it. Cutting (CTRL+X) or Deleting multiple cell selections works similarly intuitively. If inserting cells "inline" on a paste is undesirable, you can always create a new grid first, and then paste on that, to create hierarchy.
+    Cell formatting & Zoom
+      (14) Text in a cell is akin to a single paragraph. It is split up in lines automatically depending on the column width of whatever column it is in. How wide the columns should be depends on how you prefer to structure your TreeSheet overall. You can see the column width in the status bar (for the column the mouse is over). Make sure this cell is selected, and then hold ALT and roll the mousewheel to see what happens (or ALT+PGUP/PGDN). This cell should be reformatted automatically, as well as other cells in this column, and any grids inside this column. Note that the column width specifies the maximum number of characters per line, so it won't make a grid wider once every cell is on a single line.
+        On some Mac keyboards, PGUP/PGDN is emulated with FN+UP/DOWN. Also, the scrollwheel is instead a swipe on the trackpad (or magic mouse).
+      (15) A more powerful option to change the space a cell takes up on screen (good for indicating the relative importance of something) is to change the text size. Select this cell, hold SHIFT and roll the mousewheel (or SHIFT+PGUP/PGDN).
+      (16) Notice how if you keep making it smaller, eventually text will be rendered as individual pixels. This may seem useless, but is actually a neat way of information management that replaces folding/unfolding of hierarchies so prevalent in other applications.
+      (17) For example, this cell contains a tiny grid. Select this cell, then hold CTRL and roll the mouse wheel forward 3x to zoom into this cell (or CTRL+PGUP/PGDN).
+        (18) You couldn't read this text before, but now you can!
+        (19) When you zoom in, TreeSheets sets the base text size to the average size of the top level grid shown. When you change the text size with SHIFT+scrollwheel, you change the relative size of text. That means it depends on the zoom level how big that text appears. This may sound complicated, but the net effect is that you can make text really small yet see more of it when you zoom in.
+        (20) The idea is that you use small sub grids like this one to store information (such as a todo list for a specific project) that you want to be available in your overal TreeSheet, but you don't want it to take up space. Reading or editing it is always just a flick of the mousewheel away.
+        (21) Also, setting text size is something you have to generally do only once, whereas tree folding/unfolding or scrolling as you end up doing in other applications is something you do every time you want to view the information. TreeSheets makes navigating large amounts of information less of a chore, and easier to overview (the pixel sized text still gives an impression of how much information is contained inside the cell, and the structure of it).
+        (22) To make this text readable at the top level again, select cells (18..23) (not 17), zoom out twice (mousewheel back), and then SHIFT+mousewheel forward until this becomes readable again.
+        (23) If you now want to make this smaller, select the same cells, and use SHIFT+mousewheel backward to reduce the size.
+        (24) Notice the greyed out text you see above the header text when you are zoomed in? This is called the context, and helps you remember what part of the treesheet you zoomed in to.
+      if instead you prefer to completely hide a grid out of sight, you can using folding (F10 on Windows, CTRL+F10 on other platforms). Try pressing it repeatedly on this cell to see the effect
+        This cell and the ones below will be hidden!
+        notice that a cell that has a folded grid gains a '+' icon as its image, denoting that there is extra information that can be shown. If you unfold it, the image will automatically dissapear
+        cells will also automatically be unfolded if you use functions such as "search next" to jump between cells that are not currently visible.
+        Though folding may be a familiar operation you know from other applications, shrinking text to become tiny (see 17) will give you a better overview over your information, try it out! 
+    Rendering and Layout
+      You can toggle text placement to above the grid (vertical layout, like much of this document) or besides (horizontal layout) by pressing Alt+0 on any selection:
+        text above
+          sample
+          grid
+        text besides
+          sample
+          grid
+      You can also choose from 3 different rendering methods to show nesting, Grid (like most of this document), Bubbles and Lines (see the Edit -> Layout Render Style menu). Together with horizontal/vertical, this gives 6 different styles:
+        
+        vertical
+        horizontal
+        grid
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+        bubbles
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+        lines
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+      The different styles tend to work the best if you apply them to a whole document, but they can be set on a per cell basis if you want.
+        The "grid" style is best for editing, as it shows most clearly where you can insert new data.
+        "bubbles" work best if you assign individual cell background colors. If you leave all cells the same color, TreeSheets automatically chooses alternate colors to avoid bubbles becoming invisible.
+        The "lines" style is nice for mindmap style documents.
+    Images & Styles
+      Add Images to cells to make your document clearer. Images appear in front of the text of that cell. Put an image in its own cell for maximum flexibility. Try adding a (small) image to any cell above (menu Edit/Add Image, or pick one from the image drop down on the toolbar). 
+        Images are stored inside a document (.cts) file, meaning if you move a file around, you will never lose the images. If you use an image multiple times in a document, only one copy is stored.
+        If you'd like to refer to large images in a treesheet, and they would be too clumsy to have inside the sheet, you can also simply put the images in the same folder as the .cts, and simply put just their name in a cell. You can then use Edit/Open File (F4) to view them.
+          You can refer to any file type this way
+          to conveniently add new file links, just drag and drop non-image files onto cells
+      Make a cell bold, or italic, or both! Try CTRL+b or CTRL+i on some cells, both are toggles. Additionally, typewriter and underlined style are available from the Edit/Text Style menu.
+      strikethrough (CTRL+t) is a useful style for TODO lists to indicate items that have been processed but you don't want to delete yet.
+      Try coloring cells with the two color selectors in the toolbar. You can double-click on the current colors to set them instantly. Select cell(s) that contain grid(s) and use the border color drop down, or Edit/Set Border Width menu to change their look.
+      Add a note to a cell for anything that shouldn't clutter its text, such as details, sources or reminders: select the cell and press CTRL+E (Edit > Edit Note). A cell with a note shows a small triangle in its top-right corner. Point at the triangle to read the note, and click it to edit the note. This cell has a note, try it! With View > Filter > Show cells with notes you find all of them.
+    Search & Navigation
+      You can use instant search by typing something in the search box in the toolbar (CTRL+f to focus on this box). Any matching cells will be highlighted (F3 to cycle through the results). Type something in the replace box, and then use one of the two replace operations in the search menu.
+        As an alternative to search, "go to matching cell" (F6) cycles through the cells that have the same text as the current cell, which can be useful as a cross reference or a linking mechanism. It has preference for going to a cell with different formatting, meaning you can use formatting as a way to distinguish definition cells from link cells. Try it:
+          CycleCell
+          ...
+          CycleCell
+          CycleCell
+          LinkRef
+          ...
+          LinkRef
+          LinkRef
+          Definition
+          
+          Use
+          Use
+      Store urls or collections of bookmarks inside TreeSheets, and simply press F5 to open any of them in your browser
+    Tags & Hierarchy
+      Tags are a good way to deal with words that you use repeatedly in a sheet, like statuses, categories etc. To make something a tag, find an occurrence, and do "Add Cell as Tag" (Edit/Tag... menu). From now on, you can set any other cell to a tag with CTRL+Right Mouse Button (popup menu). Tags are colored blue, to signal to you it is a tag. This helps spotting if a tag is mistyped.
+      A powerful operation that works well with tags is "Hierarchy Swap". An Example of what it does:
+        The motivation behind Hierarchy Swap is that you use TreeSheets to organize your data in tree format, but often, trees are not ideal to organize data, because they force you to make choices about what subdivision is most important. 
+        Say that I am organizing a project, and I am trying to keep track of what tasks it involves. I am using tags to indicate the people that work on it, the deliverables, and the topic areas:
+          milestone 1
+            front end
+              fred
+                fix the GUI
+                connect to database
+              bob
+                overhaul graphics
+            back end
+              fred
+                add input forms
+          milestone 2
+            back end
+              fred
+                set up new tables
+              bob
+                buy new servers
+                set up networking
+        Notice how in the above table, milestones are the most important subdivision, the topic areas second, and people the least important. This a pretty arbitrary choice, we might want to see things from a people perspective, and now with Hierarchy Swap you can! Select any occurrence of "fred", and press F8 twice, and you'll get this:
+          fred
+            milestone 1
+              front end
+                fix the GUI
+                connect to database
+            back end
+              milestone 1
+                add input forms
+              milestone 2
+                set up new tables
+          bob
+            milestone 1
+              front end
+                overhaul graphics
+            milestone 2
+              back end
+                buy new servers
+                set up networking
+        Effectively what you've done is saying: "show me this hierarchy from fred's perspective". You can now see exactly what he works on. You could do the same for bob, if needed. If you want to see what fred is doing on the back end, press F8 just once on "back end" (within fred), and you have tweaked your perspective yet again. Press once more, and now front/back end becomes the major subdivision.
+        Keep pressing F8 on various tags, to see how you can attain any perspective you need.
+        Important to note is how on any swap, the tag that was previously the parent, now becomes the child of the selected tag. This means that it doesn't matter how often you do this swap, no information is lost. It means that you should be able to get the tree back in its original configuration if you wanted to.
+        So you can see this feature as allowing you to have snippets of information which can have any number of tags associated with them. The Hierarchy Swap allows you to determine the current order of importancy of tags, and thus, the tree view is nothing but the most recent view
+        You can still keep editing data to this tree whatever "view" it is in, no need to reset the tree to its original order. Trees like this have no set order!
+        Note how promoting "fred" doesn't automatically promote "bob". TreeSheets doesn't know that these tags are of the same "type". Not all uses of tags have clear cut types, and its not always necessary to reorder all at once, so this keeps the feature simple.
+      Related to working with Hierarchies, is the ability to "Flatten" a hierarchy. Take the milestone example above, and after applying Flatten, you get
+        milestone 1
+        front end
+        fred
+        fix the GUI
+        milestone 1
+        front end
+        fred
+        connect to database
+        milestone 1
+        front end
+        bob
+        overhaul graphics
+        milestone 1
+        back end
+        fred
+        add input forms
+        milestone 2
+        back end
+        fred
+        set up new tables
+        milestone 2
+        back end
+        bob
+        buy new servers
+        milestone 2
+        back end
+        bob
+        set up networking
+      While not as useful as the hierarchical version for editing and seeing structure, it is the only way to export this data to "flat" programs like spreadsheets (see Export/CSV). Spreadsheet users like to model data this way, so the reverse operation, "Hierarchify", allows you take such a table and turn it back into the hierarchy above.
+    Advanced operations
+      (25) if a cell has no text but it does have a grid, such as the cells below, it is rendered without space for the text. This may make it difficult to select, to be able to insert text. You can select any cell by simply pressing ESC when you have selected a sub-cell (try selecting (26), then ESC, then type some text). Also convenient, double clicking on a grid line selects the entire grid. Try this by double clicking between (26) and (27), then type some text.
+        
+          this
+          grid
+          has
+          no
+          text
+          header
+          (26)
+          (27)
+      Transposing is a useful operation if you're trying to rearange lists to get a more manageable layout. Select this cell, and Edit/Grid Reorganization/Transpose a few times. Make sure you have it showing vertically, and then additionally try Edit/Grid Reorganization/Sort after selecting either the first or second column.
+        One
+        Two
+        Three
+        Four
+        Five
+        1
+        2
+        3
+        4
+        5
+      Have a look at the many import and export options, or print to paper or pdf
+      The "Wrap in parent" (F9) operation is a great way to create new hierarchy. Make any selection of cells, and this operation will make those into a new grid, and a new parent that sits in the place of where the cells came from. For example, try selecting C & D below, then press F9, and type something:
+        A
+        B
+        C
+        D
+      Filters are a feature that is useful once your treesheets grow really big. They allow you to temporarily filter out a subset of the sheet to focus on the cells you're looking for. This works by forcing the cells that are filtered out to be displayed as 1-pixel text, and in light grey. Try out the filtering options in the view menu:
+        Try entering "treesheets" as search query right now. some cells will look red. Now try setting the search filter (View -> Filter -> Show only cells in current search), all the sheet should shrink considerably, making it easier to see what you're looking for. Do this at the top level view of this sheet. Try zooming in and out with the filter on. Try editing the search query, the filter view will change as you type.
+        Try the "last 10% of edits" on this sheet, too. Make sure to turn the search query off, first. Note that if you have documents from older versions of treesheets, this feature may not show the edits that you expect, since those versions did not keep track of the last edit time of each cell yet.
+      If you're on an older computer, or work with really big sheets, try the option "fast line rendering" to get a sheet which is less pretty, but scrolls faster.
+      TreeSheets is great for presentations. Unlike traditional tools like powerpoint, which make it really difficult to convey a sense of structure to the audience, you can organize a treesheet as if your entire presentation was a single "slide", and have minimized sub-slides that you can zoom into. To help its use as a presentation tool, TreeSheets has two viewing options: Fullscreen View (F11) to reduce visual clutter, and Scaled View (F12) which tries to make the current view as large as possible.
+        Note, both this feature and printing make use of a scaling method that does not preserve rendering fidelity in all cases. This will be fixed in a future version.
+      TreeSheets has a built-in scripting language for creating plugins
+        These scripts are placed in the "scripts/" folder, and are automatically added to the "Scripts" menu at the start of TreeSheets, from where they can be started
+        Scripts can read and modify all of the current TreeSheet!
+        Scripts are written in The Lobster Programming language
+          Read more about the language:
+          http://strlen.com/lobster/
+        The functions you can use in your script are listed in docs/script_reference.html
+          The ones that start with ts_ are specific to TreeSheets, the others are general language functions
+        Read the existing scripts to get an idea what they can do!
+      TreeSheets also contains a novel spreadsheet like programming language that is not fully functional yet.
+        It works by putting operations right inside grids, mixed with data
+        the language then evaluates grids as an expression from left to right (and top to bottom) once you "run" the sheet. Select Program/Run (or the toolbar button) and the green square below should be filled with a 9 (not 7!) 
+          1
+          +
+          2
+          *
+          3
+          
+        You create the program by giving certain cells special meaning. By default, all cells are white (data). From the Program/Mark As menu you can make them operations (pink), or view cells (light green). A view cell simply shows the current value of any operation before it. In the grid below, try marking the + as an operation, and the last empty cell as horizontal view using the program menu, then pressing run:
+          1
+          +
+          2
+          
+        Operations automatically work on whole grids, for example:
+          
+            1
+            2
+            3
+          +
+          
+            4
+            5
+            6
+          *
+          
+            7
+            8
+            9
+          
+        It is not recommended at this stage to actually use the language unless you're very adventurous, as only few operations are implemented, and many combinations of operands are not supported. Sort of working:
+          +
+          -
+          *
+          /
+          <
+          >
+          <=
+          >=
+          ==
+          !=
+          =
+          <>
+          inc
+          dec
+          neg
+          sum
+          transpose
+          if
+        For more details on operations, see Help > Load operation reference (CTRL+ALT+F1).
+        Have a look at the sales.cts example to see what it can do.
+      Formulas calculate results like in a spreadsheet, and update by themselves whenever you change something. Type a text that starts with = into a cell, such as =SUM(Costs), and once you leave the cell it shows the result. The formula bar in the toolbar shows the formula of the selected cell, and you can edit it there too (ENTER applies it).
+        A name in parentheses stands for the grid of the cell with exactly that text, the nearest one first. Below, the grid on the left is called Costs. Change its numbers and watch the results on the right:
+          Costs
+            120
+            80
+            40
+          
+            Total
+            240
+            Most expensive
+            120
+            Average
+            80
+            Left of a budget of 500
+            260
+        Press F2 on a result to see and change its formula right in the cell. Typing over a result makes the cell plain text again.
+        You can use SUM, MIN, MAX, AVG, MEDIAN and COUNT, together with numbers, + - * / and parentheses, e.g. =(SUM(Income) - SUM(Costs)) / 12. Only the numbers directly in the named grid count, and the results of other formulas count as numbers too. With TREE in front, e.g. =TREESUM(Costs), the numbers in all its sub-grids count as well, but not the formulas there. A name on its own stands for the one number in its grid, e.g. =Price * Quantity.
+        SUBSET uses only part of a grid: SUBSET(name, columns, rows), with columns and rows counted from 0 at the top left. Each is a number such as 1, a range such as 0-1, a range open at one end such as 1- (to the end) or -1 (from the start), or - for all. Below, the grid on the left is called Sales, with a column per shop and a row per month:
+          Sales
+            30
+            50
+            20
+            60
+            40
+            10
+          
+            Best month of the first shop
+            40
+            Both shops in the first two months
+            160
+            Second shop from the second month on
+            70
+        With TREE in front, the numbers in the sub-grids of the chosen cells count too, all of them, whatever their columns and rows. Below, each shop in the grid Orders holds its orders in a sub-grid:
+          Orders
+            First shop
+              12
+              45
+              30
+            Second shop
+              25
+              60
+              8
+          
+            Largest order of the second shop
+            60
+        TREESUBSET(name, columns, rows, levels) chooses the same columns and rows again in the sub-grids of the chosen cells, and so on, but counts only the levels in the range, 0 being the named grid. So it can tell totals from their details. Below, each phase in Plan has its hours in column 1, which holds its tasks with their hours in the same columns:
+          Plan
+            Design
+            10
+              Sketches
+              4
+              Review
+              6
+            Build
+            25
+              Frame
+              12
+              Wiring
+              8
+              Testing
+              5
+          
+            Hours of all phases
+            35
+            Longest single task
+            12
+            Number of tasks
+            5
+        Instead of a name, SUBSET and TREESUBSET also take another SUBSET or TREESUBSET, and then use the sub-grids of the cells that it chooses. So each level can have columns and rows of its own. Below, SUBSET(Plan, 1, 1) chooses the hours of Build, and the formulas look only at its tasks:
+          Longest Build task
+          12
+          Build hours after Frame
+          13
+          Hours of Testing
+          5
+        On its own, SUBSET stands for the one number in it, e.g. =SUBSET(Sales, 1, 2) * 2. Names can also be written in quotes, which they need when they contain a comma or a parenthesis, e.g. =SUM("Costs, 2025") or =MAX(SUBSET("Sales (EUR)", 0, -)).
+        Formulas can also use the variables of the program language above. A name that no grid has stands for the variable of that name, with what the program assigned to it the last time it ran, and a variable that holds a grid counts like one, e.g. =SUM(Scores). Until you run the program with Program > Run, such a formula shows #N/A. Below, the program on the left calculates 1 + 2 * 3 and assigns the result to the variable Answer (marked with Program > Mark as > Variable Assign). Run it and watch the result on the right:
+          
+            1
+            +
+            2
+            *
+            3
+            Answer
+          
+            Twice the answer
+            #N/A
+        When something is wrong, the cell shows an error: #NAME? for an unknown name or function, #DIV/0! for a division by zero, #CYCLE! for formulas that depend on each other, #VALUE! for a name or SUBSET on its own that doesn't hold exactly one number, #N/A for a variable before the program has run, and #ERROR! for a formula that can't be read.
+      Templates start new documents from one you have set up before, such as a weekly plan or a project outline. You find them in File > New from Template:
+        Add Current Document as Template adds the file of the current document to that menu (save it first), and Add Files as Templates... adds other TreeSheets files.
+        Clicking a template there creates a new, unnamed document with a copy of its content. The template file itself stays as it is, since saving asks for a new file name.
+        Open File as Template... does the same with any TreeSheets file without adding it to the menu, and Remove Template... takes a template off the menu again (the file stays where it is).
+      If you work on TreeSheets files on multiple computers, store them in a shared folder (such as DropBox) and turn on Options -> Auto reload documents
+        This way, you will always be up to date on all your machines when you save the document
+      Running TreeSheets from the command line
+        You can run TreeSheets from the command line
+        as arguments, you may specify a single file to load
+          If TreeSheets is already running in the system, this will cause it to pass the file to the existing instance, then quit
+        you may also run it with -p as an argument
+          This starts TreeSheets in "portable" mode, where (on Windows) it writes settings to a .ini file in the current directory rather than to the registry
+        Note that to run correctly from the command line, at least on Windows, TreeSheets.exe needs to be started with a full path, otherwise it will not be able to find its icons etc. relative to the executable path.

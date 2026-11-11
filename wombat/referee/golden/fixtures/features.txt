@@ -1,0 +1,46 @@
+  plain
+  bold
+  bold italic fixed underline strikethru
+  bigger
+  smaller
+  colors
+  one bold, one italic, one red and one fixed green word
+  naïve 日本語 😀 emoji, שלום and déjà vu
+  italic cell with a plain span
+  a web link and a file link
+  go to Numbers, or to 日本 (missing)
+  bold link
+  https://example.com/cell-that-is-a-url
+  Numbers
+    1
+    2.5
+    three
+    -4
+    
+    1e2
+  89.5
+  THREE / 4
+  #NAME?
+  has a note
+  left
+  center
+  right bottom
+  middle
+  filtered
+  <xml> & "quotes" 'apostrophes'    spaces
+  folded
+    inside a folded grid
+    
+    
+    
+  column widths
+    wide text that wraps at the width of its column 0
+    wide text that wraps at the width of its column 1
+    wide text that wraps at the width of its column 2
+  nested
+    
+    level 2
+      
+      level 3
+        level 4
+  image 

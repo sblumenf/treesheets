@@ -1,0 +1,375 @@
+   
+  Bienvenido a TreeSheets!
+  (1) Este archivo es un tutorial en vivo. Simplemente siguiendo los números delante del texto, podrá aprender a utilizar todas las funciones de TreeSheets de forma rápida y sencilla.!
+    Los basicos
+      (2) ¡Has encontrado el paso 2! Bien, ahora intentemos insertar texto. Cada uno de estos cuadros de texto se llama "celda". ¿Ves la celda vacía entre (2) y (3)? Haz clic en cualquier lugar dentro de ella para seleccionarla.  
+      (3) La celda de arriba debería estar seleccionada (con un borde negro grueso alrededor). Ahora escribe algo y verás que cualquier texto termina en la celda seleccionada. Observa cómo, al empezar a escribir, apareció un cursor y el cuadro de selección se hizo más delgado. Esto indica que la celda está en modo de edición de texto, por lo que funciones como las teclas de cursor, la tecla Supr, etc., funcionan en el texto actual. También puedes hacer doble clic para acceder al modo de edición de texto o pulsar Intro. Para salir, pulsa Intro de nuevo, pulsa Esc o simplemente selecciona otra celda. (
+      4) Sin embargo, hay una forma aún mejor de insertar texto. ¿Ves las líneas de puntos entre las celdas? Estas se llaman "líneas de cuadrícula". Selecciona (haz clic en) la línea de cuadrícula entre (4) y (5).
+      5) La línea de arriba debería estar resaltada. Ahora vuelve a escribir texto y observa cómo se insertó automáticamente una nueva celda entre (4) y (5). Esto también funciona en los bordes de las celdas. Esta es la forma natural de extender cualquier TreeSheet: busca la ubicación donde quieras agregar información y ¡empieza a escribir! (
+      6) También puedes navegar por las líneas de la cuadrícula y las celdas sin usar el ratón, para una edición aún más rápida: asegúrate de que esta celda esté seleccionada y pulsa las teclas de cursor ARRIBA y ABAJO varias veces. 
+      (7) Eliminar celdas funciona de la misma manera. Asegúrate de tener seleccionada cualquier línea de la cuadrícula superior y pulsa RETROCESO para eliminar la celda que está encima (o antes), o SUPR para eliminar la celda que está debajo (o después). Esto funciona de forma análoga a los editores y procesadores de texto. Como alternativa, simplemente selecciona cualquier celda (haciendo clic y arrastrando) y pulsa SUPR para eliminarlas todas. 
+      ((8) Si has eliminado varias líneas arriba (¡ojalá no esta!), ¡ahora es un buen momento para probar la función de deshacer! Pulsa CTRL+Z repetidamente para recuperar las eliminaciones. 
+      TreeSheets permite deshacer acciones ilimitadas, así que con solo mantener presionada la tecla Ctrl+Z durante un rato, el documento volverá a su estado original. Ctrl+Y rehace. 
+      
+        En OS X, siempre que este tutorial haga referencia a Ctrl, use CMD. ALT es lo mismo que la tecla OPCIÓN. 
+      
+    Cuadrículas
+      (9) Como ya habrás notado, TreeSheets puede anidar cuadrículas de celdas. Cada celda puede contener su propia cuadrícula. Esta celda, por ejemplo, tiene una subcuadrícula.
+        Tequila
+        2
+        Gran Marnier
+        1
+        Jugo de lima 
+        0.5
+      (10) Para agregar una cuadrícula a cualquier celda, selecciona la celda y presiona INSERTAR o MAYÚS+ENTRAR. Pruébalo en esta celda, deberías obtener una cuadrícula de 1x1 debajo de este texto 
+      (11) Intenta expandir la celda que creaste en (10) seleccionando una de sus 4 líneas de cuadrícula y escribiendo texto hasta que tengas al menos una cuadrícula de 3x3. También intenta moverte por ella con las teclas del cursor en todas las direcciones. 
+      (12) Ahora intentemos mover cosas en las cuadrículas. Selecciona una columna completa en una cuadrícula (como los números en la cuadrícula contenida en (9)) arrastrando desde la celda superior de la fila hasta la inferior.  
+        Al igual que en las hojas de cálculo (y a diferencia de algunas otras aplicaciones), arrastrar en TreeSheets es para expandir una selección, no para mover.
+        Ahora presione CTRL+tecla de cursor IZQUIERDA o CTRL+DERECHA para desplazar los datos. 
+       13) Puede copiar celdas; por ejemplo, seleccione esta, copie con CTRL+C, luego seleccione cualquier línea de la cuadrícula superior y presione CTRL+V. Si selecciona varias celdas, la selección se insertará en el destino como varias líneas. Pruébelo. Cortar (CTRL+X) o eliminar varias selecciones de celdas funciona de forma similar e intuitiva. Si no desea insertar celdas en línea al pegar, siempre puede crear primero una nueva cuadrícula y luego pegar sobre ella para crear una jerarquía.
+    Formato de celda y zoom
+      (14) El texto en una celda es similar a un párrafo
+      Se divide en líneas automáticamente según el ancho de la columna en la que se encuentra. El ancho de las columnas depende de cómo prefiera estructurar su TreeSheet.
+      Puede ver el ancho de la columna en la barra de estado (para la columna sobre la que pasa el ratón).
+      Asegúrese de que esta celda esté seleccionada y, a continuación, mantenga pulsada la tecla ALT y gire la rueda del ratón para ver qué sucede (o ALT+RE PÁG/APN PÁG).
+      Esta celda debería reformatearse automáticamente, al igual que las demás celdas de esta columna y cualquier cuadrícula dentro de ella. Tenga en cuenta que el ancho de la columna especifica el número máximo de caracteres por línea, por lo que no ensanchará la cuadrícula si cada celda ocupa una sola línea. 
+      Además, la rueda de desplazamiento es, en cambio, un deslizamiento en el trackpad (o Magic Mouse).
+      
+        En algunos teclados Mac, las teclas RE PÁG/APN se emulan con FN+ARRIBA/ABAJO. Además, la rueda de desplazamiento se desplaza en el trackpad (o el Magic Mouse).
+      (15) Una opción más eficaz para cambiar el espacio que ocupa una celda en pantalla (útil para indicar la importancia relativa de algo) es cambiar el tamaño del texto. Seleccione esta celda, mantenga presionada la tecla MAYÚS y gire la rueda del ratón (o MAYÚS+RE PÁG/APN PÁG).
+      (16) Observe cómo, si la reduce constantemente, el texto se mostrará como píxeles individuales. Esto puede parecer inútil, pero en realidad es una forma práctica de gestionar la información que reemplaza el plegado y desplegado de jerarquías, tan común en otras aplicaciones.
+      (17) Por ejemplo, esta celda contiene una cuadrícula pequeña. Seleccione esta celda, mantenga presionada la tecla Ctrl y gire la rueda del ratón tres veces para ampliarla (o Ctrl+Re Pág/Av Pág).
+        (18) Antes no podía leer este texto, ¡pero ahora sí!
+        (19) Al ampliar, TreeSheets establece el tamaño base del texto al tamaño promedio de la cuadrícula de nivel superior mostrada. Al cambiar el tamaño del texto con MAYÚS+rueda de desplazamiento, cambia el tamaño relativo del texto. Esto significa que el tamaño del texto depende del nivel de zoom. Puede parecer complicado, pero el resultado final es que puedes reducir el tamaño del texto y, aun así, verlo más al ampliarlo.
+        (20) La idea es usar subcuadrículas pequeñas como esta para almacenar información (como una lista de tareas para un proyecto específico) que quieras que esté disponible en tu TreeSheet general, pero que no ocupe espacio. Leerla o editarla siempre está a un clic de distancia.
+        (21) Además, configurar el tamaño del texto generalmente solo se hace una vez, mientras que plegar/desplegar o desplazarse, como suele hacerse en otras aplicaciones, se hace cada vez que se quiere ver la información. TreeSheets simplifica la navegación por grandes cantidades de información y facilita su visualización (el texto de tamaño píxel sigue dando una idea de la cantidad de información contenida en la celda y su estructura).
+        (22) Para que este texto vuelva a ser legible en la parte superior, seleccione las celdas (18..23) (no la 17), aleje el zoom dos veces (rueda del ratón hacia atrás) y, a continuación, presione MAYÚS+rueda del ratón hacia adelante hasta que vuelva a ser legible. 
+        (23) Si ahora desea reducirlo, seleccione las mismas celdas y presione MAYÚS+rueda del ratón hacia atrás para reducir el tamaño. 
+        (24) ¿Observa el texto atenuado que aparece sobre el texto del encabezado al ampliar? Esto se denomina contexto y le ayuda a recordar qué parte de la hoja de árbol amplió. are zoomed in? 
+      Si, por el contrario, prefiere ocultar completamente una cuadrícula, puede usar la función de plegado (F10 en Windows, CTRL+F10 en otras plataformas). Intente presionarla repetidamente en esta celda para ver el efecto.
+        This cell and the ones below will be hidden!
+        notice that a cell that has a folded grid gains a '+' icon as its image, denoting that there is extra information that can be shown. If you unfold it, the image will automatically dissapear
+        cells will also automatically be unfolded if you use functions such as "search next" to jump between cells that are not currently visible.
+        Though folding may be a familiar operation you know from other applications, shrinking text to become tiny (see 17) will give you a better overview over your information, try it out! 
+    Renderizado y diseño
+      Puede alternar la ubicación del texto sobre la cuadrícula (diseño vertical, como gran parte de este documento) o al lado (diseño horizontal) presionando Alt+0 en cualquier selección:  
+        texto sobre cuadrícula
+          sample
+          grid
+        text besides
+          sample
+          grid
+      También puede elegir entre 3 métodos de renderizado diferentes para mostrar la anidación, Cuadrícula (como la mayor parte de este documento), Burbujas y Líneas (vea el menú Editar -> Estilo de renderizado de diseño).  Junto con horizontal/vertical, esto da 6 estilos diferentes: 
+        
+        vertical
+        horizontal
+        cuadrícula
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+        bubbles
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+        lines
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+        example text
+          nested grid
+            nested 1
+            nested 2
+          one more line
+      Los diferentes estilos tienden a funcionar mejor si los aplica a un documento completo, pero se pueden configurar por celda si lo desea. 
+        El estilo "cuadrícula" es el más adecuado para editar, ya que muestra con mayor claridad dónde se pueden insertar nuevos datos. 
+        Las "burbujas" funcionan mejor si se asignan colores de fondo a cada celda. Si se deja el mismo color en todas las celdas, TreeSheets elige automáticamente colores alternativos para evitar que las burbujas se vuelvan invisibles. 
+        El estilo "líneas" es ideal para documentos con mapas mentales.
+    Imagenes & Estilos
+      Añade imágenes a las celdas para que tu documento sea más claro. Las imágenes aparecen delante del texto de la celda. Coloca una imagen en su propia celda para mayor flexibilidad. Prueba a añadir una imagen (pequeña) a cualquier celda superior (menú Editar/Añadir imagen o selecciona una del menú desplegable de imágenes en la barra de herramientas). 
+        Las imágenes se almacenan en un archivo de documento (.cts), lo que significa que si mueve un archivo, nunca las perderá. Si usa una imagen varias veces en un documento, solo se almacena una copia.
+        Si desea consultar imágenes grandes en una hoja de árbol, y sería demasiado complicado tenerlas dentro de la hoja, también puede simplemente colocarlas en la misma carpeta que los archivos .cts y escribir su nombre en una celda. Luego, puede usar Editar/Abrir archivo (F4) para verlas.
+          De esta manera, puede hacer referencia a cualquier tipo de archivo para agregar fácilmente nuevos enlaces de archivos; simplemente arrastre y suelte archivos que no sean imágenes en las celdas.
+      ¡Pon una celda en negrita, cursiva o ambas! Prueba Ctrl+b o Ctrl+i en algunas celdas; ambas son opciones de alternancia. Además, puedes usar los estilos de máquina de escribir y subrayado en el menú Editar/Estilo de texto.
+      El tachado (CTRL+t) es un estilo útil para las listas de TODO, para indicar elementos que se han procesado pero que aún no desea eliminar.
+      Prueba a colorear las celdas con los dos selectores de color de la barra de herramientas. Puedes hacer doble clic en los colores actuales para configurarlos al instante. Selecciona las celdas que contengan cuadrículas y usa el menú desplegable de color del borde o el menú Editar/Ajustar ancho del borde para cambiar su aspecto.
+      Añade una nota a una celda para lo que no debe recargar su texto, como detalles, fuentes o recordatorios: selecciona la celda y pulsa CTRL+E (Edit > Edit Note). Una celda con nota muestra un pequeño triángulo en su esquina superior derecha. Apunta al triángulo para leer la nota y haz clic en él para editarla. ¡Esta celda tiene una nota, pruébalo! Con View > Filter > Show cells with notes encuentras todas.
+    Búsqueda y navegación
+      Puede usar la búsqueda instantánea escribiendo algo en el cuadro de búsqueda de la barra de herramientas (CTRL+F para enfocar este cuadro). Se resaltarán las celdas coincidentes (F3 para recorrer los resultados). Escriba algo en el cuadro de reemplazo y luego use una de las dos opciones de reemplazo del menú de búsqueda.
+        Como alternativa a la búsqueda, "Ir a la celda coincidente" (F6) recorre las celdas que tienen el mismo texto que la celda actual, lo que puede ser útil como referencia cruzada o mecanismo de enlace. Tiene preferencia por ir a una celda con formato diferente, lo que significa que puede usar el formato para distinguir las celdas de definición de las celdas de enlace. Pruébelo:
+          ciclo de celda
+          ...
+          CycleCell
+          CycleCell
+          LinkRef
+          ...
+          LinkRef
+          LinkRef
+          Definition
+          
+          Use
+          Use
+      Almacene URL o colecciones de marcadores dentro de TreeSheets y simplemente presione F5 para abrir cualquiera de ellos en su navegador
+    Etiquetas y jerarquía
+      Las etiquetas son una buena manera de gestionar palabras que se usan repetidamente en una hoja de cálculo, como estados, categorías, etc. Para convertir algo en una etiqueta, busque una ocurrencia y seleccione "Agregar celda como etiqueta" (menú Editar/Etiqueta...). A partir de ahora, puede etiquetar cualquier otra celda con CTRL+Botón derecho del ratón (menú emergente). Las etiquetas son de color azul para indicar que son una etiqueta. Esto ayuda a detectar si una etiqueta está mal escrita.
+      Una operación eficaz que funciona bien con las etiquetas es "Intercambio de jerarquía". Un ejemplo de lo que hace:
+        La motivación detrás de Hierarchy Swap es que usted usa TreeSheets para organizar sus datos en formato de árbol, pero a menudo, los árboles no son ideales para organizar datos, porque lo obligan a tomar decisiones sobre qué subdivisión es más importante.
+        Digamos que estoy organizando un proyecto e intentando llevar un registro de las tareas que implica. Utilizo etiquetas para indicar quiénes trabajan en él, los entregables y las áreas temáticas:
+          hito 1
+            Interfaz
+              fred
+                Arreglar la conexión GUI 
+                a la base de datos
+              bob
+                gráficos de revisión
+            almacenamiento - parte trasera - codigo(?)
+              fred
+                agregar formularios de entrada
+          hitos 2
+            código
+              fred
+                configurar nuevas tablas
+              bob
+                comprar nuevos servidores 
+                configurar redes
+        Observe cómo, en la tabla anterior, los hitos son la subdivisión más importante, las áreas temáticas la segunda y las personas la menos importante. Esta es una elección bastante arbitraria; podríamos querer ver las cosas desde la perspectiva de las personas, ¡y ahora con Hierarchy Swap es posible! Seleccione cualquier ocurrencia de "fred" y presione F8 dos veces. Obtendrá esto: fred hito 1 interfaz gráfica de usuario arreglar la interfaz gráfica de usuario conectar a la base de datos back-end hito 1 añadir formularios de entrada hito 2 configurar nuevas tablas bob hito 1 interfaz gráfica de usuario revisión hito 2 código comprar nuevos servidores configurar la red:
+          fred
+            milestone 1
+              front end
+                Arreglar la conexión GUI 
+                a la base de datos
+            código
+              milestone 1
+                agregar formularios de entrada
+              milestone 2
+                configurar nuevas tablas
+          bob
+            hito 1
+              front end
+                gráficos de revisión
+            hito 2
+              back end
+                comprar nuevos servers
+                establecer redes
+        En realidad, lo que has hecho es decir: "Muéstrame esta jerarquía desde la perspectiva de Fred". Ahora puedes ver exactamente en qué trabaja. Podrías hacer lo mismo con Bob, si fuera necesario. Si quieres ver qué hace Fred en el backend, pulsa F8 una sola vez en "backend" (dentro de Fred) y habrás ajustado la perspectiva una vez más. Pulsa una vez más y ahora la subdivisión principal será frontend/backend. 
+        Sigue pulsando F8 en varias etiquetas para ver cómo puedes obtener la perspectiva que necesites. 
+        Es importante destacar que, al intercambiar etiquetas, la etiqueta que antes era la principal se convierte en la secundaria de la etiqueta seleccionada. Esto significa que, independientemente de la frecuencia con la que se realice este intercambio, no se pierde información. Esto significa que deberías poder recuperar el árbol a su configuración original si lo deseas. 
+        Por lo tanto, puedes ver esta función como la que te permite tener fragmentos de información que pueden tener cualquier número de etiquetas asociadas. El intercambio de jerarquía permite determinar el orden de importancia actual de las etiquetas, por lo que la vista de árbol es solo la vista más reciente. 
+        Se pueden seguir editando datos en este árbol, independientemente de la vista en la que se encuentre, sin necesidad de restablecer el orden original. ¡Árboles como este no tienen un orden definido! 
+        Tenga en cuenta que promocionar "fred" no promociona automáticamente a "bob". TreeSheets no sabe que estas etiquetas son del mismo tipo. No todos los usos de las etiquetas tienen tipos definidos, y no siempre es necesario reordenarlas todas a la vez, lo que simplifica la función.
+      En relación con el trabajo con jerarquías, está la capacidad de "Aplanar" una jerarquía. Tomemos el ejemplo del hito anterior: tras aplicar "Aplanar", se obtiene: 
+        hito 1
+        interfaz de usuario
+        fred
+        reparación de la interfaz gráfica
+        hito 1
+        interfaz de usuario
+        fred
+        conexión a la base de datos
+        hito 1
+        interfaz de usuario
+        bob
+        revisión de gráficos
+        hito 1
+        código
+        fred
+        adición de formularios de entrada; 
+        hito 2
+        código
+        fred
+        configuración de nuevas tablas
+        hito 2
+        código
+        bob
+        compra de nuevos servidores
+        hito 2: 
+        interfaz de usuario
+        Bob
+         configuración de la red.
+      Aunque no es tan útil como la versión jerárquica para editar y ver la estructura, es la única forma de exportar estos datos a programas planos como hojas de cálculo (véase Exportar/CSV). A los usuarios de hojas de cálculo les gusta modelar los datos de esta manera, por lo que la operación inversa, "Jerarchizar", permite recuperar la jerarquía de una tabla.
+    Advanced operations
+      (25) Si una celda no tiene texto, pero sí tiene una cuadrícula, como las celdas a continuación, se muestra sin espacio para el texto. Esto puede dificultar la selección y la inserción de texto. Puede seleccionar cualquier celda simplemente presionando ESC cuando haya seleccionado una subcelda (pruebe a seleccionar (26), luego ESC y escriba el texto). También es conveniente hacer doble clic en una línea de la cuadrícula para seleccionarla por completo. Inténtelo haciendo doble clic entre (26) y (27) y luego escriba el texto.
+        
+          this
+          grid
+          has
+          no
+          text
+          header
+          (26)
+          (27)
+      Transponer es una operación útil si intenta reorganizar listas para obtener un diseño más manejable. Seleccione esta celda y pulse Editar/Reorganización de cuadrícula/Transponer varias veces. Asegúrese de que se muestre verticalmente y, además, pulse Editar/Reorganización de cuadrícula/Ordenar después de seleccionar la primera o la segunda columna.
+        One
+        Two
+        Three
+        Four
+        Five
+        1
+        2
+        3
+        4
+        5
+      Eche un vistazo a las numerosas opciones de importación y exportación, o imprima en papel o PDF.
+      La operación "Ajustar en elemento principal" (F9) es una excelente manera de crear una nueva jerarquía. Al seleccionar cualquier celda, esta operación las convertirá en una nueva cuadrícula y en un elemento principal que ocupará el lugar de donde provienen. Por ejemplo, seleccione C y D a continuación, presione F9 y escriba algo:
+        A
+        B
+        C
+        D
+      Los filtros son una función útil cuando tus hojas de árbol crecen mucho. Permiten filtrar temporalmente un subconjunto de la hoja para centrarse en las celdas que buscas. Esto funciona forzando que las celdas filtradas se muestren como texto de 1 píxel y en gris claro. Prueba las opciones de filtrado en el menú Ver:
+        Intenta introducir "treesheets" como consulta de búsqueda ahora mismo. Algunas celdas se verán en rojo. Ahora, configura el filtro de búsqueda (Ver -> Filtro -> Mostrar solo celdas en la búsqueda actual). Toda la hoja debería reducirse considerablemente, lo que facilita ver lo que buscas. Hazlo en la vista superior de esta hoja. Intenta acercar y alejar con el filtro activado. Edita la consulta de búsqueda; la vista del filtro cambiará a medida que escribes.
+        Pruebe también el "último 10% de ediciones" en esta hoja. Asegúrese de desactivar primero la consulta de búsqueda. Tenga en cuenta que si tiene documentos de versiones anteriores de treesheets, es posible que esta función no muestre las ediciones esperadas, ya que esas versiones aún no registraban la última fecha de edición de cada celda.
+      Si está usando una computadora antigua o trabaja con hojas muy grandes, pruebe la opción "renderizado de línea rápido" para obtener una hoja menos bonita pero que se desplaza más rápido.
+      TreeSheets es ideal para presentaciones. A diferencia de herramientas tradicionales como PowerPoint, que dificultan transmitir una estructura a la audiencia, puedes organizar una hoja de árbol como si toda tu presentación fuera una sola diapositiva y tener subdiapositivas minimizadas que puedes ampliar. Para facilitar su uso como herramienta de presentación, TreeSheets ofrece dos opciones de visualización: Vista de pantalla completa (F11) para reducir la saturación visual y Vista a escala (F12), que intenta ampliar la vista actual al máximo.
+        Tenga en cuenta que tanto esta función como la impresión utilizan un método de escalado que no siempre conserva la fidelidad de renderizado. Esto se solucionará en una versión futura.
+      TreeSheets tiene un lenguaje de programación integrado para crear complementos
+        Estos scripts se colocan en la carpeta "scripts/" y se agregan automáticamente al menú "Scripts" al inicio de TreeSheets, desde donde se pueden iniciar.
+        ¡Los scripts pueden leer y modificar todo el TreeSheet actual!
+        Los scripts están escritos en el lenguaje de programación The Lobster
+          Lea más sobre el lenguajer:
+          http://strlen.com/lobster/
+        Las funciones que puedes usar en tu script están enumeradas en docs/script_reference.html
+          The functions you can use in your script are listed in docs/script_reference.html
+        ¡Lea los scripts existentes para tener una idea de lo que pueden hacer!
+      TreeSheets también contiene un novedoso lenguaje de programación similar a una hoja de cálculo que aún no es completamente funcional.
+        Funciona colocando las operaciones directamente dentro de las cuadrículas, mezcladas con datos.
+        9
+        El programa se crea asignando un significado especial a ciertas celdas. Por defecto, todas las celdas son blancas (datos). Desde el menú Programa/Marcar como, se pueden convertir en operaciones (rosa) o celdas de vista (verde claro). Una celda de vista simplemente muestra el valor actual de cualquier operación anterior. En la cuadrícula a continuación, marque el signo + como una operación y la última celda vacía como vista horizontal mediante el menú del programa y luego pulse Ejecutar.
+          1
+          +
+          2
+          
+        
+          35
+          56
+          81
+        No se recomienda usar el lenguaje en esta etapa a menos que seas muy aventurero, ya que solo se implementan pocas operaciones y muchas combinaciones de operandos no son compatibles. Funciona más o menos así:
+          +
+          -
+          *
+          /
+          <
+          >
+          <=
+          >=
+          ==
+          !=
+          =
+          <>
+          inc
+          dec
+          neg
+          sum
+          transpose
+          if
+        Para obtener más detalles sobre las operaciones, consulte Ayuda > Referencia de operación de carga (CTRL+ALT+F1).
+        Eche un vistazo al ejemplo sales.cts para ver lo que puede hacer.
+      Las fórmulas calculan resultados como en una hoja de cálculo y se actualizan solas cada vez que cambia algo. Escriba en una celda un texto que empiece por =, como =SUM(Costos), y en cuanto salga de la celda, esta mostrará el resultado. La barra de fórmulas ("Formula" en la barra de herramientas) muestra la fórmula de la celda seleccionada, y también puede editarla allí (ENTER la aplica).
+        Un nombre entre paréntesis se refiere a la cuadrícula de la celda con exactamente ese texto, primero la más cercana. Abajo, la cuadrícula de la izquierda se llama Costos. Cambie sus números y observe los resultados a la derecha:
+          Costos
+            120
+            80
+            40
+          
+            Total
+            240
+            Lo más caro
+            120
+            Promedio
+            80
+            Resto de un presupuesto de 500
+            260
+        Pulse F2 sobre un resultado para ver y cambiar su fórmula directamente en la celda. Si escribe encima de un resultado, la celda vuelve a ser texto normal.
+        Puede usar SUM, MIN, MAX, AVG, MEDIAN y COUNT, junto con números, + - * / y paréntesis, por ejemplo =(SUM(Ingresos) - SUM(Costos)) / 12. Solo cuentan los números que están directamente en la cuadrícula nombrada, y los resultados de otras fórmulas también cuentan como números. Con TREE delante, por ejemplo =TREESUM(Costos), también cuentan los números de todas sus subcuadrículas, pero no las fórmulas que hay en ellas. Un nombre solo representa el único número de su cuadrícula, por ejemplo =Precio * Cantidad.
+        SUBSET usa solo una parte de una cuadrícula: SUBSET(nombre, columnas, filas), con columnas y filas contadas desde 0 arriba a la izquierda. Cada una es un número como 1, un rango como 0-1, un rango abierto por un lado como 1- (hasta el final) o -1 (desde el principio), o - para todas. Abajo, la cuadrícula de la izquierda se llama Ventas, con una columna por tienda y una fila por mes:
+          Ventas
+            30
+            50
+            20
+            60
+            40
+            10
+          
+            Mejor mes de la primera tienda
+            40
+            Ambas tiendas en los dos primeros meses
+            160
+            Segunda tienda desde el segundo mes
+            70
+        Con TREE delante, también cuentan los números de las subcuadrículas de las celdas elegidas, todos, sean cuales sean sus columnas y filas. Abajo, cada tienda de la cuadrícula Pedidos tiene sus pedidos en una subcuadrícula:
+          Pedidos
+            Primera tienda
+              12
+              45
+              30
+            Segunda tienda
+              25
+              60
+              8
+          
+            Mayor pedido de la segunda tienda
+            60
+        TREESUBSET(nombre, columnas, filas, niveles) vuelve a elegir las mismas columnas y filas en las subcuadrículas de las celdas elegidas, y así sucesivamente, pero solo cuenta los niveles del rango, siendo 0 la cuadrícula nombrada. Así se distinguen los totales de sus detalles. Abajo, cada fase de Plan tiene sus horas en la columna 1, que contiene sus tareas con sus horas en las mismas columnas:
+          Plan
+            Diseño
+            10
+              Bocetos
+              4
+              Revisión
+              6
+            Construcción
+            25
+              Estructura
+              12
+              Cableado
+              8
+              Pruebas
+              5
+          
+            Horas de todas las fases
+            35
+            Tarea más larga
+            12
+            Número de tareas
+            5
+        En lugar de un nombre, SUBSET y TREESUBSET también aceptan otro SUBSET o TREESUBSET, y entonces usan las subcuadrículas de las celdas que este elige. Así cada nivel puede tener sus propias columnas y filas. Abajo, SUBSET(Plan, 1, 1) elige las horas de Construcción, y las fórmulas solo miran sus tareas:
+          Tarea más larga de Construcción
+          12
+          Horas de Construcción tras Estructura
+          13
+          Horas de Pruebas
+          5
+        Solo, SUBSET representa el único número que contiene, por ejemplo =SUBSET(Ventas, 1, 2) * 2. Los nombres también pueden escribirse entre comillas, lo que necesitan cuando contienen una coma o un paréntesis, por ejemplo =SUM("Costos, 2025") o =MAX(SUBSET("Ventas (EUR)", 0, -)).
+        Las fórmulas también pueden usar las variables del lenguaje de programación de arriba. Un nombre que no tiene ninguna cuadrícula representa la variable con ese nombre, con lo que el programa le asignó la última vez que se ejecutó, y una variable que contiene una cuadrícula cuenta como una cuadrícula, por ejemplo =SUM(Puntos). Hasta que ejecute el programa con Program > Run, una fórmula así muestra #N/A. Abajo, el programa de la izquierda calcula 1 + 2 * 3 y asigna el resultado a la variable Respuesta (marcada con Program > Mark as > Variable Assign). Ejecútelo y observe el resultado a la derecha:
+          9
+          
+            El doble de la respuesta
+            #N/A
+        Si algo está mal, la celda muestra un error: #NAME? para un nombre o una función desconocidos, #DIV/0! para una división entre cero, #CYCLE! para fórmulas que dependen unas de otras, #VALUE! para un nombre o un SUBSET solo que no contiene exactamente un número, #N/A para una variable antes de ejecutar el programa y #ERROR! para una fórmula que no se puede leer.
+      Las plantillas sirven para empezar documentos nuevos a partir de uno que ya preparó, como un plan semanal o el esquema de un proyecto. Están en File > New from Template:
+        Add Current Document as Template añade el archivo del documento actual a ese menú (guárdelo primero), y Add Files as Templates... añade otros archivos de TreeSheets.
+        Al hacer clic en una plantilla se crea un documento nuevo sin nombre con una copia de su contenido. El archivo de la plantilla no cambia, porque al guardar se pide un nombre de archivo nuevo.
+        Open File as Template... hace lo mismo con cualquier archivo de TreeSheets sin añadirlo al menú, y Remove Template... quita una plantilla del menú (el archivo sigue donde está).
+      Si trabaja con archivos de TreeSheets en varias computadoras, almacénelos en una carpeta compartida (como DropBox) y active Opciones -> Recargar documentos automáticamente
+        De esta manera, siempre estarás actualizado en todas tus máquinas cuando guardes el documento.
+      Ejecución de TreeSheets desde la línea de comandos
+        Puede ejecutar TreeSheets desde la línea de comandos
+        como argumentos, puede especificar un solo archivo para cargar 
+           Si TreeSheets ya se está ejecutando en el sistema, esto hará que pase el archivo a la instancia existente, luego saldrá
+        también puede ejecutarlo con -p como argumento
+          Esto inicia TreeSheets en modo "portátil", donde (en Windows) escribe las configuraciones en un archivo .ini en el directorio actual en lugar de en el registro. 
+        Tenga en cuenta que para ejecutarse correctamente desde la línea de comandos, al menos en Windows, TreeSheets.exe debe iniciarse con una ruta completa, de lo contrario no podrá encontrar sus íconos, etc. en relación con la ruta ejecutable.

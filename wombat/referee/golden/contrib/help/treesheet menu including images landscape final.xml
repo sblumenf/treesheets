@@ -1,0 +1,1246 @@
+  <grid>
+  <row>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  </row>
+  <row>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  <cell relsize="-1">
+  </cell>
+  </row>
+  <row>
+  <cell>
+    <grid>
+    <row>
+    <cell>Treesheets menu reference 
+    </cell>
+    <cell>http://www.strlen.com/treesheets
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    </row>
+    <row>
+    <cell>MENU
+      <grid>
+      <row>
+      <cell>[F]ile [Alt+F]
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">N]ew
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">CTRL+n
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[O]pen...
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">CTRL+o
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[C]lose
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">CTRL+w
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[R]ecent files
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[S]ave
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">CTRL+s
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">Save [A]s...
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">Page Setup...
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">Set Print Scale...
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">Print preview...
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[P]rint...
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">CTRL+p
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">Export [v]iew as
+          <grid>
+          <row>
+          <cell relsize="-1">[X]ML...
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">[H]TML (Tables+Styling)...
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">HTML ([O]utline)...
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">Indented [t]ext... 
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">[C]omma delimited text (CSV)...   
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">[I]mage...
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+          <grid>
+          <row>
+          <cell relsize="-1">
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">can be imported, no images
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">nested tables no images
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">msword outline
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">mindmanagers
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">spreadsheets, db
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">png image
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">Import file from
+          <grid>
+          <row>
+          <cell relsize="-1">XML...
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">XML (attributes too, for OPML etc)...
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">Indented text...
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">Comma delimited text (CSV)...
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">Semi-Colon delimited text (CSV)...
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">Tab delimited text...
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[E]xit
+        </cell>
+        <cell colorbg="0xC0FFC0" relsize="-1">CTRL+q
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell>[E]dit
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">Cu[t]
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+x
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[C]opy
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+c
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Copy As Continuous Text
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[P]aste
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+v
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Paste Style Only
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+SHIFT+v
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Undo
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+Z
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Redo
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+Y
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Delete After DEL
+        </cell>
+        <cell colorbg="0xC0FFC0">DEL
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Delete Before BACK
+        </cell>
+        <cell colorbg="0xC0FFC0">BACK
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[I]nsert New Grid
+        </cell>
+        <cell colorbg="0xC0FFC0">INS
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[W]rap in new parent
+        </cell>
+        <cell colorbg="0xC0FFC0">F9
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Toggle Fold
+        </cell>
+        <cell colorbg="0xC0FFC0">F10
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">[S]election...
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">[G]rid Reorganization...
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">[L]ayout  Render Style...
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">[I]mages...
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">[B]rowsing...
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">Text [E]diting...
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">Text Sizing...
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">Text Style...
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">Set Grid Border Width...
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFFF">Tag...
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell colorbg="0xC0FFFF">
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFFF">[S]election...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">Move to next cell               TAB
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Move to previous cell         SHIFT+TAB
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Select [a]ll in current grid  CTRL+a
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Move Selection Left          LEFT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Move Selection Right        RIGHT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Move Selection Up            UP
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Move Selection Down       DOWN
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Move Cells Left                CTRL+LEFT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Move Cells Right             CTRL+RIGHT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Move Cells Up                 CTRL+UP
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Move Cells Down            CTRL+DOWN
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection Left      SHIFT+LEFT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection Right    SHIFT+RIGHT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection Up        SHIFT+UP
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection Down    SHIFT+DOWN
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection Full Columns
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection Full Rows
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Select [P]arent                  ESC
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Select First [C]hild            SHIFT+ENTER
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Go To [Matching Cell        F6
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">[G]rid Reorganization...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">[t]ranspose /rotate SHIFT+CTRL+t
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">sort [A]scending (1xn or nx1)
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">sort [D]escending (1xn or nx1)
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Hierarchy Swap       F8 (with parents)
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[H]ierarchify (nxn to 1xn)
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[F]latten (1xn or nx1 to nxn)
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">[L]ayout render Style...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">Vertical Layout with Grid Style Rendering
+        </cell>
+        <cell colorbg="0xC0FFC0">AlT+1
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Vertical Layout with Bubble Style Rendering
+        </cell>
+        <cell colorbg="0xC0FFC0">AlT+2
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Vertical Layout with Line Style Rendering
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+3
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Horizontal Layout with Grid Style Rendering
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+4
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Horizontal Layout with Bubble Style Rendering
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+5
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Horizontal Layout with Line Style Rendering
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+6
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Grid Style Rendering
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+7
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Bubble Style Rendering
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+8
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Line Style Rendering
+        </cell>
+        <cell colorbg="0xC0FFC0">ALT+9
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Toggle Vertical Layout
+        </cell>
+        <cell colorbg="0xC0FFC0">F7
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">[I]mages...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">[A]dd Image
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[S]cale Image
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[R]emove Image(s) from cell
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">[B]rowsing...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">open file with default asociated program F4
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">open link in browser                              F5
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    <cell colorbg="0xC0FFFF">
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell>
+    <grid>
+    <row>
+    <cell>
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFFF">
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">Text [E]diting...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">Cursor Left      LEFT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Cursor Right    RIGHT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Word Left         CTRL+LEFT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Word Right      CTRL+RIGHT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection Left               SHIFT+LEFT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection Right            SHIFT+RIGHT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection Word Left     SHIFT+CTRL+LEFT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection Word Right   SHIFT+CTRL+RIGHT
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection to Start        SHIFT+HOME
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Extend Selection to End         SHIFT+END
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Start of line of text    HOME
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">End of line of text      END
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Start of text               CTRL+HOME
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">End of text                CTRL+END
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Enter/exit text edit mode    ENTER
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Enter/exit text edit mode    F2
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Cancel text edits                 ESC
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">Text Sizing...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">[I]ncrease text size (SHIFT+mousewheel)    SHIFT+PGUP
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[D]ecrease text size (SHIFT+mousewheel)    SHIFT+PGDN
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[R]eset text sizes                                          SHIFT+CTRL+s
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[S]hrink text of all sub-grids                       SHIFT+CTRL+m
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Increase column width (ALT+mousewheel)    ALT+PGUP
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Decrease column width (ALT+mousewheel)   ALT+PGDN
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Increase column width (no sub grids)          CTRL+ALT+PGUP
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Decrease column width (no sub grids)        CTRL+ALT+PGDN
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Reset column widths                                   SHIFT+CTRL+w
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">Text Style...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">Toggle cell [B]OLD
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+b
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Toggle cell [I]TALIC
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+i
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Toggle cell [t]ypewriter
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Toggle cell [u]nderlined
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+u
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Toggle cell [s]trikethrough
+        </cell>
+        <cell colorbg="0xC0FFC0">CTRL+t
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">---
+        </cell>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">[R]eset text styles
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+CTRL+r
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Reset [c]olors    
+        </cell>
+        <cell colorbg="0xC0FFC0">SHIFT+CTRL+c
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">Set Grid Border Width...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">1,2,3,4,5
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFFF">Tag...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[A]dd Cell Text as Tag
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[R]emove Cell Text from Tags
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[S]et celltext to tag (Hold CTRL while pressing right mouse button (RMB) to quickly set a tag for the current cell using a popup menu)
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell>[H]elp
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">[A]bout...
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Load interactive [t]utorial...    F1
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">View tutorial [w]eb page...
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell>
+    <grid>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell>[V]iew
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFC0">Scroll Up (mousewheel)    PGUP
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Scroll Up (mousewheel)    ALT+UP
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Scroll Down (mousewheel)    PGDN
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Scroll Down (mousewheel)    ALT+DOWN
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Scroll Left    ALT+LEFT
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Scroll Right    ALT+RIGHT
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Zoom [I]n (CTRL+mousewheel)    CTRL+PGUP
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Zoom [O]ut (CTRL+mousewheel)    CTRL+PGDN
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Switch to [n]ext file/tab    CTRL+TAB
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Switch to [p]revious file/tab    SHIFT+CTRL+TAB
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Toggle [F]ullscreen View
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Toggle [S]caled Presentation View 
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Scroll Sheet...
+      </cell>
+      </row>
+      <row>
+      <cell>Filter...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">Turn filter [off]
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Show only cells in current search
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Show 5% of last edits
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Show 10% of last edits
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Show 20% of last edits
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Show 50% of last edits
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Show 1% more than the last filter
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0">Show 1% less than the last filter
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>[S]earch
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFC0">[S]earch
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+f
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">[G]o To Next Search Result
+      </cell>
+      <cell colorbg="0xC0FFC0">F3
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">[R]eplace in Current Selection
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+h
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">[R]eplace in Current Selection [J]ump Next
+      </cell>
+      <cell colorbg="0xC0FFC0">CTRL+j
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Replace All
+      </cell>
+      <cell>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>[O]ptions
+      <grid>
+      <row>
+      <cell colorbg="0xC0FFC0">Pick Default Font...
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Pick Custom [C]olor...
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">[S]et Custom Color From Cell BG
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Pick Document Background...
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">---
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Show Statusbar
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Show Toolbar
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">File Tabs on the bottom   
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Minimize to tray                
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Minimize on close 
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Single click maximize from tray 
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">---
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Swap mousewheel scrolling and zooming
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Navigate in between cells with cursor keys
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">---
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Create .bak files
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Autosave to .tmp
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">---
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Render document centered
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">Faster line rendering 
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">black and white toolbar icons
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0FFC0">[R]oundness of grid borders...
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0">0,1,2,3,4,5,6
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell relsize="-1">
+    <grid>
+    <row>
+    <cell relsize="-1">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">[P]rogram
+      <grid>
+      <row>
+      <cell relsize="-1">[R]un
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-1">[M]ark as
+        <grid>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[D]ata
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[O]peration
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">Variable [A]ssign
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">Variable [R]ead
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[H]orizontal View
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xC0FFC0" relsize="-1">[V]ertical View
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-1">[C]lear Views
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

@@ -1,0 +1,3 @@
+# Reset text styles: no style bits, no styled or coloured ranges, automatic alignments.
+select /1,1 1 1 1 8
+action reset-style

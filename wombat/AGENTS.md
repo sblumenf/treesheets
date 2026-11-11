@@ -1,0 +1,101 @@
+# AGENTS.md (Wombat)
+
+Rules for anyone, person or AI, changing code under `wombat/`. The parent `../AGENTS.md` covers the
+TreeSheets C++ code; its style rules (unity build, wx naming, clang-format) do **not** apply here.
+
+Read `docs/PLAN.md` and `docs/DECISIONS.md` before changing anything. They are the project's
+memory: sessions do not remember each other, so anything agreed must be written there.
+
+## Layout
+
+| Path | Contents |
+| ---- | -------- |
+| `docs/PLAN.md` | The milestones, their status, scope and the future list |
+| `docs/POC_SUMMARY.md` | What the proof of concept achieved, how it was checked, known limits, and what comes next |
+| `docs/DECISIONS.md` | Design decisions and deliberate departures from TreeSheets |
+| `docs/FILE_FORMAT.md` | Specification of the `.wombat` format, the image folder and the view-state file |
+| `docs/milestones/` | One summary per finished milestone |
+| `docs/UI_SPEC.md` | Specification of the Flutter interface |
+| `docs/NEXT_BRIDGE.md` | The next piece of work: a minimal bridge between Flutter and the core |
+| `docs/research/` | Background research behind the interface; not instructions |
+| `crates/wombat-core` | The core library: document model (`model.rs`), commands, undo and redo (`edit/`: `mod.rs` the editor and the list of commands, `command.rs` what each does, `restructure.rs` the same for sort, transpose, hierarchify, flatten, hierarchy swap, wrap and the like, `step.rs` the reversible steps, `size.rs` the running bound on the size of the saved file and the memory of the history, `program.rs` where editing meets calculating: the `Run` and `EnterText` commands), formulas and the program of a document (`eval/`: `num.rs` numbers and characters, `formula.rs` one formula, `calc.rs` the results kept up to date, `run.rs` Program > Run), text rules (`text.rs`), the construction layer for building documents (`construct.rs`), file format (`format.rs`), view state (`view.rs`), files and workspaces (`storage.rs`, `workspace.rs`), links and backlinks (`links/`: the link index, resolution, copying and moving between documents; `edit/paste.rs` the commands for that), indexes over a workspace (`summary.rs` what an index keeps per document, `scan.rs` reading a folder with a cache on disk), import and export (`convert/`: `delimited.rs` writing and reading CSV and TSV, finding the delimiter of a file, and the guard against formula injection, `export.rs` one grid, flattened, indented text, `lookup.rs` one table per grid with ID columns to join them, `names.rs` file names from cell text, `import.rs` reading files into a table of texts; `edit/import.rs` the command that puts one into a cell; `export_files.rs` writing an export to a file or folder, part of the file layer) |
+| `crates/wombat-cts` | Read-only importer of TreeSheets `.cts` files (all format versions up to 31), a testing tool; `tests/referee.rs` compares it with `referee/golden/`, `tests/quirks/` holds hand-built files with their own golden data |
+| `crates/wombat-search` | The search service: folding of text for comparison (`fold.rs`), queries and their text syntax (`query.rs`), what is indexed per document and how it follows edits (`index.rs`), searching and ranking (`engine.rs`), the slow reference scanner that the tests compare with (`naive.rs`), find and replace (`replace.rs`), the index of a workspace folder (`workspace.rs`, the only file access, through `wombat_core::scan`); `tests/support/` has the query generator and the made-up workspace of the size tests |
+| `crates/wombat-cli` | The `wombat` command-line tool, a thin layer over the core; `edit.rs` reads the editing commands of `wombat edit`; `tests/ops.rs` compares commands with `referee/ops/` |
+| `referee/` | Scripts that drive the real TreeSheets app, and the reference ("golden") data it produced |
+| `referee/ops/` | Operation cases: one edit done by the real app (`cases/*.lobster`) and as Wombat commands (`cases/*.edit`) on `fixture.cts`, the app's result (`golden/`), and `make_ops` to regenerate |
+| `referee/ops/ui/` | The same for menu actions that no script function reaches: `cases/*.ui` says which keys were pressed in the real app (`referee/ui.py`, `make_ui_ops`), on its own `fixture.cts`; also text typed into cells and Program > Run (`type`, `retype`, `action run`) |
+| `referee/formulas/` | What the real TreeSheets calculates: documents with formulas, programs and series of edits (`cases.py`, by hand and random), the app's answers (`golden/*.jsonl`), `make_formulas` to regenerate; `crates/wombat-core/tests/formulas_referee.rs` compares; `golden/review.jsonl` holds the cases added after review, so that the older files stay as they are |
+| `referee/exports/` | What the real TreeSheets exports and imports: ten cases as CSV, TSV and indented text, the CSV of every example, and 25 files with the documents the app made of them; `make_exports` to regenerate (it answers the app's file dialogs by key presses), `README.md` there; `check_lookup_libreoffice` opens a lookup export in a real LibreOffice and enters the README's formulas (optional, by hand); `crates/wombat-cts/tests/export.rs` and `crates/wombat-core/tests/import_referee.rs` compare |
+
+New crates (for example the `.cts` importer or the search service) go under `crates/` and are
+listed here when added.
+
+## Checks that must pass before every commit
+
+Run from `wombat/`:
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+CI (`.github/workflows/wombat.yml`) runs the same three on every push that touches `wombat/`, and
+checks that the core and the search service build for the web, Android and iOS. The Rust version
+is pinned in `rust-toolchain.toml` so that CI and every machine use the same compiler and lints.
+
+## Engineering rules
+
+- **The core has no interface code and no global state.** No printing, no reading the clock or
+  random numbers except through values passed in, no file access outside the storage module.
+- **Documents change only through commands** addressed by cell ID. Every command is reversible and
+  returns what it changed (decisions A9, A10, A34, A35). Do not add a second way in. Building a
+  document that nobody edits yet (reader, importer, tests) uses `construct::Construct` (A31).
+- **No panics on bad input.** Library code does not use `unwrap`, `expect`, `panic!`, unchecked
+  indexing or unchecked arithmetic on anything that came from a file or a caller. Return errors.
+  `unsafe` is forbidden (`#![forbid(unsafe_code)]`).
+- **Bound everything read from a file:** lengths, counts, nesting depth, decompressed size.
+- **Deterministic output.** Saving, exporting and iteration order never depend on hash-map order,
+  the clock or the machine.
+- **Dependencies are a cost.** Add one only when it clearly earns its place, prefer widely used
+  crates, and check that it compiles for phones and desktops (iOS, Android, macOS, Windows, Linux).
+- **Keep it small.** No speculative features, options or abstractions. Three layers is enough.
+- **Public items have a doc comment** that says what they do. Comments explain why, not what.
+
+## Testing rules
+
+- **Every behaviour has a test**, written with the code and not afterwards.
+- **Use rules as well as examples** (property tests with `proptest`): for example "any sequence of
+  commands followed by undoing them all gives back the original document", "save then load gives
+  an equal document", "loading arbitrary bytes never panics".
+- **Use the referee where TreeSheets defines the behaviour.** Compare against the files in
+  `referee/golden/`, which the real TreeSheets produced. Tests must not need the real app at test
+  time; only regenerating the golden files does.
+- **Never weaken, skip or delete a failing test to get a pass.** Fix the code, or if the test is
+  wrong, say why in the commit message.
+- **A bug fix starts with a test that fails** because of the bug.
+
+## TreeSheets as the reference
+
+- Where behaviour is not specified in `docs/`, do what TreeSheets does. Read `../src/` to find
+  out, and treat it as a description of behaviour to redesign, not as code to translate line by
+  line. Its structure (model, drawing and input in the same types) is what Wombat exists to avoid.
+- A deliberate difference from TreeSheets is added to section B of `docs/DECISIONS.md` in the same
+  commit.
+
+## Finishing a milestone
+
+1. All checks pass.
+2. The command-line tool does what the plan's "what you can try" column says.
+3. `docs/milestones/M<n>.md` says, in plain English: what was built, how to try it, what was left
+   out, what went wrong, and what the next milestone should know.
+4. The status in `docs/PLAN.md` is updated.
+
+Report results as they are. If something does not work or was skipped, say so in the summary.
+
+## Git
+
+- Commit messages: imperative, sentence-case subject starting with "Wombat:", with a body that
+  explains why.
+- Do not commit `target/` or scratch files.

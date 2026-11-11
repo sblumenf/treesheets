@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Runs a Lobster script against a .cts file in a fresh, headless TreeSheets.
+
+Usage: run_script [--json] [--dump KIND] FILE.cts SCRIPT.lobster
+
+Prints what the script passed to ts.agent_result(). The file is opened as a private copy, so
+the original never changes, whatever the script does. With --dump, the document as it is after
+the script is printed instead, in a golden kind (xml, txt or json, see README.md). Exit code 1
+and the error on stderr if the script fails to compile or run.
+"""
+import argparse
+import json
+import os
+import sys
+
+sys.dont_write_bytecode = True
+import referee  # noqa: E402
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--json", action="store_true",
+                    help='print the raw reply: {"ok": ..., "error": ..., "result": ...}')
+    ap.add_argument("--dump", choices=["xml", "txt", "json"],
+                    help="print the document after the script instead of the script's result")
+    ap.add_argument("--timeout", type=float, default=300, help="seconds for the script")
+    ap.add_argument("cts")
+    ap.add_argument("script")
+    args = ap.parse_args()
+    for path in (args.cts, args.script):
+        if not os.path.isfile(path):
+            raise referee.RefereeError(f"no such file: {path}")
+
+    with referee.xvfb() as display, referee.Instance(display, args.cts) as ts:
+        resp = ts.eval_raw(file=args.script, timeout=args.timeout)
+        dump = None
+        if resp.get("ok") and args.dump == "json":
+            # The script may have edited any cell, so the edit times are those of this run.
+            dump = referee.format_document(
+                referee.parse_dump(ts.eval(file=referee.DUMP_SCRIPT))[0])
+        elif resp.get("ok") and args.dump:
+            dump = ts.subtree_text(2 if args.dump == "xml" else 0)
+    if args.json:
+        if dump is not None:
+            resp["dump"] = dump
+        print(json.dumps({k: v for k, v in resp.items() if k != "id"}, ensure_ascii=False))
+    elif resp.get("ok"):
+        sys.stdout.write(resp.get("result", "") if dump is None else dump)
+        if dump is None and not resp.get("result", "").endswith("\n"):
+            sys.stdout.write("\n")
+    else:
+        print("error: " + resp.get("error", "unknown error"), file=sys.stderr)
+    return 0 if resp.get("ok") else 1
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except referee.RefereeError as e:
+        sys.exit(f"error: {e}")

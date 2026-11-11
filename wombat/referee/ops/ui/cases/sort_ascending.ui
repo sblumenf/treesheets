@@ -1,0 +1,3 @@
+# Sort all rows by the first column.
+select /1,1 1 1 1 8
+action sort

@@ -1,0 +1,292 @@
+  <grid>
+  <row>
+  <cell colorbg="0xCDDCE2" stylebits="1" relsize="3">Personel File
+    <grid bordercolor="0x808080" outerspacing="5">
+    <row>
+    <cell relsize="3">
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell stylebits="1">First
+    </cell>
+    <cell>Fred
+    </cell>
+    <cell>Harry
+    </cell>
+    <cell>Nico
+    </cell>
+    <cell>Bert
+    </cell>
+    <cell>Cindy
+    </cell>
+    <cell>Alfred
+    </cell>
+    <cell>Chuck
+    </cell>
+    <cell>Robert
+    </cell>
+    <cell>Dwight
+    </cell>
+    <cell>Lucy
+    </cell>
+    <cell>Peter
+    </cell>
+    </row>
+    <row>
+    <cell stylebits="1">Last
+    </cell>
+    <cell>Smith
+    </cell>
+    <cell>Johnson
+    </cell>
+    <cell>Williams
+    </cell>
+    <cell>Jones
+    </cell>
+    <cell>Brown
+    </cell>
+    <cell>Davis
+    </cell>
+    <cell>Miller
+    </cell>
+    <cell>Wilson
+    </cell>
+    <cell>Moore
+    </cell>
+    <cell>Taylor
+    </cell>
+    <cell>Anderson
+    </cell>
+    </row>
+    <row>
+    <cell stylebits="1">Position
+    </cell>
+    <cell colorfg="0x0000FF">CEO
+    </cell>
+    <cell colorfg="0x0000FF">CFO
+    </cell>
+    <cell colorfg="0x0000FF">CTO
+    </cell>
+    <cell colorfg="0x0000FF">COO
+    </cell>
+    <cell colorfg="0x0000FF">CIO
+    </cell>
+    <cell colorfg="0x0000FF">Sales
+    </cell>
+    <cell colorfg="0x0000FF">Sales
+    </cell>
+    <cell colorfg="0x0000FF">PR
+    </cell>
+    <cell colorfg="0x0000FF">Marketing
+    </cell>
+    <cell colorfg="0x0000FF">Marketing
+    </cell>
+    <cell colorfg="0x0000FF">Accounting
+    </cell>
+    </row>
+    <row>
+    <cell stylebits="1">Salary
+    </cell>
+    <cell>540k
+    </cell>
+    <cell>too much?
+    </cell>
+    <cell>90k
+    </cell>
+    <cell>230k
+    </cell>
+    <cell>180k
+    </cell>
+    <cell>210k
+    </cell>
+    <cell>190k
+    </cell>
+    <cell>60k
+    </cell>
+    <cell>120k
+    </cell>
+    <cell>110k
+    </cell>
+    <cell>160k
+    </cell>
+    </row>
+    <row>
+    <cell stylebits="1">Status
+    </cell>
+    <cell>
+    </cell>
+    <cell relsize="3">
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    <cell relsize="3">
+    </cell>
+    <cell>
+    </cell>
+    <cell>
+    </cell>
+    <cell relsize="3">
+    </cell>
+    <cell>
+    </cell>
+    <cell relsize="3">
+    </cell>
+    <cell>
+    </cell>
+    </row>
+    <row>
+    <cell stylebits="1">Qualifications
+    </cell>
+    <cell stylebits="2">?
+    </cell>
+    <cell stylebits="2">His dad is our biggest client
+    </cell>
+    <cell stylebits="2">Stanford
+    </cell>
+    <cell stylebits="2">Harry says he's good
+    </cell>
+    <cell stylebits="2">Lost her file
+    </cell>
+    <cell stylebits="2">Nice smile
+    </cell>
+    <cell stylebits="2">Used to be a top car salesman
+    </cell>
+    <cell stylebits="2">Can't fire the guy for.. personal reasons
+    </cell>
+    <cell stylebits="2">Knows Photoshop
+    </cell>
+    <cell stylebits="2">Harry wanted to hire her
+    </cell>
+    <cell stylebits="2">Always makes the books match... pay him more?
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1" relsize="-1">Notes
+    <grid>
+    <row>
+    <cell relsize="-2">Hire this guy?
+      <grid>
+      <row>
+      <cell>
+      </cell>
+      <cell>Resume
+        <grid>
+        <row>
+        <cell relsize="-4">Site Manager October 2004 - Present
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Treatment (group and individual). Special Female - COPSD
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">CCP- Star Council on Drug Abuse - Mineral Wells - Texas.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Training Specialist November 2002- October 2004
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Instruct new employee orientation and refresher classes. Define training curriculum. Course preparation and presentations.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">MHMRTC - Fort Worth- Texas- USA
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">CEO. (Phoenix Project) 1990 - 2000.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Casa de Saude Santana (Psychiatric Hospital) Sao Paulo- SP Brazil.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Teacher / Coordinator. 1992 - 2000.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Preparation course to help Health and Educational professionals deal with drug addiction.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Paulista Medical Association. Sao Paulo, Brazil.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Consultant Physician. (Private Practice) 1982 - 2000.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Teacher. 1998 - 2000.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Post Doctoral course. (Traffic Medicine)
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Legal and Forensic Medicine Department- University of San Paulo.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-2">Should we hire more programmers?
+      <grid>
+      <row>
+      <cell relsize="-2">Nah, Nico handles it fine
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-2">Don't want our clients thinking we're wasteful
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-2">Contact outsourcing firm, see if they can do a delicate job on Robert
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-2">Maybe add the coffee lady?
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

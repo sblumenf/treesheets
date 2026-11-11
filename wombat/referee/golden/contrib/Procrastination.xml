@@ -1,0 +1,274 @@
+  <grid>
+  <row>
+  <cell>Procrastination Flowchart (from projectsidewalk.com/images/flowchart2.jpg)
+    <grid>
+    <row>
+    <cell stylebits="1">Is there work to do?
+      <grid>
+      <row>
+      <cell>Have you started?
+        <grid>
+        <row>
+        <cell>Are you lying?
+          <grid>
+          <row>
+          <cell>Is there a deadline?
+            <grid>
+            <row>
+            <cell>Within Six Hours?
+              <grid>
+              <row>
+              <cell>Any major implications for not doing it now?
+                <grid>
+                <row>
+                <cell>For you?
+                  <grid>
+                  <row>
+                  <cell>Is the deadline within an hour?
+                    <grid>
+                    <row>
+                    <cell>Do you &quot;really&quot; need to do it?
+                      <grid>
+                      <row>
+                      <cell>Any way to get out of it?
+                        <grid>
+                        <row>
+                        <cell>Is morally objectionable?
+                          <grid>
+                          <row>
+                          <cell>Can you justify it anyway?
+                            <grid>
+                            <row>
+                            <cell>Does the justification make sense?
+                              <grid>
+                              <row>
+                              <cell stylebits="2">Are you hungry?
+                              </cell>
+                              </row>
+                              </grid>
+                            </cell>
+                            </row>
+                            </grid>
+                          </cell>
+                          </row>
+                          </grid>
+                        </cell>
+                        </row>
+                        </grid>
+                      </cell>
+                      </row>
+                      </grid>
+                    </cell>
+                    </row>
+                    <row>
+                    <cell>Meh, do it
+                    </cell>
+                    </row>
+                    </grid>
+                  </cell>
+                  </row>
+                  </grid>
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell stylebits="1">Are you hungry?
+      <grid>
+      <row>
+      <cell>Find food
+        <grid>
+        <row>
+        <cell>Do you have to Cook?
+          <grid>
+          <row>
+          <cell>Do you have Money?
+            <grid>
+            <row>
+            <cell>Go out to eat
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell>Eat Food
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>INTERNET!
+      <grid>
+      <row>
+      <cell>Randomly Browse
+        <grid>
+        <row>
+        <cell>web
+          <grid>
+          <row>
+          <cell>Digg/Reddit/Other
+            <grid>
+            <row>
+            <cell>Read all the Comments
+            </cell>
+            </row>
+            <row>
+            <cell>Optional: Write comments
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>Wikipedia
+            <grid>
+            <row>
+            <cell>Start trail of &quot;related facts
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>YouTube
+            <grid>
+            <row>
+            <cell>Read all the Comments
+            </cell>
+            </row>
+            <row>
+            <cell>Optional: Write comments
+            </cell>
+            </row>
+            <row>
+            <cell>Start trail of &quot;related videos&quot;
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>Social Networks
+            <grid>
+            <row>
+            <cell>Live vicariously through other's pictures
+            </cell>
+            </row>
+            <row>
+            <cell>Read about people that are mostly uninteresting
+            </cell>
+            </row>
+            <row>
+            <cell>Read up on mostly generic protile updates
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell>Find anything interesting?
+          <grid>
+          <row>
+          <cell stylebits="2">Anyone to IM?
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="1">Anyone to IM?
+        <grid>
+        <row>
+        <cell>Are they interesting?
+          <grid>
+          <row>
+          <cell>Message them
+          </cell>
+          <cell>Check away messages
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell>Check Email
+        <grid>
+        <row>
+        <cell>Anything new?
+          <grid>
+          <row>
+          <cell>Something to reply to?
+            <grid>
+            <row>
+            <cell>Mark as unread
+            </cell>
+            </row>
+            <row>
+            <cell>Wait, was that &quot;new email simply an old email marked unread?
+              <grid>
+              <row>
+              <cell>&quot;Take care of it later&quot;
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>Has a significant amount of time passed?
+      <grid>
+      <row>
+      <cell stylebits="2">Is there work to do?
+      </cell>
+      <cell stylebits="2">Are you hungry?
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

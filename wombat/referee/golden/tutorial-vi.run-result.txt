@@ -1,0 +1,366 @@
+   
+  Chào mừng đến với TreeSheets!
+  (1) Tập tin này là một hướng dẫn trực tiếp. Chỉ cần làm theo các con số phía trước văn bản, bạn có thể học cách sử dụng tất cả chức năng của TreeSheets một cách nhanh chóng và dễ dàng!
+    Những điều cơ bản
+      (2) Bạn đã tìm thấy bước 2! Tốt, bây giờ hãy thử chèn văn bản. Mỗi hộp văn bản này được gọi là một "ô". Bạn có thấy ô trống giữa (2) và (3) không? Nhấp vào bất cứ nơi nào bên trong nó để chọn nó
+      
+      (3) Nên chọn ô phía trên (có viền đen dày xung quanh). Bây giờ hãy nhập nội dung nào đó và bạn sẽ thấy mọi văn bản đều xuất hiện trong ô đã chọn. Hãy chú ý khi bạn bắt đầu nhập, một con trỏ xuất hiện và hộp chọn trở nên mỏng hơn. Điều này báo hiệu ô đang ở chế độ chỉnh sửa văn bản, vì vậy những thứ như phím con trỏ, xóa, v.v., sẽ hoạt động trên văn bản hiện tại. Bạn cũng có thể nhấp đúp để vào chế độ chỉnh sửa văn bản hoặc nhấn enter. Để thoát, nhấn enter lần nữa hoặc nhấn thoát hoặc chỉ cần chọn một ô khác.
+      (4) Tuy nhiên, có một cách tốt hơn để chèn văn bản. Bạn có thấy các đường chấm giữa các ô không? Chúng tôi gọi chúng là "đường lưới". Chọn (click vào) đường lưới nằm giữa (4) và (5)
+      (5) Dòng trên đây cần được đánh dấu. Bây giờ hãy bắt đầu nhập lại văn bản và chú ý cách một ô mới tự động được chèn vào giữa (4) và (5). Điều này cũng hoạt động trên đường viền của các ô. Đây là cách tự nhiên để mở rộng bất kỳ TreeSheet nào: tìm vị trí mà bạn muốn thêm thông tin và chỉ cần bắt đầu nhập!
+      (6) Bạn cũng có thể điều hướng qua các đường lưới và ô mà không cần sử dụng chuột, để chỉnh sửa nhanh hơn: đảm bảo ô này được chọn, sau đó nhấn phím con trỏ LÊN và XUỐNG vài lần.
+      (7) Việc xóa các ô cũng hoạt động theo cách tương tự. Đảm bảo bạn đã chọn bất kỳ đường lưới nào ở trên, sau đó nhấn BACKSPACE để xóa ô phía trên nó (hoặc trước nó) hoặc nhấn DELETE để xóa ô bên dưới nó (hoặc sau nó). Điều này hoạt động tương tự như cách hoạt động của trình soạn thảo văn bản và trình xử lý văn bản. Ngoài ra, chỉ cần chọn bất kỳ ô nào (bằng cách nhấp/kéo) rồi nhấn DELETE để xóa tất cả chúng cũng có tác dụng.
+      (8) Nếu bạn đã xóa một loạt dòng trên (hy vọng không phải dòng này!) thì bây giờ là thời điểm tốt để thử hoàn tác! Nhấn CTRL+Z liên tục để đưa nội dung đã xóa của bạn trở lại. TreeSheets có khả năng hoàn tác không giới hạn, vì vậy chỉ cần giữ CTRL+Z một lúc sẽ khôi phục tài liệu về trạng thái ban đầu. CTRL+Y làm lại.
+        Trên OS X, bất cứ nơi nào hướng dẫn này đề cập đến CTRL, hãy sử dụng CMD để thay thế. ALT giống như phím OPTION.
+    Lưới
+      (9) Như bạn có thể đã nhận thấy, TreeSheets có thể lồng các lưới ô. Mỗi ô có thể chứa lưới riêng của nó. Ví dụ, ô này có một lưới phụ.
+        Cam
+        2
+        Táo
+        1
+        Dưa hấu
+        0.5
+      (10) Để thêm lưới vào bất kỳ ô nào, hãy chọn ô đó và nhấn INSERT hoặc SHIFT+ENTER. Hãy thử nó trên ô này, bạn sẽ nhận được lưới 1x1 bên dưới văn bản này
+      (11) Hãy thử mở rộng ô bạn đã tạo ở (10) bằng cách chọn một trong 4 đường lưới của nó và nhập văn bản cho đến khi bạn có ít nhất một lưới 3x3. Ngoài ra, hãy thử di chuyển xung quanh nó bằng các phím con trỏ theo mọi hướng.
+      (12) Bây giờ hãy thử di chuyển mọi thứ xung quanh trong lưới. Chọn toàn bộ một cột trong lưới (chẳng hạn như các số trong lưới chứa trong (9)) bằng cách kéo từ ô trên cùng trong hàng xuống dưới cùng. Giống như trong bảng tính (và không giống như một số ứng dụng khác), việc kéo TreeSheets vào là để mở rộng vùng chọn chứ không phải để di chuyển. Bây giờ nhấn phím con trỏ CTRL+LEFT hoặc CTRL+RIGHT để dịch chuyển dữ liệu xung quanh.
+      (13) Bạn có thể sao chép các ô, ví dụ: chọn ô này, sao chép bằng CTRL+C, sau đó chọn bất kỳ đường lưới nào ở trên và nhấn CTRL+V. Nếu bạn chọn nhiều ô, vùng chọn sẽ được chèn vào đích dưới dạng nhiều dòng. Hãy thử nó. Cắt (CTRL+X) hoặc Xóa nhiều lựa chọn ô cũng hoạt động tương tự một cách trực quan. Nếu việc chèn các ô "nội tuyến" vào một miếng dán là không mong muốn, bạn luôn có thể tạo một lưới mới trước, sau đó dán vào lưới đó để tạo thứ bậc.
+    Định dạng ô & Thu phóng
+      (14) Văn bản trong một ô giống như một đoạn văn. Nó được tự động chia thành các dòng tùy thuộc vào độ rộng cột của bất kỳ cột nào. Độ rộng của các cột sẽ phụ thuộc vào cách bạn muốn cấu trúc tổng thể TreeSheet của mình. Bạn có thể xem độ rộng của cột trên thanh trạng thái (đối với cột đã di chuột qua). Đảm bảo ô này được chọn, sau đó giữ ALT và lăn con lăn chuột để xem điều gì xảy ra (hoặc ALT+PGUP/PGDN). Ô này sẽ được định dạng lại tự động, cũng như các ô khác trong cột này và mọi lưới bên trong cột này. Lưu ý rằng độ rộng cột chỉ định số lượng ký tự tối đa trên mỗi dòng, do đó, nó sẽ không làm cho lưới rộng hơn khi mỗi ô nằm trên một dòng.
+        Trên một số bàn phím Mac, PGUP/PGDN được mô phỏng bằng FN+UP/DOWN. Ngoài ra, con lăn thay vào đó là thao tác vuốt trên bàn di chuột (hoặc chuột ma thuật).
+      (15) Một tùy chọn mạnh mẽ hơn để thay đổi không gian một ô chiếm trên màn hình (tốt để biểu thị tầm quan trọng tương đối của thứ gì đó) là thay đổi kích thước văn bản. Chọn ô này, giữ SHIFT và lăn con lăn chuột (hoặc SHIFT+PGUP/PGDN).
+      (16) Lưu ý rằng nếu bạn tiếp tục làm cho nó nhỏ hơn thì cuối cùng văn bản sẽ được hiển thị dưới dạng các pixel riêng lẻ. Điều này có vẻ vô ích nhưng thực sự là một cách quản lý thông tin gọn gàng thay thế cho việc gấp/mở các hệ thống phân cấp rất phổ biến trong các ứng dụng khác.
+      (17) Ví dụ: ô này chứa một lưới nhỏ. Chọn ô này, sau đó giữ CTRL và lăn con lăn chuột về phía trước 3x để phóng to ô này (hoặc CTRL+PGUP/PGDN).
+        (18) Trước đây bạn không thể đọc được văn bản này, nhưng bây giờ bạn có thể!
+        (19) Khi bạn phóng to, TreeSheets đặt kích thước văn bản cơ sở thành kích thước trung bình của lưới cấp cao nhất được hiển thị. Khi bạn thay đổi kích thước văn bản bằng SHIFT+con lăn, bạn sẽ thay đổi kích thước tương đối của văn bản. Điều đó có nghĩa là nó phụ thuộc vào mức độ thu phóng mà văn bản đó xuất hiện lớn đến mức nào. Điều này nghe có vẻ phức tạp nhưng hiệu quả thực sự là bạn có thể làm cho văn bản thực sự nhỏ nhưng vẫn có thể nhìn thấy văn bản nhiều hơn khi phóng to.
+        (20) Ý tưởng là bạn sử dụng các lưới con nhỏ như thế này để lưu trữ thông tin (chẳng hạn như danh sách việc cần làm cho một dự án cụ thể) mà bạn muốn có trong TreeSheet tổng thể của mình, nhưng bạn không muốn nó chiếm dung lượng. Việc đọc hoặc chỉnh sửa nó luôn chỉ là một cú nhấn con lăn chuột.
+        (21) Ngoài ra, cài đặt kích thước văn bản là điều bạn thường chỉ phải thực hiện một lần, trong khi việc gấp/mở hoặc cuộn cây khi bạn thực hiện trong các ứng dụng khác là điều bạn làm mỗi khi muốn xem thông tin. TreeSheets giúp việc điều hướng lượng lớn thông tin trở nên dễ dàng hơn và dễ tổng quan hơn (văn bản có kích thước pixel vẫn mang lại ấn tượng về lượng thông tin được chứa bên trong ô và cấu trúc của nó).
+        (22) Để làm cho văn bản này có thể đọc lại được ở cấp cao nhất, hãy chọn các ô (18..23) (không phải 17), thu nhỏ hai lần (quay lại con lăn chuột), sau đó SHIFT+con lăn chuột tiến lên cho đến khi ô này có thể đọc được trở lại.
+        (23) Nếu bây giờ bạn muốn làm cho ô này nhỏ hơn, hãy chọn các ô tương tự và sử dụng SHIFT+con lăn chuột lùi lại để giảm kích thước.
+        (24) Bạn có để ý thấy văn bản màu xám phía trên văn bản tiêu đề khi bạn phóng to không? Đây được gọi là ngữ cảnh và giúp bạn nhớ phần nào của biểu đồ dạng cây mà bạn đã phóng to.
+      thay vào đó, nếu bạn muốn ẩn hoàn toàn lưới khỏi tầm mắt, bạn có thể sử dụng tính năng gập (F10 trên Windows, CTRL+F10 trên các nền tảng khác). Hãy thử nhấn liên tục vào ô này để xem hiệu quả
+        This cell and the ones below will be hidden!
+        notice that a cell that has a folded grid gains a '+' icon as its image, denoting that there is extra information that can be shown. If you unfold it, the image will automatically dissapear
+        cells will also automatically be unfolded if you use functions such as "search next" to jump between cells that are not currently visible.
+        Though folding may be a familiar operation you know from other applications, shrinking text to become tiny (see 17) will give you a better overview over your information, try it out! 
+    Kết xuất và bố cục
+      Bạn có thể chuyển đổi vị trí văn bản lên phía trên lưới (bố trí theo chiều dọc, giống như phần lớn tài liệu này) hoặc bên cạnh đó (bố trí theo chiều ngang) bằng cách nhấn Alt+0 trên bất kỳ lựa chọn nào:
+        văn bản ở trên
+          mẫu
+          lưới
+        văn bản bên cạnh
+          mẫu
+          lưới
+      Bạn cũng có thể chọn từ 3 phương pháp hiển thị khác nhau để hiển thị lồng nhau, Lưới (giống như hầu hết tài liệu này), Bong bóng và Đường kẻ (xem menu Chỉnh sửa -> Kiểu kết xuất bố cục). Cùng với ngang/dọc, điều này mang lại 6 kiểu khác nhau:
+        
+        thẳng đứng
+        nằm ngang
+        lưới
+        ví dụ văn bản
+          lưới lồng nhau
+            lồng nhau 1
+            lồng nhau 2
+          một dòng nữa
+        ví dụ văn bản
+          lưới lồng nhau
+            lồng nhau 1
+            lồng nhau 2
+          một dòng nữa
+        bong bóng
+        ví dụ văn bản
+          nested grid
+            nested 1
+            nested 2
+          one more line
+        ví dụ văn bản
+          lưới lồng nhau
+            lồng nhau 1
+            lồng nhau 2
+          một dòng nữa
+        đường kẻ
+        ví dụ văn bản
+          lưới lồng nhau
+            lồng nhau 1
+            lồng nhau 2
+          một dòng nữa
+        ví dụ văn bản
+          lưới lồng nhau
+            lồng nhau 1
+            lồng nhau 2
+          một dòng nữa
+      Các kiểu khác nhau có xu hướng hoạt động tốt nhất nếu bạn áp dụng chúng cho toàn bộ tài liệu, nhưng chúng có thể được đặt trên cơ sở từng ô nếu bạn muốn.
+        Kiểu "lưới" là tốt nhất để chỉnh sửa vì nó hiển thị rõ ràng nhất nơi bạn có thể chèn dữ liệu mới.
+        "Bong bóng" hoạt động tốt nhất nếu bạn chỉ định màu nền cho từng ô riêng lẻ. Nếu bạn để tất cả các ô có cùng màu, TreeSheets sẽ tự động chọn các màu thay thế để tránh hiện tượng bong bóng trở nên vô hình.
+        Kiểu "đường kẻ" rất phù hợp cho các tài liệu kiểu sơ đồ tư duy.
+    Hình ảnh & Kiểu dáng
+      Thêm hình ảnh vào ô để làm cho tài liệu của bạn rõ ràng hơn. Hình ảnh xuất hiện phía trước văn bản của ô đó. Đặt một hình ảnh vào ô riêng của nó để có được sự linh hoạt tối đa. Hãy thử thêm hình ảnh (nhỏ) vào bất kỳ ô nào ở trên (menu Chỉnh sửa/Thêm hình ảnh hoặc chọn một hình ảnh từ hình ảnh thả xuống trên thanh công cụ). 
+        Hình ảnh được lưu trữ bên trong tệp tài liệu (.cts), nghĩa là nếu bạn di chuyển tệp xung quanh, bạn sẽ không bao giờ mất hình ảnh. Nếu bạn sử dụng một hình ảnh nhiều lần trong tài liệu thì chỉ có một bản sao được lưu trữ.
+        Nếu bạn muốn tham chiếu đến các hình ảnh lớn trong một biểu đồ dạng cây và chúng quá cồng kềnh để đưa vào trong trang tính đó, bạn cũng có thể chỉ cần đặt các hình ảnh đó vào cùng thư mục với .cts và chỉ cần đặt tên của chúng vào một ô. Sau đó, bạn có thể sử dụng Chỉnh sửa/Mở tệp (F4) để xem chúng.
+          Bạn có thể tham khảo bất kỳ loại tệp nào theo cách này
+          để thêm các liên kết tệp mới một cách thuận tiện, chỉ cần kéo và thả các tệp không phải hình ảnh vào các ô
+      Tạo ô đậm hoặc nghiêng hoặc cả hai! Hãy thử CTRL+b hoặc CTRL+i trên một số ô, cả hai đều là nút chuyển đổi. Ngoài ra, máy đánh chữ và kiểu gạch chân có sẵn từ menu Chỉnh sửa/kiểu văn bản.
+      gạch ngang (CTRL+t) là kiểu hữu ích cho danh sách TODO để biểu thị các mục đã được xử lý nhưng bạn chưa muốn xóa.
+      Hãy thử tô màu các ô bằng hai bộ chọn màu trên thanh công cụ. Bạn có thể nhấp đúp vào màu hiện tại để đặt chúng ngay lập tức. Chọn (các) ô chứa (các) lưới và sử dụng menu thả xuống màu đường viền hoặc menu Chỉnh sửa/Đặt độ rộng đường viền để thay đổi giao diện của chúng.
+      Hãy thêm ghi chú vào ô cho những gì không nên làm rối văn bản của ô, như chi tiết, nguồn hoặc lời nhắc: chọn ô và nhấn CTRL+E (Chỉnh sửa > Chỉnh sửa ghi chú). Ô có ghi chú sẽ hiển thị một hình tam giác nhỏ ở góc trên bên phải. Trỏ chuột vào hình tam giác để đọc ghi chú, và nhấp vào đó để chỉnh sửa ghi chú. Ô này có một ghi chú, hãy thử xem! Với Hiển thị (V) > Bộ lọc > Hiển thị các ô có ghi chú, bạn có thể tìm thấy tất cả các ô đó.
+    Tìm kiếm & Điều hướng
+      Bạn có thể sử dụng tìm kiếm nhanh bằng cách nhập nội dung nào đó vào hộp tìm kiếm trên thanh công cụ (CTRL+f để tập trung vào hộp này). Bất kỳ ô nào phù hợp sẽ được đánh dấu (F3 để duyệt qua các kết quả). Nhập nội dung nào đó vào hộp thay thế, sau đó sử dụng một trong hai thao tác thay thế trong menu tìm kiếm.
+        Như một phương án thay thế cho tìm kiếm, "đi tới ô trùng khớp" (F6) sẽ lần lượt qua các ô có cùng văn bản với ô hiện tại, điều này có thể hữu ích như một tham chiếu chéo hoặc cơ chế liên kết. Nó ưu tiên đi tới một ô có định dạng khác, nghĩa là bạn có thể sử dụng định dạng như một cách để phân biệt các ô định nghĩa với các ô liên kết. Hãy thử nó:
+          Chu kỳ tế bào
+          ...
+          Chu kỳ tế bào
+          Chu kỳ tế bào
+          Liên kết tham chiếu
+          ...
+          Liên kết tham chiếu
+          Liên kết tham chiếu
+          Định nghĩa
+          
+          Sử dụng
+          Sử dụng
+      Lưu trữ các url hoặc bộ sưu tập dấu trang bên trong TreeSheets và chỉ cần nhấn F5 để mở bất kỳ dấu trang nào trong trình duyệt của bạn
+    Thẻ & Hệ thống phân cấp
+      Thẻ là một cách hay để xử lý các từ mà bạn sử dụng nhiều lần trong một trang tính, như trạng thái, danh mục, v.v. Để tạo một thẻ nào đó, hãy tìm sự xuất hiện và thực hiện "Thêm ô làm thẻ" (menu Chỉnh sửa/Thẻ...). Từ giờ trở đi, bạn có thể đặt bất kỳ ô nào khác thành thẻ bằng CTRL+Nút chuột phải (menu bật lên). Thẻ có màu xanh lam, để báo hiệu cho bạn biết đó là thẻ. Điều này giúp phát hiện nếu thẻ bị nhập sai.
+      Một hoạt động mạnh mẽ hoạt động tốt với thẻ là "Hoán đổi thứ bậc". Một ví dụ về những gì nó làm:
+        Động lực đằng sau Hoán đổi thứ bậc là bạn sử dụng TreeSheets để sắp xếp dữ liệu của mình ở định dạng cây, nhưng thông thường, cây không lý tưởng để sắp xếp dữ liệu vì chúng buộc bạn phải đưa ra lựa chọn về phân mục nào là quan trọng nhất.
+        Giả sử tôi đang tổ chức một dự án và tôi đang cố gắng theo dõi những nhiệm vụ liên quan đến nó. Tôi đang sử dụng thẻ để chỉ ra những người làm việc trên đó, sản phẩm được phân phối và lĩnh vực chủ đề:
+          cột mốc 1
+            giao diện người dùng
+              Vũ
+                sửa giao diện người dùng
+                kết nối với cơ sở dữ liệu
+              Cường
+                tổng tân trang đồ họa
+            phần cuối
+              Vũ
+                thêm biểu mẫu đầu vào
+          cột mốc 2
+            phần cuối
+              Vũ
+                thiết lập bảng mới
+              Cường
+                mua máy chủ mới
+                thiết lập mạng
+        Hãy lưu ý rằng trong bảng trên, các cột mốc là phần quan trọng nhất, lĩnh vực chủ đề thứ hai và con người là phần ít quan trọng nhất. Đây là một lựa chọn khá tùy ý, chúng tôi có thể muốn nhìn mọi thứ từ góc độ con người và giờ đây với Hoán đổi thứ bậc, bạn có thể làm được! Chọn bất kỳ lần xuất hiện nào của "Vũ" và nhấn F8 hai lần và bạn sẽ nhận được điều này:
+          Vũ
+            cột mốc 1
+              giao diện người dùng
+                sửa giao diện người dùng
+                kết nối với cơ sở dữ liệu
+            phần cuối
+              cột mốc 1
+                thêm biểu mẫu đầu vào
+              cột mốc 2
+                thiết lập bảng mới
+          Cường
+            cột mốc 1
+              giao diện người dùng
+                tổng tân trang đồ họa
+            cột mốc 2
+              phần cuối
+                mua máy chủ mới
+                thiết lập mạng
+        Thực tế những gì bạn đã làm là nói: "cho tôi xem hệ thống phân cấp này từ quan điểm của Vũ". Bây giờ bạn có thể thấy chính xác những gì anh ấy làm việc. Bạn có thể làm tương tự với Cường nếu cần. Nếu bạn muốn xem Vũ đang làm gì ở mặt sau, hãy nhấn F8 chỉ một lần ở "phần cuối" (trong Vũ) và bạn đã điều chỉnh lại phối cảnh của mình. Nhấn một lần nữa và bây giờ mặt trước/mặt sau trở thành phân khu chính.
+        Tiếp tục nhấn F8 trên các thẻ khác nhau để xem cách bạn có thể đạt được bất kỳ góc nhìn nào bạn cần.
+        Điều quan trọng cần lưu ý là làm thế nào trên bất kỳ trao đổi nào, thẻ trước đây là thẻ gốc giờ trở thành thẻ con của thẻ đã chọn. Điều này có nghĩa là dù bạn thực hiện việc hoán đổi này thường xVũ như thế nào thì thông tin cũng không bị mất. Điều đó có nghĩa là bạn có thể đưa cây trở lại cấu hình ban đầu nếu muốn.
+        Vì vậy, bạn có thể thấy tính năng này cho phép bạn có các đoạn thông tin có thể có bất kỳ số lượng thẻ nào được liên kết với chúng. Hoán đổi thứ bậc cho phép bạn xác định thứ tự quan trọng hiện tại của các thẻ và do đó, chế độ xem dạng cây không là gì ngoài chế độ xem gần đây nhất
+        Bạn vẫn có thể tiếp tục chỉnh sửa dữ liệu cho cây này bất kể nó ở "chế độ xem" nào, không cần phải đặt lại cây về thứ tự ban đầu. Những cây như thế này không có trật tự cố định!
+        Lưu ý cách quảng cáo "Vũ" không tự động quảng cáo "Cường". TreeSheets không biết rằng các thẻ này thuộc cùng một "loại". Không phải tất cả việc sử dụng thẻ đều có kiểu cắt rõ ràng và không phải lúc nào cũng cần phải sắp xếp lại tất cả cùng một lúc, vì vậy điều này giúp tính năng trở nên đơn giản.
+      Liên quan đến làm việc với các Cấp bậc, là khả năng "Làm phẳng" một cấp bậc. Lấy ví dụ cột mốc ở trên, và sau khi áp dụng Làm phẳng, bạn sẽ nhận được
+        cột mốc 1
+        giao diện người dùng
+        Vũ
+        sửa giao diện người dùng
+        cột mốc 1
+        giao diện người dùng
+        Vũ
+        kết nối với cơ sở dữ liệu
+        cột mốc 1
+        giao diện người dùng
+        Cường
+        tổng tân trang đồ họa
+        cột mốc 1
+        phần cuối
+        Vũ
+        thêm biểu mẫu đầu vào
+        cột mốc 2
+        phần cuối
+        Vũ
+        thiết lập bảng mới
+        cột mốc 2
+        phần cuối
+        Cường
+        mua máy chủ mới
+        cột mốc 2
+        phần cuối
+        Cường
+        thiết lập mạng
+      Mặc dù không hữu ích như phiên bản phân cấp để chỉnh sửa và xem cấu trúc, nhưng đây là cách duy nhất để xuất dữ liệu này sang các chương trình "phẳng" như bảng tính (xem Xuất/CSV). Người dùng bảng tính thích mô hình hóa dữ liệu theo cách này, vì vậy thao tác ngược lại, "Phân cấp", cho phép bạn lấy một bảng như vậy và biến nó trở lại hệ thống phân cấp ở trên.
+    Hoạt động nâng cao
+      (25) nếu một ô không có văn bản nhưng nó có lưới, chẳng hạn như các ô bên dưới, nó sẽ được hiển thị không có khoảng trống cho văn bản. Điều này có thể gây khó khăn cho việc lựa chọn, để có thể chèn văn bản. Bạn có thể chọn bất kỳ ô nào bằng cách nhấn ESC khi bạn đã chọn một ô phụ (thử chọn (26), sau đó nhấn ESC, sau đó nhập một số văn bản). Cũng thuận tiện, nhấp đúp vào một đường lưới sẽ chọn toàn bộ lưới. Hãy thử điều này bằng cách nhấp đúp vào giữa (26) và (27), sau đó nhập một số văn bản.
+        
+          cái này
+          lưới
+          có
+          không
+          văn bản
+          tiêu đề
+          (26)
+          (27)
+      Chuyển vị là một thao tác hữu ích nếu bạn đang cố gắng sắp xếp lại danh sách để có bố cục dễ quản lý hơn. Chọn ô này và Chỉnh sửa/Sắp xếp lại lưới/Chuyển đổi một vài lần. Đảm bảo rằng bạn để nó hiển thị theo chiều dọc, sau đó thử thêm Chỉnh sửa/Sắp xếp lại lưới/Sắp xếp sau khi chọn cột đầu tiên hoặc cột thứ hai.
+        Một
+        Hai
+        Ba
+        Bốn
+        Năm
+        1
+        2
+        3
+        4
+        5
+      Hãy xem nhiều tùy chọn nhập và xuất hoặc in ra giấy hoặc pdf
+      Hoạt động "Bao trong phần tử cha" (F9) là một cách tuyệt vời để tạo ra thứ bậc mới. Chọn bất kỳ ô nào, và hoạt động này sẽ biến chúng thành một lưới mới, và một phần tử cha mới nằm tại vị trí nơi các ô đó xuất phát. Ví dụ, thử chọn C & D bên dưới, sau đó nhấn F9, và nhập một cái gì đó:
+        A
+        B
+        C
+        D
+      Bộ lọc là một tính năng hữu ích khi các bảng cây của bạn trở nên rất lớn. Chúng cho phép bạn tạm thời lọc ra một tập hợp con của bảng để tập trung vào các ô mà bạn đang tìm kiếm. Điều này hoạt động bằng cách buộc các ô bị lọc ra hiển thị dưới dạng văn bản 1 pixel và màu xám nhạt. Hãy thử các tùy chọn lọc trong menu xem:
+        Hãy thử nhập "treesheets" làm truy vấn tìm kiếm ngay bây giờ. một số ô sẽ có màu đỏ. Bây giờ hãy thử đặt bộ lọc tìm kiếm (Xem -> Bộ lọc -> Chỉ hiển thị các ô trong tìm kiếm hiện tại), tất cả trang tính sẽ thu nhỏ đáng kể, giúp bạn dễ dàng xem những gì bạn đang tìm kiếm. Thực hiện việc này ở chế độ xem cấp cao nhất của trang tính này. Hãy thử phóng to và thu nhỏ khi bật bộ lọc. Hãy thử chỉnh sửa truy vấn tìm kiếm, chế độ xem bộ lọc sẽ thay đổi khi bạn nhập.
+        Hãy thử “10% chỉnh sửa cuối cùng” trên bảng này, cũng như vậy. Hãy chắc chắn tắt truy vấn tìm kiếm trước. Lưu ý rằng nếu bạn có tài liệu từ các phiên bản cũ hơn của treesheets, tính năng này có thể không hiển thị các chỉnh sửa mà bạn mong đợi, vì những phiên bản đó chưa theo dõi thời gian chỉnh sửa cuối cùng của mỗi ô.
+      Nếu bạn đang sử dụng máy tính cũ hơn hoặc làm việc với các trang tính thực sự lớn, hãy thử tùy chọn "kết xuất dòng nhanh" để có được một trang tính kém đẹp hơn nhưng cuộn nhanh hơn.
+      TreeSheets rất tốt cho các bài thuyết trình. Không giống như các công cụ truyền thống như powerpoint, khiến việc truyền đạt cảm giác về cấu trúc đến người xem thực sự khó khăn, bạn có thể sắp xếp một biểu đồ dạng cây như thể toàn bộ bản trình bày của bạn là một "trang chiếu" duy nhất và đã thu nhỏ các trang chiếu phụ mà bạn có thể phóng to. Để giúp sử dụng làm công cụ trình bày, TreeSheets có hai tùy chọn xem: Chế độ xem toàn màn hình (F11) để giảm sự lộn xộn về mặt hình ảnh và Chế độ xem theo tỷ lệ (F12) cố gắng làm cho chế độ xem hiện tại lớn nhất có thể.
+        Lưu ý, cả tính năng này và tính năng in đều sử dụng phương pháp chia tỷ lệ không đảm bảo độ trung thực của kết xuất trong mọi trường hợp. Điều này sẽ được sửa trong phiên bản tương lai.
+      TreeSheets có ngôn ngữ kịch bản tích hợp để tạo plugin
+        Các tập lệnh này được đặt trong thư mục "scripts/" và được tự động thêm vào menu "Kịch bản" khi bắt đầu TreeSheets, từ đó chúng có thể được bắt đầu
+        Các tập lệnh có thể đọc và sửa đổi tất cả TreeSheet hiện tại!
+        Tập lệnh được viết bằng ngôn ngữ lập trình The Lobster
+          Đọc thêm về ngôn ngữ:
+          http://strlen.com/lobster/
+        Các hàm bạn có thể sử dụng trong tập lệnh của mình được liệt kê trong docs/script_reference.html
+          Những cái bắt đầu bằng ts_ dành riêng cho TreeSheets, những cái khác là các hàm ngôn ngữ chung
+        Đọc các tập lệnh hiện có để biết chúng có thể làm gì!
+      TreeSheets cũng chứa một bảng tính mới giống như ngôn ngữ lập trình chưa có đầy đủ chức năng.
+        Nó hoạt động bằng cách đặt các hoạt động ngay bên trong lưới, trộn lẫn với dữ liệu
+        9
+        Bạn tạo chương trình bằng cách gán cho một số ô ý nghĩa đặc biệt. Theo mặc định, tất cả các ô đều có màu trắng (dữ liệu). Từ menu Chương trình/Đánh dấu là, bạn có thể thực hiện các thao tác (màu hồng) hoặc xem các ô (màu xanh nhạt). Ô xem chỉ hiển thị giá trị hiện tại của bất kỳ thao tác nào trước nó. Trong lưới bên dưới, hãy thử đánh dấu + là một thao tác và ô trống cuối cùng là chế độ xem ngang bằng menu chương trình, sau đó nhấn chạy:
+          1
+          +
+          2
+          
+        
+          35
+          56
+          81
+        Ở giai đoạn này, bạn không nên thực sự sử dụng ngôn ngữ trừ khi bạn rất mạo hiểm, vì chỉ có một số thao tác được triển khai và nhiều tổ hợp toán hạng không được hỗ trợ. Phân loại làm việc:
+          +
+          -
+          *
+          /
+          <
+          >
+          <=
+          >=
+          ==
+          !=
+          =
+          <>
+          inc
+          dec
+          neg
+          sum
+          transpose
+          if
+        Để biết thêm chi tiết về các thao tác, hãy xem Trợ giúp > Tải tham chiếu thao tác (CTRL+ALT+F1).
+        Hãy xem ví dụ về sales.cts để biết nó có thể làm gì.
+      Công thức tính kết quả giống như trong bảng tính và tự cập nhật mỗi khi bạn thay đổi điều gì đó. Hãy nhập vào một ô văn bản bắt đầu bằng =, chẳng hạn =SUM(Chi phí), và khi bạn rời khỏi ô, ô sẽ hiển thị kết quả. Thanh công thức ("Formula" trên thanh công cụ) hiển thị công thức của ô đang chọn, và bạn cũng có thể sửa nó ở đó (ENTER để áp dụng).
+        Tên trong dấu ngoặc đơn chỉ lưới của ô có đúng văn bản đó, ô gần nhất được ưu tiên. Bên dưới, lưới bên trái có tên là Chi phí. Hãy thay đổi các số của nó và xem kết quả ở bên phải:
+          Chi phí
+            120
+            80
+            40
+          
+            Tổng
+            240
+            Đắt nhất
+            120
+            Trung bình
+            80
+            Còn lại của ngân sách 500
+            260
+        Nhấn F2 trên một kết quả để xem và thay đổi công thức của nó ngay trong ô. Gõ đè lên một kết quả sẽ biến ô trở lại thành văn bản thường.
+        Bạn có thể dùng SUM, MIN, MAX, AVG, MEDIAN và COUNT, cùng với số, + - * / và dấu ngoặc đơn, ví dụ =(SUM(Thu nhập) - SUM(Chi phí)) / 12. Chỉ các số nằm trực tiếp trong lưới được đặt tên mới được tính, và kết quả của các công thức khác cũng được tính là số. Khi thêm TREE ở phía trước, ví dụ =TREESUM(Chi phí), các số trong tất cả lưới con của nó cũng được tính, nhưng các công thức ở đó thì không. Một tên đứng riêng là con số duy nhất trong lưới của nó, ví dụ =Giá * Lượng.
+        SUBSET chỉ dùng một phần của lưới: SUBSET(tên, cột, hàng), trong đó cột và hàng được đếm từ 0 ở góc trên bên trái. Mỗi cái là một số như 1, một khoảng như 0-1, một khoảng mở ở một đầu như 1- (đến hết) hoặc -1 (từ đầu), hoặc - cho tất cả. Bên dưới, lưới bên trái có tên là Doanh thu, mỗi cột là một cửa hàng và mỗi hàng là một tháng:
+          Doanh thu
+            30
+            50
+            20
+            60
+            40
+            10
+          
+            Tháng tốt nhất của cửa hàng thứ nhất
+            40
+            Cả hai cửa hàng trong hai tháng đầu
+            160
+            Cửa hàng thứ hai từ tháng thứ hai trở đi
+            70
+        Khi thêm TREE ở phía trước, các số trong lưới con của các ô được chọn cũng được tính, tất cả, bất kể cột và hàng của chúng. Bên dưới, mỗi cửa hàng trong lưới Đơn hàng có các đơn hàng của nó trong một lưới con:
+          Đơn hàng
+            Cửa hàng thứ nhất
+              12
+              45
+              30
+            Cửa hàng thứ hai
+              25
+              60
+              8
+          
+            Đơn hàng lớn nhất của cửa hàng thứ hai
+            60
+        TREESUBSET(tên, cột, hàng, cấp) chọn lại cùng các cột và hàng trong lưới con của các ô được chọn, cứ thế tiếp tục, nhưng chỉ tính các cấp trong khoảng, trong đó 0 là lưới được đặt tên. Nhờ vậy có thể phân biệt tổng với các chi tiết của nó. Bên dưới, mỗi giai đoạn trong lưới Kế hoạch có số giờ ở cột 1, ô đó chứa các công việc của nó với số giờ trong cùng các cột:
+          Kế hoạch
+            Thiết kế
+            10
+              Phác thảo
+              4
+              Xem xét
+              6
+            Xây dựng
+            25
+              Khung
+              12
+              Đi dây
+              8
+              Kiểm thử
+              5
+          
+            Số giờ của mọi giai đoạn
+            35
+            Công việc dài nhất
+            12
+            Số công việc
+            5
+        Thay cho tên, SUBSET và TREESUBSET cũng nhận một SUBSET hoặc TREESUBSET khác, rồi dùng lưới con của các ô mà nó chọn. Nhờ vậy mỗi cấp có thể có cột và hàng riêng. Bên dưới, SUBSET(Kế hoạch, 1, 1) chọn số giờ của Xây dựng, và các công thức chỉ xét các công việc của nó:
+          Công việc Xây dựng dài nhất
+          12
+          Số giờ Xây dựng sau Khung
+          13
+          Số giờ Kiểm thử
+          5
+        Khi đứng riêng, SUBSET là con số duy nhất trong nó, ví dụ =SUBSET(Doanh thu, 1, 2) * 2. Tên cũng có thể được viết trong dấu ngoặc kép, điều cần thiết khi tên chứa dấu phẩy hoặc dấu ngoặc đơn, ví dụ =SUM("Chi phí, 2025") hoặc =MAX(SUBSET("Doanh thu (EUR)", 0, -)).
+        Công thức cũng có thể dùng các biến của ngôn ngữ lập trình ở trên. Một tên không phải tên của lưới nào sẽ là biến có tên đó, với giá trị mà chương trình đã gán cho nó trong lần chạy gần nhất, và một biến chứa lưới được tính như một lưới, ví dụ =SUM(Điểm). Cho đến khi bạn chạy chương trình bằng Chương trình (P) > Chạy (R), công thức như vậy sẽ hiển thị #N/A. Bên dưới, chương trình bên trái tính 1 + 2 * 3 và gán kết quả cho biến Đáp án (được đánh dấu bằng Chương trình (P) > Đánh dấu là (M) > Gán biến (A)). Hãy chạy nó và xem kết quả bên phải:
+          9
+          
+            Gấp đôi đáp án
+            #N/A
+        Khi có gì đó sai, ô sẽ hiển thị lỗi: #NAME? cho tên hoặc hàm không xác định, #DIV/0! cho phép chia cho 0, #CYCLE! cho các công thức phụ thuộc lẫn nhau, #VALUE! cho một tên hoặc SUBSET đứng riêng không chứa đúng một số, #N/A cho một biến trước khi chương trình được chạy và #ERROR! cho công thức không đọc được.
+      Mẫu giúp bắt đầu tài liệu mới từ một tài liệu bạn đã chuẩn bị trước, chẳng hạn kế hoạch tuần hay dàn ý dự án. Bạn tìm thấy chúng trong Tệp > Mới từ mẫu:
+        Thêm tài liệu hiện tại làm mẫu thêm tệp của tài liệu hiện tại vào menu đó (hãy lưu nó trước), và Thêm tệp làm mẫu... thêm các tệp TreeSheets khác.
+        Nhấn vào một mẫu ở đó sẽ tạo một tài liệu mới chưa đặt tên với bản sao nội dung của nó. Bản thân tệp mẫu vẫn giữ nguyên, vì khi lưu sẽ được hỏi tên tệp mới.
+        Mở tệp làm mẫu... làm điều tương tự với bất kỳ tệp TreeSheets nào mà không thêm nó vào menu, và Xóa mẫu... bỏ một mẫu khỏi menu (tệp vẫn ở nguyên chỗ cũ).
+      Nếu bạn làm việc trên các tập tin TreeSheets trên nhiều máy tính, hãy lưu chúng vào một thư mục chia sẻ (chẳng hạn như DropBox) và bật Tùy chọn -> Tự động tải lại tài liệu
+        Bằng cách này, bạn sẽ luôn được cập nhật tất cả các máy của mình khi lưu tài liệu
+      Chạy TreeSheets từ dòng lệnh
+        Bạn có thể chạy TreeSheets từ dòng lệnh
+        như các đối số, bạn có thể chỉ định một tệp duy nhất để tải
+          Nếu TreeSheets đã đang chạy trong hệ thống, việc này sẽ khiến nó chuyển tệp cho phiên bản hiện có, sau đó thoát
+        bạn cũng có thể chạy nó với -p như một đối số
+          Điều này khởi động TreeSheets ở chế độ "di động", nơi (trên Windows) nó ghi các cài đặt vào một tệp .ini trong thư mục hiện tại thay vì vào registry
+        Lưu ý rằng để chạy đúng từ dòng lệnh, ít nhất trên Windows, TreeSheets.exe cần được khởi động với đường dẫn đầy đủ, nếu không nó sẽ không thể tìm thấy các biểu tượng của nó, v.v., theo đường dẫn của chương trình thực thi.

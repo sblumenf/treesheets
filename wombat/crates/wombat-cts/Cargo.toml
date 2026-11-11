@@ -1,0 +1,20 @@
+[package]
+name = "wombat-cts"
+description = "Read-only importer of TreeSheets .cts files into Wombat documents"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+wombat-core = { path = "../wombat-core" }
+# zlib decompression of the cell stream: pure Rust, no dependencies of its own beyond adler2.
+miniz_oxide = "0.8"
+
+[dev-dependencies]
+proptest = "1"
+serde_json = "1"
+unicode-segmentation = "1.13.3"

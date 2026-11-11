@@ -1,0 +1,3 @@
+# "More than one cell must be selected."
+select /1,4 1 1 1 1
+action collapse unchanged

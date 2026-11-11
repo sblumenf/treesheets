@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Writes the reference exports of the real TreeSheets for every example .cts file.
+
+Usage: export_golden [-o OUTDIR] [FILE.cts ...]
+
+Without files, all .cts files under TS/examples and fixtures/ are exported to golden/, keeping
+their subdirectory. See README.md for what each golden kind contains.
+"""
+import argparse
+import json
+import os
+import sys
+
+sys.dont_write_bytecode = True
+import referee  # noqa: E402
+
+# Where the .cts files are, and the subdirectory of golden/ their exports go to.
+SOURCES = [(os.path.join(referee.REPO, "TS", "examples"), ""),
+           (os.path.join(referee.HERE, "fixtures"), "fixtures")]
+
+
+def export(display, cts, base):
+    """Writes the golden kinds to base.* and returns the manifest entry."""
+    version, encrypted = referee.cts_header(cts)
+    entry = {"format_version": version, "sha256": referee.sha256(cts),
+             "bytes": os.path.getsize(cts)}
+    if encrypted:
+        raise referee.RefereeError("password protected")
+    with referee.Instance(display, cts) as ts:
+        doc, stats = referee.parse_dump(ts.eval(file=referee.DUMP_SCRIPT),
+                                        ts.started if version >= 14 else 0)
+        kinds = {"xml": ts.subtree_text(2), "txt": ts.subtree_text(0),
+                 "json": referee.format_document(doc)}
+        if stats.get("operations"):
+            # Last, since Program > Run changes the document.
+            kinds["run-result.txt"] = referee.unix_lines(
+                ts.eval("ts.agent_result(ts.evaluate(0))"))
+            kinds["run.txt"] = ts.subtree_text(0)
+    os.makedirs(os.path.dirname(base), exist_ok=True)
+    for kind, content in kinds.items():
+        with open(f"{base}.{kind}", "w", encoding="utf-8", newline="") as f:
+            f.write(content)
+    for kind in ("run-result.txt", "run.txt"):
+        if kind not in kinds and os.path.exists(f"{base}.{kind}"):
+            os.remove(f"{base}.{kind}")
+    entry["stats"] = stats
+    return entry
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("-o", "--out", default=os.path.join(referee.HERE, "golden"))
+    ap.add_argument("files", nargs="*")
+    args = ap.parse_args()
+
+    if args.files:
+        jobs = [(os.path.abspath(f), os.path.splitext(os.path.basename(f))[0])
+                for f in args.files]
+    else:
+        jobs = []
+        for source, prefix in SOURCES:
+            for root, dirs, files in os.walk(source):
+                dirs.sort()
+                for name in sorted(files):
+                    if name.endswith(".cts"):
+                        path = os.path.join(root, name)
+                        rel = os.path.splitext(os.path.relpath(path, source))[0]
+                        jobs.append((path, os.path.join(prefix, rel)))
+    manifest = {"files": {}}
+    failed = 0
+    with referee.xvfb() as display:
+        for cts, name in jobs:
+            try:
+                entry = export(display, cts, os.path.join(args.out, name))
+                print(f"ok      {name} (v{entry['format_version']}, "
+                      f"{entry['stats']['cells']} cells)")
+            except (referee.RefereeError, OSError, ValueError) as e:
+                failed += 1
+                entry = {"error": str(e)}
+                print(f"FAILED  {name}: {e}", file=sys.stderr)
+            manifest["files"][name] = entry
+    if not args.files:
+        with open(os.path.join(args.out, "MANIFEST.json"), "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=1, sort_keys=True)
+            f.write("\n")
+    print(f"{len(jobs) - failed} of {len(jobs)} files exported to {args.out}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except referee.RefereeError as e:
+        sys.exit(f"error: {e}")

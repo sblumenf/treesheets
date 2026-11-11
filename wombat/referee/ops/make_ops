@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Has the real TreeSheets carry out the operation cases, and writes what it gave to golden/.
+
+Usage: make_ops [--fixture] [NAME ...]
+
+A case is cases/NAME.lobster, a script that does one operation in the real TreeSheets on a
+copy of fixture.cts, beside cases/NAME.edit, the same operation as commands for `wombat edit`.
+golden/NAME.json is the document after the Lobster script, in the format of ../golden/*.json
+(see ../README.md). The test crates/wombat-cli/tests/ops.rs runs the .edit file and compares.
+
+Also compiles textruns.cpp against TreeSheets' src/textruns.h and writes its output to
+golden/textruns.jsonl, which crates/wombat-core/tests/textruns.rs compares with.
+
+--fixture also has the app build fixture.cts from fixture.lobster first. Only needed when that
+script changes: the file is checked in, since every run gives its cells new edit times.
+
+The golden files are the same on every run, so after regenerating, `git diff` shows what
+TreeSheets now does differently. Needs what ../README.md lists, and g++.
+"""
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+
+sys.dont_write_bytecode = True
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+import referee  # noqa: E402
+
+CASES = os.path.join(HERE, "cases")
+GOLDEN = os.path.join(HERE, "golden")
+FIXTURE = os.path.join(HERE, "fixture.cts")
+
+
+def write(path, text):
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+
+
+def textruns():
+    with tempfile.TemporaryDirectory(prefix="ts-textruns-") as tmp:
+        exe = os.path.join(tmp, "textruns")
+        subprocess.run(["g++", "-std=c++20", "-I", os.path.join(referee.REPO, "src"), "-o", exe,
+                        os.path.join(HERE, "textruns.cpp")], check=True)
+        out = subprocess.run([exe], check=True, capture_output=True).stdout.decode("utf-8")
+    write(os.path.join(GOLDEN, "textruns.jsonl"), out)
+    print(f"textruns: {out.count(chr(10))} cases")
+
+
+def fixture(display):
+    with open(os.path.join(HERE, "fixture.lobster"), encoding="utf-8") as f:
+        code = f.read()
+    with tempfile.TemporaryDirectory(prefix="ts-fixture-") as tmp:
+        out = os.path.join(tmp, "fixture.cts")
+        # Any document will do to start the app with; the script makes a new one.
+        seed = os.path.join(referee.REPO, "TS", "examples", "sales.cts")
+        with referee.Instance(display, seed) as ts:
+            print("fixture: " + ts.eval(f'let out_path = "{out}"\n' + code))
+        shutil.copyfile(out, FIXTURE)
+
+
+def main():
+    args = sys.argv[1:]
+    make_fixture = "--fixture" in args
+    names = [a for a in args if a != "--fixture"]
+    everything = not names
+    names = names or sorted(n[:-8] for n in os.listdir(CASES) if n.endswith(".lobster"))
+    os.makedirs(GOLDEN, exist_ok=True)
+    if everything:
+        textruns()
+    with referee.xvfb() as display:
+        if make_fixture:
+            fixture(display)
+        for name in names:
+            if not os.path.isfile(os.path.join(CASES, name + ".edit")):
+                raise referee.RefereeError(f"cases/{name}.lobster has no cases/{name}.edit")
+            with referee.Instance(display, FIXTURE) as ts:
+                ts.eval(file=os.path.join(CASES, name + ".lobster"))
+                dump = referee.format_document(
+                    referee.parse_dump(ts.eval(file=referee.DUMP_SCRIPT))[0])
+            write(os.path.join(GOLDEN, name + ".json"), dump)
+            print(name)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (referee.RefereeError, subprocess.CalledProcessError) as e:
+        sys.exit(f"error: {e}")

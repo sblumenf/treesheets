@@ -1,0 +1,30 @@
+{
+ "text": "",
+ "type": "data",
+ "grid": {
+  "cols": 2,
+  "rows": 2,
+  "cells": [
+   {
+    "text": "a b",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "c,d",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "q\"q",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "x",
+    "type": "data",
+    "grid": null
+   }
+  ]
+ }
+}

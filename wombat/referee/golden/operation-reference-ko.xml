@@ -1,0 +1,380 @@
+  <grid>
+  <row>
+  <cell stylebits="1">프로그램 작동 참조
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1" relsize="-2">데모 실행:
+    <grid bordercolor="0xFFFFFF" outerspacing="1">
+    <row>
+    <cell relsize="-2">도구 모음 버튼을 클릭하거나
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-2">메뉴 선택: 프로그램 &gt; 실행 또는
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-2">바로 가기 누르기: CTRL+ALT+F5
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1" relsize="-2">필드 유형:
+    <grid>
+    <row>
+    <cell relsize="-2">데이터
+    </cell>
+    <cell colorbg="0x8080FF" relsize="-2">작동
+    </cell>
+    <cell colorbg="0x80FF80" relsize="-2">결과 (보기)
+    </cell>
+    <cell colorbg="0xFF8080" relsize="-2">변수 (할당/읽기)
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1">산술
+    <grid>
+    <row>
+    <cell relsize="-1">3
+    </cell>
+    <cell type="1" relsize="-1">+
+    </cell>
+    <cell relsize="-1">2
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">3
+    </cell>
+    <cell type="1" relsize="-1">-
+    </cell>
+    <cell relsize="-1">2
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">3
+    </cell>
+    <cell type="1" relsize="-1">*
+    </cell>
+    <cell relsize="-1">2
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">3
+    </cell>
+    <cell type="1" relsize="-1">/
+    </cell>
+    <cell relsize="-1">2
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1">도우미
+    <grid>
+    <row>
+    <cell relsize="-1">5
+    </cell>
+    <cell type="1" relsize="-1">inc
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">5
+    </cell>
+    <cell type="1" relsize="-1">dec
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">5
+    </cell>
+    <cell type="1" relsize="-1">neg
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1">그래프
+    <grid>
+    <row>
+    <cell relsize="-1">3
+    </cell>
+    <cell type="1" relsize="-1">graph
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">5
+    </cell>
+    <cell type="1" relsize="-1">graph
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">9
+    </cell>
+    <cell type="1" relsize="-1">graph
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1">집계
+    <grid>
+    <row>
+    <cell relsize="-1">
+      <grid>
+      <row>
+      <cell relsize="-1">1
+      </cell>
+      <cell relsize="-1">2
+      </cell>
+      <cell relsize="-1">3
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell type="1" relsize="-1">sum
+    </cell>
+    <cell type="3">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">
+      <grid>
+      <row>
+      <cell relsize="-1">4
+      </cell>
+      <cell relsize="-1">1
+      </cell>
+      <cell relsize="-1">7
+      </cell>
+      <cell relsize="-1">2
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell type="1" relsize="-1">min
+    </cell>
+    <cell type="3">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">
+      <grid>
+      <row>
+      <cell relsize="-1">4
+      </cell>
+      <cell relsize="-1">1
+      </cell>
+      <cell relsize="-1">7
+      </cell>
+      <cell relsize="-1">2
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell type="1" relsize="-1">max
+    </cell>
+    <cell type="3">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">
+      <grid>
+      <row>
+      <cell relsize="-1">4
+      </cell>
+      <cell relsize="-1">1
+      </cell>
+      <cell relsize="-1">7
+      </cell>
+      <cell relsize="-1">2
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell type="1" relsize="-1">avg
+    </cell>
+    <cell type="3">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">
+      <grid>
+      <row>
+      <cell relsize="-1">4
+      </cell>
+      <cell relsize="-1">1
+      </cell>
+      <cell relsize="-1">7
+      </cell>
+      <cell relsize="-1">2
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell type="1" relsize="-1">median
+    </cell>
+    <cell type="3">
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1">행렬 전치
+    <grid>
+    <row>
+    <cell relsize="-1">
+      <grid>
+      <row>
+      <cell relsize="-1">A
+      </cell>
+      <cell relsize="-1">B
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell type="1" relsize="-1">transpose
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">
+      <grid>
+      <row>
+      <cell relsize="-1">1
+      </cell>
+      <cell relsize="-1">2
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-1">3
+      </cell>
+      <cell relsize="-1">4
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell type="1" relsize="-1">transpose
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1">조건
+    <grid>
+    <row>
+    <cell relsize="-1">
+      <grid>
+      <row>
+      <cell type="1" relsize="-1">if
+      </cell>
+      <cell relsize="-1">5
+      </cell>
+      <cell type="1" relsize="-1">&gt;
+      </cell>
+      <cell relsize="-1">5
+      </cell>
+      <cell type="3" relsize="-1">
+      </cell>
+      </row>
+      <row>
+      <cell type="1" relsize="-1">if
+      </cell>
+      <cell relsize="-1">5
+      </cell>
+      <cell type="1" relsize="-1">&gt;
+      </cell>
+      <cell relsize="-1">3
+      </cell>
+      <cell type="3" relsize="-1">
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">
+      <grid>
+      <row>
+      <cell relsize="-1">&lt;
+      </cell>
+      <cell relsize="-1">&gt;
+      </cell>
+      <cell relsize="-1">&lt;=
+      </cell>
+      <cell relsize="-1">&gt;=
+      </cell>
+      <cell relsize="-1">= or ==
+      </cell>
+      <cell relsize="-1">!= or &lt;&gt;
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell stylebits="1">변수
+    <grid>
+    <row>
+    <cell relsize="-1">assign:
+    </cell>
+    <cell relsize="-1">2
+    </cell>
+    <cell type="1" relsize="-1">inc
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    <cell type="2" relsize="-1">three
+    </cell>
+    </row>
+    <row>
+    <cell relsize="-1">read:
+    </cell>
+    <cell type="4" relsize="-1">three
+    </cell>
+    <cell type="3" relsize="-1">
+    </cell>
+    <cell relsize="-1">
+    </cell>
+    <cell relsize="-1">
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

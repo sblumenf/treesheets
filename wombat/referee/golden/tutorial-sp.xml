@@ -1,0 +1,1560 @@
+  <grid>
+  <row>
+  <cell colorfg="0xFF0000" colorbg="0xF9F9F9" stylebits="2">
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0xFF0000" colorbg="0xF9F9F9" stylebits="2" relsize="8">Bienvenido a TreeSheets!
+  </cell>
+  </row>
+  <row>
+  <cell colorbg="0xF9F9F9" relsize="1">(1) Este archivo es un tutorial en vivo. Simplemente siguiendo los números delante del texto, podrá aprender a utilizar todas las funciones de TreeSheets de forma rápida y sencilla.!
+    <grid>
+    <row>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="5">Los basicos
+      <grid>
+      <row>
+      <cell relsize="3">(2) ¡Has encontrado el paso 2! Bien, ahora intentemos insertar texto. Cada uno de estos cuadros de texto se llama &quot;celda&quot;. ¿Ves la celda vacía entre (2) y (3)? Haz clic en cualquier lugar dentro de ella para seleccionarla.  
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3">(3) La celda de arriba debería estar seleccionada (con un borde negro grueso alrededor). Ahora escribe algo y verás que cualquier texto termina en la celda seleccionada. Observa cómo, al empezar a escribir, apareció un cursor y el cuadro de selección se hizo más delgado. Esto indica que la celda está en modo de edición de texto, por lo que funciones como las teclas de cursor, la tecla Supr, etc., funcionan en el texto actual. También puedes hacer doble clic para acceder al modo de edición de texto o pulsar Intro. Para salir, pulsa Intro de nuevo, pulsa Esc o simplemente selecciona otra celda. (
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3">4) Sin embargo, hay una forma aún mejor de insertar texto. ¿Ves las líneas de puntos entre las celdas? Estas se llaman &quot;líneas de cuadrícula&quot;. Selecciona (haz clic en) la línea de cuadrícula entre (4) y (5).
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3">5) La línea de arriba debería estar resaltada. Ahora vuelve a escribir texto y observa cómo se insertó automáticamente una nueva celda entre (4) y (5). Esto también funciona en los bordes de las celdas. Esta es la forma natural de extender cualquier TreeSheet: busca la ubicación donde quieras agregar información y ¡empieza a escribir! (
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3">6) También puedes navegar por las líneas de la cuadrícula y las celdas sin usar el ratón, para una edición aún más rápida: asegúrate de que esta celda esté seleccionada y pulsa las teclas de cursor ARRIBA y ABAJO varias veces. 
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3">(7) Eliminar celdas funciona de la misma manera. Asegúrate de tener seleccionada cualquier línea de la cuadrícula superior y pulsa RETROCESO para eliminar la celda que está encima (o antes), o SUPR para eliminar la celda que está debajo (o después). Esto funciona de forma análoga a los editores y procesadores de texto. Como alternativa, simplemente selecciona cualquier celda (haciendo clic y arrastrando) y pulsa SUPR para eliminarlas todas. 
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3">((8) Si has eliminado varias líneas arriba (¡ojalá no esta!), ¡ahora es un buen momento para probar la función de deshacer! Pulsa CTRL+Z repetidamente para recuperar las eliminaciones. 
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3">TreeSheets permite deshacer acciones ilimitadas, así que con solo mantener presionada la tecla Ctrl+Z durante un rato, el documento volverá a su estado original. Ctrl+Y rehace. 
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3">
+        <grid>
+        <row>
+        <cell relsize="3">En OS X, siempre que este tutorial haga referencia a Ctrl, use CMD. ALT es lo mismo que la tecla OPCIÓN. 
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3">
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="5">Cuadrículas
+      <grid>
+      <row>
+      <cell relsize="2">(9) Como ya habrás notado, TreeSheets puede anidar cuadrículas de celdas. Cada celda puede contener su propia cuadrícula. Esta celda, por ejemplo, tiene una subcuadrícula.
+        <grid>
+        <row>
+        <cell colorfg="0x000080" colorbg="0xF0F9F9" stylebits="4" relsize="2">Tequila
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" stylebits="4" relsize="2">2
+        </cell>
+        </row>
+        <row>
+        <cell colorfg="0x000080" colorbg="0xF0F9F9" stylebits="4" relsize="2">Gran Marnier
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" stylebits="4" relsize="2">1
+        </cell>
+        </row>
+        <row>
+        <cell colorfg="0x000080" colorbg="0xF0F9F9" stylebits="4" relsize="2">Jugo de lima 
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" stylebits="4" relsize="2">0.5
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3">(10) Para agregar una cuadrícula a cualquier celda, selecciona la celda y presiona INSERTAR o MAYÚS+ENTRAR. Pruébalo en esta celda, deberías obtener una cuadrícula de 1x1 debajo de este texto 
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3">(11) Intenta expandir la celda que creaste en (10) seleccionando una de sus 4 líneas de cuadrícula y escribiendo texto hasta que tengas al menos una cuadrícula de 3x3. También intenta moverte por ella con las teclas del cursor en todas las direcciones. 
+      </cell>
+      </row>
+      <row>
+      <cell relsize="4">(12) Ahora intentemos mover cosas en las cuadrículas. Selecciona una columna completa en una cuadrícula (como los números en la cuadrícula contenida en (9)) arrastrando desde la celda superior de la fila hasta la inferior.  
+        <grid>
+        <row>
+        <cell relsize="4">Al igual que en las hojas de cálculo (y a diferencia de algunas otras aplicaciones), arrastrar en TreeSheets es para expandir una selección, no para mover.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="4">Ahora presione CTRL+tecla de cursor IZQUIERDA o CTRL+DERECHA para desplazar los datos. 
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="3"> 13) Puede copiar celdas; por ejemplo, seleccione esta, copie con CTRL+C, luego seleccione cualquier línea de la cuadrícula superior y presione CTRL+V. Si selecciona varias celdas, la selección se insertará en el destino como varias líneas. Pruébelo. Cortar (CTRL+X) o eliminar varias selecciones de celdas funciona de forma similar e intuitiva. Si no desea insertar celdas en línea al pegar, siempre puede crear primero una nueva cuadrícula y luego pegar sobre ella para crear una jerarquía.
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="2">Formato de celda y zoom
+      <grid>
+      <row>
+      <cell relsize="1">(14) El texto en una celda es similar a un párrafo
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-1">Se divide en líneas automáticamente según el ancho de la columna en la que se encuentra. El ancho de las columnas depende de cómo prefiera estructurar su TreeSheet.
+      </cell>
+      </row>
+      <row>
+      <cell>Puede ver el ancho de la columna en la barra de estado (para la columna sobre la que pasa el ratón).
+      </cell>
+      </row>
+      <row>
+      <cell>Asegúrese de que esta celda esté seleccionada y, a continuación, mantenga pulsada la tecla ALT y gire la rueda del ratón para ver qué sucede (o ALT+RE PÁG/APN PÁG).
+      </cell>
+      </row>
+      <row>
+      <cell>Esta celda debería reformatearse automáticamente, al igual que las demás celdas de esta columna y cualquier cuadrícula dentro de ella. Tenga en cuenta que el ancho de la columna especifica el número máximo de caracteres por línea, por lo que no ensanchará la cuadrícula si cada celda ocupa una sola línea. 
+      </cell>
+      </row>
+      <row>
+      <cell relsize="1">Además, la rueda de desplazamiento es, en cambio, un deslizamiento en el trackpad (o Magic Mouse).
+      </cell>
+      </row>
+      <row>
+      <cell relsize="6">
+        <grid>
+        <row>
+        <cell>En algunos teclados Mac, las teclas RE PÁG/APN se emulan con FN+ARRIBA/ABAJO. Además, la rueda de desplazamiento se desplaza en el trackpad (o el Magic Mouse).
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="1">(15) Una opción más eficaz para cambiar el espacio que ocupa una celda en pantalla (útil para indicar la importancia relativa de algo) es cambiar el tamaño del texto. Seleccione esta celda, mantenga presionada la tecla MAYÚS y gire la rueda del ratón (o MAYÚS+RE PÁG/APN PÁG).
+      </cell>
+      </row>
+      <row>
+      <cell relsize="2">(16) Observe cómo, si la reduce constantemente, el texto se mostrará como píxeles individuales. Esto puede parecer inútil, pero en realidad es una forma práctica de gestionar la información que reemplaza el plegado y desplegado de jerarquías, tan común en otras aplicaciones.
+      </cell>
+      </row>
+      <row>
+      <cell>(17) Por ejemplo, esta celda contiene una cuadrícula pequeña. Seleccione esta celda, mantenga presionada la tecla Ctrl y gire la rueda del ratón tres veces para ampliarla (o Ctrl+Re Pág/Av Pág).
+        <grid>
+        <row>
+        <cell>(18) Antes no podía leer este texto, ¡pero ahora sí!
+        </cell>
+        </row>
+        <row>
+        <cell>(19) Al ampliar, TreeSheets establece el tamaño base del texto al tamaño promedio de la cuadrícula de nivel superior mostrada. Al cambiar el tamaño del texto con MAYÚS+rueda de desplazamiento, cambia el tamaño relativo del texto. Esto significa que el tamaño del texto depende del nivel de zoom. Puede parecer complicado, pero el resultado final es que puedes reducir el tamaño del texto y, aun así, verlo más al ampliarlo.
+        </cell>
+        </row>
+        <row>
+        <cell>(20) La idea es usar subcuadrículas pequeñas como esta para almacenar información (como una lista de tareas para un proyecto específico) que quieras que esté disponible en tu TreeSheet general, pero que no ocupe espacio. Leerla o editarla siempre está a un clic de distancia.
+        </cell>
+        </row>
+        <row>
+        <cell>(21) Además, configurar el tamaño del texto generalmente solo se hace una vez, mientras que plegar/desplegar o desplazarse, como suele hacerse en otras aplicaciones, se hace cada vez que se quiere ver la información. TreeSheets simplifica la navegación por grandes cantidades de información y facilita su visualización (el texto de tamaño píxel sigue dando una idea de la cantidad de información contenida en la celda y su estructura).
+        </cell>
+        </row>
+        <row>
+        <cell>(22) Para que este texto vuelva a ser legible en la parte superior, seleccione las celdas (18..23) (no la 17), aleje el zoom dos veces (rueda del ratón hacia atrás) y, a continuación, presione MAYÚS+rueda del ratón hacia adelante hasta que vuelva a ser legible. 
+        </cell>
+        </row>
+        <row>
+        <cell>(23) Si ahora desea reducirlo, seleccione las mismas celdas y presione MAYÚS+rueda del ratón hacia atrás para reducir el tamaño. 
+        </cell>
+        </row>
+        <row>
+        <cell>(24) ¿Observa el texto atenuado que aparece sobre el texto del encabezado al ampliar? Esto se denomina contexto y le ayuda a recordar qué parte de la hoja de árbol amplió. are zoomed in? 
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-1">Si, por el contrario, prefiere ocultar completamente una cuadrícula, puede usar la función de plegado (F10 en Windows, CTRL+F10 en otras plataformas). Intente presionarla repetidamente en esta celda para ver el efecto.
+        <grid folded="1">
+        <row>
+        <cell relsize="-1">This cell and the ones below will be hidden!
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-1">notice that a cell that has a folded grid gains a '+' icon as its image, denoting that there is extra information that can be shown. If you unfold it, the image will automatically dissapear
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-1">cells will also automatically be unfolded if you use functions such as &quot;search next&quot; to jump between cells that are not currently visible.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-1">Though folding may be a familiar operation you know from other applications, shrinking text to become tiny (see 17) will give you a better overview over your information, try it out! 
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="8">Renderizado y diseño
+      <grid>
+      <row>
+      <cell>Puede alternar la ubicación del texto sobre la cuadrícula (diseño vertical, como gran parte de este documento) o al lado (diseño horizontal) presionando Alt+0 en cualquier selección:  
+        <grid>
+        <row>
+        <cell>texto sobre cuadrícula
+          <grid>
+          <row>
+          <cell>sample
+          </cell>
+          </row>
+          <row>
+          <cell>grid
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell>text besides
+          <grid>
+          <row>
+          <cell>sample
+          </cell>
+          </row>
+          <row>
+          <cell>grid
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell>También puede elegir entre 3 métodos de renderizado diferentes para mostrar la anidación, Cuadrícula (como la mayor parte de este documento), Burbujas y Líneas (vea el menú Editar -&gt; Estilo de renderizado de diseño).  Junto con horizontal/vertical, esto da 6 estilos diferentes: 
+        <grid>
+        <row>
+        <cell colorbg="0x8080FF">
+        </cell>
+        <cell colorbg="0x8080FF" stylebits="2">vertical
+        </cell>
+        <cell colorbg="0x8080FF" stylebits="2">horizontal
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0x8080FF" stylebits="1">cuadrícula
+        </cell>
+        <cell>example text
+          <grid>
+          <row>
+          <cell>nested grid
+            <grid>
+            <row>
+            <cell>nested 1
+            </cell>
+            </row>
+            <row>
+            <cell>nested 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>one more line
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell>example text
+          <grid>
+          <row>
+          <cell>nested grid
+            <grid>
+            <row>
+            <cell>nested 1
+            </cell>
+            </row>
+            <row>
+            <cell>nested 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>one more line
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0x8080FF" stylebits="1">bubbles
+        </cell>
+        <cell>example text
+          <grid>
+          <row>
+          <cell>nested grid
+            <grid>
+            <row>
+            <cell>nested 1
+            </cell>
+            </row>
+            <row>
+            <cell>nested 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>one more line
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell>example text
+          <grid>
+          <row>
+          <cell>nested grid
+            <grid>
+            <row>
+            <cell>nested 1
+            </cell>
+            </row>
+            <row>
+            <cell>nested 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>one more line
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0x8080FF" stylebits="1">lines
+        </cell>
+        <cell>example text
+          <grid>
+          <row>
+          <cell>nested grid
+            <grid>
+            <row>
+            <cell>nested 1
+            </cell>
+            </row>
+            <row>
+            <cell>nested 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>one more line
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        <cell>example text
+          <grid>
+          <row>
+          <cell>nested grid
+            <grid>
+            <row>
+            <cell>nested 1
+            </cell>
+            </row>
+            <row>
+            <cell>nested 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell>one more line
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-4">Los diferentes estilos tienden a funcionar mejor si los aplica a un documento completo, pero se pueden configurar por celda si lo desea. 
+        <grid>
+        <row>
+        <cell relsize="-4">El estilo &quot;cuadrícula&quot; es el más adecuado para editar, ya que muestra con mayor claridad dónde se pueden insertar nuevos datos. 
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">Las &quot;burbujas&quot; funcionan mejor si se asignan colores de fondo a cada celda. Si se deja el mismo color en todas las celdas, TreeSheets elige automáticamente colores alternativos para evitar que las burbujas se vuelvan invisibles. 
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">El estilo &quot;líneas&quot; es ideal para documentos con mapas mentales.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="11">Imagenes &amp; Estilos
+      <grid>
+      <row>
+      <cell relsize="-3">Añade imágenes a las celdas para que tu documento sea más claro. Las imágenes aparecen delante del texto de la celda. Coloca una imagen en su propia celda para mayor flexibilidad. Prueba a añadir una imagen (pequeña) a cualquier celda superior (menú Editar/Añadir imagen o selecciona una del menú desplegable de imágenes en la barra de herramientas).
+        <grid>
+        <row>
+        <cell relsize="-3">Las imágenes se almacenan en un archivo de documento (.cts), lo que significa que si mueve un archivo, nunca las perderá. Si usa una imagen varias veces en un documento, solo se almacena una copia.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-3">Si desea consultar imágenes grandes en una hoja de árbol, y sería demasiado complicado tenerlas dentro de la hoja, también puede simplemente colocarlas en la misma carpeta que los archivos .cts y escribir su nombre en una celda. Luego, puede usar Editar/Abrir archivo (F4) para verlas.
+          <grid>
+          <row>
+          <cell relsize="-3">De esta manera, puede hacer referencia a cualquier tipo de archivo para agregar fácilmente nuevos enlaces de archivos; simplemente arrastre y suelte archivos que no sean imágenes en las celdas.
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="3" relsize="-3">¡Pon una celda en negrita, cursiva o ambas! Prueba Ctrl+b o Ctrl+i en algunas celdas; ambas son opciones de alternancia. Además, puedes usar los estilos de máquina de escribir y subrayado en el menú Editar/Estilo de texto.
+      </cell>
+      </row>
+      <row>
+      <cell stylebits="16" relsize="-3">El tachado (CTRL+t) es un estilo útil para las listas de TODO, para indicar elementos que se han procesado pero que aún no desea eliminar.
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0C0FF" relsize="-3">Prueba a colorear las celdas con los dos selectores de color de la barra de herramientas. Puedes hacer doble clic en los colores actuales para configurarlos al instante. Selecciona las celdas que contengan cuadrículas y usa el menú desplegable de color del borde o el menú Editar/Ajustar ancho del borde para cambiar su aspecto.
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC0C0FF" relsize="-3">Añade una nota a una celda para lo que no debe recargar su texto, como detalles, fuentes o recordatorios: selecciona la celda y pulsa CTRL+E (Edit &gt; Edit Note). Una celda con nota muestra un pequeño triángulo en su esquina superior derecha. Apunta al triángulo para leer la nota y haz clic en él para editarla. ¡Esta celda tiene una nota, pruébalo! Con View &gt; Filter &gt; Show cells with notes encuentras todas.
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="11">Búsqueda y navegación
+      <grid>
+      <row>
+      <cell relsize="-4">Puede usar la búsqueda instantánea escribiendo algo en el cuadro de búsqueda de la barra de herramientas (CTRL+F para enfocar este cuadro). Se resaltarán las celdas coincidentes (F3 para recorrer los resultados). Escriba algo en el cuadro de reemplazo y luego use una de las dos opciones de reemplazo del menú de búsqueda.
+        <grid>
+        <row>
+        <cell relsize="-1">Como alternativa a la búsqueda, &quot;Ir a la celda coincidente&quot; (F6) recorre las celdas que tienen el mismo texto que la celda actual, lo que puede ser útil como referencia cruzada o mecanismo de enlace. Tiene preferencia por ir a una celda con formato diferente, lo que significa que puede usar el formato para distinguir las celdas de definición de las celdas de enlace. Pruébelo:
+          <grid>
+          <row>
+          <cell relsize="-1">ciclo de celda
+          </cell>
+          <cell relsize="-1">...
+          </cell>
+          <cell relsize="-1">CycleCell
+          </cell>
+          <cell relsize="-1">CycleCell
+          </cell>
+          </row>
+          <row>
+          <cell stylebits="1" relsize="-1">LinkRef
+          </cell>
+          <cell relsize="-1">...
+          </cell>
+          <cell stylebits="2" relsize="-1">LinkRef
+          </cell>
+          <cell stylebits="2" relsize="-1">LinkRef
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-1">Definition
+          </cell>
+          <cell relsize="-1">
+          </cell>
+          <cell relsize="-1">Use
+          </cell>
+          <cell relsize="-1">Use
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-1">Almacene URL o colecciones de marcadores dentro de TreeSheets y simplemente presione F5 para abrir cualquiera de ellos en su navegador
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="9">Etiquetas y jerarquía
+      <grid>
+      <row>
+      <cell relsize="-2">Las etiquetas son una buena manera de gestionar palabras que se usan repetidamente en una hoja de cálculo, como estados, categorías, etc. Para convertir algo en una etiqueta, busque una ocurrencia y seleccione &quot;Agregar celda como etiqueta&quot; (menú Editar/Etiqueta...). A partir de ahora, puede etiquetar cualquier otra celda con CTRL+Botón derecho del ratón (menú emergente). Las etiquetas son de color azul para indicar que son una etiqueta. Esto ayuda a detectar si una etiqueta está mal escrita.
+      </cell>
+      </row>
+      <row>
+      <cell relsize="1">Una operación eficaz que funciona bien con las etiquetas es &quot;Intercambio de jerarquía&quot;. Un ejemplo de lo que hace:
+        <grid>
+        <row>
+        <cell relsize="-5">La motivación detrás de Hierarchy Swap es que usted usa TreeSheets para organizar sus datos en formato de árbol, pero a menudo, los árboles no son ideales para organizar datos, porque lo obligan a tomar decisiones sobre qué subdivisión es más importante.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">Digamos que estoy organizando un proyecto e intentando llevar un registro de las tareas que implica. Utilizo etiquetas para indicar quiénes trabajan en él, los entregables y las áreas temáticas:
+          <grid>
+          <row>
+          <cell relsize="-5">hito 1
+            <grid>
+            <row>
+            <cell relsize="-4">Interfaz
+              <grid>
+              <row>
+              <cell relsize="-5">fred
+                <grid>
+                <row>
+                <cell relsize="-5">Arreglar la conexión GUI 
+                </cell>
+                </row>
+                <row>
+                <cell relsize="-5">a la base de datos
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-5">bob
+                <grid>
+                <row>
+                <cell relsize="-5">gráficos de revisión
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-5">almacenamiento - parte trasera - codigo(?)
+              <grid>
+              <row>
+              <cell relsize="-5">fred
+                <grid>
+                <row>
+                <cell relsize="-5">agregar formularios de entrada
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-5">hitos 2
+            <grid>
+            <row>
+            <cell relsize="-5">código
+              <grid>
+              <row>
+              <cell relsize="-5">fred
+                <grid>
+                <row>
+                <cell relsize="-5">configurar nuevas tablas
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-5">bob
+                <grid>
+                <row>
+                <cell relsize="-5">comprar nuevos servidores 
+                </cell>
+                </row>
+                <row>
+                <cell relsize="-5">configurar redes
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">Observe cómo, en la tabla anterior, los hitos son la subdivisión más importante, las áreas temáticas la segunda y las personas la menos importante. Esta es una elección bastante arbitraria; podríamos querer ver las cosas desde la perspectiva de las personas, ¡y ahora con Hierarchy Swap es posible! Seleccione cualquier ocurrencia de &quot;fred&quot; y presione F8 dos veces. Obtendrá esto: fred hito 1 interfaz gráfica de usuario arreglar la interfaz gráfica de usuario conectar a la base de datos back-end hito 1 añadir formularios de entrada hito 2 configurar nuevas tablas bob hito 1 interfaz gráfica de usuario revisión hito 2 código comprar nuevos servidores configurar la red:
+          <grid>
+          <row>
+          <cell relsize="-5">fred
+            <grid>
+            <row>
+            <cell relsize="-5">milestone 1
+              <grid>
+              <row>
+              <cell relsize="-5">front end
+                <grid>
+                <row>
+                <cell relsize="-5">Arreglar la conexión GUI 
+                </cell>
+                </row>
+                <row>
+                <cell relsize="-5">a la base de datos
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-5">código
+              <grid>
+              <row>
+              <cell relsize="-5">milestone 1
+                <grid>
+                <row>
+                <cell relsize="-5">agregar formularios de entrada
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-5">milestone 2
+                <grid>
+                <row>
+                <cell relsize="-5">configurar nuevas tablas
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-5">bob
+            <grid>
+            <row>
+            <cell relsize="-5">hito 1
+              <grid>
+              <row>
+              <cell relsize="-5">front end
+                <grid>
+                <row>
+                <cell relsize="-5">gráficos de revisión
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-5">hito 2
+              <grid>
+              <row>
+              <cell relsize="-5">back end
+                <grid>
+                <row>
+                <cell relsize="-5">comprar nuevos servers
+                </cell>
+                </row>
+                <row>
+                <cell relsize="-5">establecer redes
+                </cell>
+                </row>
+                </grid>
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">En realidad, lo que has hecho es decir: &quot;Muéstrame esta jerarquía desde la perspectiva de Fred&quot;. Ahora puedes ver exactamente en qué trabaja. Podrías hacer lo mismo con Bob, si fuera necesario. Si quieres ver qué hace Fred en el backend, pulsa F8 una sola vez en &quot;backend&quot; (dentro de Fred) y habrás ajustado la perspectiva una vez más. Pulsa una vez más y ahora la subdivisión principal será frontend/backend. 
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">Sigue pulsando F8 en varias etiquetas para ver cómo puedes obtener la perspectiva que necesites. 
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">Es importante destacar que, al intercambiar etiquetas, la etiqueta que antes era la principal se convierte en la secundaria de la etiqueta seleccionada. Esto significa que, independientemente de la frecuencia con la que se realice este intercambio, no se pierde información. Esto significa que deberías poder recuperar el árbol a su configuración original si lo deseas. 
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">Por lo tanto, puedes ver esta función como la que te permite tener fragmentos de información que pueden tener cualquier número de etiquetas asociadas. El intercambio de jerarquía permite determinar el orden de importancia actual de las etiquetas, por lo que la vista de árbol es solo la vista más reciente. 
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">Se pueden seguir editando datos en este árbol, independientemente de la vista en la que se encuentre, sin necesidad de restablecer el orden original. ¡Árboles como este no tienen un orden definido! 
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-5">Tenga en cuenta que promocionar &quot;fred&quot; no promociona automáticamente a &quot;bob&quot;. TreeSheets no sabe que estas etiquetas son del mismo tipo. No todos los usos de las etiquetas tienen tipos definidos, y no siempre es necesario reordenarlas todas a la vez, lo que simplifica la función.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-4">En relación con el trabajo con jerarquías, está la capacidad de &quot;Aplanar&quot; una jerarquía. Tomemos el ejemplo del hito anterior: tras aplicar &quot;Aplanar&quot;, se obtiene: 
+        <grid>
+        <row>
+        <cell relsize="-4">hito 1
+        </cell>
+        <cell relsize="-4">interfaz de usuario
+        </cell>
+        <cell relsize="-4">fred
+        </cell>
+        <cell relsize="-4">reparación de la interfaz gráfica
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">hito 1
+        </cell>
+        <cell relsize="-4">interfaz de usuario
+        </cell>
+        <cell relsize="-4">fred
+        </cell>
+        <cell relsize="-4">conexión a la base de datos
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">hito 1
+        </cell>
+        <cell relsize="-4">interfaz de usuario
+        </cell>
+        <cell relsize="-4">bob
+        </cell>
+        <cell relsize="-4">revisión de gráficos
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">hito 1
+        </cell>
+        <cell relsize="-4">código
+        </cell>
+        <cell relsize="-4">fred
+        </cell>
+        <cell relsize="-4">adición de formularios de entrada; 
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">hito 2
+        </cell>
+        <cell relsize="-4">código
+        </cell>
+        <cell relsize="-4">fred
+        </cell>
+        <cell relsize="-4">configuración de nuevas tablas
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">hito 2
+        </cell>
+        <cell relsize="-4">código
+        </cell>
+        <cell relsize="-4">bob
+        </cell>
+        <cell relsize="-4">compra de nuevos servidores
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-4">hito 2: 
+        </cell>
+        <cell relsize="-4">interfaz de usuario
+        </cell>
+        <cell relsize="-4">Bob
+        </cell>
+        <cell relsize="-4"> configuración de la red.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-2">Aunque no es tan útil como la versión jerárquica para editar y ver la estructura, es la única forma de exportar estos datos a programas planos como hojas de cálculo (véase Exportar/CSV). A los usuarios de hojas de cálculo les gusta modelar los datos de esta manera, por lo que la operación inversa, &quot;Jerarchizar&quot;, permite recuperar la jerarquía de una tabla.
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    <cell colorbg="0xF9F9F9" stylebits="1" relsize="13">Advanced operations
+      <grid>
+      <row>
+      <cell relsize="-6">(25) Si una celda no tiene texto, pero sí tiene una cuadrícula, como las celdas a continuación, se muestra sin espacio para el texto. Esto puede dificultar la selección y la inserción de texto. Puede seleccionar cualquier celda simplemente presionando ESC cuando haya seleccionado una subcelda (pruebe a seleccionar (26), luego ESC y escriba el texto). También es conveniente hacer doble clic en una línea de la cuadrícula para seleccionarla por completo. Inténtelo haciendo doble clic entre (26) y (27) y luego escriba el texto.
+        <grid>
+        <row>
+        <cell relsize="-6">
+          <grid>
+          <row>
+          <cell relsize="-6">this
+          </cell>
+          <cell relsize="-6">grid
+          </cell>
+          <cell relsize="-6">has
+          </cell>
+          <cell relsize="-6">no
+          </cell>
+          <cell relsize="-6">text
+          </cell>
+          <cell relsize="-6">header
+          </cell>
+          <cell relsize="-6">(26)
+          </cell>
+          <cell relsize="-6">(27)
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Transponer es una operación útil si intenta reorganizar listas para obtener un diseño más manejable. Seleccione esta celda y pulse Editar/Reorganización de cuadrícula/Transponer varias veces. Asegúrese de que se muestre verticalmente y, además, pulse Editar/Reorganización de cuadrícula/Ordenar después de seleccionar la primera o la segunda columna.
+        <grid>
+        <row>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">One
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">Two
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">Three
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">Four
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">Five
+        </cell>
+        </row>
+        <row>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">1
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">2
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">3
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">4
+        </cell>
+        <cell colorfg="0x000080" colorbg="0x80FFFF" relsize="-6">5
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Eche un vistazo a las numerosas opciones de importación y exportación, o imprima en papel o PDF.
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">La operación &quot;Ajustar en elemento principal&quot; (F9) es una excelente manera de crear una nueva jerarquía. Al seleccionar cualquier celda, esta operación las convertirá en una nueva cuadrícula y en un elemento principal que ocupará el lugar de donde provienen. Por ejemplo, seleccione C y D a continuación, presione F9 y escriba algo:
+        <grid>
+        <row>
+        <cell relsize="-6">A
+        </cell>
+        <cell relsize="-6">B
+        </cell>
+        <cell relsize="-6">C
+        </cell>
+        <cell relsize="-6">D
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Los filtros son una función útil cuando tus hojas de árbol crecen mucho. Permiten filtrar temporalmente un subconjunto de la hoja para centrarse en las celdas que buscas. Esto funciona forzando que las celdas filtradas se muestren como texto de 1 píxel y en gris claro. Prueba las opciones de filtrado en el menú Ver:
+        <grid>
+        <row>
+        <cell relsize="-6">Intenta introducir &quot;treesheets&quot; como consulta de búsqueda ahora mismo. Algunas celdas se verán en rojo. Ahora, configura el filtro de búsqueda (Ver -&gt; Filtro -&gt; Mostrar solo celdas en la búsqueda actual). Toda la hoja debería reducirse considerablemente, lo que facilita ver lo que buscas. Hazlo en la vista superior de esta hoja. Intenta acercar y alejar con el filtro activado. Edita la consulta de búsqueda; la vista del filtro cambiará a medida que escribes.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Pruebe también el &quot;último 10% de ediciones&quot; en esta hoja. Asegúrese de desactivar primero la consulta de búsqueda. Tenga en cuenta que si tiene documentos de versiones anteriores de treesheets, es posible que esta función no muestre las ediciones esperadas, ya que esas versiones aún no registraban la última fecha de edición de cada celda.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Si está usando una computadora antigua o trabaja con hojas muy grandes, pruebe la opción &quot;renderizado de línea rápido&quot; para obtener una hoja menos bonita pero que se desplaza más rápido.
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">TreeSheets es ideal para presentaciones. A diferencia de herramientas tradicionales como PowerPoint, que dificultan transmitir una estructura a la audiencia, puedes organizar una hoja de árbol como si toda tu presentación fuera una sola diapositiva y tener subdiapositivas minimizadas que puedes ampliar. Para facilitar su uso como herramienta de presentación, TreeSheets ofrece dos opciones de visualización: Vista de pantalla completa (F11) para reducir la saturación visual y Vista a escala (F12), que intenta ampliar la vista actual al máximo.
+        <grid>
+        <row>
+        <cell relsize="-6">Tenga en cuenta que tanto esta función como la impresión utilizan un método de escalado que no siempre conserva la fidelidad de renderizado. Esto se solucionará en una versión futura.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">TreeSheets tiene un lenguaje de programación integrado para crear complementos
+        <grid>
+        <row>
+        <cell relsize="-6">Estos scripts se colocan en la carpeta &quot;scripts/&quot; y se agregan automáticamente al menú &quot;Scripts&quot; al inicio de TreeSheets, desde donde se pueden iniciar.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">¡Los scripts pueden leer y modificar todo el TreeSheet actual!
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Los scripts están escritos en el lenguaje de programación The Lobster
+          <grid>
+          <row>
+          <cell relsize="-6">Lea más sobre el lenguajer:
+          </cell>
+          <cell relsize="-6">http://strlen.com/lobster/
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Las funciones que puedes usar en tu script están enumeradas en docs/script_reference.html
+          <grid>
+          <row>
+          <cell relsize="-6">The functions you can use in your script are listed in docs/script_reference.html
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">¡Lea los scripts existentes para tener una idea de lo que pueden hacer!
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">TreeSheets también contiene un novedoso lenguaje de programación similar a una hoja de cálculo que aún no es completamente funcional.
+        <grid>
+        <row>
+        <cell relsize="-6">Funciona colocando las operaciones directamente dentro de las cuadrículas, mezcladas con datos.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">El lenguaje evalúa las cuadrículas como una expresión de izquierda a derecha (y de arriba a abajo) una vez que se ejecuta la hoja. Seleccione Programa/Ejecutar (o el botón de la barra de herramientas) y el cuadrado verde de abajo debería estar lleno con un 9 (¡no un 7!).
+          <grid>
+          <row>
+          <cell relsize="-6">1
+          </cell>
+          <cell type="1" relsize="-6">+
+          </cell>
+          <cell relsize="-6">2
+          </cell>
+          <cell type="1" relsize="-6">*
+          </cell>
+          <cell relsize="-6">3
+          </cell>
+          <cell type="3" relsize="-6">9
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">El programa se crea asignando un significado especial a ciertas celdas. Por defecto, todas las celdas son blancas (datos). Desde el menú Programa/Marcar como, se pueden convertir en operaciones (rosa) o celdas de vista (verde claro). Una celda de vista simplemente muestra el valor actual de cualquier operación anterior. En la cuadrícula a continuación, marque el signo + como una operación y la última celda vacía como vista horizontal mediante el menú del programa y luego pulse Ejecutar.
+          <grid>
+          <row>
+          <cell relsize="-6">1
+          </cell>
+          <cell relsize="-6">+
+          </cell>
+          <cell relsize="-6">2
+          </cell>
+          <cell relsize="-6">
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Las operaciones funcionan automáticamente en redes completas, por ejemplo:
+          <grid>
+          <row>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">1
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">2
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">3
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell type="1" relsize="-6">+
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">4
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">5
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">6
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell type="1" relsize="-6">*
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">7
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">8
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">9
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell type="3" relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">35
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">56
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">81
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">No se recomienda usar el lenguaje en esta etapa a menos que seas muy aventurero, ya que solo se implementan pocas operaciones y muchas combinaciones de operandos no son compatibles. Funciona más o menos así:
+          <grid>
+          <row>
+          <cell relsize="-6">+
+          </cell>
+          <cell relsize="-6">-
+          </cell>
+          <cell relsize="-6">*
+          </cell>
+          <cell relsize="-6">/
+          </cell>
+          <cell relsize="-6">&lt;
+          </cell>
+          <cell relsize="-6">&gt;
+          </cell>
+          <cell relsize="-6">&lt;=
+          </cell>
+          <cell relsize="-6">&gt;=
+          </cell>
+          <cell relsize="-6">==
+          </cell>
+          <cell relsize="-6">!=
+          </cell>
+          <cell relsize="-6">=
+          </cell>
+          <cell relsize="-6">&lt;&gt;
+          </cell>
+          <cell relsize="-6">inc
+          </cell>
+          <cell relsize="-6">dec
+          </cell>
+          <cell relsize="-6">neg
+          </cell>
+          <cell relsize="-6">sum
+          </cell>
+          <cell relsize="-6">transpose
+          </cell>
+          <cell relsize="-6">if
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Para obtener más detalles sobre las operaciones, consulte Ayuda &gt; Referencia de operación de carga (CTRL+ALT+F1).
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Eche un vistazo al ejemplo sales.cts para ver lo que puede hacer.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Las fórmulas calculan resultados como en una hoja de cálculo y se actualizan solas cada vez que cambia algo. Escriba en una celda un texto que empiece por =, como =SUM(Costos), y en cuanto salga de la celda, esta mostrará el resultado. La barra de fórmulas (&quot;Formula&quot; en la barra de herramientas) muestra la fórmula de la celda seleccionada, y también puede editarla allí (ENTER la aplica).
+        <grid>
+        <row>
+        <cell relsize="-6">Un nombre entre paréntesis se refiere a la cuadrícula de la celda con exactamente ese texto, primero la más cercana. Abajo, la cuadrícula de la izquierda se llama Costos. Cambie sus números y observe los resultados a la derecha:
+          <grid>
+          <row>
+          <cell relsize="-6">Costos
+            <grid>
+            <row>
+            <cell relsize="-6">120
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">80
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">40
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">Total
+            </cell>
+            <cell type="6" relsize="-6">=SUM(Costos)
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Lo más caro
+            </cell>
+            <cell type="6" relsize="-6">=MAX(Costos)
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Promedio
+            </cell>
+            <cell type="6" relsize="-6">=AVG(Costos)
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Resto de un presupuesto de 500
+            </cell>
+            <cell type="6" relsize="-6">=500 - SUM(Costos)
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Pulse F2 sobre un resultado para ver y cambiar su fórmula directamente en la celda. Si escribe encima de un resultado, la celda vuelve a ser texto normal.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Puede usar SUM, MIN, MAX, AVG, MEDIAN y COUNT, junto con números, + - * / y paréntesis, por ejemplo =(SUM(Ingresos) - SUM(Costos)) / 12. Solo cuentan los números que están directamente en la cuadrícula nombrada, y los resultados de otras fórmulas también cuentan como números. Con TREE delante, por ejemplo =TREESUM(Costos), también cuentan los números de todas sus subcuadrículas, pero no las fórmulas que hay en ellas. Un nombre solo representa el único número de su cuadrícula, por ejemplo =Precio * Cantidad.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">SUBSET usa solo una parte de una cuadrícula: SUBSET(nombre, columnas, filas), con columnas y filas contadas desde 0 arriba a la izquierda. Cada una es un número como 1, un rango como 0-1, un rango abierto por un lado como 1- (hasta el final) o -1 (desde el principio), o - para todas. Abajo, la cuadrícula de la izquierda se llama Ventas, con una columna por tienda y una fila por mes:
+          <grid>
+          <row>
+          <cell relsize="-6">Ventas
+            <grid>
+            <row>
+            <cell relsize="-6">30
+            </cell>
+            <cell relsize="-6">50
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">20
+            </cell>
+            <cell relsize="-6">60
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">40
+            </cell>
+            <cell relsize="-6">10
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">Mejor mes de la primera tienda
+            </cell>
+            <cell type="6" relsize="-6">=MAX(SUBSET(Ventas, 0, -))
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Ambas tiendas en los dos primeros meses
+            </cell>
+            <cell type="6" relsize="-6">=SUM(SUBSET(Ventas, -, 0-1))
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Segunda tienda desde el segundo mes
+            </cell>
+            <cell type="6" relsize="-6">=SUM(SUBSET(Ventas, 1, 1-))
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Con TREE delante, también cuentan los números de las subcuadrículas de las celdas elegidas, todos, sean cuales sean sus columnas y filas. Abajo, cada tienda de la cuadrícula Pedidos tiene sus pedidos en una subcuadrícula:
+          <grid>
+          <row>
+          <cell relsize="-6">Pedidos
+            <grid>
+            <row>
+            <cell relsize="-6">Primera tienda
+              <grid>
+              <row>
+              <cell relsize="-6">12
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">45
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">30
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            <cell relsize="-6">Segunda tienda
+              <grid>
+              <row>
+              <cell relsize="-6">25
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">60
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">8
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">Mayor pedido de la segunda tienda
+            </cell>
+            <cell type="6" relsize="-6">=TREEMAX(SUBSET(Pedidos, 1, 0))
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">TREESUBSET(nombre, columnas, filas, niveles) vuelve a elegir las mismas columnas y filas en las subcuadrículas de las celdas elegidas, y así sucesivamente, pero solo cuenta los niveles del rango, siendo 0 la cuadrícula nombrada. Así se distinguen los totales de sus detalles. Abajo, cada fase de Plan tiene sus horas en la columna 1, que contiene sus tareas con sus horas en las mismas columnas:
+          <grid>
+          <row>
+          <cell relsize="-6">Plan
+            <grid>
+            <row>
+            <cell relsize="-6">Diseño
+            </cell>
+            <cell relsize="-6">10
+              <grid>
+              <row>
+              <cell relsize="-6">Bocetos
+              </cell>
+              <cell relsize="-6">4
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">Revisión
+              </cell>
+              <cell relsize="-6">6
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Construcción
+            </cell>
+            <cell relsize="-6">25
+              <grid>
+              <row>
+              <cell relsize="-6">Estructura
+              </cell>
+              <cell relsize="-6">12
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">Cableado
+              </cell>
+              <cell relsize="-6">8
+              </cell>
+              </row>
+              <row>
+              <cell relsize="-6">Pruebas
+              </cell>
+              <cell relsize="-6">5
+              </cell>
+              </row>
+              </grid>
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">Horas de todas las fases
+            </cell>
+            <cell type="6" relsize="-6">=SUM(TREESUBSET(Plan, 1, -, 0))
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Tarea más larga
+            </cell>
+            <cell type="6" relsize="-6">=MAX(TREESUBSET(Plan, 1, -, 1))
+            </cell>
+            </row>
+            <row>
+            <cell relsize="-6">Número de tareas
+            </cell>
+            <cell type="6" relsize="-6">=COUNT(TREESUBSET(Plan, 1, -, 1))
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">En lugar de un nombre, SUBSET y TREESUBSET también aceptan otro SUBSET o TREESUBSET, y entonces usan las subcuadrículas de las celdas que este elige. Así cada nivel puede tener sus propias columnas y filas. Abajo, SUBSET(Plan, 1, 1) elige las horas de Construcción, y las fórmulas solo miran sus tareas:
+          <grid>
+          <row>
+          <cell relsize="-6">Tarea más larga de Construcción
+          </cell>
+          <cell type="6" relsize="-6">=MAX(SUBSET(SUBSET(Plan, 1, 1), 1, -))
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-6">Horas de Construcción tras Estructura
+          </cell>
+          <cell type="6" relsize="-6">=SUM(SUBSET(SUBSET(Plan, 1, 1), 1, 1-))
+          </cell>
+          </row>
+          <row>
+          <cell relsize="-6">Horas de Pruebas
+          </cell>
+          <cell type="6" relsize="-6">=SUBSET(SUBSET(Plan, 1, 1), 1, 2)
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Solo, SUBSET representa el único número que contiene, por ejemplo =SUBSET(Ventas, 1, 2) * 2. Los nombres también pueden escribirse entre comillas, lo que necesitan cuando contienen una coma o un paréntesis, por ejemplo =SUM(&quot;Costos, 2025&quot;) o =MAX(SUBSET(&quot;Ventas (EUR)&quot;, 0, -)).
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Las fórmulas también pueden usar las variables del lenguaje de programación de arriba. Un nombre que no tiene ninguna cuadrícula representa la variable con ese nombre, con lo que el programa le asignó la última vez que se ejecutó, y una variable que contiene una cuadrícula cuenta como una cuadrícula, por ejemplo =SUM(Puntos). Hasta que ejecute el programa con Program &gt; Run, una fórmula así muestra #N/A. Abajo, el programa de la izquierda calcula 1 + 2 * 3 y asigna el resultado a la variable Respuesta (marcada con Program &gt; Mark as &gt; Variable Assign). Ejecútelo y observe el resultado a la derecha:
+          <grid>
+          <row>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">1
+            </cell>
+            <cell type="1" relsize="-6">+
+            </cell>
+            <cell relsize="-6">2
+            </cell>
+            <cell type="1" relsize="-6">*
+            </cell>
+            <cell relsize="-6">3
+            </cell>
+            <cell type="2" relsize="-6">Respuesta
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          <cell relsize="-6">
+            <grid>
+            <row>
+            <cell relsize="-6">El doble de la respuesta
+            </cell>
+            <cell type="6" relsize="-6">=Respuesta * 2
+            </cell>
+            </row>
+            </grid>
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Si algo está mal, la celda muestra un error: #NAME? para un nombre o una función desconocidos, #DIV/0! para una división entre cero, #CYCLE! para fórmulas que dependen unas de otras, #VALUE! para un nombre o un SUBSET solo que no contiene exactamente un número, #N/A para una variable antes de ejecutar el programa y #ERROR! para una fórmula que no se puede leer.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Las plantillas sirven para empezar documentos nuevos a partir de uno que ya preparó, como un plan semanal o el esquema de un proyecto. Están en File &gt; New from Template:
+        <grid>
+        <row>
+        <cell relsize="-6">Add Current Document as Template añade el archivo del documento actual a ese menú (guárdelo primero), y Add Files as Templates... añade otros archivos de TreeSheets.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Al hacer clic en una plantilla se crea un documento nuevo sin nombre con una copia de su contenido. El archivo de la plantilla no cambia, porque al guardar se pide un nombre de archivo nuevo.
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Open File as Template... hace lo mismo con cualquier archivo de TreeSheets sin añadirlo al menú, y Remove Template... quita una plantilla del menú (el archivo sigue donde está).
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Si trabaja con archivos de TreeSheets en varias computadoras, almacénelos en una carpeta compartida (como DropBox) y active Opciones -&gt; Recargar documentos automáticamente
+        <grid>
+        <row>
+        <cell relsize="-6">De esta manera, siempre estarás actualizado en todas tus máquinas cuando guardes el documento.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell relsize="-6">Ejecución de TreeSheets desde la línea de comandos
+        <grid>
+        <row>
+        <cell relsize="-6">Puede ejecutar TreeSheets desde la línea de comandos
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">como argumentos, puede especificar un solo archivo para cargar 
+          <grid>
+          <row>
+          <cell relsize="-6"> Si TreeSheets ya se está ejecutando en el sistema, esto hará que pase el archivo a la instancia existente, luego saldrá
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">también puede ejecutarlo con -p como argumento
+          <grid>
+          <row>
+          <cell relsize="-6">Esto inicia TreeSheets en modo &quot;portátil&quot;, donde (en Windows) escribe las configuraciones en un archivo .ini en el directorio actual en lugar de en el registro. 
+          </cell>
+          </row>
+          </grid>
+        </cell>
+        </row>
+        <row>
+        <cell relsize="-6">Tenga en cuenta que para ejecutarse correctamente desde la línea de comandos, al menos en Windows, TreeSheets.exe debe iniciarse con una ruta completa, de lo contrario no podrá encontrar sus íconos, etc. en relación con la ruta ejecutable.
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

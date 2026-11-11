@@ -1,0 +1,296 @@
+  <grid>
+  <row>
+  <cell colorfg="0x000080" colorbg="0xC7D6E0" stylebits="1">CALENDAR
+    <grid bordercolor="0x808080" outerspacing="5">
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="1">TUE
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">
+    </cell>
+    <cell>bring kids to school
+    </cell>
+    </row>
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="1">TUE
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">
+    </cell>
+    <cell>lunch with fred
+      <grid>
+      <row>
+      <cell colorbg="0xE8E8E8">invite him to project presentation
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xE8E8E8">get his feedback on project C
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="1">WED
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">
+    </cell>
+    <cell>project A presentation
+      <grid>
+      <row>
+      <cell colorbg="0xE8E8E8">add more pictures to PPT!!
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xE8E8E8">inflate user numbers a bit
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xE8E8E8" stylebits="16">order donuts
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="1">MON
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">10
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="2">APR
+    </cell>
+    <cell>
+      <grid>
+      <row>
+      <cell colorbg="0x97B9FF">2pm
+      </cell>
+      <cell colorbg="0xE8E8E8">planning meeting for tokyo
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0x97B9FF">5pm
+      </cell>
+      <cell colorbg="0xE8E8E8">doctor
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="1">TUE
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">18
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="2">APR
+    </cell>
+    <cell>tokyo trip!
+    </cell>
+    </row>
+    <row>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF">
+    </cell>
+    <cell colorfg="0x000080" colorbg="0x97B9FF" stylebits="2">DEC
+    </cell>
+    <cell>conference?
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell colorfg="0x000080" colorbg="0x8080FF" stylebits="1">TODO
+    <grid bordercolor="0x808080" outerspacing="5">
+    <row>
+    <cell colorfg="0x0000FF">book tokyo trip
+      <grid>
+      <row>
+      <cell>rent kei car
+      </cell>
+      </row>
+      <row>
+      <cell>make sure to pad some extra days
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell>get car in for 30k service
+    </cell>
+    </row>
+    <row>
+    <cell>make dentist appt for heidi
+    </cell>
+    </row>
+    <row>
+    <cell>buy present for harry - something alcoholic
+    </cell>
+    </row>
+    <row>
+    <cell stylebits="16">water plants
+    </cell>
+    </row>
+    <row>
+    <cell stylebits="16">sell stock?
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  <row>
+  <cell colorfg="0x000080" colorbg="0x8080FF" stylebits="1">PROJECTS
+    <grid bordercolor="0x808080" outerspacing="5">
+    <row>
+    <cell>need to define project to make it look like we're doing web 3.0?
+      <grid>
+      <row>
+      <cell>won't get round 2 financing without it!
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xD6C8AB" stylebits="7">Project A
+      <grid>
+      <row>
+      <cell>work on server load balancing
+      </cell>
+      </row>
+      <row>
+      <cell>test in a high latency situation
+      </cell>
+      </row>
+      <row>
+      <cell>get bob to work on the db connection
+      </cell>
+      </row>
+      <row>
+      <cell>ask for time extension from client
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xD6C8AB" stylebits="7">Project B
+      <grid>
+      <row>
+      <cell>add some fluff to the UI to hide how behind we are
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    <row>
+    <cell colorbg="0xD6C8AB" stylebits="7">Project C
+      <grid>
+      <row>
+      <cell>get a feel for company support
+      </cell>
+      </row>
+      <row>
+      <cell>architect it right this time
+      </cell>
+      </row>
+      <row>
+      <cell>put good team together
+        <grid>
+        <row>
+        <cell stylebits="16">fred?
+        </cell>
+        </row>
+        <row>
+        <cell>bruce - can do the grunt work
+        </cell>
+        </row>
+        <row>
+        <cell>skip bob for this one
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  <cell colorfg="0x000080" colorbg="0x8080FF" stylebits="1">RESEARCH
+    <grid bordercolor="0x808080" outerspacing="5">
+    <row>
+    <cell>new lease car
+      <grid>
+      <row>
+      <cell>wants
+        <grid>
+        <row>
+        <cell>maybe get something that make me look environamentally conscious?
+        </cell>
+        </row>
+        <row>
+        <cell>dvd screens for the kids?
+        </cell>
+        </row>
+        <row>
+        <cell>8+ cupholders
+        </cell>
+        </row>
+        <row>
+        <cell>parking assist?
+        </cell>
+        </row>
+        <row>
+        <cell>must be quicker than fred's 335i...
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      <row>
+      <cell colorbg="0xC7D6E0">candidates
+        <grid>
+        <row>
+        <cell colorbg="0xE8E8E8">Audi S5
+        </cell>
+        <cell colorbg="0xE8E8E8">I'd rather have a beemer, but this will make me look like having good taste
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xE8E8E8">BMW X6
+        </cell>
+        <cell colorbg="0xE8E8E8">does this have enough cupholders?
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xE8E8E8">Porsche Cayenne
+        </cell>
+        <cell colorbg="0xE8E8E8">bit of a poser car, but I always wanted a real porsche
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xE8E8E8" stylebits="16">Merc CLS?
+        </cell>
+        <cell colorbg="0xE8E8E8">maybe out of fashion already?
+        </cell>
+        </row>
+        <row>
+        <cell colorbg="0xE8E8E8">Infiniti G35
+        </cell>
+        <cell colorbg="0xE8E8E8">gets good reviews, but it be a shame to not use up the full lease budget
+        </cell>
+        </row>
+        </grid>
+      </cell>
+      </row>
+      </grid>
+    </cell>
+    </row>
+    </grid>
+  </cell>
+  </row>
+  </grid>

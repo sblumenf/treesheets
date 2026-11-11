@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Has the real TreeSheets carry out the menu-action cases of ui/, and writes what it gave.
+
+Usage: make_ui_ops [--fixture] [NAME ...]
+
+These are the operations that TreeSheets' script API cannot reach (sort, transpose, hierarchy
+swap, hierarchify, flatten, wrap, collapse, split, tags, relative sizes ...). A case is
+ui/cases/NAME.ui: a selection and the menu action to trigger on it by its keyboard shortcut
+(the format and how the keys get there are in ../ui.py), beside ui/cases/NAME.edit, the same
+operation as commands for `wombat edit`. Both start from ui/fixture.cts. ui/golden/NAME.json
+is the document after the action, in the format of ../golden/*.json (see ../README.md). The test
+crates/wombat-cli/tests/ops.rs runs the .edit file and compares.
+
+Every case is run twice, each time in a new app, and must give the same document both times.
+After the document is read, one more key press that always changes the document shows that
+key presses arrive, so that an action that changed nothing was refused and not just lost.
+
+--fixture also has the app build ui/fixture.cts from ui/fixture.lobster first. Only needed when
+that script changes: the file is checked in, since every run gives its cells new edit times.
+
+Needs what ../README.md lists, and xdotool (apt-get install xdotool).
+"""
+import os
+import shutil
+import sys
+import tempfile
+
+sys.dont_write_bytecode = True
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+import referee  # noqa: E402
+import ui  # noqa: E402
+
+CASES = os.path.join(HERE, "ui", "cases")
+GOLDEN = os.path.join(HERE, "ui", "golden")
+FIXTURE = os.path.join(HERE, "ui", "fixture.cts")
+
+
+def write(path, text):
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+
+
+def fixture(display):
+    with open(os.path.join(HERE, "ui", "fixture.lobster"), encoding="utf-8") as f:
+        code = f.read()
+    with tempfile.TemporaryDirectory(prefix="ts-fixture-") as tmp:
+        out = os.path.join(tmp, "fixture.cts")
+        image = os.path.join(referee.REPO, "TS", "images", "icon16.png")
+        # Any document will do to start the app with; the script makes a new one.
+        seed = os.path.join(referee.REPO, "TS", "examples", "sales.cts")
+        with referee.Instance(display, seed) as ts:
+            print("fixture: " + ts.eval(
+                f'let out_path = "{out}"\nlet image_path = "{image}"\n' + code))
+        shutil.copyfile(out, FIXTURE)
+
+
+def run(display, name):
+    with ui.Instance(display, FIXTURE) as ts:
+        ts.run_case(os.path.join(CASES, name + ".ui"))
+        dump = referee.format_document(
+            referee.parse_dump(ts.eval(file=referee.DUMP_SCRIPT))[0])
+        ts.check_keys_arrive()
+    return dump
+
+
+def main():
+    args = sys.argv[1:]
+    make_fixture = "--fixture" in args
+    names = [a for a in args if a != "--fixture"]
+    names = names or sorted(n[:-3] for n in os.listdir(CASES) if n.endswith(".ui"))
+    os.makedirs(GOLDEN, exist_ok=True)
+    with referee.xvfb() as display:
+        if make_fixture:
+            fixture(display)
+        for name in names:
+            if not os.path.isfile(os.path.join(CASES, name + ".edit")):
+                raise referee.RefereeError(f"ui/cases/{name}.ui has no ui/cases/{name}.edit")
+            first, second = run(display, name), run(display, name)
+            if first != second:
+                raise referee.RefereeError(f"{name}: two runs gave different documents")
+            write(os.path.join(GOLDEN, name + ".json"), first)
+            print(name)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except referee.RefereeError as e:
+        sys.exit(f"error: {e}")
