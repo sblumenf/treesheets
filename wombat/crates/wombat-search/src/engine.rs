@@ -28,7 +28,10 @@
 //!
 //! Nothing else plays a part, so the order is the same on every machine and every run.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashSet};
+
+use aho_corasick::AhoCorasick;
+use memchr::memmem::Finder;
 
 use unicode_segmentation::UnicodeSegmentation;
 use wombat_core::eval::Calc;
@@ -38,7 +41,7 @@ use wombat_core::{CellId, Changes, DocId, Document, LinkIndex, LinkTarget};
 
 use crate::fold::{fold, word_ends, word_starts, FoldMap};
 use crate::index::{
-    pair_key, single_key, DocIndex, DocSearch, Entry, Proposed, FIELD_IMAGE, FIELD_NOTE,
+    bit, pair_key, set_bit, single_key, DocIndex, DocSearch, Entry, FIELD_IMAGE, FIELD_NOTE,
     FIELD_SHOWN, FIELD_TEXT, FIELD_URLS, NONE,
 };
 use crate::query::{Filter, Has, Order, Query, QueryError};
@@ -47,6 +50,13 @@ use crate::query::{Filter, Has, Order, Query, QueryError};
 pub const ABSENT: u32 = 32;
 /// How many user-perceived characters a snippet shows at most.
 pub const SNIPPET_WIDTH: usize = 80;
+/// How many highlight ranges a hit carries at most: the first ones.
+/// [`Hit::range_count`] says how many there are. (One long cell can have a hundred
+/// thousand matches, which no interface can show.)
+pub const MAX_RANGES: usize = 1000;
+/// Up to this many cells that may have a word, the cells that link to them are looked
+/// up one by one; above it, every cell with links is looked at.
+const FEW: usize = 2048;
 
 /// The part of a cell in which a match was found.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -95,8 +105,11 @@ pub struct Hit {
     /// word of the query; the points are for the best).
     pub matched: String,
     /// Where the words of the query are in `matched`: start and length in code points,
-    /// in order, never overlapping, never cutting a user-perceived character.
+    /// in order, never overlapping, never cutting a user-perceived character. At most
+    /// the first [`MAX_RANGES`] of them.
     pub ranges: Vec<(u32, u32)>,
+    /// How many such ranges there are in all.
+    pub range_count: usize,
     /// A short stretch of `matched` around the first match.
     pub snippet: Snippet,
     /// The text of the cell, as stored: of a formula cell its formula.
@@ -153,7 +166,22 @@ pub struct Results {
     pub total: usize,
     /// The results asked for, in order.
     pub hits: Vec<Hit>,
+    /// What is odd about the query without being wrong ([`Query::warnings`]): a word
+    /// with nothing to search for, which matches no cell.
+    pub warnings: Vec<String>,
 }
+
+/// [`SearchIndex::apply`] was given a document that the index does not have.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct NotIndexed(pub DocId);
+
+impl std::fmt::Display for NotIndexed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "the search index does not have the document {}", self.0)
+    }
+}
+
+impl std::error::Error for NotIndexed {}
 
 /// Cuts a snippet of at most `width` user-perceived characters out of `text`, around
 /// the first of `ranges` (start and length in code points).
@@ -316,15 +344,19 @@ impl SearchIndex {
     /// the editor's results at that moment ([`wombat_core::Editor::calc`]), which also
     /// say which formula cells now show something else (decision A90). Call it once
     /// for every change report, before the next command. A document that the index
-    /// does not have yet is read whole, under an empty name.
-    pub fn apply(&mut self, doc: &Document, calc: &Calc, changes: &Changes) {
-        match self.docs.get_mut(&doc.id()) {
-            Some(held) => {
-                held.search.update(doc, calc, changes);
-                self.links.apply(doc, changes);
-            }
-            None => self.insert_document(doc, calc, ""),
-        }
+    /// does not have is an error and nothing is done: it has no name to be found
+    /// under, so it must be put in with [`SearchIndex::insert_document`] first. (It
+    /// used to be read whole under an empty name, which hid the mistake.)
+    pub fn apply(
+        &mut self,
+        doc: &Document,
+        calc: &Calc,
+        changes: &Changes,
+    ) -> Result<(), NotIndexed> {
+        let held = self.docs.get_mut(&doc.id()).ok_or(NotIndexed(doc.id()))?;
+        held.search.update(doc, calc, changes);
+        self.links.apply(doc, changes);
+        Ok(())
     }
 
     /// The link index of the same documents.
@@ -402,9 +434,8 @@ impl SearchIndex {
     pub fn search(&self, query: &Query, options: &Options) -> Result<Results, QueryError> {
         query.check()?;
         let run = Run::new(self, query);
-        let mut found = run.matches(options.order, None);
-        let total = found.len();
         let end = options.offset.saturating_add(options.limit);
+        let (total, mut found) = run.matches(options.order, None, end);
         if end < found.len() && end > 0 {
             // Only the part asked for needs sorting.
             found.select_nth_unstable(end - 1);
@@ -412,8 +443,14 @@ impl SearchIndex {
         }
         found.sort_unstable();
         let page = found.iter().skip(options.offset).take(options.limit);
-        let hits = page.filter_map(|found| run.hit(found)).collect();
-        Ok(Results { total, hits })
+        let hits = page
+            .filter_map(|found| run.hit(found, options.order))
+            .collect();
+        Ok(Results {
+            total,
+            hits,
+            warnings: query.warnings(),
+        })
     }
 
     /// The next cell after `from` that matches `query`, in the order of the document
@@ -433,7 +470,7 @@ impl SearchIndex {
             return Ok(None);
         };
         let run = Run::new(self, query);
-        let mut found = run.matches(Order::Document, Some(doc));
+        let (_, mut found) = run.matches(Order::Document, Some(doc), usize::MAX);
         found.sort_unstable();
         let order = held.search.order();
         let here = from
@@ -453,7 +490,7 @@ impl SearchIndex {
                 before.or(found.last())
             }
         };
-        Ok(next.and_then(|found| run.hit(found)))
+        Ok(next.and_then(|found| run.hit(found, Order::Document)))
     }
 }
 
@@ -470,14 +507,52 @@ struct Found {
 struct Needle {
     /// The folded form, or the word itself if it must be found exactly.
     text: String,
+    /// The same, ready to be searched for: made once for all cells.
+    finder: Finder<'static>,
     exact: bool,
-    /// Whether it counts for ranking and highlighting: it is not under a negation.
-    positive: bool,
+    /// How many times it is in the query outside a negation: so many times its points
+    /// count. 0 for a word that is only negated, which neither counts nor is
+    /// highlighted.
+    weight: u32,
+    /// One bit per cell of the index ([`Run::spans`]): whether the cell's own fields
+    /// may have the word. `None` when nothing is known: any cell may.
+    own: Option<Vec<u64>>,
+    /// The same with the cells that may have it by the text of a cell they link to.
+    any: Option<Vec<u64>>,
+}
+
+impl Needle {
+    /// Calls `each` with where each match starts in `hay`, from left to right, each
+    /// match starting after the one before it ends, until `each` says to stop.
+    fn each_match(&self, hay: &[u8], mut each: impl FnMut(usize) -> bool) {
+        if hay.len() < self.text.len() {
+            return;
+        }
+        if let [byte] = self.text.as_bytes() {
+            for from in memchr::memchr_iter(*byte, hay) {
+                if !each(from) {
+                    return;
+                }
+            }
+            return;
+        }
+        let mut at = 0usize;
+        while let Some(found) = hay.get(at..).and_then(|rest| self.finder.find(rest)) {
+            if !each(at + found) {
+                return;
+            }
+            at += found + self.text.len();
+        }
+    }
 }
 
 /// A filter, ready to be tested.
 enum Test {
-    Tag(String),
+    /// With the cells that may be the tag, by the table, as for a word.
+    Tag(String, Option<Vec<u64>>),
+    RowTag(String),
+    /// The folded form of what the formula must contain.
+    Formula(String),
     Has(Has),
     /// One of these cells: what the link filters come to.
     OneOf(HashSet<(DocId, CellId)>),
@@ -489,7 +564,8 @@ enum Test {
     CellColor(wombat_core::Color),
     TextColor(wombat_core::Color),
     Style(wombat_core::Style),
-    TextIs(String),
+    /// With the cells that may show the text, by the table.
+    TextIs(String, Option<Vec<u64>>),
     Image(String),
 }
 
@@ -533,6 +609,58 @@ struct Run<'a> {
     needles: Vec<Needle>,
     /// The documents by name, for the order of results.
     ranks: BTreeMap<DocId, usize>,
+    /// Where each document's cells are in the bit sets of this search: the first of
+    /// its 64-bit words (bit `slot` from there is the cell in that slot).
+    spans: BTreeMap<DocId, usize>,
+    /// How many words a bit set of all cells has.
+    words: usize,
+    /// Where the query has many words: all of them that are compared in folded form,
+    /// to be found in one reading of a cell ([`InDoc::at_once`]), and which needle each
+    /// is. One reading costs more than looking for one word and less than looking for
+    /// four, whatever their number.
+    many: Option<(AhoCorasick, Vec<usize>)>,
+}
+
+/// From this many words on, a cell is read once for all of them.
+const MANY: usize = 4;
+
+/// The keys of the table that a cell must have to have the folded text `folded`: its
+/// pairs of neighbouring characters, or its one character.
+fn keys_of(folded: &str) -> Vec<u64> {
+    let mut keys = Vec::new();
+    let mut before = None;
+    for c in folded.chars() {
+        if let Some(before) = before {
+            keys.push(pair_key(before, c));
+        }
+        before = Some(c);
+    }
+    if keys.is_empty() {
+        keys.extend(before.map(single_key));
+    }
+    keys
+}
+
+/// The same for a word that must be found exactly, as far as anything is certain: a
+/// plain letter or digit is in the folded text as its lower-case form whatever is
+/// around it, and two of them side by side stay side by side.
+fn keys_of_exact(text: &str) -> Vec<u64> {
+    let plain = |c: &char| c.is_ascii_alphanumeric();
+    let mut keys = Vec::new();
+    let mut before: Option<char> = None;
+    let mut single = None;
+    for c in text.chars() {
+        let lower = c.to_ascii_lowercase();
+        if plain(&c) {
+            single = Some(single_key(lower));
+            keys.extend(before.map(|before| pair_key(before, lower)));
+        }
+        before = plain(&c).then_some(lower);
+    }
+    if keys.is_empty() {
+        keys.extend(single);
+    }
+    keys
 }
 
 impl<'a> Run<'a> {
@@ -548,17 +676,106 @@ impl<'a> Run<'a> {
             .enumerate()
             .map(|(n, (_, id))| (*id, n))
             .collect();
+        let mut spans = BTreeMap::new();
+        let mut words = 0usize;
+        for (id, held) in &index.docs {
+            spans.insert(*id, words);
+            words += (held.search.slot_count() as usize).div_ceil(64);
+        }
         let mut run = Run {
             index,
             node: Node::All,
             needles: Vec::new(),
             ranks,
+            spans,
+            words,
+            many: None,
         };
         run.node = run.compile(query, true);
+        let folded = |needle: &&Needle| !needle.exact && !needle.text.is_empty();
+        let which: Vec<usize> = (0..run.needles.len())
+            .filter(|n| run.needles.get(*n).is_some_and(|needle| folded(&needle)))
+            .collect();
+        if which.len() >= MANY {
+            let texts = which.iter().filter_map(|n| run.needles.get(*n));
+            let texts: Vec<&[u8]> = texts.map(|needle| needle.text.as_bytes()).collect();
+            // Few and short words: the form that is fastest to read with, and here
+            // small to make.
+            let short = texts.iter().map(|text| text.len()).sum::<usize>() <= 512;
+            let kind = short.then_some(aho_corasick::AhoCorasickKind::DFA);
+            let built = AhoCorasick::builder().kind(kind).build(texts);
+            run.many = built.ok().map(|built| (built, which));
+        }
         run
     }
 
+    /// One bit per cell: the cells that may have all of `keys` in their own fields.
+    fn having(&self, keys: &[u64]) -> Option<Vec<u64>> {
+        if keys.is_empty() {
+            return None;
+        }
+        let mut bits = vec![0u64; self.words];
+        for (id, held) in &self.index.docs {
+            let from = self.spans.get(id).copied().unwrap_or(0);
+            let to = from + (held.search.slot_count() as usize).div_ceil(64);
+            if let Some(out) = bits.get_mut(from..to) {
+                held.search.candidates(keys, out);
+            }
+        }
+        Some(bits)
+    }
+
+    /// `own` with the cells that link to one of its cells: a cell also matches a word
+    /// by what a cell shows that it links to.
+    fn with_linking(&self, own: &[u64]) -> Vec<u64> {
+        let mut any = own.to_vec();
+        if !self.index.links.has_cell_links() {
+            return any;
+        }
+        let count: usize = own.iter().map(|word| word.count_ones() as usize).sum();
+        for (id, held) in &self.index.docs {
+            let from = self.spans.get(id).copied().unwrap_or(0);
+            if count > FEW {
+                // Too many to look up: any cell with links may link to one of them.
+                let linking = held.search.linking();
+                for (word, links) in any.iter_mut().skip(from).zip(linking) {
+                    *word |= links;
+                }
+                continue;
+            }
+            let words = (held.search.slot_count() as usize).div_ceil(64);
+            for (n, word) in own.iter().enumerate().skip(from).take(words) {
+                let mut word = *word;
+                while word != 0 {
+                    let slot = (n - from) * 64 + word.trailing_zeros() as usize;
+                    word &= word - 1;
+                    let Some(entry) = held.search.entries.get(slot) else {
+                        continue;
+                    };
+                    for (doc, cell) in self.index.links.sources(entry.id) {
+                        let slot = self
+                            .index
+                            .docs
+                            .get(&doc)
+                            .and_then(|held| held.search.slot(cell));
+                        if let (Some(slot), Some(base)) = (slot, self.spans.get(&doc)) {
+                            set_bit(&mut any, base * 64 + slot as usize);
+                        }
+                    }
+                }
+            }
+        }
+        any
+    }
+
     fn compile(&mut self, query: &Query, positive: bool) -> Node {
+        // What costs least to test comes first: `all` and `any` stop at the first
+        // part that decides.
+        let cost = |node: &Node| match node {
+            Node::All | Node::Test(_) => 0,
+            Node::Term(_) => 1,
+            Node::And(_) | Node::Or(_) | Node::Not(_) => 2,
+        };
         match query {
             Query::All => Node::All,
             Query::Term(term) => {
@@ -567,24 +784,69 @@ impl<'a> Run<'a> {
                 } else {
                     fold(&term.text)
                 };
+                let keys = if term.exact {
+                    keys_of_exact(&text)
+                } else {
+                    keys_of(&text)
+                };
+                // The same word again is the same needle, counted once more.
+                let same = |needle: &Needle| needle.text == text && needle.exact == term.exact;
+                if let Some(n) = self.needles.iter().position(same) {
+                    if let Some(needle) = self.needles.get_mut(n) {
+                        needle.weight += u32::from(positive);
+                    }
+                    return Node::Term(n);
+                }
+                let own = self.having(&keys);
+                let any = own.as_ref().map(|own| self.with_linking(own));
                 self.needles.push(Needle {
+                    finder: Finder::new(text.as_bytes()).into_owned(),
                     text,
                     exact: term.exact,
-                    positive,
+                    weight: u32::from(positive),
+                    own,
+                    any,
                 });
                 Node::Term(self.needles.len() - 1)
             }
             Query::Filter(filter) => Node::Test(self.test(filter)),
-            Query::And(list) => Node::And(list.iter().map(|q| self.compile(q, positive)).collect()),
-            Query::Or(list) => Node::Or(list.iter().map(|q| self.compile(q, positive)).collect()),
+            Query::And(list) => {
+                let mut list: Vec<Node> = list.iter().map(|q| self.compile(q, positive)).collect();
+                list.sort_by_key(cost);
+                Node::And(list)
+            }
+            Query::Or(list) => {
+                let mut list: Vec<Node> = list.iter().map(|q| self.compile(q, positive)).collect();
+                list.sort_by_key(cost);
+                Node::Or(list)
+            }
             Query::Not(inner) => Node::Not(Box::new(self.compile(inner, false))),
         }
+    }
+
+    /// One bit per cell for a set of cells.
+    fn bits_of(&self, cells: &HashSet<(DocId, CellId)>) -> Vec<u64> {
+        let mut bits = vec![0u64; self.words];
+        for (doc, cell) in cells {
+            let slot = self
+                .index
+                .docs
+                .get(doc)
+                .and_then(|held| held.search.slot(*cell));
+            if let (Some(slot), Some(base)) = (slot, self.spans.get(doc)) {
+                set_bit(&mut bits, base * 64 + slot as usize);
+            }
+        }
+        bits
     }
 
     fn test(&self, filter: &Filter) -> Test {
         let links = &self.index.links;
         match filter {
-            Filter::Tag(name) => Test::Tag(name.clone()),
+            // A cell that shows exactly this has its folded form among its fields.
+            Filter::Tag(name) => Test::Tag(name.clone(), self.having(&keys_of(&fold(name)))),
+            Filter::RowTag(name) => Test::RowTag(name.clone()),
+            Filter::Formula(text) => Test::Formula(fold(text)),
             Filter::Has(Has::BrokenLink) => {
                 let broken = links.broken();
                 Test::OneOf(broken.iter().map(|link| (link.doc, link.cell)).collect())
@@ -626,7 +888,7 @@ impl<'a> Run<'a> {
             Filter::CellColor(color) => Test::CellColor(*color),
             Filter::TextColor(color) => Test::TextColor(*color),
             Filter::Style(style) => Test::Style(*style),
-            Filter::TextIs(text) => Test::TextIs(text.clone()),
+            Filter::TextIs(text) => Test::TextIs(text.clone(), self.having(&keys_of(&fold(text)))),
             Filter::Image(name) => Test::Image(name.clone()),
         }
     }
@@ -647,23 +909,28 @@ impl<'a> Run<'a> {
         }
     }
 
-    /// The cells that can match `node`, per document, as slots: more than match,
-    /// perhaps (and perhaps twice), but never fewer. `None` for "any cell".
-    fn proposed(&self, node: &Node) -> Option<BTreeMap<DocId, Vec<u32>>> {
+    /// The cells that can match `node`, one bit per cell: more than match, perhaps, but
+    /// never fewer. `None` for "any cell".
+    fn proposed(&self, node: &Node) -> Option<Vec<u64>> {
         match node {
-            Node::Term(n) => self.proposed_for(self.needles.get(*n)?),
+            Node::Term(n) => self.needles.get(*n)?.any.clone(),
+            Node::Test(Test::Tag(_, cells) | Test::TextIs(_, cells)) => cells.clone(),
+            Node::Test(Test::OneOf(cells)) => Some(self.bits_of(cells)),
             Node::And(list) => {
-                let size =
-                    |map: &BTreeMap<DocId, Vec<u32>>| map.values().map(Vec::len).sum::<usize>();
-                list.iter()
-                    .filter_map(|node| self.proposed(node))
-                    .min_by_key(size)
+                let mut sets = list.iter().filter_map(|node| self.proposed(node));
+                let mut all = sets.next()?;
+                for set in sets {
+                    for (word, other) in all.iter_mut().zip(&set) {
+                        *word &= other;
+                    }
+                }
+                Some(all)
             }
             Node::Or(list) => {
-                let mut all: BTreeMap<DocId, Vec<u32>> = BTreeMap::new();
+                let mut all = vec![0u64; self.words];
                 for node in list {
-                    for (doc, slots) in self.proposed(node)? {
-                        all.entry(doc).or_default().extend(slots);
+                    for (word, other) in all.iter_mut().zip(&self.proposed(node)?) {
+                        *word |= other;
                     }
                 }
                 Some(all)
@@ -672,120 +939,63 @@ impl<'a> Run<'a> {
         }
     }
 
-    fn proposed_for(&self, needle: &Needle) -> Option<BTreeMap<DocId, Vec<u32>>> {
-        // A word that must be found exactly is looked for in the texts as they are,
-        // which the table, made of folded text, says nothing certain about.
-        if needle.exact {
-            return None;
-        }
-        let mut keys = Vec::new();
-        let mut before = None;
-        for c in needle.text.chars() {
-            if let Some(before) = before {
-                keys.push(pair_key(before, c));
-            }
-            before = Some(c);
-        }
-        if keys.is_empty() {
-            // One character: only those of scripts without spaces are in the table.
-            keys.push(u64::from(before.filter(|c| single_key(*c))?));
-        }
-        let mut all: BTreeMap<DocId, Vec<u32>> = BTreeMap::new();
-        for (id, held) in &self.index.docs {
-            // The shortest list among the word's keys. A key that no cell of the
-            // document has means that no cell of it has the word; keys that are all
-            // too common to have lists mean that any cell may.
-            let mut shortest: Option<&[u32]> = None;
-            let mut none = false;
-            for key in &keys {
-                match held.search.proposed(*key) {
-                    Proposed::None => none = true,
-                    Proposed::Any => {}
-                    Proposed::Some(list) => {
-                        if shortest.is_none_or(|shortest| list.len() < shortest.len()) {
-                            shortest = Some(list);
-                        }
-                    }
-                }
-            }
-            match (none, shortest) {
-                (true, _) => {}
-                (false, Some(list)) => {
-                    all.insert(*id, list.to_vec());
-                }
-                (false, None) => {
-                    all.insert(*id, (0..held.search.slot_count()).collect());
-                }
-            }
-        }
-        // A cell also matches by the text of a cell that it links to.
-        if self.index.links.has_cell_links() {
-            let mut linking: Vec<(DocId, u32)> = Vec::new();
-            for (id, slots) in &all {
-                let Some(held) = self.index.docs.get(id) else {
-                    continue;
-                };
-                for slot in slots {
-                    let Some(entry) = held.search.entries.get(*slot as usize) else {
-                        continue;
-                    };
-                    for (doc, cell) in self.index.links.sources(entry.id) {
-                        let slot = self
-                            .index
-                            .docs
-                            .get(&doc)
-                            .and_then(|held| held.search.slot(cell));
-                        linking.extend(slot.map(|slot| (doc, slot)));
-                    }
-                }
-            }
-            for (doc, slot) in linking {
-                all.entry(doc).or_default().push(slot);
-            }
-        }
-        Some(all)
-    }
-
-    /// Every cell that matches, with its sort key; in one document only, if given.
-    fn matches(&self, order: Order, only: Option<DocId>) -> Vec<Found> {
+    /// The cells that match: how many there are, and the first `keep` of them in the
+    /// order asked for, not yet sorted (all of them, if there are no more than that);
+    /// in one document only, if given. For the order of the documents the points are
+    /// not worked out (they do not decide the order): [`Run::hit`] does that for the
+    /// results that are returned.
+    fn matches(&self, order: Order, only: Option<DocId>, keep: usize) -> (usize, Vec<Found>) {
         let scope = self.scope(&self.node);
         let proposed = self.proposed(&self.node);
+        // With a number to keep that is small, the best so far are a heap whose top is
+        // the worst of them: most matches are then one comparison and no more.
+        let bounded = keep <= 4096;
+        let mut total = 0usize;
         let mut found = Vec::new();
+        let mut best: BinaryHeap<Found> = BinaryHeap::new();
         for (id, held) in &self.index.docs {
             let out = only.is_some_and(|only| only != *id)
                 || scope.as_ref().is_some_and(|scope| !scope.contains(id));
             if out {
                 continue;
             }
-            let mut doc = InDoc {
-                run: self,
-                id: *id,
-                search: &held.search,
-                recent: Vec::new(),
-                memo: vec![UNKNOWN; self.needles.len()],
-            };
+            let mut doc = self.in_doc(*id, &held.search);
             let rank = self.ranks.get(id).copied().unwrap_or(0);
             let mut one = |doc: &mut InDoc, slot: u32| {
                 let Some(entry) = held.search.entry(slot) else {
                     return;
                 };
                 doc.memo.fill(UNKNOWN);
+                doc.scans = 0;
                 if !doc.eval(&self.node, slot, entry) {
                     return;
                 }
-                let score = doc.score(entry);
-                let len = entry.text.chars().count();
+                total += 1;
+                let score = match order {
+                    Order::Document => 0,
+                    _ => doc.score(slot, entry),
+                };
+                let len = entry.shown_len as usize;
                 // (Where the cells are is worked out on a document's first match: a
                 // document without one is spared that.)
                 let depth = held.search.depth(slot);
                 let place = held.search.order();
                 let at = place.get(slot as usize).copied().unwrap_or(NONE);
-                found.push(Found {
+                let one = Found {
                     key: sort_key(order, score, entry.last_edit, len, depth, rank, at),
                     doc: *id,
                     slot,
                     score,
-                });
+                };
+                if !bounded {
+                    found.push(one);
+                } else if best.len() < keep {
+                    best.push(one);
+                } else if best.peek().is_some_and(|worst| one < *worst) {
+                    if let Some(mut worst) = best.peek_mut() {
+                        *worst = one;
+                    }
+                }
             };
             match &proposed {
                 None => {
@@ -794,35 +1004,51 @@ impl<'a> Run<'a> {
                     }
                 }
                 Some(proposed) => {
-                    let Some(slots) = proposed.get(id) else {
-                        continue;
-                    };
-                    let mut seen = vec![false; held.search.entries.len()];
-                    for slot in slots {
-                        match seen.get_mut(*slot as usize) {
-                            Some(seen) if !*seen => *seen = true,
-                            _ => continue,
+                    let words = (held.search.slot_count() as usize).div_ceil(64);
+                    let of_doc = proposed.iter().skip(doc.base).take(words);
+                    for (n, word) in of_doc.enumerate() {
+                        let mut word = *word;
+                        while word != 0 {
+                            one(&mut doc, (n * 64) as u32 + word.trailing_zeros());
+                            word &= word - 1;
                         }
-                        one(&mut doc, *slot);
                     }
                 }
             }
         }
-        found
+        if bounded {
+            found = best.into_vec();
+        }
+        (total, found)
+    }
+
+    fn in_doc(&'a self, id: DocId, search: &'a DocSearch) -> InDoc<'a> {
+        InDoc {
+            run: self,
+            id,
+            base: self.spans.get(&id).copied().unwrap_or(0),
+            search,
+            recent: Vec::new(),
+            tagged: Vec::new(),
+            memo: vec![UNKNOWN; self.needles.len()],
+            scans: 0,
+            state: Vec::new(),
+        }
     }
 
     /// The points of the needle's best match in the cell, or [`NO_MATCH`]: what
     /// [`Run::occurrences`] would give, without looking further than needed. (Most
-    /// searches end here for most cells, so this is where the time goes.)
-    fn best(&self, doc: DocId, entry: &Entry, needle: &Needle) -> u32 {
+    /// searches end here for most cells, so this is where the time goes.) `own` is
+    /// whether the cell's own fields may have the word at all, by the table.
+    fn best(&self, doc: DocId, own: bool, entry: &Entry, needle: &Needle) -> u32 {
+        // A word with nothing to search for matches no cell (decision A108).
         if needle.text.is_empty() {
-            return 0;
+            return NO_MATCH;
         }
         let mut best = NO_MATCH;
         if needle.exact {
-            self.occurrences(doc, entry, needle, &mut |found| {
-                best = best.min(points(found.field, found.kind));
-            });
+            let mut lower = |found: Occurrence| best = best.min(points(found.field, found.kind));
+            self.occurrences(doc, own, entry, needle, &mut lower);
             return best;
         }
         // The fields are in the order of their points (text, displayed result, note,
@@ -830,12 +1056,16 @@ impl<'a> Run<'a> {
         // a match decides, and in it the first match that is a whole word (a match of
         // the whole field is the first one).
         let all = entry.folded();
-        let mut at = 0usize;
+        let size = needle.text.len();
         let mut first: Option<(usize, usize, usize)> = None;
-        while let Some(found) = all.get(at..).and_then(|rest| rest.find(&needle.text)) {
-            let from = at + found;
-            let to = from + needle.text.len();
+        needle.each_match(if own { all.as_bytes() } else { &[] }, |from| {
+            let to = from + size;
+            // Where the field is: worked out once, at the first match.
             let (field_at, start, end) = *first.get_or_insert_with(|| {
+                // (A cell with nothing but text is one field.)
+                if entry.rare.is_none() {
+                    return (FIELD_TEXT, 0, all.len());
+                }
                 let before = all.get(..from).unwrap_or_default();
                 let start = before.rfind('\n').map_or(0, |last| last + 1);
                 let rest = all.get(to..).unwrap_or_default();
@@ -844,7 +1074,7 @@ impl<'a> Run<'a> {
                 (field_at, start, end)
             });
             if from >= end {
-                break;
+                return false;
             }
             let field = match field_at {
                 FIELD_TEXT => Field::Text,
@@ -855,49 +1085,56 @@ impl<'a> Run<'a> {
             };
             let kind = kind_of(all, from, to, start, end);
             best = best.min(points(field, kind));
-            if kind <= 1 || field == Field::Url {
-                break;
-            }
-            at = to;
-        }
+            kind > 1 && field != Field::Url
+        });
         // A link target after the first one that has a match may have a better one.
         if first.is_some_and(|(field_at, _, _)| field_at >= FIELD_URLS) {
             best = NO_MATCH;
-            self.occurrences(doc, entry, needle, &mut |found| {
-                best = best.min(points(found.field, found.kind));
-            });
+            let mut lower = |found: Occurrence| best = best.min(points(found.field, found.kind));
+            self.occurrences(doc, true, entry, needle, &mut lower);
             return best;
         }
         if entry.has_links && best > points(Field::LinkedText, 0) {
-            let links = &self.index.links;
-            let list = links
-                .document(doc)
-                .map_or(&[][..], |d| d.links_of(entry.id));
-            for link in list {
-                if !matches!(link.target, LinkTarget::Cell { .. }) {
-                    continue;
-                }
-                let Some(target) = self.target(doc, &link.target) else {
-                    continue;
-                };
-                find_in(
-                    target.folded_display(),
-                    &needle.text,
-                    Field::LinkedText,
-                    0,
-                    &mut |found| {
-                        best = best.min(points(found.field, found.kind));
-                    },
-                );
-            }
+            let mut lower = |found: Occurrence| best = best.min(points(found.field, found.kind));
+            self.linked(doc, entry, needle, &mut lower);
         }
         best
     }
 
-    /// Calls `each` for every place where the needle is found in the cell.
+    /// Calls `each` for every place where the needle is found in what the cells show
+    /// that the cell's links lead to.
+    fn linked(&self, doc: DocId, entry: &Entry, needle: &Needle, each: &mut dyn FnMut(Occurrence)) {
+        let links = &self.index.links;
+        let list = links
+            .document(doc)
+            .map_or(&[][..], |d| d.links_of(entry.id));
+        for (n, link) in list.iter().enumerate() {
+            if !matches!(link.target, LinkTarget::Cell { .. }) {
+                continue;
+            }
+            let Some((target, at)) = self.target(doc, &link.target) else {
+                continue;
+            };
+            // The table says of the cell at the other end, too, whether it may have
+            // the word.
+            if needle.own.as_ref().is_some_and(|own| !bit(own, at)) {
+                continue;
+            }
+            let text = if needle.exact {
+                target.display()
+            } else {
+                target.folded_display()
+            };
+            find_in(text, needle, Field::LinkedText, n as u32, each);
+        }
+    }
+
+    /// Calls `each` for every place where the needle is found in the cell. `own` is
+    /// whether the cell's own fields need looking at.
     fn occurrences(
         &self,
         doc: DocId,
+        own: bool,
         entry: &Entry,
         needle: &Needle,
         each: &mut dyn FnMut(Occurrence),
@@ -905,7 +1142,8 @@ impl<'a> Run<'a> {
         if needle.text.is_empty() {
             return;
         }
-        if needle.exact {
+        if !own {
+        } else if needle.exact {
             let urls = entry.urls().iter().map(String::as_str);
             let fields = [
                 (Field::Text, Some(&*entry.text)),
@@ -918,26 +1156,29 @@ impl<'a> Run<'a> {
                 .enumerate()
                 .map(|(n, url)| (Field::Url, n as u32, Some(url)));
             for (field, sub, text) in fields.chain(urls) {
-                find_in(text.unwrap_or_default(), &needle.text, field, sub, each);
+                find_in(text.unwrap_or_default(), needle, field, sub, each);
             }
         } else {
             // All fields at once: they are one string, with line breaks between them,
-            // and a folded needle has no line break.
+            // and a folded needle has no line break. Where the field at hand ends is
+            // looked for once per field, not once per match (which made a cell with
+            // many matches cost the square of its length).
             let all = entry.folded();
+            let bytes = all.as_bytes();
+            let end_from = |start: usize| {
+                let rest = bytes.get(start..).unwrap_or_default();
+                start + memchr::memchr(b'\n', rest).unwrap_or(rest.len())
+            };
             let mut field_at = 0usize;
             let mut field_start = 0usize;
-            let mut at = 0usize;
-            while let Some(found) = all.get(at..).and_then(|rest| rest.find(&needle.text)) {
-                let from = at + found;
+            let mut field_end = end_from(0);
+            needle.each_match(bytes, |from| {
                 let to = from + needle.text.len();
-                // The fields passed since the last match.
-                let passed = all.get(field_start..from).unwrap_or_default();
-                if let Some(last) = passed.rfind('\n') {
-                    field_at += passed.bytes().filter(|byte| *byte == b'\n').count();
-                    field_start += last + 1;
+                while from > field_end {
+                    field_at += 1;
+                    field_start = field_end + 1;
+                    field_end = end_from(field_start);
                 }
-                let rest = all.get(to..).unwrap_or_default();
-                let field_end = to + rest.find('\n').unwrap_or(rest.len());
                 let (field, sub) = match field_at {
                     FIELD_TEXT => (Field::Text, 0),
                     FIELD_SHOWN => (Field::Shown, 0),
@@ -952,39 +1193,24 @@ impl<'a> Run<'a> {
                     to: to - field_start,
                     kind: kind_of(all, from, to, field_start, field_end),
                 });
-                at = to;
-            }
+                true
+            });
         }
-        if !entry.has_links {
-            return;
-        }
-        let links = &self.index.links;
-        let list = links
-            .document(doc)
-            .map_or(&[][..], |d| d.links_of(entry.id));
-        for (n, link) in list.iter().enumerate() {
-            if !matches!(link.target, LinkTarget::Cell { .. }) {
-                continue;
-            }
-            let Some(target) = self.target(doc, &link.target) else {
-                continue;
-            };
-            let text = if needle.exact {
-                target.display()
-            } else {
-                target.folded_display()
-            };
-            find_in(text, &needle.text, Field::LinkedText, n as u32, each);
+        if entry.has_links {
+            self.linked(doc, entry, needle, each);
         }
     }
 
-    /// The cell that a link in `doc` leads to, if it leads to one in the index.
-    fn target(&self, doc: DocId, target: &LinkTarget) -> Option<&'a Entry> {
+    /// The cell that a link in `doc` leads to, if it leads to one in the index, and
+    /// which bit it is in the bit sets of this search.
+    fn target(&self, doc: DocId, target: &LinkTarget) -> Option<(&'a Entry, usize)> {
         let Resolved::Cell { doc, cell, .. } = self.index.links.resolve(doc, target) else {
             return None;
         };
         let search = &self.index.docs.get(&doc)?.search;
-        search.entry(search.slot(cell)?)
+        let slot = search.slot(cell)?;
+        let base = self.spans.get(&doc).copied()?;
+        Some((search.entry(slot)?, base * 64 + slot as usize))
     }
 
     /// The content of a field of a cell.
@@ -997,34 +1223,40 @@ impl<'a> Run<'a> {
             Field::Url => entry.urls().get(sub as usize).map(String::as_str),
             Field::LinkedText => {
                 let links = self.index.links.document(doc)?.links_of(entry.id);
-                let target = self.target(doc, &links.get(sub as usize)?.target)?;
+                let (target, _) = self.target(doc, &links.get(sub as usize)?.target)?;
                 Some(target.display())
             }
         }
     }
 
     /// Makes the result that is shown for a matching cell.
-    fn hit(&self, found: &Found) -> Option<Hit> {
+    fn hit(&self, found: &Found, order: Order) -> Option<Hit> {
         let search = &self.index.docs.get(&found.doc)?.search;
         let entry = search.entry(found.slot)?;
-        // Every place where a word of the query is, and the best field among them.
-        let mut places: Vec<(Occurrence, bool)> = Vec::new();
-        for needle in self.needles.iter().filter(|needle| needle.positive) {
-            self.occurrences(found.doc, entry, needle, &mut |occurrence| {
-                places.push((occurrence, needle.exact));
+        let positive = || self.needles.iter().filter(|needle| needle.weight > 0);
+        // The best field that has a word of the query; then every place in it. (Two
+        // passes, so that the places of the other fields are never kept.)
+        let mut best: Option<(Field, u32)> = None;
+        for needle in positive() {
+            self.occurrences(found.doc, true, entry, needle, &mut |place| {
+                let at = (place.field, place.sub);
+                best = Some(best.map_or(at, |best| best.min(at)));
             });
         }
-        let best = places
-            .iter()
-            .map(|(place, _)| (place.field, place.sub))
-            .min();
         let (field, sub) = best.unwrap_or((Field::Text, 0));
         let matched = self
             .field_text(found.doc, entry, field, sub)
             .unwrap_or_default();
-        places.retain(|(place, _)| (place.field, place.sub) == (field, sub));
+        let mut places: Vec<(usize, usize, bool)> = Vec::new();
+        for needle in positive().filter(|_| best.is_some()) {
+            self.occurrences(found.doc, true, entry, needle, &mut |place| {
+                if (place.field, place.sub) == (field, sub) {
+                    places.push((place.from, place.to, needle.exact));
+                }
+            });
+        }
         let map = |exact: bool| {
-            let wanted = places.iter().any(|(_, is)| *is == exact);
+            let wanted = places.iter().any(|(_, _, is)| *is == exact);
             wanted.then(|| {
                 if exact {
                     FoldMap::literal(matched)
@@ -1034,11 +1266,21 @@ impl<'a> Run<'a> {
             })
         };
         let (folded, literal) = (map(false), map(true));
-        let ranges = places.iter().filter_map(|(place, exact)| {
+        let ranges = places.iter().filter_map(|(from, to, exact)| {
             let map = if *exact { &literal } else { &folded };
-            Some(map.as_ref()?.range(place.from, place.to))
+            Some(map.as_ref()?.range(*from, *to))
         });
-        let ranges = merge(ranges.collect());
+        let mut ranges = merge(ranges.collect());
+        let range_count = ranges.len();
+        ranges.truncate(MAX_RANGES);
+        let score = match order {
+            // Not worked out when the cells were found: see `matches`.
+            Order::Document => {
+                let mut doc = self.in_doc(found.doc, search);
+                doc.score(found.slot, entry)
+            }
+            _ => found.score,
+        };
         Some(Hit {
             doc: found.doc,
             cell: entry.id,
@@ -1046,10 +1288,11 @@ impl<'a> Run<'a> {
             snippet: snippet(matched, &ranges, SNIPPET_WIDTH),
             matched: matched.to_owned(),
             ranges,
+            range_count,
             text: entry.text.to_string(),
             shown: entry.shown().map(str::to_owned),
             trail: search.trail(found.slot),
-            score: found.score,
+            score,
             depth: search.depth(found.slot),
             last_edit: entry.last_edit,
         })
@@ -1070,13 +1313,11 @@ fn kind_of(text: &str, from: usize, to: usize, start: usize, end: usize) -> u32 
     }
 }
 
-/// Finds `needle` in one field, from left to right, each match starting after the one
+/// Finds the needle in one field, from left to right, each match starting after the one
 /// before it ends.
-fn find_in(text: &str, needle: &str, field: Field, sub: u32, each: &mut dyn FnMut(Occurrence)) {
-    let mut at = 0usize;
-    while let Some(found) = text.get(at..).and_then(|rest| rest.find(needle)) {
-        let from = at + found;
-        let to = from + needle.len();
+fn find_in(text: &str, needle: &Needle, field: Field, sub: u32, each: &mut dyn FnMut(Occurrence)) {
+    needle.each_match(text.as_bytes(), |from| {
+        let to = from + needle.text.len();
         each(Occurrence {
             field,
             sub,
@@ -1084,8 +1325,8 @@ fn find_in(text: &str, needle: &str, field: Field, sub: u32, each: &mut dyn FnMu
             to,
             kind: kind_of(text, from, to, 0, text.len()),
         });
-        at = to;
-    }
+        true
+    });
 }
 
 const UNKNOWN: u32 = u32::MAX;
@@ -1095,23 +1336,109 @@ const NO_MATCH: u32 = u32::MAX - 1;
 struct InDoc<'a> {
     run: &'a Run<'a>,
     id: DocId,
+    /// Where the document's cells are in the bit sets of the search ([`Run::spans`]).
+    base: usize,
     search: &'a DocSearch,
     /// For each percentage asked about: the edit time from which a cell is recent.
     recent: Vec<(u8, i64)>,
+    /// For each tag asked about: the rows that have it, as (slot of the cell whose
+    /// grid it is, row), sorted.
+    tagged: Vec<(String, Vec<(u32, u32)>)>,
     /// For the cell at hand: the points of each needle, once known.
     memo: Vec<u32>,
+    /// For the cell at hand: how many words were looked for one by one.
+    scans: usize,
+    /// For [`InDoc::at_once`]: per word, its best points and where its last match ends.
+    state: Vec<(u32, usize)>,
 }
 
 impl InDoc<'_> {
+    /// Finds every word of the query in the cell's own fields in one reading, and puts
+    /// what [`Run::best`] would give for each where [`InDoc::needle`] looks first.
+    fn at_once(&mut self, entry: &Entry) {
+        let Some((many, which)) = &self.run.many else {
+            return;
+        };
+        self.state.clear();
+        self.state.resize(which.len(), (NO_MATCH, 0));
+        let all = entry.folded();
+        let bytes = all.as_bytes();
+        let end_from = |start: usize| {
+            let rest = bytes.get(start..).unwrap_or_default();
+            start + memchr::memchr(b'\n', rest).unwrap_or(rest.len())
+        };
+        let (mut field_at, mut field_start, mut field_end) = (0usize, 0usize, end_from(0));
+        // Every place of every word, in the order of where they end. Of one word the
+        // places are taken from left to right, each starting after the one before it
+        // ends, as when it is looked for alone.
+        for found in many.find_overlapping_iter(bytes) {
+            let (from, to) = (found.start(), found.end());
+            let Some(state) = self.state.get_mut(found.pattern().as_usize()) else {
+                continue;
+            };
+            if from < state.1 {
+                continue;
+            }
+            state.1 = to;
+            while from > field_end {
+                field_at += 1;
+                field_start = field_end + 1;
+                field_end = end_from(field_start);
+            }
+            let field = match field_at {
+                FIELD_TEXT => Field::Text,
+                FIELD_SHOWN => Field::Shown,
+                FIELD_NOTE => Field::Note,
+                FIELD_IMAGE => Field::Image,
+                _ => Field::Url,
+            };
+            // (An earlier field, a whole word or the whole field: nothing better comes.)
+            if state.0 > points(field, 1) {
+                let kind = kind_of(all, from, to, field_start, field_end);
+                state.0 = state.0.min(points(field, kind));
+            }
+        }
+        for (state, n) in self.state.iter().zip(which) {
+            let mut best = state.0;
+            let needle = self.run.needles.get(*n);
+            if let Some(needle) = needle.filter(|_| entry.has_links) {
+                if best > points(Field::LinkedText, 0) {
+                    let mut lower = |found: Occurrence| {
+                        best = best.min(points(found.field, found.kind));
+                    };
+                    self.run.linked(self.id, entry, needle, &mut lower);
+                }
+            }
+            if let Some(memo) = self.memo.get_mut(*n) {
+                *memo = best;
+            }
+        }
+    }
+
     /// The points of a needle in the cell, or [`NO_MATCH`].
-    fn needle(&mut self, n: usize, entry: &Entry) -> u32 {
+    fn needle(&mut self, n: usize, slot: u32, entry: &Entry) -> u32 {
         if let Some(known) = self.memo.get(n).copied().filter(|known| *known != UNKNOWN) {
             return known;
         }
         let Some(needle) = self.run.needles.get(n) else {
             return NO_MATCH;
         };
-        let best = self.run.best(self.id, entry, needle);
+        // What the table rules out is not looked at.
+        let at = self.base * 64 + slot as usize;
+        let own = needle.own.as_ref().is_none_or(|own| bit(own, at));
+        // The third word that needs the cell's text read: read it once for all.
+        if own && !needle.exact && self.run.many.is_some() {
+            self.scans += 1;
+            if self.scans > 2 {
+                self.at_once(entry);
+                // (A word that is not among those read at once is still unknown.)
+                let known = self.memo.get(n).copied().filter(|known| *known != UNKNOWN);
+                if let Some(known) = known {
+                    return known;
+                }
+            }
+        }
+        let best = self.run.best(self.id, own, entry, needle);
         if let Some(memo) = self.memo.get_mut(n) {
             *memo = best;
         }
@@ -1121,7 +1448,7 @@ impl InDoc<'_> {
     fn eval(&mut self, node: &Node, slot: u32, entry: &Entry) -> bool {
         match node {
             Node::All => true,
-            Node::Term(n) => self.needle(*n, entry) != NO_MATCH,
+            Node::Term(n) => self.needle(*n, slot, entry) != NO_MATCH,
             Node::Test(test) => self.test(test, slot, entry),
             Node::And(list) => list.iter().all(|node| self.eval(node, slot, entry)),
             Node::Or(list) => list.iter().any(|node| self.eval(node, slot, entry)),
@@ -1130,17 +1457,14 @@ impl InDoc<'_> {
     }
 
     /// The points of the cell: those of every needle that counts, added up.
-    fn score(&mut self, entry: &Entry) -> u32 {
+    fn score(&mut self, slot: u32, entry: &Entry) -> u32 {
         let mut score = 0u32;
         for n in 0..self.run.needles.len() {
-            if self
-                .run
-                .needles
-                .get(n)
-                .is_some_and(|needle| needle.positive)
-            {
-                let points = self.needle(n, entry);
-                score = score.saturating_add(if points == NO_MATCH { ABSENT } else { points });
+            let weight = self.run.needles.get(n).map_or(0, |needle| needle.weight);
+            if weight > 0 {
+                let points = self.needle(n, slot, entry);
+                let points = if points == NO_MATCH { ABSENT } else { points };
+                score = score.saturating_add(points.saturating_mul(weight));
             }
         }
         score
@@ -1148,14 +1472,22 @@ impl InDoc<'_> {
 
     fn test(&mut self, test: &Test, slot: u32, entry: &Entry) -> bool {
         match test {
-            Test::Tag(name) => *entry.text == **name && self.search.has_tag(name),
+            // What a cell is to the eye goes by what it shows: of a formula cell the
+            // result (decision A110).
+            Test::Tag(name, _) => entry.display() == name && self.search.has_tag(name),
+            Test::RowTag(name) => self.in_tagged_row(name, entry),
+            Test::Formula(text) => {
+                entry.kind == wombat_core::CellKind::Formula
+                    && !text.is_empty()
+                    && entry.folded_text().contains(text.as_str())
+            }
             Test::Has(has) => match has {
-                Has::Text => !entry.text.is_empty(),
+                Has::Text => !entry.display().is_empty(),
                 Has::Note => !entry.note().is_empty(),
                 Has::Image => entry.image().is_some(),
                 Has::Grid => entry.has_grid,
                 Has::Link => entry.has_links,
-                Has::Tag => self.search.has_tag(&entry.text),
+                Has::Tag => self.search.has_tag(entry.display()),
                 // Made into a set of cells before the search starts.
                 Has::BrokenLink => false,
             },
@@ -1176,9 +1508,35 @@ impl InDoc<'_> {
             Test::CellColor(color) => entry.cell_color == *color,
             Test::TextColor(color) => entry.text_color == *color,
             Test::Style(style) => entry.style == *style,
-            Test::TextIs(text) => *entry.text == **text,
+            Test::TextIs(text, _) => entry.display() == text,
             Test::Image(name) => entry.image() == Some(name.as_str()),
         }
+    }
+
+    /// Whether the cell is in a row that has the tag `name`: see [`Filter::RowTag`].
+    fn in_tagged_row(&mut self, name: &str, entry: &Entry) -> bool {
+        let search = self.search;
+        let row = |entry: &Entry| {
+            let columns = search.entries.get(entry.parent as usize);
+            (
+                entry.parent,
+                entry.pos / columns.map_or(1, |e| e.cols.max(1)),
+            )
+        };
+        let known = self.tagged.iter().position(|(tag, _)| tag == name);
+        let at = known.unwrap_or_else(|| {
+            let mut rows: Vec<(u32, u32)> = Vec::new();
+            if search.has_tag(name) {
+                let live = search.entries.iter().filter(|entry| entry.live);
+                rows.extend(live.filter(|e| e.display() == name).map(row));
+                rows.sort_unstable();
+                rows.dedup();
+            }
+            self.tagged.push((name.to_owned(), rows));
+            self.tagged.len() - 1
+        });
+        let rows = self.tagged.get(at).map_or(&[][..], |(_, rows)| rows);
+        rows.binary_search(&row(entry)).is_ok()
     }
 
     /// The edit time from which a cell is among the most recent `percent` of its

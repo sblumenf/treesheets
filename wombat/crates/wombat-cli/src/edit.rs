@@ -47,10 +47,11 @@ Text
   link CELL POSITION LENGTH none      make a range a link (to a web page or file, to a
                                       cell, to a cell of the document in FILE), or remove
                                       its links
-  replace-all \"text\" \"with\" [case] [CELL]
+  replace-all \"text\" \"with\" [case] [formulas] [CELL]
                                       replace the text wherever it is found in the texts
                                       of cells (of CELL and the cells inside it), as one
-                                      unit of undo; case: only exactly these characters
+                                      unit of undo; case: only exactly these characters;
+                                      formulas: also in the formulas of formula cells
   find \"query\" [next|prev CELL]       print the cells that match a search (the syntax of
                                       `wombat search`), or the next or previous one from CELL
   resolve-unknown                     give a target to the links imported from TreeSheets
@@ -570,9 +571,11 @@ impl<'a> Session<'a> {
                 let with = next(args, "the replacement")?.to_string();
                 let mut term = wombat_search::Term::new(text);
                 let mut scope = wombat_search::replace::Scope::Document;
+                let mut options = wombat_search::replace::ReplaceOptions::default();
                 for (word, _) in args {
                     match word.as_str() {
                         "case" => term.exact = true,
+                        "formulas" => options.formulas = true,
                         word => scope = wombat_search::replace::Scope::Branch(self.cell(word)?),
                     }
                 }
@@ -582,11 +585,25 @@ impl<'a> Session<'a> {
                     &term,
                     &with,
                     scope,
+                    options,
                     now,
                     ids,
                 )
                 .map_err(|e| e.to_string())?;
-                out = format!("{} places in {} cells\n", done.places, done.cells);
+                let counts = &done.counts;
+                out = format!("{} places in {} cells\n", counts.places, counts.cells);
+                if counts.formula_places > 0 && !options.formulas {
+                    out.push_str(&format!(
+                        "{} places in {} formula cells left alone (add: formulas)\n",
+                        counts.formula_places, counts.formula_cells
+                    ));
+                }
+                if !counts.skipped.is_empty() {
+                    out.push_str(&format!(
+                        "{} places left alone where the match is only part of a character\n",
+                        counts.skipped.len()
+                    ));
+                }
                 self.changed(done.changes);
             }
             "find" => {

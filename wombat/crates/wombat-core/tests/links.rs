@@ -159,7 +159,7 @@ fn the_random_runs_exercise_links_copies_and_moves() {
     // Links that a copy or a move between documents had to keep pointing at their cells.
     assert!(total.kept > 1500, "{total:?}");
     assert!(total.repairs > 10 && total.links > 5, "{total:?}");
-    assert!(total.retargets > 100, "{total:?}");
+    assert!(total.retargets > 100 && total.imports > 100, "{total:?}");
     assert!(total.formulas > 300 && total.formula_cells > 5, "{total:?}");
 }
 

@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use wombat_core::construct::Construct;
 use wombat_core::links::{Broken, DocLinks, Resolved};
-use wombat_core::scan::{self, CacheMode, CacheUse, WorkspaceLinks};
+use wombat_core::scan::{self, Cache, CacheMode, CacheUse, WorkspaceLinks};
 use wombat_core::{
     storage, CellId, Command, Document, Editor, Link, LinkTarget, SeededIds, Workspace,
 };
@@ -22,8 +22,15 @@ fn folder(test: &str) -> PathBuf {
         .join("links_workspace")
         .join(test);
     let _ = fs::remove_dir_all(&dir);
+    let _ = fs::remove_dir_all(dir.with_extension("cache"));
+    let _ = fs::remove_file(dir.with_extension("cache"));
     fs::create_dir_all(&dir).unwrap();
     dir
+}
+
+/// The cache of a workspace of these tests: a folder beside it, never inside it.
+fn cache_of(ws: &Workspace, mode: CacheMode) -> Cache {
+    Cache::at(ws.dir().with_extension("cache"), mode)
 }
 
 /// A document of one column of cells with these texts.
@@ -77,10 +84,10 @@ fn workspace(test: &str) -> (Workspace, [Document; 3]) {
 
 /// The index with the cache, which must be the index without it.
 fn checked_with(ws: &Workspace, mode: CacheMode) -> WorkspaceLinks {
-    let plain = scan::link_index(ws, CacheMode::Off).unwrap();
+    let plain = scan::link_index(ws, &cache_of(ws, CacheMode::Off)).unwrap();
     assert_eq!(plain.cache, CacheUse::Off);
     assert!(!plain.cache_written && plain.reused == 0);
-    let cached = scan::link_index(ws, mode).unwrap();
+    let cached = scan::link_index(ws, &cache_of(ws, mode)).unwrap();
     assert!(cached.index == plain.index, "the cache gave another index");
     assert_eq!(cached.names, plain.names);
     assert_eq!(cached.duplicates, plain.duplicates);
@@ -93,19 +100,22 @@ fn checked(ws: &Workspace) -> WorkspaceLinks {
 }
 
 fn cache_file(ws: &Workspace, name: &str) -> PathBuf {
-    scan::cache_path::<DocLinks>(ws, name)
+    scan::cache_path::<DocLinks>(&cache_of(ws, CacheMode::Verify), name)
 }
 
 /// The names and bytes of all cache entries.
 fn cache_files(ws: &Workspace) -> Vec<(String, Vec<u8>)> {
-    let mut files: Vec<_> = fs::read_dir(scan::cache_dir::<DocLinks>(ws))
-        .unwrap()
-        .map(|entry| {
-            let entry = entry.unwrap();
-            let name = entry.file_name().into_string().unwrap();
-            (name, fs::read(entry.path()).unwrap())
-        })
-        .collect();
+    let mut files: Vec<_> = fs::read_dir(scan::cache_dir::<DocLinks>(&cache_of(
+        ws,
+        CacheMode::Verify,
+    )))
+    .unwrap()
+    .map(|entry| {
+        let entry = entry.unwrap();
+        let name = entry.file_name().into_string().unwrap();
+        (name, fs::read(entry.path()).unwrap())
+    })
+    .collect();
     files.sort();
     files
 }
@@ -120,9 +130,9 @@ fn age(path: &Path, seconds: u64) {
 #[test]
 fn the_workspace_index_knows_documents_that_are_not_open() {
     let (ws, [a, b, c]) = workspace("closed");
-    let links = scan::link_index(&ws, CacheMode::Off).unwrap();
+    let links = scan::link_index(&ws, &cache_of(&ws, CacheMode::Off)).unwrap();
     assert!(
-        !ws.dir().join(scan::CACHE_DIR).exists(),
+        !ws.dir().with_extension("cache").exists(),
         "no cache was asked for"
     );
     assert_eq!(links.parsed, 3);
@@ -136,7 +146,7 @@ fn the_workspace_index_knows_documents_that_are_not_open() {
     // Deleting a document: the warning beforehand, and broken links afterwards.
     assert_eq!(links.index.would_break_document(c.id()).len(), 1);
     fs::remove_file(ws.dir().join("c.wombat")).unwrap();
-    let links = scan::link_index(&ws, CacheMode::Off).unwrap();
+    let links = scan::link_index(&ws, &cache_of(&ws, CacheMode::Off)).unwrap();
     let broken = links.index.broken();
     assert_eq!(broken.len(), 1);
     assert_eq!(broken[0].doc, b.id());
@@ -146,7 +156,7 @@ fn the_workspace_index_knows_documents_that_are_not_open() {
     );
     // A document is found by its ID wherever its file is.
     fs::rename(ws.dir().join("b.wombat"), ws.dir().join("renamed.wombat")).unwrap();
-    let links = scan::link_index(&ws, CacheMode::Off).unwrap();
+    let links = scan::link_index(&ws, &cache_of(&ws, CacheMode::Off)).unwrap();
     assert_eq!(links.names[&b.id()], "renamed.wombat");
     assert_eq!(links.index.backlinks(b.id(), cell(&b, 1)).len(), 1);
 }
@@ -226,7 +236,7 @@ fn the_cache_is_used_only_for_files_that_are_unchanged() {
     let sixth = checked(&ws);
     assert_eq!((sixth.parsed, sixth.reused), (1, 2));
     // What a failed write left behind is swept away; other files are left alone.
-    let dir = scan::cache_dir::<DocLinks>(&ws);
+    let dir = scan::cache_dir::<DocLinks>(&cache_of(&ws, CacheMode::Verify));
     fs::write(dir.join("b.wombat.idx.tmp"), "left over").unwrap();
     fs::write(dir.join("readme.txt"), "not ours").unwrap();
     assert!(checked(&ws).cache_written);
@@ -277,12 +287,15 @@ fn the_fast_cache_goes_by_length_and_time_and_only_for_files_that_have_settled()
     let file = fs::File::options().write(true).open(&path).unwrap();
     file.set_modified(time).unwrap();
     drop(file);
-    let unseen = scan::link_index(&ws, CacheMode::Fast).unwrap();
+    // On Unix the file system also says when a file was last changed in any way,
+    // which no program can set back: there the fast way sees it too.
+    let unseen = scan::link_index(&ws, &cache_of(&ws, CacheMode::Fast)).unwrap();
+    let seen_fast = cfg!(unix);
     assert_eq!(
         (unseen.parsed, unseen.reused, unseen.failed.len()),
-        (0, 3, 0)
+        if seen_fast { (0, 2, 1) } else { (0, 3, 0) }
     );
-    let seen = scan::link_index(&ws, CacheMode::Verify).unwrap();
+    let seen = scan::link_index(&ws, &cache_of(&ws, CacheMode::Verify)).unwrap();
     assert_eq!((seen.reused, seen.failed.len()), (2, 1));
     // Any other change is seen by the fast way: another length, or another time.
     fs::write(&path, &good).unwrap();
@@ -329,7 +342,7 @@ fn a_deleted_or_damaged_cache_is_rebuilt_and_never_believed() {
         fs::remove_dir_all(path.parent().unwrap()).unwrap()
     });
     rebuilt("deleted folder", CacheUse::Missing, 3, &|| {
-        fs::remove_dir_all(ws.dir().join(scan::CACHE_DIR)).unwrap()
+        fs::remove_dir_all(ws.dir().with_extension("cache")).unwrap()
     });
     // Damaged in every way that comes to mind.
     let header_end = bytes.iter().position(|b| *b == b'\n').unwrap();
@@ -346,7 +359,7 @@ fn a_deleted_or_damaged_cache_is_rebuilt_and_never_believed() {
         words[n] = new;
         words.join(" ")
     };
-    assert_eq!(header.split(' ').count(), 9);
+    assert_eq!(header.split(' ').count(), 11);
     let other = fs::read(cache_file(&ws, "a.wombat")).unwrap();
     let cases: Vec<(&str, Vec<u8>)> = vec![
         ("empty", Vec::new()),
@@ -367,13 +380,23 @@ fn a_deleted_or_damaged_cache_is_rebuilt_and_never_believed() {
         ("another length", with_header(&|h| word(h, 4, "1"))),
         ("no time", with_header(&|h| word(h, 5, "-"))),
         ("another time", with_header(&|h| word(h, 5, "1"))),
+        ("another file", with_header(&|h| word(h, 6, "1"))),
+        ("another change time", with_header(&|h| word(h, 7, "1"))),
         (
             "another document checksum",
-            with_header(&|h| word(h, 6, &"0".repeat(32))),
+            with_header(&|h| word(h, 8, &"0".repeat(32))),
+        ),
+        (
+            "another length of the body",
+            with_header(&|h| word(h, 9, "1")),
         ),
         (
             "another checksum",
-            with_header(&|h| format!("{}0", &h[..h.len() - 1])),
+            // (Another last digit, whatever it is: the checksum depends on times now.)
+            with_header(&|h| {
+                let other = if h.ends_with('0') { '1' } else { '0' };
+                format!("{}{other}", &h[..h.len() - 1])
+            }),
         ),
         (
             "a body of nothing",
@@ -382,10 +405,11 @@ fn a_deleted_or_damaged_cache_is_rebuilt_and_never_believed() {
     ];
     for (what, damaged) in cases {
         assert_ne!(damaged, bytes, "{what}");
-        // "No time" and "another time" are entries of the same bytes: they are not
-        // believed by the fast way, found good by reading, and brought up to date.
-        let parsed = usize::from(!what.ends_with(" time"));
-        rebuilt(what, CacheUse::Read, parsed, &|| {
+        // Whatever is changed in the first line, the checksum at its end, which is
+        // over all of it, over the name of the document file and over the body, no
+        // longer fits. (Before the review of milestone 6 the first line was only
+        // compared with itself, and an entry with another time in it was believed.)
+        rebuilt(what, CacheUse::Read, 1, &|| {
             fs::write(&path, &damaged).unwrap()
         });
     }
@@ -406,11 +430,11 @@ fn a_deleted_or_damaged_cache_is_rebuilt_and_never_believed() {
     assert_eq!(checked(&ws).rejected, 1);
     assert_eq!(cache_files(&ws), files);
     // A cache in a folder that cannot be written is not an error.
-    let top = ws.dir().join(scan::CACHE_DIR);
+    let top = ws.dir().with_extension("cache");
     fs::remove_dir_all(&top).unwrap();
     fs::write(&top, "a file where the folder should be").unwrap();
     for mode in [CacheMode::Fast, CacheMode::Verify] {
-        let links = scan::link_index(&ws, mode).unwrap();
+        let links = scan::link_index(&ws, &cache_of(&ws, mode)).unwrap();
         assert!(!links.cache_written && links.index == good.index);
         assert_eq!(links.cache, CacheUse::Unusable);
     }
@@ -426,16 +450,16 @@ fn a_deleted_or_damaged_cache_is_rebuilt_and_never_believed() {
 fn nothing_is_read_or_written_through_a_symbolic_link() {
     use std::os::unix::fs::symlink;
     let (ws, _) = workspace("symlinks");
-    let good = scan::link_index(&ws, CacheMode::Off).unwrap();
+    let good = scan::link_index(&ws, &cache_of(&ws, CacheMode::Off)).unwrap();
     let outside = folder("symlinks-outside");
     let precious = outside.join("important.txt");
-    let top = ws.dir().join(scan::CACHE_DIR);
-    let kind = scan::cache_dir::<DocLinks>(&ws);
+    let top = ws.dir().with_extension("cache");
+    let kind = scan::cache_dir::<DocLinks>(&cache_of(&ws, CacheMode::Verify));
     let entry = cache_file(&ws, "a.wombat");
     let temp = kind.join("a.wombat.idx.tmp");
     // A good entry of another content, to see that a linked entry is not read either.
     let (other, _) = workspace("symlinks-other");
-    scan::link_index(&other, CacheMode::Verify).unwrap();
+    scan::link_index(&other, &cache_of(&other, CacheMode::Verify)).unwrap();
     let lure = fs::read(cache_file(&other, "b.wombat")).unwrap();
     for (link, to_dir, state) in [
         (&top, true, CacheUse::Unusable),
@@ -451,7 +475,7 @@ fn nothing_is_read_or_written_through_a_symbolic_link() {
         fs::create_dir_all(link.parent().unwrap()).unwrap();
         symlink(if to_dir { &outside } else { &precious }, link).unwrap();
         for mode in [CacheMode::Verify, CacheMode::Fast, CacheMode::Verify] {
-            let links = scan::link_index(&ws, mode).unwrap();
+            let links = scan::link_index(&ws, &cache_of(&ws, mode)).unwrap();
             assert_eq!(links.cache, state, "{}", link.display());
             assert!(links.index == good.index);
             assert_eq!(fs::read(&precious).unwrap(), lure, "{}", link.display());
@@ -534,4 +558,157 @@ fn an_open_document_is_followed_and_agrees_with_the_folder_after_saving() {
     let fresh = checked(&ws);
     assert!(fresh.index == links.index);
     assert_eq!((fresh.parsed, fresh.reused), (1, 2));
+}
+
+/// Found in review of milestone 6: a cache inside the workspace folder was believed,
+/// and a workspace can come from anywhere. An entry made to fit a document (its header
+/// taken from the document's own entry, its body from another) made a search find what
+/// the document no longer said. The cache is no longer in the workspace, and what is
+/// found there is not looked at.
+#[test]
+fn a_cache_inside_the_workspace_is_never_used() {
+    let (ws, [a, b, _]) = workspace("planted");
+    let good = scan::link_index(&ws, &Cache::off()).unwrap();
+    // The old place, with entries that are good ones by every check: made by a real
+    // scan of these very documents, then moved to where the cache used to be.
+    let outside = cache_of(&ws, CacheMode::Verify);
+    scan::link_index(&ws, &outside).unwrap();
+    let old = ws.dir().join(scan::OLD_CACHE_DIR);
+    fs::create_dir_all(old.join("links")).unwrap();
+    for (name, bytes) in cache_files(&ws) {
+        fs::write(old.join("links").join(name), bytes).unwrap();
+    }
+    fs::remove_dir_all(outside.dir()).unwrap();
+    let planted = |dir: &Path| {
+        let mut files: Vec<_> = fs::read_dir(dir.join("links"))
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .map(|path| (path.clone(), fs::read(path).unwrap()))
+            .collect();
+        files.sort();
+        files
+    };
+    let before = planted(&old);
+    assert_eq!(before.len(), 3);
+    // The documents change; the planted entries still say what they said.
+    change_in_place(&ws, &a, &b);
+    let now = scan::link_index(&ws, &Cache::off()).unwrap();
+    assert!(now.index != good.index);
+    for mode in [CacheMode::Verify, CacheMode::Fast] {
+        // The cache where it belongs: nothing of the old folder is read.
+        let found = scan::link_index(&ws, &cache_of(&ws, mode)).unwrap();
+        assert!(found.index == now.index);
+        // Asked to use the old folder, or any folder inside the workspace: refused,
+        // whether it is there or not.
+        for inside in [
+            old.clone(),
+            ws.dir().join("new-cache"),
+            ws.dir().join("a/b/c"),
+        ] {
+            let found = scan::link_index(&ws, &Cache::at(&inside, mode)).unwrap();
+            assert_eq!(found.cache, CacheUse::Unusable, "{}", inside.display());
+            assert!(found.index == now.index && found.reused == 0 && !found.cache_written);
+            assert_eq!(scan::clear_cache(&Cache::at(&inside, mode), &ws), 0);
+        }
+        assert!(!ws.dir().join("new-cache").exists() && !ws.dir().join("a").exists());
+        // Never read, never written, never deleted.
+        assert_eq!(planted(&old), before);
+    }
+    // A way round through a link is no way round.
+    #[cfg(unix)]
+    {
+        let link = ws.dir().with_extension("link");
+        let _ = fs::remove_file(&link);
+        std::os::unix::fs::symlink(&old, &link).unwrap();
+        let found = scan::link_index(&ws, &Cache::at(&link, CacheMode::Verify)).unwrap();
+        assert_eq!(found.cache, CacheUse::Unusable);
+        assert!(found.index == now.index);
+        fs::remove_file(&link).unwrap();
+    }
+    assert_eq!(planted(&old), before);
+}
+
+/// Each workspace has its own cache folder under the base, named so that a person can
+/// tell them apart; an entry is of one document file and of no other; and the whole
+/// cache of a workspace can be thrown away.
+#[test]
+fn caches_are_kept_per_workspace_and_can_be_cleared() {
+    let (ws, _) = workspace("per_workspace");
+    let (other, _) = workspace("per_workspace_other");
+    let base = folder("per_workspace_base");
+    let cache = Cache::in_base(&base, &ws, CacheMode::Verify).unwrap();
+    let second = Cache::in_base(&base, &other, CacheMode::Verify).unwrap();
+    assert_ne!(cache.dir(), second.dir());
+    assert_eq!(cache.dir().parent(), Some(base.as_path()));
+    let name = cache.dir().file_name().unwrap().to_str().unwrap();
+    assert!(name.starts_with("per_workspace-") && name.len() == "per_workspace-".len() + 16);
+    // The same folder reached another way is the same cache.
+    let dotted = Workspace::open(ws.dir().join("../per_workspace")).unwrap();
+    assert_eq!(
+        Cache::in_base(&base, &dotted, CacheMode::Verify).unwrap(),
+        cache
+    );
+    let first = scan::link_index(&ws, &cache).unwrap();
+    assert_eq!((first.parsed, first.cache), (3, CacheUse::Missing));
+    scan::link_index(&other, &second).unwrap();
+    let again = scan::link_index(&ws, &cache).unwrap();
+    assert_eq!(
+        (again.parsed, again.reused, again.cache),
+        (0, 3, CacheUse::Read)
+    );
+    // What the folder is the cache of is written in it.
+    let marker = fs::read_to_string(cache.dir().join(scan::MARKER)).unwrap();
+    assert!(marker.contains("per_workspace"), "{marker}");
+    // An entry under another document's name is not that document's entry, although
+    // it is whole and its own checksum is right.
+    let a = scan::cache_path::<DocLinks>(&cache, "a.wombat");
+    let b = scan::cache_path::<DocLinks>(&cache, "b.wombat");
+    let entry = fs::read(&b).unwrap();
+    fs::copy(&a, &b).unwrap();
+    let mixed = scan::link_index(&ws, &cache).unwrap();
+    assert_eq!((mixed.parsed, mixed.reused, mixed.rejected), (1, 2, 1));
+    assert!(mixed.index == first.index);
+    assert_eq!(fs::read(&b).unwrap(), entry, "written again as it was");
+    // "Rebuild the index": everything of this workspace goes, nothing of the other.
+    fs::write(cache.dir().join("links").join("notes.txt"), "not ours").unwrap();
+    assert_eq!(scan::clear_cache(&cache, &ws), 3);
+    assert!(!a.exists() && cache.dir().join("links").join("notes.txt").exists());
+    assert!(scan::cache_path::<DocLinks>(&second, "a.wombat").exists());
+    let rebuilt = scan::link_index(&ws, &cache).unwrap();
+    assert_eq!((rebuilt.parsed, rebuilt.reused), (3, 0));
+    assert!(rebuilt.index == first.index);
+    fs::remove_file(cache.dir().join("links").join("notes.txt")).unwrap();
+    assert_eq!(scan::clear_cache(&cache, &ws), 3);
+    assert!(!cache.dir().exists(), "an empty cache folder is removed");
+    assert_eq!(scan::clear_cache(&Cache::off(), &ws), 0);
+}
+
+/// Found in review of milestone 6: for two seconds after documents were saved, every
+/// fast scan wrote every entry again, to no effect (an entry written so soon after its
+/// file is not believed by length and time anyway). Told the time, the scan leaves them
+/// until writing them again can help.
+#[test]
+fn the_fast_way_leaves_entries_alone_that_are_too_new_to_settle() {
+    let (ws, _) = workspace("too_new");
+    let clock = || {
+        let since = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+        since.unwrap().as_nanos()
+    };
+    let fast = |now: u128| {
+        let cache = cache_of(&ws, CacheMode::Fast).with_now(now);
+        scan::link_index(&ws, &cache).unwrap()
+    };
+    assert_eq!(fast(clock()).parsed, 3);
+    let files = cache_files(&ws);
+    for _ in 0..2 {
+        let again = fast(clock());
+        assert_eq!((again.parsed, again.reused), (0, 3), "read and compared");
+        assert!(!again.cache_written, "and nothing written");
+        assert_eq!(cache_files(&ws), files);
+    }
+    // Ten seconds on by the caller's clock, writing them again is worth it.
+    assert!(fast(clock() + 10_000_000_000).cache_written);
+    // Not told the time, the scan writes them, as it always did.
+    let untold = scan::link_index(&ws, &cache_of(&ws, CacheMode::Fast)).unwrap();
+    assert!(untold.cache_written);
 }

@@ -605,6 +605,7 @@ numbers of its own (A50 on and B40 on for milestone 4, A60 on and B50 on for mil
     - The checksum is now a fast one of 128 bits over eight bytes at a time
       (`summary::digest`), still no proof against forgery (A54). Entries are not synced
       to disk: one cut short by a crash fails its checksum and is made again.
+    *Since changed:* A112 moved the cache out of the workspace, made `Verify` the default and changed the first line.
 72. **Text is compared in a folded form** (`wombat-search/src/fold.rs`). Case is ignored
     by Unicode's full case mappings applied lower, upper, lower (`ß` = `SS` = `ss`, `Σ`
     = `σ` = `ς`). The four Turkish i's (`I`, `i`, `İ`, `ı`) are one letter: right for
@@ -642,6 +643,7 @@ numbers of its own (A50 on and B40 on for milestone 4, A60 on and B50 on for mil
     at no cost), and the order of a document is worked out when a search first needs
     it after cells moved (about a millisecond for 5,000 cells) and kept until they
     move again.
+    *Since changed:* A111 changed the table.
 74. **What matches, and in what order** (`engine.rs` has the rule in full). A word
     matches a cell if it is found anywhere in the folded text, note, image file name or
     link target of the cell, or in the text of a cell that one of its links leads to.
@@ -663,6 +665,7 @@ numbers of its own (A50 on and B40 on for milestone 4, A60 on and B50 on for mil
     closed at the end, as when typing); it fails when a known filter has a value that
     means nothing, saying what would. A word with a colon that is not a filter
     (`https://...`, `12:30`) is a word.
+    *Since changed:* A108 changed several points of the syntax.
 76. **What of a cell is searched comes through one function**
     (`wombat_search::index::searchable`), used by the index and by the reference
     scanner alike. It returns the text, the note, the image name, the link targets,
@@ -675,6 +678,7 @@ numbers of its own (A50 on and B40 on for milestone 4, A60 on and B50 on for mil
     another; notes are not touched (as in TreeSheets). One call is one unit of undo for
     the document. If any command is refused (a replacement that would join up with
     the text beside it into one user-perceived character, A33), all are put back.
+    *Since changed:* A105 and A106 limit what is replaced; A107 is replace across a folder.
 78. **No tolerance for typing mistakes, no search by meaning, nothing inside images.**
     Typo tolerance was tried on paper only: with matching anywhere in a word it would
     make most short queries match most cells, and doing it well (by edit distance on
@@ -852,6 +856,7 @@ are where milestones 4, 5 and 6, built apart, meet).
     the change report, and its result and those of its readers are worked out again
     before the command returns. Replacing a table's name in the whole document renames
     it in the formulas that name it too, since both are text.
+    *Since changed:* A106: formula cells are replaced only when asked.
 92. **Where search shows or follows a cell, it goes by what the cell shows** (A66,
     as `links::place_shown` does for links): the location trail of a result, and the
     field "text of a linked cell", are the results of formula cells, not their
@@ -993,6 +998,135 @@ are where milestones 4, 5 and 6, built apart, meet).
     export repeats the outer rows on every line, so it can be far larger than the
     document) and at most 10,000 tables in a lookup export; beyond that it is refused
     with the advice to export a part by its cell.
+    *Since changed:* A110: filters and the tie-break go by what is shown too.
+105. **Replace changes only whole characters** (review of milestone 6; numbers 93 to 104
+    are used by other work). A match in folded text can cover part of a character: `s`
+    is found in the `ß` of `Straße` (folded `ss`), `f` in `ﬁ`, `1` in `½`, one person in
+    a family emoji. Search still finds and highlights those cells. Replace takes a
+    place only where the match is the whole of one or more user-perceived characters;
+    any other place is left alone, counted, and listed with the characters it touches
+    (`replace::Counts::skipped`), by the dry run as by the run. After such a place the
+    search goes on one character further, so `ss` still replaces the `ß` of `sß`.
+    Before this, `s -> X` made `XtraXe` of `Straße` without a word.
+106. **Replace leaves formula cells alone unless asked** (replaces the second half of
+    A91). `ReplaceOptions::formulas` (the tool's `--formulas`, `formulas` in
+    `replace-all`) includes them; then, as A91 says, the formula is what is replaced,
+    and the cell calculates again. Without it formula cells are skipped and the result
+    and the dry run say how many of them had how many places
+    (`Counts::formula_cells`, `formula_places`). Replacing the word "sum" in a folder
+    of notes must not turn every `=SUM(` into something else. Renaming a table in the
+    whole document therefore needs the option.
+107. **Replace across a folder prepares everything, then saves, and is not atomic**
+    (`wombat_search::workspace::replace_in_folder`). Every document is read and changed
+    in memory first; a replacement refused in any of them saves nothing. Then the
+    changed documents are saved one by one (each file whole or not at all); if
+    one fails, saving stops and the result names the files saved, the one that failed
+    and the ones not reached. There is no undo across files: a second run finishes the
+    job, since what was replaced is no longer found. The changed documents are all in
+    memory until they are saved.
+108. **The text syntax forgives ordinary typing** (changes A75 in these points; review
+    of milestone 6).
+    - `-` before a digit (`-5`, `-0.5`, `-.5`) is part of the word: a negative number
+      is a thing to search for in a document of figures. "Not 5" is `NOT 5` or
+      `-"5"`.
+    - `AND` and `NOT` are operators like `OR`, in upper case only; `a AND b` is `a b`.
+      The words themselves are searched in quotes (`"AND"`); in lower case they are
+      words. Left hanging (`a AND`, `a NOT`) they count for nothing, like `a OR`.
+    - The curly quotes `“ ” „ ‟` are quotes: phones type them in place of `"`.
+    - A word with a colon is a filter only if its first part is a filter's name.
+      Anything else is text, as before (`12:30`, a web address); if it reads like an
+      attempt at a filter (`status:done`), `Parsed::warnings` says that it was
+      searched as text. `is:` and `in:` are words that anyone types before a colon, so
+      they are filters only with a value they can mean (`is:tagged`, `in:` with a cell
+      ID) and text with a warning otherwise (`is:open`, `in:progress` used to be
+      errors). Every other filter with a value that means nothing is still an error
+      that says what would, because there the writer meant a filter.
+    - A word with nothing to search for (empty, or folding to nothing: a lone accent,
+      a soft hyphen, a variation selector) matches **no** cell and `Results::warnings`
+      says so. It used to match every cell.
+    The `Query` value and the text agree: everything above is how text becomes a value;
+    only the last point is about values.
+109. **`tag:` is the row of a tag cell; `is-tag:` is the tag cell** (B90). In text,
+    `tag:NAME` is `Filter::RowTag`: the cells in a row of a grid in which some cell is
+    the tag NAME (the root cell, which is in no grid: itself). `tag:todo apple` is
+    therefore "rows tagged todo that mention apple", which is what the words say, and
+    `tag:todo` alone is every cell of those rows. `is-tag:NAME` is `Filter::Tag`,
+    TreeSheets' own filter: the cells that are the tag. `has:tag` stays "is any tag".
+    Only the row counts, not the grid inside a cell of the row, nor the rows above or
+    below: narrowing further is `in:`. The index keeps the number of columns of each
+    cell's grid for this (4 bytes a cell; the summary's version is 3).
+110. **Whatever asks what a cell is to the eye goes by what the cell shows** (replaces
+    the last sentence of A92). `text:`, `tag:`, `is-tag:`, `has:tag`, `has:text` and
+    the "shorter text first" of the ranking go by the result of a formula cell, as the
+    trail and the linked-text field already did. Words still find a formula cell by
+    its formula *and* by its result (A90), as two fields. `formula:TEXT` finds formula
+    cells whose formula contains the text (folded, like a word); `kind:formula` finds
+    them all.
+111. **The table of the index proposes exactly, in bounded space; a search reads a cell
+    once** (replaces the description of the table in A73 and the engine's part of A79;
+    review of milestone 6).
+    - *The table.* Every folded character and every pair of neighbours is a key (A73
+      had single characters only for scripts without spaces, and dropped the list of
+      any key that an eighth of the cells had, so that common words looked at every
+      cell). Keys are not stored: each is hashed into one of a fixed number of lists
+      (twice the number of cells, a power of two), built packed in one array; a list
+      that more than one cell in 32 is on is kept as one bit per cell. Keys that share
+      a list share its cells, which costs a look at a few more cells and can never
+      give a wrong result, since every proposed cell is checked against its text.
+      Edits add to a small table beside the packed one; when half is stale, or it has
+      doubled, it is built again. On varied text the index took 29 times the text and
+      now takes 8 (cells of 12 characters) or 1.4 (cells of 400).
+    - *A search.* Each word gets, from the table, one bit per cell: may have it or
+      cannot. The cells looked at are those the whole query allows (and of bits, or
+      of bits); a word that the bits rule out for a cell is not looked for there, which
+      is what makes negations and words that are absent cheap. A word is prepared for
+      searching once per query (`memchr`), not once per cell. From four words on, the
+      third word that needs a cell read makes the cell be read once for all of them
+      (`aho-corasick`). The same word twice is one needle counted twice. Only the
+      results asked for are kept while searching, and the order of the document does
+      not work out points for results it does not return. Both crates are pure Rust,
+      build for the web, and are in most Rust programs already.
+    - *What cannot be had:* stopping early for "the best N". The points of a cell are
+      only known by reading it, and nothing cheaper bounds them, so every matching
+      cell is read; a query that matches most cells stays linear in the workspace.
+    - *A hit carries at most 1,000 highlight ranges* (`MAX_RANGES`) and the number of
+      all (`Hit::range_count`). The limits of A75 on a query stay as they were.
+    - *Following a document that the index does not have is an error*
+      (`SearchIndex::apply` returns `NotIndexed`). It used to read the document in under
+      an empty name, so that a caller's mistake showed up later as results from a
+      document called "".
+112. **Index caches are outside the workspace, and checked by content unless asked
+    otherwise** (replaces the place, the entry's first line and the default of A71,
+    and the place in A54; review of milestone 6).
+    - *Why.* A cache entry cannot prove where it came from: whoever can write the
+      folder can write an entry that fits a document and says something else, and it
+      was believed, also with every file checked. A workspace folder comes from
+      archives, shared drives and sync services. Signing entries would need a secret
+      kept somewhere else, which is the same as keeping the cache somewhere else.
+    - *Where.* `scan` takes a `Cache`: the folder and the mode. `Cache::in_base(base,
+      workspace, mode)` is the folder `<name>-<checksum of the full path>` under a base
+      that the interface chooses: the cache directory an app is given on a phone; for
+      the tool `$WOMBAT_CACHE_DIR`, else `wombat` under `$XDG_CACHE_HOME` or `~/.cache`,
+      `~/Library/Caches`, `%LOCALAPPDATA%`, or `--cache-dir`. A cache folder that is
+      inside the workspace (also through a link) is not used. `.wombat-index` in a
+      workspace is never read, written or deleted. This also takes the cache out of
+      synced folders, where it doubled the number of files.
+    - *An entry is of one file.* Its first line ends in one checksum over the line, the
+      name of the document file and the body, so an entry made of parts of two, or
+      put under another name, is refused. This is against accidents, not forgery: the
+      checksum is not secret, and the defence against forgery is the place.
+    - *`Verify` is the default everywhere*: every document is read and its checksum
+      compared; only parsing is saved. On 5,000 small documents `Fast` saved 33 ms of
+      115, and it trusts what a sync client or an unpacker can restore. `Fast` remains
+      for those who ask (`--cache=fast`), with the risk stated at `CacheMode::Fast`,
+      and now also compares, on Unix, the inode and the time of last change, which a
+      program cannot set back. `scan::clear_cache` ("rebuild the index", `--rebuild`)
+      discards the cache of a workspace.
+    - *The tool keeps a cache by default* (`--no-cache` to keep none), since with
+      `Verify` it cannot make a result stale: `search`, `links`, `backlinks` and
+      `broken` alike, with the same options.
+    - The symbolic-link rules of A71 hold for the new place: the cache folder of the
+      workspace, the folders in it and the entries must be real.
 
 113. **A field with a comma, a semicolon or a tab is quoted, whichever is the
     delimiter** (fixes after the review of milestone 7; changes A97. The numbers A105 to
@@ -1347,8 +1481,13 @@ Numbers 66 to 69 are not used. 70 to 79 are from the review of milestones 4 and 
     side by side (A99); for grids of one column the two are the same.
 86. **A file not in UTF-8 is read as Windows-1252, or as UTF-16 if it says so**
     (A102). TreeSheets leaves it to wxWidgets' guess, which depends on the system.
+90. **`tag:` narrows to rows** (A109; numbers B87 to B89 are not used). TreeSheets'
+    "filter by tags" shows the cells that are a tag, and its "show entire row" setting
+    draws their rows. In a search a result is a cell, so the setting has to become
+    part of the query: `tag:todo` is the cells of the rows that have the tag, and
+    `is-tag:todo` is exactly what TreeSheets' filter marks.
 95. **A file that is not UTF-8 is refused unless its encoding is said** (A115; changes
-    B86; the numbers B87 to B94 are not used here). TreeSheets leaves the encoding to
+    B86; the numbers B87 to B89 and B91 to B94 are not used). TreeSheets leaves the encoding to
     wxWidgets' guess; Wombat guessed Windows-1252 and now guesses nothing.
 96. **A `.csv` file's delimiter is found in the file** (A120). TreeSheets has one menu
     item per delimiter and reads what it is told; so does Wombat when told

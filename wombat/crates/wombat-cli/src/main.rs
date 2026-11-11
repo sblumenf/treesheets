@@ -48,8 +48,10 @@ Usage:
   wombat backlinks <folder> <file> <CELL>   list the links to a cell of <file> from all
                                             documents of the folder; CELL as in `wombat edit`
   wombat broken <folder>                    list the links in a folder that point at nothing
-                                            (links, backlinks and broken take --cache to keep
-                                            an index in <folder>/.wombat-index, safe to delete)
+                                            (links, backlinks, broken and search keep an
+                                            index in the user's cache folder, never in
+                                            <folder>; --no-cache, --cache-dir DIR,
+                                            --cache=fast, --rebuild: `wombat search --help`)
   wombat copy-cell <from.wombat> <CELL> <to.wombat> <CELL>
                                             make the second cell a copy of the first, with
                                             all in it; links in it keep pointing at the same cells
@@ -129,14 +131,7 @@ fn run(args: &[&str]) -> Result<String, Failure> {
         ["export", "--help" | "-h" | "help"] => Ok(convert::EXPORT_HELP.to_string()),
         ["export", rest @ ..] => convert::export(rest),
         ["copy", source, file] => copy(source, file),
-        ["links", file] => links::links(file, false),
-        ["links", file, "--cache"] | ["links", "--cache", file] => links::links(file, true),
-        ["backlinks", folder, file, cell] => links::backlinks(folder, file, cell, false),
-        ["backlinks", folder, file, cell, "--cache"] => links::backlinks(folder, file, cell, true),
-        ["broken", folder] => links::broken(folder, false),
-        ["broken", folder, "--cache"] | ["broken", "--cache", folder] => {
-            links::broken(folder, true)
-        }
+        ["links" | "backlinks" | "broken", ..] => links::command(args),
         ["copy-cell", from, cell, to, place] => links::transfer(from, cell, to, place, false),
         ["move-cell", from, cell, to, place] => links::transfer(from, cell, to, place, true),
         ["search", "--help" | "-h" | "help"] => Ok(search::HELP.to_string()),

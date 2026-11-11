@@ -16,13 +16,28 @@ fn folder(test: &str) -> PathBuf {
         .join("cli_search")
         .join(test);
     let _ = fs::remove_dir_all(&dir);
+    let _ = fs::remove_dir_all(dir.with_extension("cache"));
     fs::create_dir_all(&dir).unwrap();
     dir
+}
+
+/// Where the program is told to keep its index caches in these tests: beside the
+/// folder of the test, not in the cache directory of whoever runs them.
+fn cache_base(dir: &Path) -> PathBuf {
+    dir.with_extension("cache")
+}
+
+/// The cache entry of a document of the workspace `dir`, if there is one.
+fn cache_entry(dir: &Path, kind: &str, name: &str) -> Option<PathBuf> {
+    let of_workspaces = fs::read_dir(cache_base(dir)).ok()?;
+    let entries = of_workspaces.map(|folder| folder.unwrap().path().join(kind).join(name));
+    entries.into_iter().find(|entry| entry.is_file())
 }
 
 fn wombat(dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_wombat"))
         .current_dir(dir)
+        .env("WOMBAT_CACHE_DIR", cache_base(dir))
         .args(args)
         .output()
         .unwrap()
@@ -160,23 +175,59 @@ notes.wombat /1,2 \"日本語のテキスト\" (in: \"Notes\")
         &["search", ".", "zebra", "--next", "shop.wombat", "/"],
     );
     assert_eq!(none, "no match in this document\n");
-    // The same answers with the index kept on disk, the first time and from then on.
-    assert!(
-        !dir.join(".wombat-index").exists(),
-        "no cache was asked for"
-    );
-    for mode in ["--cache", "--cache", "--cache=verify", "--cache"] {
+    // The index is kept between runs, outside the folder that is searched, and every
+    // document is compared with it each time. The answers are the same with it,
+    // without it, the first time and from then on.
+    assert!(!dir.join(".wombat-index").exists(), "nothing in the folder");
+    assert!(cache_entry(&dir, "search", "shop.wombat.idx").is_some());
+    for mode in [
+        "--no-cache",
+        "--cache",
+        "--cache=fast",
+        "--cache=verify",
+        "--rebuild",
+    ] {
         assert_eq!(ok(&dir, &["search", ".", "apple", mode]), expected);
     }
-    assert!(dir.join(".wombat-index/search/shop.wombat.idx").is_file());
-    let timed = ok(&dir, &["search", ".", "apple", "--cache", "--time"]);
+    let timed = ok(&dir, &["search", ".", "apple", "--time"]);
     assert!(
         timed.contains("(0 documents read, 2 from the cache); search: "),
         "{timed}"
     );
+    let rebuilt = ok(&dir, &["search", ".", "apple", "--time", "--rebuild"]);
+    assert!(
+        rebuilt.contains("(2 documents read, 0 from the cache)"),
+        "{rebuilt}"
+    );
+    let without = ok(&dir, &["search", ".", "apple", "--time", "--no-cache"]);
+    assert!(
+        without.contains("(2 documents read, 0 from the cache)"),
+        "{without}"
+    );
+    // Somewhere else, if asked.
+    let elsewhere = folder("demo-elsewhere");
+    let there = elsewhere.to_str().unwrap();
+    for read in [2, 0] {
+        let out = ok(
+            &dir,
+            &["search", ".", "apple", "--time", "--cache-dir", there],
+        );
+        assert!(out.contains(&format!("({read} documents read, ")), "{out}");
+    }
+    assert_eq!(fs::read_dir(&elsewhere).unwrap().count(), 1);
+    // Inside the searched folder: not used, and nothing is made there.
+    let inside = ok(
+        &dir,
+        &["search", ".", "apple", "--time", "--cache-dir", "in-here"],
+    );
+    assert!(
+        inside.contains("(2 documents read, 0 from the cache)"),
+        "{inside}"
+    );
+    assert!(!dir.join("in-here").exists());
     // A document changed since: found as it is now.
     edited(&dir, "shop.wombat", "text /1,3 \"Apple tart\"\nsave\n");
-    let after = ok(&dir, &["search", ".", "apple", "--cache", "--time"]);
+    let after = ok(&dir, &["search", ".", "apple", "--time"]);
     assert!(
         after.contains("\"Apple tart\"") && after.contains("(1 documents read, 1 from the cache)"),
         "{after}"
@@ -317,7 +368,9 @@ fn every_treesheets_example_can_be_imported_into_one_folder_and_searched() {
     assert!(dir.join("all/tutorial-2.wombat").is_file());
 }
 
-/// As for the link cache: a cache that is a symbolic link is not written through.
+/// A cache folder inside the searched folder is from an older version, or planted: it
+/// is not used, so a symbolic link in it leads nowhere. (Links in the real cache folder
+/// are refused too: the tests of `wombat_core::scan` show that.)
 #[cfg(unix)]
 #[test]
 fn the_search_cache_is_never_written_through_a_symbolic_link() {
@@ -338,6 +391,7 @@ fn the_search_cache_is_never_written_through_a_symbolic_link() {
             let out = ok(&dir, &["search", ".", "apple", "--cache"]);
             assert!(out.contains("5 results"), "{out}");
         }
+        assert!(cache_entry(&dir, "search", "shop.wombat.idx").is_some());
         assert_eq!(fs::read_to_string(&precious).unwrap(), "do not touch");
         assert_eq!(fs::read_dir(&outside).unwrap().count(), 1, "{test}");
         assert!(fs::symlink_metadata(&link).unwrap().is_symlink());
@@ -376,13 +430,15 @@ fn formula_cells_are_found_by_result_and_replaced_by_formula() {
         &dir,
         "budget.wombat",
         "find \"1050.5\"\ntext /1,1/2,1 \"300\"\nfind \"1050.5\"\nfind \"550.5\"\n\
-         replace-all \"1050.5\" \"7\"\nreplace-all \"sum\" \"MAX\"\nfind \"case:MAX\"\n\
+         replace-all \"1050.5\" \"7\"\nreplace-all \"sum\" \"MAX\"\nreplace-all \"sum\" \"MAX\" formulas\nfind \"case:MAX\"\n\
          find \"1700\"\nundo\nfind \"550.5\"\nsave\n",
     );
     assert_eq!(
         session,
         "/2,1 «1050.5»\n1 found\n0 found\n/2,1 «550.5»\n1 found\n\
-         0 places in 0 cells\n4 places in 3 cells\n\
+         0 places in 0 cells\n\
+         0 places in 0 cells\n4 places in 3 formula cells left alone (add: formulas)\n\
+         4 places in 3 cells\n\
          /2,1 =«MAX»(Costs)\n/3,1 =«MAX»(Costs) * 1.2\n/2,2 =«MAX»(Income) - «MAX»(Costs)\n\
          3 found\n/2,2 «1700»\n1 found\n/2,1 «550.5»\n1 found\nsaved budget.wombat\n"
     );
@@ -395,13 +451,58 @@ fn formula_cells_are_found_by_result_and_replaced_by_formula() {
         dry,
         "0 places in 0 cells of 0 documents would be replaced\n"
     );
-    let done = ok(&dir, &["replace", ".", "costs", "Kosten"]);
+    // Formula cells are left alone and counted, in the dry run as in the run.
+    let prose = "budget.wombat: 1 places in 1 cells\n\
+                 budget.wombat: 3 places in 3 formula cells left alone (--formulas includes them)\n\
+                 1 places in 1 cells of 1 documents would be replaced\n\
+                 3 places in 3 formula cells were left alone\n";
+    assert_eq!(
+        ok(&dir, &["replace", ".", "costs", "Kosten", "--dry-run"]),
+        prose
+    );
+    let done = ok(&dir, &["replace", ".", "costs", "Kosten", "--formulas"]);
     assert!(done.contains("4 places in 4 cells"), "{done}");
+    assert!(
+        done.contains("3 places in 3 formula cells are among them"),
+        "{done}"
+    );
     let shown = ok(&dir, &["show", "budget.wombat"]);
     assert!(
         shown.contains("[2,1] \"=SUM(Kosten)\" (formula) = \"550.5\""),
         "{shown}"
     );
+}
+
+/// Replace leaves alone what it did not match: half of a `ß`, one part of a ligature,
+/// and says so, in the dry run as in the run.
+#[test]
+fn replace_reports_the_places_it_leaves_alone() {
+    let dir = folder("replace_partial");
+    fs::write(dir.join("de.txt"), "Straße\n  ﬁnance | ½ ㎏\n").unwrap();
+    ok(&dir, &["new", "de.wombat", "--from", "de.txt"]);
+    let expected = |verb: &str| {
+        format!(
+            "de.wombat: 1 places in 1 cells\n\
+             de.wombat: / not replaced at character 5: the match is only part of \"ß\"\n\
+             1 places in 1 cells of 1 documents {verb}\n\
+             1 places were left alone where the match is only part of a character\n"
+        )
+    };
+    let dry = ok(&dir, &["replace", ".", "s", "X", "--dry-run"]);
+    assert_eq!(dry, expected("would be replaced"));
+    assert_eq!(ok(&dir, &["replace", ".", "s", "X"]), expected("replaced"));
+    let shown = ok(&dir, &["show", "de.wombat"]);
+    assert!(shown.contains("\"Xtraße\""), "{shown}");
+    let none = ok(&dir, &["replace", ".", "f", "Q"]);
+    assert!(
+        none.contains("/1,1 not replaced at character 1") && none.contains("\"ﬁ\""),
+        "{none}"
+    );
+    assert!(
+        none.contains("0 places in 0 cells of 0 documents replaced"),
+        "{none}"
+    );
+    assert!(ok(&dir, &["show", "de.wombat"]).contains("\"ﬁnance\""));
 }
 
 /// Where the milestones meet: `import-all` and `replace` (milestone 6) write documents,

@@ -45,6 +45,9 @@ pub enum Act {
     /// command `RetargetLinks`, with which moves and repairs correct links; here also
     /// where nothing moved, so that the links end up wrong).
     Retarget(usize, [u32; 3]),
+    /// Imports a table or an outline into a cell (milestone 7, `Command::Import`): the
+    /// cell's grid is replaced by new cells, whatever links led into it.
+    Import(usize, [u32; 2]),
 }
 
 pub fn act() -> impl Strategy<Value = Act> {
@@ -60,6 +63,7 @@ pub fn act() -> impl Strategy<Value = Act> {
         1 => doc().prop_map(Act::Repair),
         6 => (doc(), any::<[u32; 3]>()).prop_map(|(d, n)| Act::Formula(d, n)),
         2 => (doc(), any::<[u32; 3]>()).prop_map(|(d, n)| Act::Retarget(d, n)),
+        1 => (doc(), any::<[u32; 2]>()).prop_map(|(d, n)| Act::Import(d, n)),
     ]
 }
 
@@ -79,6 +83,8 @@ pub struct Stats {
     pub repairs: usize,
     /// `RetargetLinks` commands given directly that changed links.
     pub retargets: usize,
+    /// Tables and outlines imported into cells.
+    pub imports: usize,
     /// Formulas and numbers entered, and runs of the program.
     pub formulas: usize,
     /// The most formula cells that the documents held at one time.
@@ -97,6 +103,7 @@ impl Stats {
         self.kept += other.kept;
         self.repairs += other.repairs;
         self.retargets += other.retargets;
+        self.imports += other.imports;
         self.formulas += other.formulas;
         self.formula_cells = self.formula_cells.max(other.formula_cells);
         self.links = self.links.max(other.links);
@@ -641,6 +648,38 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                     support::check_bound(&editors[d], &what);
                     follow(&mut index, hook, &editors[d], &changes);
                     stats.formulas += 1;
+                }
+            }
+            Act::Import(d, n) => {
+                let d = d % count;
+                let doc = editors[d].document();
+                let Some(cell) = pick(doc, n[0], |_, _| true) else {
+                    continue;
+                };
+                use wombat_core::convert::{parse_outline, parse_table, Delimiter};
+                let table = match n[1] % 4 {
+                    0 => parse_table(
+                        "Apple,1,=A+1\npear,\"two, three\",\n",
+                        Delimiter::Comma,
+                        true,
+                    ),
+                    1 => parse_table("Straße\tｶﾞｲﾄﾞ\n日本語\ttodo\n", Delimiter::Tab, false),
+                    2 => parse_outline("apple pie\n  crust\n    =1+2\n  filling\ntodo\n", 3, true),
+                    _ => parse_outline("one\n", 1, false),
+                };
+                let before = doc.clone();
+                let command = Command::Import {
+                    cell,
+                    table: table.unwrap(),
+                    // Any cell is a target here, so content is replaced as before.
+                    replace: true,
+                };
+                // (Refused where the document would nest too deep.)
+                if let Ok(changes) = editors[d].apply(command, None, &mut ids) {
+                    support::check_report(&before, editors[d].document(), &changes, &what);
+                    support::check_bound(&editors[d], &what);
+                    follow(&mut index, hook, &editors[d], &changes);
+                    stats.imports += 1;
                 }
             }
             Act::Retarget(d, n) => {

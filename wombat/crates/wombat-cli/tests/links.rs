@@ -16,13 +16,28 @@ fn folder(test: &str) -> PathBuf {
         .join("cli_links")
         .join(test);
     let _ = fs::remove_dir_all(&dir);
+    let _ = fs::remove_dir_all(dir.with_extension("cache"));
     fs::create_dir_all(&dir).unwrap();
     dir
+}
+
+/// Where the program is told to keep its index caches in these tests: beside the
+/// folder of the test, not in the cache directory of whoever runs them.
+fn cache_base(dir: &Path) -> PathBuf {
+    dir.with_extension("cache")
+}
+
+/// The cache entry of a document of the workspace `dir`, if there is one.
+fn cache_entry(dir: &Path, kind: &str, name: &str) -> Option<PathBuf> {
+    let of_workspaces = fs::read_dir(cache_base(dir)).ok()?;
+    let entries = of_workspaces.map(|folder| folder.unwrap().path().join(kind).join(name));
+    entries.into_iter().find(|entry| entry.is_file())
 }
 
 fn wombat(dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_wombat"))
         .current_dir(dir)
+        .env("WOMBAT_CACHE_DIR", cache_base(dir))
         .args(args)
         .output()
         .unwrap()
@@ -101,7 +116,7 @@ fn a_link_survives_renaming_moving_and_restructuring_its_target() {
          notes.wombat /1,1 \"see the apple here\" (in: \"Notes\") [8+5 \"apple\"]\n  \
          shop.wombat /1,3 \"Pear\" (in: \"Shop\") [0+4 \"Pear\"]\n"
     );
-    // No index was left in the folder: nobody asked for one.
+    // No index is ever left in the folder itself.
     assert!(!dir.join(".wombat-index").exists());
 
     // Rename the target, move it, sort around it, wrap its neighbours, turn the grid.
@@ -135,8 +150,30 @@ fn a_link_survives_renaming_moving_and_restructuring_its_target() {
             back
         );
     }
-    let entry = dir.join(".wombat-index/links/shop.wombat.idx");
-    assert!(entry.is_file(), "one cache entry per document");
+    assert!(
+        !dir.join(".wombat-index").exists(),
+        "the index is not kept here"
+    );
+    // The cache options are those of `wombat search`, for all three commands.
+    for option in ["--no-cache", "--rebuild", "--cache=fast", "--cache=verify"] {
+        assert_eq!(ok(&dir, &["links", "notes.wombat", option]), links);
+        assert_eq!(
+            ok(&dir, &["backlinks", ".", "shop.wombat", "/3,1", option]),
+            back
+        );
+        assert!(ok(&dir, &["broken", option, "."]).starts_with("0 links"));
+    }
+    let elsewhere = folder("survives-elsewhere");
+    let there = elsewhere.to_str().unwrap();
+    assert_eq!(
+        ok(&dir, &["links", "notes.wombat", "--cache-dir", there]),
+        links
+    );
+    assert_eq!(fs::read_dir(&elsewhere).unwrap().count(), 1);
+    let missing = wombat(&dir, &["broken", ".", "--cache-dir"]);
+    assert_eq!(missing.status.code(), Some(2));
+    let entry = cache_entry(&dir, "links", "shop.wombat.idx");
+    assert!(entry.is_some(), "one cache entry per document");
     // The index folder is not taken for a document.
     assert_eq!(ok(&dir, &["list", "."]).lines().count(), 2);
 }
@@ -315,9 +352,13 @@ fn a_cache_that_is_a_symbolic_link_is_never_written_through() {
         assert_eq!(fs::read_to_string(&precious).unwrap(), "do not touch");
         let listed: Vec<_> = fs::read_dir(&outside).unwrap().collect();
         assert_eq!(listed.len(), 1, "{test}: something was written outside");
-        // (A link where the temporary file goes is replaced, not followed.)
-        let still = fs::symlink_metadata(&link).is_ok_and(|found| found.is_symlink());
-        assert_eq!(still, !link.ends_with("shop.wombat.idx.tmp"), "{test}");
+        // A cache folder inside the workspace is not used at all (decision A112), so
+        // whatever is planted in it stays as it is. The cache was made elsewhere.
+        assert!(fs::symlink_metadata(&link).is_ok_and(|found| found.is_symlink()));
+        assert!(
+            cache_entry(&dir, "links", "shop.wombat.idx").is_some(),
+            "{test}"
+        );
     };
     // The cache file of milestone 4, the folder, and the folders and files of now.
     plant("link-old-file", ".wombat-index/links.idx", false);

@@ -122,7 +122,21 @@ fn filter(rng: &mut Rng, docs: &[Named]) -> Filter {
     let cell = doc.cell(id).unwrap();
     let tags: Vec<&String> = doc.tags().keys().collect();
     let gone = CellId::parse("00000000-0000-0000-0000-00000000dead").unwrap();
-    match rng.below(24) {
+    match rng.below(27) {
+        24 | 25 => Filter::RowTag(
+            rng.pick(&tags)
+                .map_or(cell.text.clone(), |tag| (*tag).clone()),
+        ),
+        26 => {
+            let chars: Vec<char> = cell.text.chars().collect();
+            let from = rng.below(chars.len().max(1));
+            let piece: String = chars.iter().skip(from).take(1 + rng.below(3)).collect();
+            Filter::Formula(if rng.below(4) == 0 {
+                "sum".into()
+            } else {
+                piece
+            })
+        }
         0 => Filter::Tag(
             rng.pick(&tags)
                 .map_or(cell.text.clone(), |tag| (*tag).clone()),
@@ -388,7 +402,9 @@ impl Follower {
     }
 
     pub fn changed(&mut self, editor: &Editor, changes: &Changes) {
-        self.index.apply(editor.document(), editor.calc(), changes);
+        self.index
+            .apply(editor.document(), editor.calc(), changes)
+            .unwrap();
     }
 
     pub fn step(&mut self, editors: &[Editor], what: &str) {

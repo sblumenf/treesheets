@@ -18,13 +18,13 @@ use std::path::Path;
 use search_support::check_hit;
 use wombat_core::construct::Construct;
 use wombat_core::eval::Calc;
-use wombat_core::scan::CacheMode;
+use wombat_core::scan::{Cache, CacheMode};
 use wombat_core::{
     format, CellId, CellKind, Changes, Command, Document, Editor, Link, LinkTarget, SeededIds,
     Workspace,
 };
 use wombat_search::query::{parse, Term};
-use wombat_search::replace::{replace, Scope};
+use wombat_search::replace::{replace, ReplaceOptions, Scope};
 use wombat_search::{naive, workspace, Field, Hit, Options, Order, SearchIndex};
 
 /// An editor with a search index that follows it.
@@ -48,7 +48,8 @@ impl Desk {
 
     fn follow(&mut self, changes: &Changes) {
         self.index
-            .apply(self.editor.document(), self.editor.calc(), changes);
+            .apply(self.editor.document(), self.editor.calc(), changes)
+            .unwrap();
         // The index that followed is the index of the document and its results now.
         let mut fresh = SearchIndex::new();
         let (doc, calc) = (self.editor.document(), self.editor.calc());
@@ -301,22 +302,31 @@ fn replace_changes_formulas_and_never_results() {
     let b = budget();
     let before = format::to_string(&b.doc).unwrap();
     let mut desk = Desk::new(b.doc);
-    let go = |desk: &mut Desk, what: &str, with: &str| {
+    let all = ReplaceOptions { formulas: true };
+    let run = |desk: &mut Desk, what: &str, with: &str, options: ReplaceOptions| {
         let term = Term::new(what);
         let done = replace(
             &mut desk.editor,
             &term,
             with,
             Scope::Document,
+            options,
             None,
             &mut desk.ids,
         )
         .unwrap();
         desk.follow(&done.changes);
-        (done.cells, done.places)
+        (done.counts.cells, done.counts.places)
     };
+    let go = |desk: &mut Desk, what: &str, with: &str| run(desk, what, with, all);
     // A result is not text that can be replaced: nothing happens.
     assert_eq!(go(&mut desk, "1050.5", "0"), (0, 0));
+    assert_eq!(format::to_string(desk.editor.document()).unwrap(), before);
+    // A formula is not replaced in unless that is asked for (decision A106).
+    assert_eq!(
+        run(&mut desk, "sum", "MAX", ReplaceOptions::default()),
+        (0, 0)
+    );
     assert_eq!(format::to_string(desk.editor.document()).unwrap(), before);
     // In the formula it is: the cell stays a formula cell, and shows the new result.
     assert_eq!(go(&mut desk, "sum", "MAX"), (1, 1));
@@ -344,6 +354,7 @@ fn replace_changes_formulas_and_never_results() {
         &Term::new("Kosten"),
         "Spend",
         Scope::Cells(&only),
+        ReplaceOptions::default(),
         None,
         &mut desk.ids,
     )
@@ -363,6 +374,7 @@ fn scratch(test: &str) -> std::path::PathBuf {
         .join("search_formulas")
         .join(test);
     let _ = fs::remove_dir_all(&dir);
+    let _ = fs::remove_dir_all(dir.with_extension("cache"));
     fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -378,7 +390,8 @@ fn documents_that_are_not_open_are_searched_by_their_results() {
     let saved = fs::read_to_string(dir.join("budget.wombat")).unwrap();
     assert!(!saved.contains("1050.5"), "a result was saved");
     let find = |mode: CacheMode, text: &str| {
-        let built = workspace::index(&ws, mode).unwrap();
+        let cache = Cache::at(dir.with_extension("cache"), mode);
+        let built = workspace::index(&ws, &cache).unwrap();
         let query = parse(text, 0).unwrap().query;
         let found = built.index.search(&query, &Options::default()).unwrap();
         let doc = ws.open_name("budget.wombat").unwrap();
@@ -471,4 +484,51 @@ fn a_document_of_heavy_formulas_is_summarised_in_bounded_time() {
         assert_eq!(found.total, over, "{name}");
         assert!(summary.encode() == wombat_search::DocIndex::of(&doc).encode());
     }
+}
+
+/// Where the limits on calculating (decisions A80, A81) meet search and replace: a
+/// formula that a replace turns into one whose text would grow without end shows
+/// `#LIMIT!`, the index follows that like any result, and the undo brings the old result
+/// back.
+#[test]
+fn a_replace_that_puts_a_formula_over_the_limit_shows_it_and_search_follows() {
+    use wombat_core::construct::Construct;
+    // The formula of the review of milestone 5, with `q` where it had 32 letters.
+    let mut formula = String::from("'q'");
+    for _ in 0..7 {
+        formula = format!("SUBSTITUTE({formula},'a','q')");
+    }
+    let mut ids = SeededIds::from_u64(3);
+    let mut doc = Document::new(&mut ids);
+    let cell = doc.root();
+    doc.cell_mut(cell).unwrap().text = format!("=LEN({formula})");
+    doc.cell_mut(cell).unwrap().kind = CellKind::Formula;
+    let mut desk = Desk::new(doc);
+    assert_eq!(desk.editor.shown(cell), Some("1"));
+    assert!(desk.find("#LIMIT!").is_empty());
+    assert_eq!(desk.find("formula:substitute kind:formula").len(), 1);
+    let term = Term::new("q");
+    let with = "a".repeat(32);
+    let go = |desk: &mut Desk, formulas: bool| {
+        let options = ReplaceOptions { formulas };
+        let (editor, ids) = (&mut desk.editor, &mut desk.ids);
+        let done = replace(editor, &term, &with, Scope::Document, options, None, ids).unwrap();
+        desk.follow(&done.changes);
+        (done.counts.places, done.counts.formula_places)
+    };
+    // Unasked, the formula is left alone.
+    assert_eq!(go(&mut desk, false), (0, 8));
+    assert_eq!(desk.editor.shown(cell), Some("1"));
+    assert_eq!(go(&mut desk, true), (8, 8));
+    assert_eq!(desk.editor.shown(cell), Some("#LIMIT!"));
+    // Found by what it shows, as its text for `text:`, and still by its formula.
+    let limited = desk.find("#LIMIT!");
+    assert_eq!((limited.len(), limited[0].field), (1, Field::Shown));
+    assert_eq!(desk.find("limit").len(), 1);
+    assert_eq!(desk.find("text:#LIMIT!").len(), 1);
+    assert_eq!(desk.find("formula:substitute").len(), 1);
+    assert_eq!(desk.find("formula:limit").len(), 0);
+    desk.undo();
+    assert!(desk.find("#LIMIT!").is_empty());
+    assert_eq!(desk.editor.shown(cell), Some("1"));
 }

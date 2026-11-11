@@ -4,10 +4,10 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use wombat_core::scan::CacheMode;
-use wombat_core::{storage, DocId, Document, Editor, Workspace};
+use wombat_core::scan::{self, Cache, CacheMode};
+use wombat_core::{storage, CellId, DocId, Document, Workspace};
 use wombat_search::query::{parse, Filter, Order, Query, Term};
-use wombat_search::replace::{replace, Scope};
+use wombat_search::replace::ReplaceOptions;
 use wombat_search::{workspace, Field, Hit, Options, Snippet};
 
 use crate::links::{find_cell, place_of};
@@ -28,13 +28,19 @@ The query (several arguments are joined with spaces; quote it for the shell):
   1050.5               a formula cell is found by its formula and by what it shows; it
                        is printed as \"=SUM(Costs)\" = \"1050.5\"
   app                  a word need not be complete, and need not start a word
-  \"apple pie\"          the words together
-  apple OR pear        either (also: apple | pear)       -apple   not
+  \"apple pie\"          the words together (curly quotes “ ” work too)
+  apple OR pear        either (also: apple | pear)
+  -apple               not (also: NOT apple); apple AND pie is the same as apple pie
+  -5                   a negative number is a word; \"not 5\" is NOT 5
   (a OR b) -c          brackets
+  \"AND\" \"OR\" \"NOT\"   those words themselves; in lower case they are words anyway
   case:Apple           exactly these characters; otherwise upper and lower case, accents
                        (é = e) and full-width forms count as the same
 Filters, alone or with words:
-  tag:NAME             cells whose text is the tag NAME          has:tag    any tag
+  tag:NAME             cells in a row that has the tag NAME (a cell that shows NAME, in
+                       a document with that tag): tag:todo apple is the rows tagged
+                       todo that mention apple
+  is-tag:NAME          the tag cells themselves                  has:tag    any tag cell
   has:note  has:image  has:grid  has:link  has:broken-link  has:text
   in:ID                the cell with this ID and everything inside it (or: --in FILE CELL)
   doc:NAME             only the document NAME (with or without .wombat)
@@ -43,7 +49,10 @@ Filters, alone or with words:
   edited:2026-01-31    on that day (UTC);  edited:2026-01-01..2026-01-31;  edited:2026-01-01..
   recent:5%            the most recently edited 5% of each document
   kind:formula  bg:#rrggbb  fg:#rrggbb  style:bold+italic  style:none
-  text:\"exactly this\"  image:FILE
+  formula:sum          formula cells whose formula has this text
+  text:\"exactly this\"  image:FILE       (of a formula cell, text: tag: has:text go by
+                       what it shows)
+A word with a colon that is no filter (status:done, 12:30, in:progress) is searched as text.
   sort:relevance (default)  sort:recent  sort:relevance-recent  sort:document
 
 Options:
@@ -52,11 +61,24 @@ Options:
   --in FILE CELL       only inside this cell of FILE (CELL as in `wombat edit`)
   --next FILE CELL     only the next match after this cell in FILE, in the order of the
   --prev FILE CELL     document, going round at the end (or the previous one)
-  --cache              keep the index in <folder>/.wombat-index and use it next time; a
-                       document is read again if its length or time has changed
-  --cache=verify       the same, but every document is read and compared each time
+  --no-cache  --cache-dir DIR  --cache=fast  --rebuild
+                       the index kept between runs: see below
   --now MILLISECONDS   the time that edited: counts from (default: the clock)
   --time               also print how long indexing and searching took
+
+The index kept between runs (the same for search, links, backlinks and broken):
+  --no-cache           keep none. Otherwise one is kept, outside the folder that is
+                       read: under $WOMBAT_CACHE_DIR, or else under wombat in the cache
+                       directory of the system ($XDG_CACHE_HOME or ~/.cache,
+                       ~/Library/Caches, %LOCALAPPDATA%). Every document is still read
+                       and compared with it on every run, so it is never out of date;
+                       only the parsing is saved. (A .wombat-index folder inside the
+                       folder is from an older version and is not used.)
+  --cache-dir DIR      keep the indexes under DIR instead
+  --cache=fast         do not read a document whose length, times and (on Unix) inode
+                       are what they were. Faster, and it can miss a change made by a
+                       tool that restores a file's times; --rebuild then helps
+  --rebuild            throw the kept index of this folder away and make it again
 ";
 
 /// The text of `wombat replace --help`.
@@ -66,11 +88,21 @@ wombat replace <folder | file.wombat> <text> <replacement> [options]
 Replaces every place where <text> is found in the text of a cell (not in notes), in every
 document of the folder or in the one file, and saves the documents that changed. As in
 `wombat search`, upper and lower case, accents and full-width forms count as the same.
-In a formula cell the formula is what is searched and replaced, never the result it
-shows; the result follows from the new formula.
+
+Two things are left alone and counted in what is printed:
+  - formula cells, unless --formulas is given (then the formula is what is searched and
+    replaced, never the result it shows; the result follows from the new formula);
+  - a place where the match is only part of a character: replacing s does not touch the
+    ß of Straße (which is found as ss), nor f the ligature ﬁ, nor 1 the fraction ½.
+
+Replacing in a folder is not all-or-nothing: every document is prepared first, and if a
+replacement cannot be made in one of them nothing is saved; but if saving a file fails,
+the files saved before it stay changed, and what was saved, what failed and what was not
+reached is printed.
 
 Options:
   --case               only exactly these characters
+  --formulas           also replace in the formulas of formula cells
   --in FILE CELL       only in this cell of FILE and the cells inside it
   --dry-run            say what would be replaced, and change nothing
 ";
@@ -82,6 +114,88 @@ fn usage<T>(message: impl Into<String>) -> Result<T, Failure> {
 fn number(word: Option<&&str>, what: &str) -> Result<usize, Failure> {
     let parsed = word.and_then(|word| word.parse().ok());
     parsed.ok_or_else(|| Failure::Usage(format!("{what} takes a number")))
+}
+
+/// The folder under which index caches are kept if none is named: `$WOMBAT_CACHE_DIR`,
+/// or `wombat` in the cache directory of the system. `None` if the system names none.
+fn cache_base() -> Option<PathBuf> {
+    let var = |name: &str| {
+        let value = std::env::var_os(name).filter(|value| !value.is_empty());
+        value.map(PathBuf::from).filter(|path| path.is_absolute())
+    };
+    if let Some(dir) = var("WOMBAT_CACHE_DIR") {
+        return Some(dir);
+    }
+    let system = if cfg!(windows) {
+        var("LOCALAPPDATA")
+    } else if cfg!(target_os = "macos") {
+        var("HOME").map(|home| home.join("Library").join("Caches"))
+    } else {
+        var("XDG_CACHE_HOME").or_else(|| var("HOME").map(|home| home.join(".cache")))
+    };
+    system.map(|dir| dir.join("wombat"))
+}
+
+/// The index cache of a workspace: under `dir` if given, else in the user's cache
+/// directory; never inside the workspace (decision A112). No cache if there is nowhere
+/// to keep one.
+pub fn cache_of(workspace: &Workspace, mode: CacheMode, dir: Option<&str>) -> Cache {
+    let base = dir.map(PathBuf::from).or_else(cache_base);
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok();
+    let cache = base.and_then(|base| Cache::in_base(&base, workspace, mode).ok());
+    match (cache, now) {
+        (Some(cache), Some(now)) => cache.with_now(now.as_nanos()),
+        (Some(cache), None) => cache,
+        (None, _) => Cache::off(),
+    }
+}
+
+/// What the commands that index a folder (`search`, `links`, `backlinks`, `broken`) are
+/// told about the cache: the same options for all of them.
+pub struct CacheOptions {
+    mode: CacheMode,
+    dir: Option<String>,
+    rebuild: bool,
+}
+
+impl CacheOptions {
+    /// Takes the cache options out of the arguments of a command; returns them and
+    /// the other arguments.
+    pub fn split<'a>(args: &[&'a str]) -> Result<(CacheOptions, Vec<&'a str>), Failure> {
+        let mut options = CacheOptions {
+            mode: CacheMode::Verify,
+            dir: None,
+            rebuild: false,
+        };
+        let mut others = Vec::new();
+        let mut rest = args.iter();
+        while let Some(word) = rest.next() {
+            match *word {
+                // (`--cache` asked for a cache when none was kept unasked.)
+                "--cache" | "--cache=verify" => options.mode = CacheMode::Verify,
+                "--cache=fast" => options.mode = CacheMode::Fast,
+                "--no-cache" => options.mode = CacheMode::Off,
+                "--rebuild" => options.rebuild = true,
+                "--cache-dir" => {
+                    let dir = rest.next();
+                    let dir =
+                        dir.ok_or_else(|| Failure::Usage("--cache-dir takes a folder".into()));
+                    options.dir = Some((*dir?).to_owned());
+                }
+                other => others.push(other),
+            }
+        }
+        Ok((options, others))
+    }
+
+    /// The cache of a workspace as these options say, emptied first if asked.
+    pub fn cache(&self, workspace: &Workspace) -> Cache {
+        let cache = cache_of(workspace, self.mode, self.dir.as_deref());
+        if self.rebuild {
+            scan::clear_cache(&cache, workspace);
+        }
+        cache
+    }
 }
 
 /// A folder to search, or one document of it.
@@ -209,7 +323,8 @@ fn milliseconds(started: Instant) -> String {
 /// `wombat search`.
 pub fn search(args: &[&str]) -> Result<String, Failure> {
     let mut words: Vec<&str> = Vec::new();
-    let (mut limit, mut offset, mut cache, mut time) = (20usize, 0usize, CacheMode::Off, false);
+    let (mut limit, mut offset, mut time) = (20usize, 0usize, false);
+    let (cache, args) = CacheOptions::split(args)?;
     let mut now: Option<i64> = None;
     let mut within: Option<(&str, &str)> = None;
     let mut next: Option<(&str, &str, bool)> = None;
@@ -221,8 +336,6 @@ pub fn search(args: &[&str]) -> Result<String, Failure> {
         match *word {
             "--limit" => limit = number(rest.next(), "--limit")?,
             "--offset" => offset = number(rest.next(), "--offset")?,
-            "--cache" => cache = CacheMode::Fast,
-            "--cache=verify" => cache = CacheMode::Verify,
             "--time" => time = true,
             "--now" => {
                 let value = rest.next().and_then(|word| word.parse().ok());
@@ -246,10 +359,13 @@ pub fn search(args: &[&str]) -> Result<String, Failure> {
         since.map_or(0, |since| since.as_millis() as i64)
     });
     let parsed = parse(&words.join(" "), now).map_err(|e| Failure::Failed(e.to_string()))?;
+    let mut notes = parsed.warnings.clone();
+    notes.extend(parsed.query.warnings());
     let target = target(path)?;
 
     let started = Instant::now();
-    let built = workspace::index(&target.workspace, cache)?;
+    let cache = cache.cache(&target.workspace);
+    let built = workspace::index(&target.workspace, &cache)?;
     let indexing = milliseconds(started);
     let index = built.index;
     let mut loaded = Loaded {
@@ -346,6 +462,9 @@ pub fn search(args: &[&str]) -> Result<String, Failure> {
             ));
         }
     }
+    for note in &notes {
+        out.push_str(&format!("note: {note}\n"));
+    }
     for (name, error) in &built.failed {
         out.push_str(&format!("warning: {name} could not be read: {error}\n"));
     }
@@ -361,13 +480,14 @@ pub fn search(args: &[&str]) -> Result<String, Failure> {
 /// `wombat replace`.
 pub fn replace_all(args: &[&str]) -> Result<String, Failure> {
     let mut words: Vec<&str> = Vec::new();
-    let (mut exact, mut dry) = (false, false);
+    let (mut exact, mut dry, mut formulas) = (false, false, false);
     let mut within: Option<(&str, &str)> = None;
     let mut rest = args.iter();
     while let Some(word) = rest.next() {
         match *word {
             "--case" => exact = true,
             "--dry-run" => dry = true,
+            "--formulas" => formulas = true,
             "--in" => {
                 let (Some(file), Some(cell)) = (rest.next(), rest.next()) else {
                     return usage("--in takes a file and a cell");
@@ -385,57 +505,133 @@ pub fn replace_all(args: &[&str]) -> Result<String, Failure> {
         exact,
     };
     let target = target(path)?;
-    let names = match (&target.only, within) {
-        (_, Some((file, _))) => {
+    let targets: Vec<(String, Option<CellId>)> = match (&target.only, within) {
+        (_, Some((file, cell))) => {
             let name = Path::new(file).file_name().and_then(|name| name.to_str());
-            vec![name.unwrap_or_default().to_owned()]
+            let name = name.unwrap_or_default().to_owned();
+            let doc = target.workspace.open_name(&name)?;
+            vec![(name, Some(find_cell(&doc, cell).map_err(Failure::Failed)?))]
         }
-        (Some(only), None) => vec![only.clone()],
+        (Some(only), None) => vec![(only.clone(), None)],
         (None, None) => {
             let listed = target.workspace.list()?;
-            listed.into_iter().map(|entry| entry.name).collect()
+            listed.into_iter().map(|entry| (entry.name, None)).collect()
         }
     };
     let mut ids = crate::os_ids()?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH);
+    let now = now.ok().map(|since| since.as_millis() as i64);
+    let options = ReplaceOptions { formulas };
+    let done = workspace::replace_in_folder(
+        &target.workspace,
+        &targets,
+        &term,
+        with,
+        options,
+        dry,
+        now,
+        &mut ids,
+        &mut storage::save_document,
+    )
+    .map_err(|(name, e)| Failure::Failed(format!("{name}: {e}; nothing was changed")))?;
+    let out = replace_report(&target.workspace, &done, dry);
+    match &done.failed {
+        None => Ok(out),
+        Some(_) => Err(Failure::Failed(out.trim_end().to_owned())),
+    }
+}
+
+/// What `wombat replace` prints.
+fn replace_report(workspace: &Workspace, done: &workspace::FolderReplace, dry: bool) -> String {
     let mut out = String::new();
+    for (name, error) in &done.unreadable {
+        out.push_str(&format!("warning: {name} could not be read: {error}\n"));
+    }
     let (mut places, mut cells, mut files) = (0usize, 0usize, 0usize);
-    for name in names {
-        let path = target.workspace.path_of(&name)?;
-        let doc = match storage::load_document(&path) {
-            Ok(doc) => doc,
-            Err(error) => {
-                out.push_str(&format!("warning: {name} could not be read: {error}\n"));
-                continue;
+    let (mut formula_places, mut formula_cells, mut skipped) = (0usize, 0usize, 0usize);
+    for file in &done.files {
+        let (name, counts) = (&file.name, &file.counts);
+        if counts.places > 0 {
+            out.push_str(&format!(
+                "{name}: {} places in {} cells\n",
+                counts.places, counts.cells
+            ));
+            files = files.saturating_add(1);
+        }
+        if counts.formula_places > 0 {
+            let what = if counts.formulas_included {
+                "included"
+            } else {
+                "left alone (--formulas includes them)"
+            };
+            out.push_str(&format!(
+                "{name}: {} places in {} formula cells {what}\n",
+                counts.formula_places, counts.formula_cells
+            ));
+        }
+        // Where the cells are is read from the file; replacing does not move cells.
+        let doc = (!counts.skipped.is_empty())
+            .then(|| workspace.open_name(name).ok())
+            .flatten();
+        for skip in counts.skipped.iter().take(20) {
+            let place = doc
+                .as_ref()
+                .map_or(format!("#{}", skip.cell), |doc| place_of(doc, skip.cell));
+            out.push_str(&format!(
+                "{name}: {place} not replaced at character {}: the match is only part of {:?}\n",
+                skip.start.saturating_add(1),
+                skip.text
+            ));
+        }
+        if counts.skipped.len() > 20 {
+            out.push_str(&format!(
+                "{name}: and {} more such places\n",
+                counts.skipped.len() - 20
+            ));
+        }
+        places = places.saturating_add(counts.places);
+        cells = cells.saturating_add(counts.cells);
+        skipped = skipped.saturating_add(counts.skipped.len());
+        formula_places = formula_places.saturating_add(counts.formula_places);
+        formula_cells = formula_cells.saturating_add(counts.formula_cells);
+    }
+    if let Some((failed, error)) = &done.failed {
+        // Not atomic: say exactly what happened to which file.
+        out.push_str(&format!("saving {failed} failed: {error}\n"));
+        let list = |names: &[String]| {
+            if names.is_empty() {
+                "none".to_owned()
+            } else {
+                names.join(", ")
             }
         };
-        let scope = match within {
-            Some((_, cell)) => Scope::Branch(find_cell(&doc, cell).map_err(Failure::Failed)?),
-            None => Scope::Document,
-        };
-        let mut editor = Editor::new(doc)?;
-        let now = SystemTime::now().duration_since(UNIX_EPOCH);
-        let now = now.ok().map(|since| since.as_millis() as i64);
-        let done = replace(&mut editor, &term, with, scope, now, &mut ids)
-            .map_err(|e| Failure::Failed(format!("{name}: {e}")))?;
-        if done.places == 0 {
-            continue;
-        }
-        if !dry && !done.changes.is_empty() {
-            storage::save_document(editor.document(), &path)?;
-        }
+        out.push_str(&format!("changed and saved: {}\n", list(&done.saved)));
         out.push_str(&format!(
-            "{name}: {} places in {} cells\n",
-            done.places, done.cells
+            "not changed: {failed}, {}\n",
+            list(&done.not_saved)
         ));
-        places = places.saturating_add(done.places);
-        cells = cells.saturating_add(done.cells);
-        files = files.saturating_add(1);
+        return out;
     }
     let verb = if dry { "would be replaced" } else { "replaced" };
     out.push_str(&format!(
         "{places} places in {cells} cells of {files} documents {verb}\n"
     ));
-    Ok(out)
+    if formula_places > 0 {
+        let what = if done.files.iter().any(|f| f.counts.formulas_included) {
+            "are among them"
+        } else {
+            "were left alone"
+        };
+        out.push_str(&format!(
+            "{formula_places} places in {formula_cells} formula cells {what}\n"
+        ));
+    }
+    if skipped > 0 {
+        out.push_str(&format!(
+            "{skipped} places were left alone where the match is only part of a character\n"
+        ));
+    }
+    out
 }
 
 fn collect(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), Failure> {

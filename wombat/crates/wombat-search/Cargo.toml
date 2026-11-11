@@ -15,6 +15,13 @@ wombat-core = { path = "../wombat-core" }
 unicode-segmentation = "1.13.3"
 # Unicode normalisation (NFKD, NFC) for folding text: pure Rust, tables only.
 unicode-normalization = { version = "0.1.24", default-features = false }
+# Substring search with the needle prepared once per query, not once per cell (decision
+# A111): pure Rust with a fallback for every target, and already a dependency of most
+# Rust programs.
+memchr = "2.7"
+# All words of a query found in one reading of a cell, when a query has many (decision
+# A111): pure Rust, by the same author, needs only memchr.
+aho-corasick = { version = "1.1", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 proptest = "1"

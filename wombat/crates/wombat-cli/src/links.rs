@@ -10,6 +10,7 @@ use wombat_core::links::{self, Broken, LinkEntry, Resolved};
 use wombat_core::scan::{self, WorkspaceLinks};
 use wombat_core::{storage, CellId, DocId, Document, LinkTarget, Workspace};
 
+use crate::search::CacheOptions;
 use crate::Failure;
 
 /// The cell that a word names in `doc`: a place (`/2,1/1,3`) or an ID.
@@ -63,6 +64,18 @@ pub fn place_of(doc: &Document, id: CellId) -> String {
     steps.concat()
 }
 
+/// `wombat links`, `backlinks` and `broken`, with the cache options that they share with
+/// `wombat search`.
+pub fn command(args: &[&str]) -> Result<String, Failure> {
+    let (cache, args) = CacheOptions::split(args)?;
+    match args.as_slice() {
+        ["links", file] => links(file, &cache),
+        ["backlinks", folder, file, cell] => backlinks(folder, file, cell, &cache),
+        ["broken", folder] => broken(folder, &cache),
+        _ => Err(Failure::Usage("unknown command or wrong arguments".into())),
+    }
+}
+
 /// A workspace folder with its link index, and the documents loaded so far to show cells.
 struct Folder {
     workspace: Workspace,
@@ -72,19 +85,15 @@ struct Folder {
 }
 
 impl Folder {
-    fn open(dir: &Path, cache: bool) -> Result<Folder, Failure> {
+    fn open(dir: &Path, cache: &CacheOptions) -> Result<Folder, Failure> {
         let dir = if dir.as_os_str().is_empty() {
             Path::new(".")
         } else {
             dir
         };
         let workspace = Workspace::open(dir)?;
-        let mode = if cache {
-            scan::CacheMode::Fast
-        } else {
-            scan::CacheMode::Off
-        };
-        let links = scan::link_index(&workspace, mode)?;
+        let cache = cache.cache(&workspace);
+        let links = scan::link_index(&workspace, &cache)?;
         Ok(Folder {
             workspace,
             links,
@@ -211,7 +220,7 @@ fn range(link: &LinkEntry) -> String {
 }
 
 /// `wombat links`: the links of one document, in document order, with what they point at.
-pub fn links(file: &str, cache: bool) -> Result<String, Failure> {
+pub fn links(file: &str, cache: &CacheOptions) -> Result<String, Failure> {
     let path = Path::new(file);
     let doc = storage::load_document(path)?;
     let mut folder = Folder::open(path.parent().unwrap_or(Path::new("")), cache)?;
@@ -244,7 +253,12 @@ pub fn links(file: &str, cache: bool) -> Result<String, Failure> {
 }
 
 /// `wombat backlinks`: the links to one cell from all documents of a folder.
-pub fn backlinks(dir: &str, document: &str, cell: &str, cache: bool) -> Result<String, Failure> {
+pub fn backlinks(
+    dir: &str,
+    document: &str,
+    cell: &str,
+    cache: &CacheOptions,
+) -> Result<String, Failure> {
     let mut folder = Folder::open(Path::new(dir), cache)?;
     let doc = folder.workspace.open_name(document)?;
     let id = doc.id();
@@ -291,7 +305,7 @@ pub fn backlinks(dir: &str, document: &str, cell: &str, cache: bool) -> Result<S
 }
 
 /// `wombat broken`: every link in a folder that points at nothing.
-pub fn broken(dir: &str, cache: bool) -> Result<String, Failure> {
+pub fn broken(dir: &str, cache: &CacheOptions) -> Result<String, Failure> {
     let mut folder = Folder::open(Path::new(dir), cache)?;
     let mut lines = Vec::new();
     for link in folder.links.index.broken() {

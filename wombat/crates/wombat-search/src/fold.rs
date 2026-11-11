@@ -237,6 +237,20 @@ impl FoldMap {
         };
         (start, end.saturating_sub(start))
     }
+
+    /// Whether the bytes `from..to` of the folded text are the whole folded forms of
+    /// the characters that [`FoldMap::range`] gives for them: the match neither begins
+    /// nor ends inside the folded form of one character.
+    pub fn is_whole(&self, from: usize, to: usize) -> bool {
+        let first = self.clusters.partition_point(|c| c.0 as usize <= from);
+        let starts_at = first
+            .checked_sub(1)
+            .and_then(|before| self.clusters.get(before))
+            .map_or(0, |c| c.0 as usize);
+        let last = self.clusters.partition_point(|c| (c.0 as usize) < to);
+        let ends_at = self.clusters.get(last).map(|c| c.0 as usize);
+        from < to && starts_at == from && ends_at == Some(to)
+    }
 }
 
 /// Whether `c` is part of a word: a letter or a digit of any script.
@@ -256,8 +270,21 @@ pub fn is_wordless(c: char) -> bool {
     )
 }
 
+/// The bytes before and after the byte `at`, if both are plain (ASCII): then they are
+/// the characters there, and no plain character is of a script without spaces.
+fn plain_around(text: &str, at: usize) -> Option<(u8, u8)> {
+    let bytes = text.as_bytes();
+    let before = *bytes.get(at.checked_sub(1)?)?;
+    let after = *bytes.get(at)?;
+    (before.is_ascii() && after.is_ascii()).then_some((before, after))
+}
+
 /// Whether a word starts at the byte `at` of `text` (which must be a character boundary).
 pub fn word_starts(text: &str, at: usize) -> bool {
+    // Most text is plain: no need to take characters apart.
+    if let Some((before, _)) = plain_around(text, at) {
+        return !before.is_ascii_alphanumeric();
+    }
     let before = text.get(..at).and_then(|t| t.chars().next_back());
     let after = text.get(at..).and_then(|t| t.chars().next());
     match (before, after) {
@@ -270,6 +297,9 @@ pub fn word_starts(text: &str, at: usize) -> bool {
 
 /// Whether a word ends at the byte `at` of `text` (which must be a character boundary).
 pub fn word_ends(text: &str, at: usize) -> bool {
+    if let Some((_, after)) = plain_around(text, at) {
+        return !after.is_ascii_alphanumeric();
+    }
     let before = text.get(..at).and_then(|t| t.chars().next_back());
     let after = text.get(at..).and_then(|t| t.chars().next());
     match (before, after) {
@@ -452,6 +482,207 @@ mod tests {
         }
     }
 
+    /// What single characters fold to, written out from the Unicode data that folding
+    /// relies on (`UnicodeData.txt`: decompositions and simple case; `SpecialCasing.txt`:
+    /// the full case mappings), character by character. Where the code and this table
+    /// disagree, one of them is wrong.
+    #[test]
+    fn folded_forms_are_the_ones_the_unicode_data_gives() {
+        let table: &[(&str, &str)] = &[
+            // SpecialCasing: full upper-case mappings of single letters.
+            ("ß", "ss"), // 00DF -> 0053 0053
+            ("ẞ", "ss"), // 1E9E lower 00DF
+            ("ŉ", "ʼn"), // 0149 = 02BC 006E
+            ("ǰ", "j"),  // 01F0 = 006A 030C, accent dropped
+            ("ΐ", "ι"),  // 0390 = 03B9 0308 0301
+            ("ﬀ", "ff"), // FB00..FB06: the Latin ligatures
+            ("ﬁ", "fi"),
+            ("ﬂ", "fl"),
+            ("ﬃ", "ffi"),
+            ("ﬄ", "ffl"),
+            ("ﬅ", "st"), // FB05 = 017F 0074, and long s is s
+            ("ﬆ", "st"),
+            ("ſ", "s"), // 017F upper 0053
+            ("İ", "i"), // 0130 lower 0069 0307
+            ("ı", "i"), // 0131 upper 0049
+            ("ς", "σ"), // 03C2 upper 03A3
+            ("Σ", "σ"),
+            ("µ", "μ"), // 00B5 compat 03BC
+            ("K", "k"), // 212A Kelvin sign = 004B
+            ("Å", "a"), // 212B = 00C5 = 0041 030A
+            ("Ω", "ω"), // 2126 = 03A9
+            // UnicodeData: compatibility decompositions.
+            ("½", "1\u{2044}2"), // 00BD <fraction> 0031 2044 0032
+            ("¾", "3\u{2044}4"),
+            ("²", "2"),    // 00B2 <super> 0032
+            ("ª", "a"),    // 00AA <super> 0061
+            ("①", "1"),    // 2460 <circle> 0031
+            ("⑳", "20"),   // 2473 <circle> 0032 0030
+            ("㎏", "kg"),  // 338F <square> 006B 0067
+            ("㎠", "cm2"), // 33A0 <square> 0063 006D 00B2
+            ("℡", "tel"),  // 2121 <compat> 0054 0045 004C
+            ("™", "tm"),   // 2122 <super> 0054 004D
+            ("…", "..."),  // 2026 <compat> 002E 002E 002E
+            ("ǆ", "dz"),   // 01C6 <compat> 0064 017E, and the caron is an accent
+            ("Ǆ", "dz"),
+            ("ǅ", "dz"),
+            ("Ａ", "a"), // FF21 <wide> 0041
+            ("１", "1"),
+            ("ｱ", "ア"),                 // FF71 <narrow> 30A2
+            ("ｶﾞ", "ガ"),                 // FF76 FF9E -> 30AB 3099 -> 30AC
+            ("㈱", "(株)"),              // 3231 <compat> 0028 682A 0029
+            ("ﷺ", "صلى الله عليه وسلم"), // FDFA, the longest
+            // Canonical decompositions: accents of Latin and Greek go, others stay.
+            ("é", "e"),
+            ("Ç", "c"),
+            ("ñ", "n"),
+            ("ǘ", "u"), // 01D8 = 00FC 0301
+            ("ά", "α"),
+            ("ø", "ø"), // no decomposition: a letter of its own
+            ("ł", "ł"),
+            ("đ", "đ"),
+            ("æ", "æ"),
+            ("й", "й"), // 0439 = 0438 0306: Cyrillic keeps its marks
+            ("ё", "ё"),
+            ("が", "が"), // 304C = 304B 3099
+            ("한", "한"),
+            ("\u{1112}\u{1161}\u{11ab}", "한"),
+            // Spaces and things that vanish.
+            ("\u{a0}", " "),
+            ("\u{2003}", " "),
+            ("\u{3000}", " "),
+            ("\t", " "),
+            ("\u{ad}", ""),
+            ("\u{200b}", ""),
+            ("\u{feff}", ""),
+            ("\u{fe0f}", ""),
+            ("\u{301}", ""),
+        ];
+        for (text, folded) in table {
+            assert_eq!(fold(text), *folded, "{text:?}");
+            // In the middle of plain text it is the same.
+            assert_eq!(
+                fold(&format!("x{text}y")),
+                format!("x{folded}y"),
+                "{text:?}"
+            );
+        }
+    }
+
+    /// The same rules written again, plainly and over the whole text at once (not one
+    /// user-perceived character at a time, and with no table and no shortcut).
+    fn fold_again(text: &str) -> String {
+        let cased: String = text
+            .nfkd()
+            .flat_map(char::to_lowercase)
+            .flat_map(char::to_uppercase)
+            .flat_map(char::to_lowercase)
+            .collect();
+        let mut kept = String::new();
+        let mut base = ' ';
+        for c in cased.nfkd() {
+            let mark = unicode_normalization::char::is_combining_mark(c);
+            if !mark {
+                base = c;
+            }
+            let latin_or_greek =
+                u32::from(base) < 0x400 || (0x1e00..=0x1fff).contains(&u32::from(base));
+            let accent = (0x300..=0x36f).contains(&u32::from(c)) && latin_or_greek;
+            let vanishes = matches!(
+                u32::from(c),
+                0xad | 0x200b | 0x2060 | 0xfeff | 0xfe00..=0xfe0f
+            );
+            if !accent && !vanishes {
+                kept.push(c);
+            }
+        }
+        let spaced = kept.nfc().map(|c| {
+            if c.is_control() || c.is_whitespace() {
+                ' '
+            } else {
+                c
+            }
+        });
+        spaced.collect()
+    }
+
+    /// Folding is idempotent, and both ways of writing the rules agree, on texts put
+    /// together from words of many scripts (each piece a whole user-perceived character
+    /// or more, so that the two ways see the same characters).
+    #[test]
+    fn folding_twice_changes_nothing_and_the_rules_written_twice_agree() {
+        let pieces = [
+            "Straße",
+            "ẞ",
+            "ﬁnance",
+            "ﬃ",
+            "İstanbul",
+            "ISTANBUL",
+            "ı",
+            "ΣΊΣΥΦΟΣ",
+            "ς",
+            "σ ",
+            "naïve",
+            "Café",
+            "e\u{301}",
+            "ǅ",
+            "ŉ",
+            "Ｆｕｌｌ",
+            "ｶﾞｲﾄﾞ",
+            "①②",
+            "½",
+            "㎏",
+            "x²",
+            "™",
+            "日本語",
+            "が",
+            "か\u{3099}",
+            "한국어",
+            "\u{1112}\u{1161}\u{11ab}",
+            "й",
+            "ё",
+            "ø",
+            "ł",
+            "a\tb",
+            "\u{a0}",
+            "\u{3000}",
+            "so\u{ad}ft",
+            "z\u{200b}w",
+            "❤\u{fe0f}",
+            "👍🏽",
+            "👨\u{200d}👩\u{200d}👧",
+            "🇩🇪",
+            " ",
+            "-",
+            "A",
+            "z",
+            "9",
+            "Ω",
+            "K",
+            "Ⅷ",
+            "ǰ",
+            "ΐ",
+        ];
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = |n: usize| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed % n as u64) as usize
+        };
+        for piece in pieces {
+            assert_eq!(fold(piece), fold_again(piece), "{piece:?}");
+        }
+        for _ in 0..20_000 {
+            let text: String = (0..next(8)).map(|_| pieces[next(pieces.len())]).collect();
+            let once = fold(&text);
+            assert_eq!(fold(&once), once, "{text:?}");
+            assert_eq!(once, fold_again(&text), "{text:?}");
+            // A text and its folded form are found in each other's folded forms.
+            assert_eq!(FoldMap::new(&text).folded, once);
+        }
+    }
+
     #[test]
     fn words_and_scripts_without_spaces() {
         let text = "one two日本語 x";
@@ -464,6 +695,23 @@ mod tests {
         assert!(word_ends(text, 10) && word_ends(text, text.len()));
         assert!(is_wordless('日') && is_wordless('の') && is_wordless('ก') && !is_wordless('한'));
         assert!(is_word_char('é') && is_word_char('한') && is_word_char('٣') && !is_word_char('-'));
+        // The shortcut for plain neighbours says what the characters say.
+        let mixed = "a1 b-c_dé e日f\tg.h";
+        for at in (0..=mixed.len()).filter(|at| mixed.is_char_boundary(*at)) {
+            let before = mixed[..at].chars().next_back();
+            let after = mixed[at..].chars().next();
+            let starts = before.is_none_or(|b| {
+                !is_word_char(b) || is_wordless(b) || after.is_some_and(is_wordless)
+            });
+            let ends = after.is_none_or(|a| {
+                !is_word_char(a) || is_wordless(a) || before.is_some_and(is_wordless)
+            });
+            assert_eq!(
+                (word_starts(mixed, at), word_ends(mixed, at)),
+                (starts, ends),
+                "{at}"
+            );
+        }
         // The fingerprint is a number that stays the same from run to run.
         assert_eq!(fingerprint(), fingerprint());
     }

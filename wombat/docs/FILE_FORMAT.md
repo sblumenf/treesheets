@@ -14,7 +14,6 @@ folder/
   notes.wombat                    the document (section 3)
   notes.wombat.images/            its images, one ordinary image file each (section 5)
   .wombat-view/<document id>.json its view state on this device (section 6)
-  .wombat-index/<kind>/           a cache of an index over the folder (section 7)
 ```
 
 - A **workspace** is a folder; its documents are the files directly in it whose names end in
@@ -323,27 +322,42 @@ layout is as in the example: line 2 the header, then `selection`, `zoom`, unknow
 
 ## 7. Index caches
 
-An index over a workspace (of links, of words for search) can be kept in
-`.wombat-index/<kind>/`, one file per document, so that unchanged documents need not be read
-again (decisions A53, A71). It is **not part of the format**: it holds nothing that is not in
-the documents, may be deleted at any time, differs per device and should be left out of sync
-and backups, and a reader that does not know it loses nothing. Its layout may change with any
-version of Wombat. For the record, the current one:
+An index over a workspace (of links, of words for search) can be kept on disk, one file per
+document, so that unchanged documents need not be parsed again (decisions A53, A71, A112).
+It is **not part of the format, and not in the workspace folder**: it holds nothing that is
+not in the documents, may be deleted at any time, and a reader that does not know it loses
+nothing. A workspace can come from an archive, a shared drive or a sync service, and a cache
+that came with it could not be trusted, so the cache is kept where the program that reads
+the workspace says: a folder of the user's own. The command-line tool uses
+`$WOMBAT_CACHE_DIR`, or else `wombat` in the system's cache directory (`$XDG_CACHE_HOME` or
+`~/.cache`; `~/Library/Caches` on macOS; `%LOCALAPPDATA%` on Windows), or the folder given
+with `--cache-dir`. A folder `.wombat-index` inside a workspace is where the cache was up
+to milestone 6: it is never read, written or deleted, and can be removed by hand.
 
-- The entry of `notes.wombat` is `.wombat-index/<kind>/notes.wombat.idx`. The kinds are
-  `links` (the link index alone) and `search` (words and links together).
-- The first line is `wombat-index <kind> <version> <rules> <length> <time> <checksum>
-  <body length> <body checksum>` and a newline: the kind of index; the version of its layout;
-  a number (16 hexadecimal digits) for the rules the index was made by; the length in bytes
-  of the document file, its modification time in nanoseconds since 1970 (or `-`), and the
-  checksum of its bytes; the length and the checksum of everything after the line. A
-  checksum is 32 lower-case hexadecimal digits (`summary::digest`).
+Its layout may change with any version of Wombat. For the record, the current one:
+
+- Under the base folder, each workspace has a folder `<name>-<16 hexadecimal digits>`: the
+  last part of the workspace folder's full path (letters, digits, `-` and `_` of it, at
+  most 32) and a checksum of the whole path. In it, `workspace.txt` says in words which
+  folder it is the cache of, and there is one folder per kind of index: `links` (the link
+  index alone) and `search` (words and links together).
+- The entry of `notes.wombat` is `<kind>/notes.wombat.idx`.
+- The first line is `wombat-index <kind> <version> <rules> <length> <time> <inode> <changed>
+  <checksum> <body length> <entry checksum>` and a newline: the kind of index; the version
+  of its layout; a number (16 hexadecimal digits) for the rules the index was made by; of
+  the document file its length in bytes, its modification time in nanoseconds since 1970,
+  on Unix its inode number and the time of its last change of any kind (`-` for each that
+  is not known), and the checksum of its bytes; the length of everything after the line;
+  and a checksum over the line up to there, the name of the document file and everything
+  after the line. A checksum is 32 lower-case hexadecimal digits (`summary::digest`).
 - The rest is the index's summary of the document as bytes: numbers of 7 bits a byte, low
   bits first; texts with their length in bytes first; IDs as 16 bytes. What they hold is
   described at `DocLinks::encode` and `DocSearch::encode`.
 - A reader ignores an entry unless its first line is exactly what the reader would write for
-  the rest and for the document file as it is, and then reads the document instead. A reader
-  may take the file to be unchanged by its length and time alone, if the entry was written
-  at least two seconds after that time. An entry over 64 MiB is neither read nor written,
-  and neither is anything under `.wombat-index` that is a symbolic link or reached through
-  one.
+  the rest, for this document file name and for the checksum of the document file as it is,
+  and then reads the document instead. Only if asked to (`CacheMode::Fast`) may a reader
+  take the file to be unchanged without reading it: when length, times and inode are what
+  the entry says and the entry was written at least two seconds after the modification
+  time. An entry over 64 MiB is neither read nor written, and neither is anything in a
+  cache folder that is a symbolic link, nor a cache folder that is one or that is inside
+  the workspace.

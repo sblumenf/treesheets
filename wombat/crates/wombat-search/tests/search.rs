@@ -380,10 +380,13 @@ fn a_hit_says_where_and_what_to_highlight() {
 fn every_filter() {
     let w = world();
     let id = |cell: CellId| cell.to_string();
-    // Tags: the cells whose text is the tag, in documents that have the tag.
+    // Tags: the cells whose text is the tag, in documents that have the tag
+    // (TreeSheets' filter). `tag:` is the row of such a cell, which in these grids of
+    // one column is the cell; `a_tag_narrows_to_its_row` has wider ones.
+    assert_eq!(w.texts("is-tag:todo sort:document"), ["todo", "todo"]);
     assert_eq!(w.texts("tag:todo sort:document"), ["todo", "todo"]);
     assert_eq!(
-        w.find("tag:todo")
+        w.find("is-tag:todo")
             .iter()
             .filter(|hit| hit.doc == w.notes.id())
             .count(),
@@ -391,7 +394,7 @@ fn every_filter() {
     );
     assert_eq!(w.texts("has:tag"), ["todo", "todo"]);
     assert_eq!(
-        w.texts("tag:apple"),
+        w.texts("is-tag:apple OR tag:apple"),
         [] as [&str; 0],
         "a text that is no tag"
     );
@@ -462,7 +465,15 @@ fn every_filter() {
     );
     // The same text, the same image.
     assert_eq!(w.texts("text:todo sort:document"), ["todo", "todo", "todo"]);
-    assert_eq!(w.texts("text:\"apple pie\""), ["apple pie"]);
+    // A formula cell is what it shows (decision A110): `apple pie` is a formula that
+    // comes to an error value, and that is its text for `text:`. (This line used to
+    // find it by its formula, while trails and links went by the result.)
+    assert_eq!(w.texts("text:\"apple pie\""), [] as [&str; 0]);
+    assert_eq!(w.find("kind:formula")[0].shown.as_deref(), Some("#NAME?"));
+    assert_eq!(w.texts("text:#NAME?"), ["apple pie"]);
+    assert_eq!(w.texts("formula:PIE"), ["apple pie"], "the formula itself");
+    assert_eq!(w.texts("formula:apple sort:document"), ["apple pie"]);
+    assert_eq!(w.texts("formula:name"), [] as [&str; 0], "not the result");
     assert_eq!(w.texts("text:Todo"), [] as [&str; 0], "exactly the same");
     assert_eq!(w.texts("image:Apple-Photo.png"), ["Pineapple"]);
     // Edit times: the caller says what time it is.
@@ -517,8 +528,9 @@ fn the_order_of_results_is_the_documented_one() {
         w.texts("p"),
         [
             "Pear",
-            "Pineapple",
+            // A formula cell: its length is that of what it shows, `#NAME?`.
             "apple pie",
+            "Pineapple",
             "Shop",
             "Apple",
             "green apple",
@@ -671,9 +683,14 @@ fn the_text_syntax_reads_as_documented() {
     );
     assert_eq!(
         read("tag:\"two words\""),
-        Query::Filter(Filter::Tag("two words".into()))
+        Query::Filter(Filter::RowTag("two words".into()))
     );
-    assert_eq!(read("TAG:x"), Query::Filter(Filter::Tag("x".into())));
+    assert_eq!(read("TAG:x"), Query::Filter(Filter::RowTag("x".into())));
+    assert_eq!(read("is-tag:x"), Query::Filter(Filter::Tag("x".into())));
+    assert_eq!(
+        read("formula:sum"),
+        Query::Filter(Filter::Formula("sum".into()))
+    );
     assert_eq!(read("has:Note"), Query::Filter(Filter::Has(Has::Note)));
     assert_eq!(
         read("\"has:note\""),
@@ -723,7 +740,6 @@ fn the_text_syntax_reads_as_documented() {
         "kind:banana",
         "bg:red",
         "style:loud",
-        "in:here",
         "links-to:x",
         "tag:",
         "edited:soon",
@@ -856,7 +872,9 @@ fn the_index_follows_edits_and_trails_follow_moved_cells() {
     let mut ids = SeededIds::from_u64(99);
     let mut apply = |editor: &mut Editor, index: &mut SearchIndex, command: Command| {
         let changes = editor.apply(command, Some(NOW), &mut ids).unwrap();
-        index.apply(editor.document(), editor.calc(), &changes);
+        index
+            .apply(editor.document(), editor.calc(), &changes)
+            .unwrap();
     };
     let green = parse("green", NOW).unwrap().query;
     let trail = |index: &SearchIndex| {
@@ -917,7 +935,9 @@ fn the_index_follows_edits_and_trails_follow_moved_cells() {
     );
     // Undo everything: as at the start, and equal to an index made afresh.
     while let Some(changes) = editor.undo().unwrap() {
-        index.apply(editor.document(), editor.calc(), &changes);
+        index
+            .apply(editor.document(), editor.calc(), &changes)
+            .unwrap();
     }
     assert_eq!(trail(&index), ["Shop", "Apple"]);
     assert_eq!(index.encoded(), w.index().encoded());
@@ -1060,4 +1080,367 @@ fn a_word_in_several_fields_counts_for_the_best_of_them() {
     // What is shown is the first link target that has the word; the points are for the
     // best one.
     assert_eq!(found.hits[3].matched, "https://example.org/unreported");
+}
+
+/// The traps that a review of the syntax found, each as it now reads (decision A108).
+#[test]
+fn the_syntax_does_what_someone_typing_would_expect() {
+    let term = |text: &str| Query::Term(Term::new(text));
+    let not = |query: Query| Query::Not(Box::new(query));
+    let parsed = |text: &str| parse(text, NOW).unwrap();
+    let read = |text: &str| parsed(text).query;
+    let warned = |text: &str| parsed(text).warnings;
+    // A minus before a digit is a negative number; before anything else it is "not".
+    assert_eq!(read("-5"), term("-5"));
+    assert_eq!(read("-0.25 x"), Query::And(vec![term("-0.25"), term("x")]));
+    assert_eq!(read("-.5"), term("-.5"));
+    assert_eq!(read("-x5"), not(term("x5")));
+    assert_eq!(read("-\"5\""), not(term("5")), "not five, with quotes");
+    assert_eq!(read("NOT 5"), not(term("5")));
+    assert_eq!(read("--5"), not(term("-5")));
+    assert_eq!(read("-(5)"), not(term("5")));
+    // AND and NOT are operators like OR, in upper case only.
+    assert_eq!(read("a AND b"), Query::And(vec![term("a"), term("b")]));
+    assert_eq!(read("a AND b AND c").clone(), read("a b c"));
+    assert_eq!(read("NOT a"), not(term("a")));
+    assert_eq!(read("a NOT b"), Query::And(vec![term("a"), not(term("b"))]));
+    assert_eq!(read("a AND NOT (b OR c)"), read("a -(b OR c)"));
+    assert_eq!(read("NOT NOT a"), not(not(term("a"))));
+    assert_eq!(
+        read("a and b not c"),
+        Query::And(vec![
+            term("a"),
+            term("and"),
+            term("b"),
+            term("not"),
+            term("c")
+        ])
+    );
+    assert_eq!(
+        read("ANDROID NOTE"),
+        Query::And(vec![term("ANDROID"), term("NOTE")])
+    );
+    // The words themselves: in quotes.
+    assert_eq!(
+        read("\"AND\" \"NOT\" \"OR\""),
+        Query::And(vec![term("AND"), term("NOT"), term("OR")])
+    );
+    // Left hanging while typing, they count for nothing.
+    assert_eq!(read("a AND"), term("a"));
+    assert_eq!(read("AND a"), term("a"));
+    assert_eq!(read("a NOT"), term("a"));
+    assert_eq!(read("NOT"), Query::All);
+    assert_eq!(read("(a NOT) b"), Query::And(vec![term("a"), term("b")]));
+    // Curly quotes, which phones type, are quotes.
+    assert_eq!(read("\u{201c}apple pie\u{201d} x"), read("\"apple pie\" x"));
+    assert_eq!(read("\u{201e}apple pie\u{201c}"), term("apple pie"));
+    assert_eq!(
+        read("text:\u{201c}a b\u{201d}"),
+        Query::Filter(Filter::TextIs("a b".into()))
+    );
+    assert_eq!(read("\u{201c}apple pi"), term("apple pi"));
+    // A colon in ordinary text does not stop the search; what was done is said.
+    assert_eq!(read("in:progress"), term("in:progress"));
+    assert_eq!(read("is:open"), term("is:open"));
+    assert_eq!(
+        read("status:done x"),
+        Query::And(vec![term("status:done"), term("x")])
+    );
+    for (text, name) in [
+        ("in:progress", "in:"),
+        ("is:open", "is:"),
+        ("status:done", "status:"),
+    ] {
+        let warnings = warned(text);
+        assert_eq!(warnings.len(), 1, "{text}");
+        assert!(
+            warnings[0].contains(name) && warnings[0].contains("as text"),
+            "{warnings:?}"
+        );
+    }
+    // No warning for what nobody would take for a filter, nor for a real one.
+    for text in [
+        "12:30",
+        "https://example.com/a",
+        "a:",
+        "is:",
+        "in:",
+        "is:tagged",
+        "tag:x",
+        "x",
+    ] {
+        assert_eq!(warned(text), [] as [String; 0], "{text}");
+    }
+    assert_eq!(read("is:"), term("is:"));
+    assert_eq!(read("is:tagged"), Query::Filter(Filter::Has(Has::Tag)));
+    let id = "00000000-0000-0000-0000-00000000dead";
+    assert_eq!(
+        read(&format!("in:{id}")),
+        Query::Filter(Filter::Within(CellId::parse(id).unwrap()))
+    );
+    // A real filter with a value that means nothing is still an error that helps.
+    let error = parse("has:wings", NOW).unwrap_err().to_string();
+    assert!(error.contains("has:note"), "{error}");
+}
+
+/// A word that folds to nothing (a lone accent, a soft hyphen, a variation selector)
+/// used to match every cell. It matches none, and the result says why.
+#[test]
+fn a_word_with_nothing_to_search_for_matches_nothing() {
+    let w = world();
+    let index = w.index();
+    let all = w.shop.cell_count() + w.notes.cell_count();
+    for nothing in ["\u{301}", "\u{ad}", "\u{fe0f}", "\u{200b}\u{ad}"] {
+        let parsed = parse(nothing, NOW).unwrap();
+        assert_eq!(parsed.query, Query::Term(Term::new(nothing)));
+        let found = index.search(&parsed.query, &Options::default()).unwrap();
+        assert_eq!(found.total, 0, "{nothing:?}");
+        assert_eq!(found.warnings.len(), 1, "{nothing:?}");
+        assert!(found.warnings[0].contains("nothing to search for"));
+        w.find(nothing);
+        // Under "not" it excludes nothing, and with "or" it adds nothing.
+        assert_eq!(w.find(&format!("-{nothing}")).len(), all);
+        assert_eq!(w.texts(&format!("{nothing} OR pear")), ["Pear"]);
+    }
+    for term in [Term::new(""), Term::exact("")] {
+        let found = index
+            .search(&Query::Term(term), &Options::default())
+            .unwrap();
+        assert_eq!((found.total, found.warnings.len()), (0, 1));
+    }
+    // The empty query is still every cell, and warns of nothing.
+    let every = index.search(&Query::All, &Options::default()).unwrap();
+    assert_eq!((every.total, every.warnings.len()), (all, 0));
+    assert_eq!(
+        index
+            .search(&parse("apple", NOW).unwrap().query, &Options::default())
+            .unwrap()
+            .warnings
+            .len(),
+        0
+    );
+}
+
+/// "Rows tagged todo that mention apple": `tag:` is the row of a tag cell, `is-tag:`
+/// the tag cell itself (TreeSheets' filter).
+#[test]
+fn a_tag_narrows_to_its_row() {
+    let mut ids = SeededIds::from_u64(9);
+    let mut doc = Document::new(&mut ids);
+    let root = doc.root();
+    doc.cell_mut(root).unwrap().text = "todo".into();
+    doc.add_grid(root, 3, 4, &mut ids).unwrap();
+    let cells = doc.cell(root).unwrap().grid().unwrap().cells().to_vec();
+    let rows = [
+        ["buy apples", "todo", "soon"],
+        ["apple pie eaten", "done", ""],
+        ["todo", "pears", "apple"],
+        ["=LOWER('TODO')", "computed apple tag", "x"],
+    ];
+    for (id, text) in cells.iter().zip(rows.iter().flatten()) {
+        doc.cell_mut(*id).unwrap().text = text.to_string();
+    }
+    doc.cell_mut(cells[9]).unwrap().kind = CellKind::Formula;
+    // A grid inside a tagged row is not that row.
+    let inner = column(&mut doc, &mut ids, cells[2], &["inner apple", "todo too"]);
+    doc.tags_mut().insert("todo".into(), Tag::default());
+    doc.tags_mut().insert("done".into(), Tag::default());
+    doc.validate().unwrap();
+    let calc = Calc::new(&doc);
+    assert_eq!(
+        calc.shown(&doc, cells[9]),
+        Some("todo"),
+        "the formula comes to the tag"
+    );
+    let mut index = SearchIndex::new();
+    index.insert_document(&doc, &calc, "d.wombat");
+    let docs = [("d.wombat", &doc, &calc)];
+    let texts = |text: &str| {
+        let query = parse(text, NOW).unwrap().query;
+        let options = Options::all(Order::Document);
+        let found = index.search(&query, &options).unwrap();
+        assert_eq!(
+            found,
+            naive::search(&docs, &query, &options).unwrap(),
+            "{text}"
+        );
+        found
+            .hits
+            .into_iter()
+            .map(|hit| hit.text)
+            .collect::<Vec<_>>()
+    };
+    // The natural reading: rows tagged todo that contain the word.
+    assert_eq!(
+        texts("tag:todo apple"),
+        ["buy apples", "apple", "computed apple tag"]
+    );
+    assert_eq!(texts("tag:done apple"), ["apple pie eaten"]);
+    assert_eq!(texts("apple -tag:todo -tag:done"), ["inner apple"]);
+    // Alone: every cell of the tagged rows, the tag cell among them; and the root cell,
+    // which is in no grid, when it is the tag itself.
+    assert_eq!(
+        texts("tag:todo"),
+        [
+            "todo",
+            "buy apples",
+            "todo",
+            "soon",
+            "todo",
+            "pears",
+            "apple",
+            "=LOWER('TODO')",
+            "computed apple tag",
+            "x"
+        ]
+    );
+    assert_eq!(texts("tag:nothing"), [] as [&str; 0]);
+    // TreeSheets' own filter: the tag cells. A formula cell that shows the tag is one.
+    assert_eq!(
+        texts("is-tag:todo"),
+        ["todo", "todo", "todo", "=LOWER('TODO')"]
+    );
+    assert_eq!(texts("is-tag:todo apple"), [] as [&str; 0]);
+    assert_eq!(texts("has:tag").len(), 5);
+    let _ = inner;
+    // It follows edits: the tag cell of the first row is renamed, the row is out.
+    let mut editor = Editor::new(doc.clone()).unwrap();
+    let rename = Command::SetText {
+        cell: cells[1],
+        text: "later".into(),
+    };
+    let changes = editor.apply(rename, None, &mut ids).unwrap();
+    index
+        .apply(editor.document(), editor.calc(), &changes)
+        .unwrap();
+    let query = parse("tag:todo apple", NOW).unwrap().query;
+    let found = index
+        .search(&query, &Options::all(Order::Document))
+        .unwrap();
+    let left: Vec<&str> = found.hits.iter().map(|hit| hit.text.as_str()).collect();
+    assert_eq!(left, ["apple", "computed apple tag"]);
+    // Rows inserted above move the rows; the index reads the grid's cells again.
+    let insert = Command::InsertRows {
+        cell: root,
+        at: 0,
+        count: 1,
+    };
+    let changes = editor.apply(insert, None, &mut ids).unwrap();
+    index
+        .apply(editor.document(), editor.calc(), &changes)
+        .unwrap();
+    let calc = editor.calc();
+    let docs = [("d.wombat", editor.document(), calc)];
+    let found = index
+        .search(&query, &Options::all(Order::Document))
+        .unwrap();
+    assert_eq!(
+        found,
+        naive::search(&docs, &query, &Options::all(Order::Document)).unwrap()
+    );
+    assert_eq!(found.total, 2);
+}
+
+/// Following the edits of a document that was never put into the index is a mistake
+/// of the caller's, and says so. (It used to file the document under an empty name.)
+#[test]
+fn following_a_document_that_is_not_in_the_index_is_an_error() {
+    let w = world();
+    let mut index = SearchIndex::new();
+    index.insert_document(&w.shop, &w.calcs[0], "shop.wombat");
+    let error = index
+        .apply(&w.notes, &w.calcs[1], &Default::default())
+        .unwrap_err();
+    assert_eq!(error, wombat_search::NotIndexed(w.notes.id()));
+    assert_eq!(index.documents().count(), 1);
+    assert!(index
+        .apply(&w.shop, &w.calcs[0], &Default::default())
+        .is_ok());
+}
+
+/// A hit carries the first thousand highlight ranges and says how many there are; a
+/// query with many words (read in one pass over each cell) and one that says a word
+/// twice give what the reference gives.
+#[test]
+fn many_matches_and_many_words() {
+    use wombat_search::engine::MAX_RANGES;
+    let mut ids = SeededIds::from_u64(4);
+    let mut doc = Document::new(&mut ids);
+    let root = doc.root();
+    let cells = column(
+        &mut doc,
+        &mut ids,
+        root,
+        &[
+            &"a b ".repeat(1500),
+            "one two three four five six",
+            "a-a-a-a xa-a-a",
+            "Two, one; FIVE",
+            "seven",
+            // Here the second `a-a` would be a whole word, but it starts inside the
+            // first, which is not one: places of one word do not overlap.
+            "xa-a-a",
+        ],
+    );
+    doc.cell_mut(cells[1]).unwrap().note = "six and seven\nthree".into();
+    link(
+        &mut doc,
+        cells[4],
+        0,
+        5,
+        LinkTarget::Cell {
+            doc: None,
+            cell: cells[1],
+        },
+    );
+    doc.validate().unwrap();
+    let calc = Calc::new(&doc);
+    let mut index = SearchIndex::new();
+    index.insert_document(&doc, &calc, "d.wombat");
+    let docs = [("d.wombat", &doc, &calc)];
+    let find = |text: &str| {
+        let query = parse(text, NOW).unwrap().query;
+        let mut all = Vec::new();
+        for order in search_support::ORDERS {
+            let options = Options::all(order);
+            let found = index.search(&query, &options).unwrap();
+            assert_eq!(
+                found,
+                naive::search(&docs, &query, &options).unwrap(),
+                "{text} {order:?}"
+            );
+            all = found.hits;
+        }
+        all
+    };
+    let hits = find("a");
+    let long = hits.iter().find(|hit| hit.cell == cells[0]).unwrap();
+    assert_eq!((long.ranges.len(), long.range_count), (MAX_RANGES, 1500));
+    assert_eq!(long.ranges[999], (3996, 1));
+    let both = find("a b");
+    let long = both.iter().find(|hit| hit.cell == cells[0]).unwrap();
+    assert_eq!((long.ranges.len(), long.range_count), (MAX_RANGES, 3000));
+    assert_eq!(find("one")[0].range_count, 1);
+    // Many words: all, any, none, in text, note and linked text, overlapping ones, and
+    // a word that overlaps itself (each place starts after the one before it ends).
+    for text in [
+        "one two three four five six",
+        "one OR two OR three OR four OR five OR six OR seven",
+        "one two three four five six seven",
+        "-one -two -three -four -five -six",
+        "o on one ne e tw two",
+        "a-a OR a OR - OR xa OR a-a-a",
+        "a OR - OR xa OR a-a OR a-a-a",
+        "x a - a-a",
+        "a-a a - xa b",
+        "seven six five OR four three OR two one zero",
+        "on ne tw wo th hr re ee fo ou ur fi iv ve si ix se ev en",
+        "one OR one OR one OR ONE OR case:one OR case:one OR -one",
+        "e OR é OR E OR è",
+    ] {
+        find(text);
+    }
+    // A word said twice counts twice, as two words do.
+    let twice = find("five OR five");
+    assert_eq!(twice[0].score, 2 * find("five")[0].score.max(1));
 }
