@@ -22,6 +22,7 @@
 //! that undo or redo can bring back as taken (decisions A43, A46, A48).
 
 mod command;
+mod import;
 mod paste;
 mod program;
 mod restructure;
@@ -524,6 +525,17 @@ pub enum Command {
     ReleaseCell {
         /// The cell that leaves.
         cell: CellId,
+    },
+    /// Import: the table (read from a CSV or text file by [`crate::convert::parse_table`]
+    /// or [`crate::convert::parse_outline`]) becomes the grid of `cell`, in place of the
+    /// grid it may have; the cell keeps its text. The cells are new, with new IDs, and
+    /// look like the cells of a new grid of `cell` would. Refused if the document would
+    /// have too many cells or nest too deep.
+    Import {
+        /// The cell that gets the grid.
+        cell: CellId,
+        /// What to import.
+        table: crate::convert::Table,
     },
 }
 

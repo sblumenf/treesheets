@@ -1,0 +1,40 @@
+{
+ "text": "",
+ "type": "data",
+ "grid": {
+  "cols": 3,
+  "rows": 2,
+  "cells": [
+   {
+    "text": "a,b",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "say \"hi\"",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "plain",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "multi line",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "two breaks",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "x",
+    "type": "data",
+    "grid": null
+   }
+  ]
+ }
+}

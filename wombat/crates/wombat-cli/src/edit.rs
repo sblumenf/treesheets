@@ -84,6 +84,12 @@ Structure (CELL is the cell that has the grid)
   swap CELL CELL                      two cells trade places
   move CELL EMPTY-CELL                move a cell to where an empty cell is
   copy CELL CELL                      make the second cell a copy of the first (paste)
+  import CELL FILE [csv|tsv|semicolon|text] [formulas]
+                                      read a file of comma, tab or semicolon separated
+                                      values or indented text (by default told by its
+                                      name) as the grid of CELL, replacing the grid it
+                                      has; one unit of undo. formulas: texts that start
+                                      with = become formula cells
 
 Restructuring (as the TreeSheets menu actions of the same names)
   sort CELL COLUMN ROW COUNT [desc]   sort COUNT rows from ROW on by the text in COLUMN,
@@ -665,6 +671,25 @@ impl<'a> Session<'a> {
                     column,
                     width,
                 })?;
+            }
+            "import" => {
+                let cell = self.next_cell(args, "a cell")?;
+                let file = next(args, "a file")?;
+                let (mut format, mut formulas) = (None, false);
+                for (word, _) in args.by_ref() {
+                    match word.as_str() {
+                        "formulas" => formulas = true,
+                        other => format = Some(other),
+                    }
+                }
+                let depth = self.doc().depth(cell).unwrap_or(0);
+                let levels = wombat_core::limits::MAX_DEPTH.saturating_sub(depth);
+                let table = crate::convert::read_table(file, format, formulas, levels).map_err(
+                    |failure| match failure {
+                        crate::Failure::Usage(m) | crate::Failure::Failed(m) => m,
+                    },
+                )?;
+                self.apply(Command::Import { cell, table })?;
             }
             "grid" => {
                 let cell = self.next_cell(args, "a cell")?;

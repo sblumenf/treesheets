@@ -1132,5 +1132,6 @@ pub(super) fn run(
         Command::PasteCells { to, clip } => super::paste::paste(tx, to, clip, &mut fresh),
         Command::AdoptCells { to, clip } => super::paste::adopt(tx, to, clip),
         Command::ReleaseCell { cell } => super::paste::release(tx, cell, now, &mut fresh),
+        Command::Import { cell, table } => super::import::import(tx, cell, &table, now, &mut fresh),
     }
 }

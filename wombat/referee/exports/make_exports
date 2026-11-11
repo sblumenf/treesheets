@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+"""Has the real TreeSheets export and import, and writes what it gave.
+
+Usage: make_exports [--fixture] [exports] [examples] [imports]
+
+Without a part named, all three are made:
+
+exports   For every case of fixture.cts (a cell of the root's grid, named after the case,
+          with the grid of the case inside): golden/NAME.csv and golden/NAME.txt, which the
+          script function ts.get_subtree_text gives for that cell, and golden/NAME.tsv, which
+          File > Export > Tab delimited text writes with the view zoomed into the cell (no
+          script function gives TSV). Also golden/document.txt and golden/document.csv: the
+          two menu exports of the whole document, to see that the menu and the script
+          function write the same.
+examples  golden/examples/NAME.csv: the CSV export of the root's grid of every example
+          .cts that ../export_golden exports.
+imports   For every file in imports/: the document that File > Import makes of it
+          (.csv: comma, .ssv: semicolon, .tsv: tab, .txt: indented text), as
+          imports/golden/NAME.EXT.json: per cell its text and type, and its grid.
+
+The menu actions are reached with key presses on the private display (../ui.py), with their
+own key bindings; the file dialogs are answered the same way. Nothing here changes ../ui.py.
+
+--fixture also has the app build fixture.cts from fixture.lobster first. Only needed when
+that script changes: the file is checked in, since every run gives its cells new edit times.
+
+The tests that compare (crates/wombat-cts/tests/export.rs, crates/wombat-core/tests/
+import_referee.rs) need none of this. Needs what ../README.md lists, and xdotool.
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+sys.dont_write_bytecode = True
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+import referee  # noqa: E402
+import ui  # noqa: E402
+
+GOLDEN = os.path.join(HERE, "golden")
+IMPORTS = os.path.join(HERE, "imports")
+FIXTURE = os.path.join(HERE, "fixture.cts")
+SEED = os.path.join(referee.REPO, "TS", "examples", "sales.cts")
+
+# Menu actions without a key of their own: label in src/tsframe.h, a free key (see ../ui.py).
+ui.ACTIONS.update({
+    "export-tsv": ("Tab &delimited text (TSV, flat)...", "CTRL+ALT+B", "ctrl+alt+b"),
+    "export-csv": ("&Comma delimited text (CSV, flat)...", "CTRL+ALT+E", "ctrl+alt+e"),
+    "export-text": ("Indented &Text...", "CTRL+ALT+M", "ctrl+alt+m"),
+    "import-text": ("Indented text...", "CTRL+ALT+N", "ctrl+alt+n"),
+    "import-csv": ("Comma delimited text (CSV)...", "CTRL+ALT+P", "ctrl+alt+p"),
+    "import-semicolon": ("Semi-Colon delimited text (CSV)...", "CTRL+ALT+Q", "ctrl+alt+q"),
+    "import-tsv": ("Tab delimited text...", "CTRL+ALT+W", "ctrl+alt+w"),
+})
+IMPORT_ACTION = {".csv": "import-csv", ".ssv": "import-semicolon", ".tsv": "import-tsv",
+                 ".txt": "import-text"}
+
+
+def write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+
+
+def windows(ts):
+    found = subprocess.run(["xdotool", "search", "--onlyvisible", "--pid", str(ts.proc.pid)],
+                           env=dict(os.environ, DISPLAY=ts.display), capture_output=True,
+                           text=True)
+    return found.stdout.split()
+
+
+def answer_dialog(ts, action, typed=None):
+    """Presses the key of a menu action that opens a file dialog, types a path into the
+    dialog if one is given, and accepts it. Returns when the dialog is gone."""
+    before = windows(ts)
+    ui._xdotool(ts.display, "key", ui.ACTIONS[action][2])
+    deadline = time.time() + 20
+    while True:
+        new = [w for w in windows(ts) if w not in before]
+        if new:
+            break
+        if time.time() > deadline:
+            raise referee.RefereeError(f"{action}: no dialog appeared")
+        time.sleep(0.1)
+    time.sleep(0.3)
+    ui._xdotool(ts.display, "windowfocus", new[-1])
+    time.sleep(0.3)
+    if typed:
+        ui._xdotool(ts.display, "type", "--delay", "15", typed)
+        time.sleep(0.4)
+    ui._xdotool(ts.display, "key", "Return")
+    while [w for w in windows(ts) if w not in before]:
+        if time.time() > deadline:
+            raise referee.RefereeError(f"{action}: the dialog did not close")
+        time.sleep(0.1)
+    ui._xdotool(ts.display, "windowfocus", before[-1])
+    time.sleep(0.2)
+
+
+def menu_export(ts, action, extension):
+    """What a menu export writes: the dialog proposes the document's name with the format's
+    extension in the document's folder, which is a private temporary one."""
+    out = os.path.splitext(ts.doc)[0] + extension
+    if os.path.exists(out):
+        os.remove(out)
+    answer_dialog(ts, action)
+    deadline = time.time() + 20
+    while not os.path.exists(out):
+        if time.time() > deadline:
+            raise referee.RefereeError(f"{action}: {out} was not written")
+        time.sleep(0.1)
+    time.sleep(0.2)
+    with open(out, encoding="utf-8", newline="") as f:
+        text = f.read()
+    os.remove(out)
+    return text
+
+
+def fixture(display):
+    with open(os.path.join(HERE, "fixture.lobster"), encoding="utf-8") as f:
+        code = f.read()
+    with tempfile.TemporaryDirectory(prefix="ts-fixture-") as tmp:
+        out = os.path.join(tmp, "fixture.cts")
+        with referee.Instance(display, SEED) as ts:
+            print("fixture: " + ts.eval(f'let out_path = "{out}"\n' + code))
+        shutil.copyfile(out, FIXTURE)
+
+
+def exports(display):
+    with ui.Instance(display, FIXTURE) as ts:
+        count = int(ts.eval("ts.agent_result(string(ts.num_columns_rows().y))"))
+        for row in range(count):
+            there = f"ts.goto_root()\nts.goto_column_row(0, {row})\n"
+            name = ts.eval(there + "ts.agent_result(ts.get_text())")
+            for fmt, kind in ((1, "csv"), (0, "txt")):
+                write(os.path.join(GOLDEN, f"{name}.{kind}"),
+                      ts.eval(there + f"ts.agent_result(ts.get_subtree_text({fmt}))"))
+            # The menu exports what the view shows: zoom in on the case.
+            zoomed = ts.eval(there + "ts.goto_child(0)\nts.select()\n"
+                             "ts.agent_result(string(ts.zoom(1)))")
+            if zoomed not in ("1", "true"):
+                raise referee.RefereeError(f"{name}: the view did not zoom in ({zoomed})")
+            write(os.path.join(GOLDEN, f"{name}.tsv"), menu_export(ts, "export-tsv", ".tsv"))
+            if name == "plain":
+                # Once, to see that the script function and the menu write the same CSV.
+                write(os.path.join(GOLDEN, "plain.menu.csv"),
+                      menu_export(ts, "export-csv", ".csv"))
+            ts.eval('ts.zoom_to_root()\nts.agent_result("")')
+            print(f"exports: {name}")
+        write(os.path.join(GOLDEN, "document.txt"), menu_export(ts, "export-text", ".txt"))
+        write(os.path.join(GOLDEN, "document.csv"), menu_export(ts, "export-csv", ".csv"))
+        ts.check_keys_arrive()
+
+
+def examples(display):
+    sys.argv = [sys.argv[0]]
+    roots = [(os.path.join(referee.REPO, "TS", "examples"), ""),
+             (os.path.join(os.path.dirname(HERE), "fixtures"), "fixtures/")]
+    for top, prefix in roots:
+        for folder, _, files in sorted(os.walk(top)):
+            for file in sorted(f for f in files if f.endswith(".cts")):
+                path = os.path.join(folder, file)
+                name = prefix + os.path.relpath(path, top)[:-4].replace(os.sep, "/")
+                with referee.Instance(display, path) as ts:
+                    write(os.path.join(GOLDEN, "examples", name + ".csv"),
+                          ts.eval("ts.agent_result(ts.get_subtree_text(1))"))
+                print(f"examples: {name}")
+
+
+def tree(cell):
+    grid = cell["grid"]
+    return {"text": cell["text"], "type": cell["type"],
+            "grid": grid and {"cols": grid["cols"], "rows": grid["rows"],
+                              "cells": [tree(c) for c in grid["cells"]]}}
+
+
+def imports(display):
+    for file in sorted(os.listdir(IMPORTS)):
+        action = IMPORT_ACTION.get(os.path.splitext(file)[1])
+        if not action:
+            continue
+        with tempfile.TemporaryDirectory(prefix="ts-import-") as tmp:
+            # A path that a keyboard can type whatever the repository's own path is.
+            source = os.path.join(tmp, "in" + os.path.splitext(file)[1])
+            shutil.copyfile(os.path.join(IMPORTS, file), source)
+            with ui.Instance(display, SEED) as ts:
+                answer_dialog(ts, action, source)
+                deadline = time.time() + 20
+                # The import opens in a new tab, which has no file name yet.
+                while ts.eval("ts.agent_result(ts.get_filename())"):
+                    if time.time() > deadline:
+                        raise referee.RefereeError(f"{file}: nothing was imported")
+                    time.sleep(0.1)
+                doc = referee.parse_dump(ts.eval(file=referee.DUMP_SCRIPT))[0]
+        write(os.path.join(IMPORTS, "golden", file + ".json"),
+              json.dumps(tree(doc["root"]), ensure_ascii=False, indent=1) + "\n")
+        print(f"imports: {file}")
+
+
+def main():
+    args = sys.argv[1:]
+    parts = [a for a in args if a != "--fixture"] or ["exports", "examples", "imports"]
+    unknown = [p for p in parts if p not in ("exports", "examples", "imports")]
+    if unknown:
+        raise referee.RefereeError(f"unknown part: {unknown[0]}")
+    with referee.xvfb() as display:
+        if "--fixture" in args:
+            fixture(display)
+        if "exports" in parts:
+            exports(display)
+        if "examples" in parts:
+            examples(display)
+        if "imports" in parts:
+            imports(display)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except referee.RefereeError as e:
+        sys.exit(f"error: {e}")

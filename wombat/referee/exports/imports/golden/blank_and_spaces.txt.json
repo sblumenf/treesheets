@@ -1,0 +1,45 @@
+{
+ "text": "",
+ "type": "data",
+ "grid": {
+  "cols": 1,
+  "rows": 2,
+  "cells": [
+   {
+    "text": "a",
+    "type": "data",
+    "grid": {
+     "cols": 1,
+     "rows": 2,
+     "cells": [
+      {
+       "text": "b",
+       "type": "data",
+       "grid": null
+      },
+      {
+       "text": "c",
+       "type": "data",
+       "grid": {
+        "cols": 1,
+        "rows": 1,
+        "cells": [
+         {
+          "text": "",
+          "type": "data",
+          "grid": null
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   {
+    "text": "d  ",
+    "type": "data",
+    "grid": null
+   }
+  ]
+ }
+}

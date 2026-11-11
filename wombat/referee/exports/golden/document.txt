@@ -1,0 +1,89 @@
+
+  plain
+    a
+    b
+    c
+    d
+    e
+    f
+  quotes
+    say "hi"
+    "quoted"
+    a,b
+    x;y
+     lead
+    trail 
+    it's
+    a"b
+  empties
+    only
+    
+    
+    
+    
+    
+    
+    
+    
+  blank
+    
+    
+  unicode
+    Éclair à la crème
+    日本語
+    smile 😀
+    ☐ open
+  risky
+    =1+1
+    +1
+    -1
+    @x
+    -cmd|' /C calc'!A0
+    =SUM(A)
+    -2.5
+    1-2
+  nested
+    Fruit
+      Apple
+      red
+      Pear
+      green
+    has text
+    
+      in a cell without text
+    Veg
+      Leek
+        green
+      Kale
+    last
+    
+  formula
+    10
+    32
+    3
+    40
+  tree
+    Projects
+      Apollo
+        Design
+        Build
+      Borealis
+    Notes
+      one note
+    
+  wide
+    Apollo
+    Ana
+    
+      Design
+      done
+      Build
+      open
+    Borealis
+    Chidi
+    
+      Survey
+      open
+    Cygnus
+    Eve
+    none

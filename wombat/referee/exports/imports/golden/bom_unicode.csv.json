@@ -1,0 +1,30 @@
+{
+ "text": "",
+ "type": "data",
+ "grid": {
+  "cols": 2,
+  "rows": 2,
+  "cells": [
+   {
+    "text": "name",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "value",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "Éclair",
+    "type": "data",
+    "grid": null
+   },
+   {
+    "text": "日本語",
+    "type": "data",
+    "grid": null
+   }
+  ]
+ }
+}

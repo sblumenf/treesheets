@@ -1,0 +1,30 @@
+{
+ "text": "",
+ "type": "data",
+ "grid": {
+  "cols": 1,
+  "rows": 1,
+  "cells": [
+   {
+    "text": "=1+2",
+    "type": "data",
+    "grid": {
+     "cols": 1,
+     "rows": 2,
+     "cells": [
+      {
+       "text": "-x",
+       "type": "data",
+       "grid": null
+      },
+      {
+       "text": "a,b",
+       "type": "data",
+       "grid": null
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

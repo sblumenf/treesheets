@@ -734,6 +734,140 @@ Numbers 80 to 89 are not used: 90 on are where milestones 4, 5 and 6, built apar
     result), and the tool prints them as `wombat show` does, `"=SUM(Costs)" = "1050.5"`.
     Filters that ask about a cell's text (`text:`, `tag:`, `has:text`) and the "shorter
     text first" of the ranking still go by the stored text.
+95. **Import and export are conversions between values; files are another layer**
+    (milestone 7; the numbers A93 and A94 are not used here). `convert` turns a document
+    into text and text into a `Table` of texts, and touches no file. An export reads a
+    `Source`: the document and the results of its formula cells (`Calc`), both by
+    reference, so an export cannot change a document and makes no entry in a history. An
+    import gives a `Table`, which becomes a new document (`to_document`) or goes into a
+    cell through the editing engine. Writing is `export_files`, reading is the caller's
+    (`storage::read_bounded`). The same document and options give the same bytes.
+96. **What a cell exports as.** What it shows: for a formula cell the result, as
+    TreeSheets exports it and as A66 says for whatever shows a cell. The option
+    `formulas` exports the formula instead. Only text is exported, and with the option
+    `notes` the note as a column of its own after each column; styles, colours, images,
+    links and the kind of a cell have no place in delimited text. The complete form of a
+    document is its `.wombat` file.
+97. **Defaults of delimited text: comma, quotes only where needed, a UTF-8 byte-order
+    mark, CR LF.** Each is what the most common reader, a spreadsheet, takes without
+    questions. *The mark:* without it Excel reads a CSV file in the system's old encoding
+    and shows every non-ASCII letter wrong, silently; with it, a few other programs show
+    three junk bytes in the first field, visibly, and Wombat's own importer drops it. The
+    silent damage is the worse one. *CR LF* is what RFC 4180 says. *Quoting* only where
+    needed keeps the file readable; a row that is one empty cell is written `""`, since
+    an empty line is no row to most readers. All can be switched (`--no-bom`, `--lf`,
+    `--quote-all`, `--delimiter`), and `ExportOptions::treesheets` is the set that gives
+    TreeSheets' own bytes.
+98. **Exported text cannot run as a formula in a spreadsheet, by default** ("CSV
+    injection"). A spreadsheet that opens a CSV file treats a field that starts with `=`,
+    `+`, `-`, `@`, a tab or a carriage return as a formula, which can read other cells,
+    fetch from the network, or on old systems start a program. A document may hold text
+    from anywhere, so every field of cell content (texts, notes, column names taken from
+    cells, the trail and text in `index.csv`) that starts with one of those gets a single
+    quote in front, as OWASP recommends. **Numbers are left alone:** a sign followed by
+    digits with at most one decimal point or comma and an optional exponent (`-5`,
+    `+2.5`, `-1,5`, `-2e10`) is a number or text to every spreadsheet, never more.
+    The price: the quote is visible in the spreadsheet's cell, and a file exported this
+    way and imported again has it in the text (`'=1+1`). `--raw` (`guard: false`)
+    exports the text as it is, for files that go to a program and not to a spreadsheet.
+    IDs, counts and file names are made by the program and are not guarded: an ID starts
+    with a hexadecimal digit, a file name with a letter or digit.
+99. **The flattened export is by rows, with one block of columns per level of nesting.**
+    One line per innermost row (a row none of whose cells has a grid), after the rows it
+    is inside of, outermost first. Level 1 is the exported grid; each level's block is as
+    wide as the widest grid at that level, so the table is a rectangle and a column means
+    the same on every line. Rows of narrower grids are padded on the right; a row nested
+    less deep than others has empty fields in the deeper blocks; a row with a nested grid
+    has no line of its own (its cells, the text of the cell that has the grid included,
+    are on every line from that grid); a row with several nested grids gives the lines of
+    each in turn after the same outer row; empty cells and entirely empty rows are kept.
+    Where every grid has one column this is exactly the table that `Flatten` makes (a
+    test compares them). There is no header line: grids have none.
+100. **The lookup-style export (B7): one table per grid, joined by IDs.** A folder with
+    one CSV file per grid of the exported cell and below, `index.csv` and `README.txt`.
+    - *Columns:* the content first (`A`, `B`, `C`, ..., the names the columns have in the
+      spreadsheet they land in; with notes, `A_note` after each), then `row_id`, then
+      `A_id`, `B_id`, ... (the ID of every cell), then `<column>_table` for each column
+      that has nested grids (the file of the table inside the cell, or empty), then, in
+      every table but the top one, `parent_table`, `parent_row_id`, `parent_cell_id`.
+      XLOOKUP does not need the key in the first column, so what a person reads is first.
+    - *`row_id` is the ID of the row's first cell.* Cells have permanent IDs (A5) and rows
+      have none; a nested grid sits in one cell, whose row is found by that row's first
+      cell. The key is the same in every export for as long as that cell exists and is
+      first in its row; moving columns or deleting the first cell changes it. Giving rows
+      IDs of their own in the model was not done for an export.
+    - *The join:* `parent_row_id` of any row of a nested table is found exactly once in
+      the `row_id` column of the table named in `parent_table`. `parent_cell_id` says
+      which cell of that row, and is found in one of its `_id` columns.
+    - *`index.csv`:* per table its file, trail (the texts on the way to its cell; a cell
+      without text is called by the first text of its row), rows, columns, whether the
+      first row was taken as names, parent table, parent row, parent column, and the ID
+      and text of the cell it sits in.
+    - *`README.txt`* explains this and gives an XLOOKUP formula for the first nested
+      table and its parent, with the real sheet names and column letters.
+    - *Column names:* letters by default, and every row is data, because a grid has no
+      header row and guessing one would silently drop a row of data from some tables.
+      With `header_row`, a table takes its names from its first row and leaves that row
+      out, unless it has only one row or a nested grid in that row (whose rows would
+      lose their parent); names that repeat, or that are those of key columns, get a
+      number. The key columns are found by position, not by name.
+    - *Nothing is lost:* with the default names, the tree of texts and IDs is rebuilt
+      from the folder alone by a test. A single "long" table of one row per cell was
+      considered as a second lossless form and not built: the tables already are one.
+101. **File names of exported tables come from cell text and are trusted with nothing.**
+    `<words>-<suffix>.csv`: the words are the trail with every character that is not a
+    letter or digit (of any script) made `-`, at most 22 characters, the end kept; the
+    suffix is the first eight digits of the ID of the cell the grid sits in. So a name
+    has no separator, no dot, no space; is never `.`, `..`, hidden, an option, or a
+    reserved name of Windows; is at most 31 characters, the limit of a sheet name in
+    Excel, so that a file opens as a sheet of its own name and the README's formula
+    fits; and is unique by its ASCII suffix alone, whatever a file system does with case
+    or accents. A table keeps its name between exports while its cell and trail stay.
+    If two suffixes of one export are equal (which random IDs do not do; a crafted file
+    can) every table is numbered instead (`n1`, `n2`, ...). The writer checks names
+    again and refuses anything that is not one plain name.
+102. **Import: a table of texts, bounded, plain by default; into a cell it is one
+    command.**
+    - Delimited text is read as RFC 4180 says, and where a file is not valid, as
+      TreeSheets reads it (B82 has the two exceptions). Rows are padded to a rectangle.
+      Line breaks inside a quoted field become one space and other control characters
+      spaces, since cell text has none (A32). Indented text is read exactly as TreeSheets
+      does.
+    - Bytes are taken as UTF-8 (with or without a mark), as UTF-16 if they start with
+      its mark, and otherwise as Windows-1252, which is what Excel on Windows writes as
+      plain "CSV" and cannot fail.
+    - **Text that starts with `=` stays plain text** unless the import is asked for
+      formulas. A file from somewhere else was written for another program; its formulas
+      would mean something else here, or start calculating unasked. TreeSheets' import
+      does the same. With the option it is as if each text had been typed (A65).
+    - *Bounds:* the file is at most 32 MiB (the caller reads it with
+      `storage::read_bounded`); rows times columns after padding, and lines of an
+      outline, are under the limit on cells, checked before the rectangle is made; a
+      field is at most as long as a text may be; nesting stops at the depth a document
+      may have (deeper lines become rows of the last level, as in TreeSheets). Reading
+      takes time in proportion to the file.
+    - *`Command::Import { cell, table }`* gives the cell the table as its grid, in place
+      of the grid it may have, and leaves the cell's own text. The cells are new, with
+      IDs from the `IdSource`, and look like the cells of a new grid of that cell
+      (`CreateGrid`). It may be the root. It is one unit of undo, reports what changed
+      like every command, and is refused if the document would have too many cells, nest
+      too deep or be too large to save.
+103. **An export writes only where it was told, and never through a link.** Two reviews
+    found writes that followed a planted symbolic link. For exports (`export_files`):
+    an existing file, or a folder with anything in it, is not written to without
+    `overwrite`; a symbolic link at the file, at the folder or at a file in the folder is
+    refused, with or without `overwrite`, and is neither followed nor removed; a file is
+    written as a new temporary file beside it (created so that an existing name fails,
+    after removing what was there) and renamed into place, which replaces a name and
+    follows nothing; every name of a folder export is checked to be one plain name, and
+    all of this is checked before the first file is written. With `overwrite`, files in
+    the folder that the export does not name are left alone, so tables of an earlier
+    export whose grids are gone stay there; `index.csv` says which tables are current.
+    Links in the folders above the one named are the user's own and are followed.
+104. **An export is bounded too.** At most 512 MiB of text per export (a flattened
+    export repeats the outer rows on every line, so it can be far larger than the
+    document) and at most 10,000 tables in a lookup export; beyond that it is refused
+    with the advice to export a part by its cell.
 
 ## B. Deliberate departures from TreeSheets
 
@@ -931,3 +1065,39 @@ Numbers 44 to 49 are not used.
     or exactly (one switch, exact by default). Wombat looks in text, note, image name,
     link targets and linked cells' texts of every document of the workspace, ignoring
     case, accents and width (A72) unless the word says `case:`.
+
+80. **Exported CSV is made for spreadsheets, not for TreeSheets' bytes** (milestone 7;
+    numbers B66 to B79 are not used here). TreeSheets quotes every field, ends rows with
+    the system's line end, writes no byte-order mark and exports text as it is. Wombat by
+    default quotes where needed, writes CR LF and the mark (A97), and guards text that a
+    spreadsheet would run (A98). `--treesheets` gives the bytes TreeSheets writes on
+    Linux and macOS: all 38 examples and the 10 cases of the referee compare equal.
+81. **Where TreeSheets' TSV is not valid delimited text, Wombat's is.** TreeSheets
+    quotes a field of its TSV only if it starts with a quote or holds a tab, so `say
+    "hi"` and `a"b` are written bare (a quote in a field that is not quoted), and a row
+    that is one empty cell is an empty line, which no reader takes for a row, its own
+    included. Wombat quotes any field that holds a quote and writes such a row as `""`.
+    Three of the ten cases differ for these two reasons and no other. (TreeSheets' CSV
+    is valid, apart from the line end being LF on Linux.)
+82. **Two things are read differently when importing delimited text.** A delimiter at
+    the end of a line is followed by an empty field, as RFC 4180 says; TreeSheets drops
+    it, so that a table whose last column is empty comes back one column short. And
+    text between a closing quote and the next delimiter stays with the field
+    (`"abc"x,def` is `abcx` and `def`); TreeSheets drops one character there, whatever
+    it is, and so reads `abc`, an empty field and `def`. In the other 23 of the 25
+    files compared the result is the same. A file with no line at all is refused;
+    TreeSheets silently does nothing.
+83. **An import can go into a cell, and then replaces its grid.** TreeSheets' import
+    always makes a new document. Its paste of text does go into the selected cell, and
+    if that cell has no text merges the new grid into the grid around it; Wombat's
+    `Import` never changes anything outside the cell it is given.
+84. **Imports are bounded** (A102): TreeSheets reads a file of any size into memory,
+    nests indented text up to 500 deep, and has no limit on cells. Wombat stops at 32
+    MiB, 700,000 cells, 16 million characters per cell and 32 levels.
+85. **Flattening for export goes by rows and changes nothing.** TreeSheets' Flatten
+    (and `Command::Flatten`) changes the document and makes one row per innermost
+    *cell*, so a table inside a cell comes out with one row per cell of the table. The
+    flattened export makes one line per innermost *row* and keeps the columns of a table
+    side by side (A99); for grids of one column the two are the same.
+86. **A file not in UTF-8 is read as Windows-1252, or as UTF-16 if it says so**
+    (A102). TreeSheets leaves it to wxWidgets' guess, which depends on the system.
