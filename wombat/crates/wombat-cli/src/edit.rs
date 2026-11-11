@@ -40,7 +40,13 @@ Text
   color CELL POSITION LENGTH #rrggbb  colour a range (`none`: the cell's text colour)
   link CELL POSITION LENGTH url \"target\"
   link CELL POSITION LENGTH cell CELL
-  link CELL POSITION LENGTH none      make a range a link, or remove its links
+  link CELL POSITION LENGTH cell-in FILE CELL
+  link CELL POSITION LENGTH none      make a range a link (to a web page or file, to a
+                                      cell, to a cell of the document in FILE), or remove
+                                      its links
+  resolve-unknown                     give a target to the links imported from TreeSheets
+                                      without one, where exactly one cell now has the
+                                      text they named
 
 Properties
   set CELL... name=value...           set properties of one or more cells:
@@ -324,29 +330,7 @@ impl<'a> Session<'a> {
 
     /// The cell that a word names: a place (`/2,1/1,3`) or an ID.
     fn cell(&self, word: &str) -> Result<CellId, String> {
-        let Some(place) = word.strip_prefix('/') else {
-            let id = CellId::parse(word.strip_prefix('#').unwrap_or(word))
-                .ok_or_else(|| format!("{word:?} is neither a place like /2,1 nor an ID"))?;
-            return match self.doc().cell(id) {
-                Some(_) => Ok(id),
-                None => Err(format!("there is no cell {id}")),
-            };
-        };
-        let mut at = self.doc().root();
-        for step in place.split('/').filter(|step| !step.is_empty()) {
-            let numbers = step.split_once(',').and_then(|(x, y)| {
-                let x: u32 = x.parse().ok()?;
-                let y: u32 = y.parse().ok()?;
-                Some((x.checked_sub(1)?, y.checked_sub(1)?))
-            });
-            let (x, y) =
-                numbers.ok_or_else(|| format!("{word:?}: {step:?} is not column,row from 1"))?;
-            at = self
-                .doc()
-                .child(at, x, y)
-                .ok_or_else(|| format!("{word:?}: there is no cell {step} there"))?;
-        }
-        Ok(at)
+        crate::links::find_cell(self.doc(), word)
     }
 
     fn next_cell(&self, args: &mut Args, what: &str) -> Result<CellId, String> {
@@ -355,23 +339,7 @@ impl<'a> Session<'a> {
 
     /// The place of a cell, as [`Session::cell`] reads it.
     fn place(&self, id: CellId) -> String {
-        let mut steps = Vec::new();
-        let mut at = id;
-        while let Some(parent) = self.doc().cell(at).and_then(|c| c.parent()) {
-            let grid = self.doc().cell(parent).and_then(|c| c.grid());
-            let index = grid.and_then(|g| g.cells().iter().position(|c| *c == at));
-            let (Some(grid), Some(index)) = (grid, index) else {
-                break;
-            };
-            let xs = grid.xs().max(1) as usize;
-            steps.push(format!("/{},{}", index % xs + 1, index / xs + 1));
-            at = parent;
-        }
-        if steps.is_empty() {
-            return "/".into();
-        }
-        steps.reverse();
-        steps.concat()
+        crate::links::place_of(self.doc(), id)
     }
 
     fn apply(&mut self, command: Command) -> Result<(), String> {
@@ -516,14 +484,25 @@ impl<'a> Session<'a> {
             "link" => {
                 let cell = self.next_cell(args, "a cell")?;
                 let (start, len) = (number(args, "a position")?, number(args, "a length")?);
-                let target = match next(args, "`url`, `cell` or `none`")? {
+                let target = match next(args, "`url`, `cell`, `cell-in` or `none`")? {
                     "none" => None,
                     "url" => Some(LinkTarget::External(next(args, "the target")?.to_string())),
                     "cell" => Some(LinkTarget::Cell {
                         doc: None,
                         cell: self.next_cell(args, "the cell to link to")?,
                     }),
-                    word => return Err(format!("{word:?}: write url, cell or none")),
+                    "cell-in" => {
+                        let file = next(args, "the document the cell is in")?;
+                        let other = storage::load_document(Path::new(file))
+                            .map_err(|e| format!("{file}: {e}"))?;
+                        let word = next(args, "the cell to link to")?;
+                        Some(LinkTarget::Cell {
+                            doc: Some(other.id()),
+                            cell: crate::links::find_cell(&other, word)
+                                .map_err(|e| format!("{file}: {e}"))?,
+                        })
+                    }
+                    word => return Err(format!("{word:?}: write url, cell, cell-in or none")),
                 };
                 done(args)?;
                 self.apply(Command::SetLink {
@@ -532,6 +511,19 @@ impl<'a> Session<'a> {
                     len,
                     target,
                 })?;
+            }
+            "resolve-unknown" => {
+                done(args)?;
+                let commands = wombat_core::links::resolve_unknown(self.doc());
+                out = format!("{} links got a target\n", commands.len());
+                self.editor.begin_group();
+                let result = commands.into_iter().try_for_each(|command| {
+                    let applied = self.editor.apply(command, self.now, &mut self.ids);
+                    applied.map(|_| ()).map_err(|e| e.to_string())
+                });
+                let changes = self.editor.end_group();
+                self.changed(changes);
+                result?;
             }
             "set" => {
                 let (mut cells, mut props) = (Vec::new(), Vec::new());

@@ -1127,5 +1127,8 @@ pub(super) fn run(
             recursive,
         } => restructure::adjust_column_widths(tx, cell, column, count, delta, recursive),
         Command::ToggleCheck { cells } => restructure::toggle_check(tx, &cells, now),
+        Command::PasteCells { to, clip } => super::paste::paste(tx, to, clip, &mut fresh),
+        Command::AdoptCells { to, clip } => super::paste::adopt(tx, to, clip),
+        Command::ReleaseCell { cell } => super::paste::release(tx, cell, now, &mut fresh),
     }
 }

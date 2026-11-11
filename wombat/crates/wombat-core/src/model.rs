@@ -790,7 +790,7 @@ pub fn is_valid_image_name(name: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
-fn validate_cell(cell: &Cell) -> Result<(), Error> {
+pub(crate) fn validate_cell(cell: &Cell) -> Result<(), Error> {
     let id = cell.id;
     let place = format!("cell {id}");
     check_extra(&cell.extra, crate::format::CELL_KEYS, &place)?;

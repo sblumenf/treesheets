@@ -14,6 +14,7 @@ folder/
   notes.wombat                    the document (section 3)
   notes.wombat.images/            its images, one ordinary image file each (section 5)
   .wombat-view/<document id>.json its view state on this device (section 6)
+  .wombat-index/<kind>.idx        a cache of an index over the folder (section 7)
 ```
 
 - A **workspace** is a folder; its documents are the files directly in it whose names end in
@@ -312,3 +313,27 @@ most 700,000 IDs (the limit on cells). A copy of a document (section 1) gets a c
 own ID, naming its own cells. The canonical
 layout is as in the example: line 2 the header, then `selection`, `zoom`, unknown fields and
 `folded` (one ID per line), each on its own line.
+
+## 7. Index caches
+
+An index over a workspace (of links; later of words for search) can be kept in
+`.wombat-index/<kind>.idx` so that unchanged documents need not be read again (decisions A53,
+A54). It is **not part of the format**: it holds nothing that is not in the documents, may be
+deleted at any time, differs per device and should be left out of sync and backups, and a
+reader that does not know it loses nothing. Its layout may change with any version of Wombat.
+For the record, the current one:
+
+- The first line is `wombat-index <kind> <version> <length> <checksum>` and a newline: the
+  kind of index (`links`), the version of its layout (1), and the length in bytes and the
+  checksum of everything after the line. The checksum is 128-bit FNV-1a, 32 lower-case
+  hexadecimal digits.
+- The rest is one JSON object. Each key is `<length>-<checksum>` of the bytes of a document
+  file; its value is the index's summary of that document. For `links`:
+  `{"id": D, "cells": C, "links": [...]}` where `D` is the document ID as 32 hexadecimal
+  digits, `C` the IDs of all its cells in that form, sorted and run together, and each link is
+  `[cell, start, len, text, "u", target]`, `[cell, start, len, text, "c", target cell]` with
+  the target's document appended when the link names one, or `[cell, start, len, text, "?"]`
+  with the `cts_target` text appended when there is one.
+- A reader ignores the whole file unless the first line is exactly what it would write for
+  the rest, and reads a document again whenever no entry has the length and checksum of its
+  file. A file over 256 MiB is neither read nor written.
