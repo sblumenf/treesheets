@@ -1370,7 +1370,8 @@ are where milestones 4, 5 and 6, built apart, meet).
     `BadRequest` is everything the bridge refuses before the core is asked: text that is no ID,
     a number out of range or not finite, unknown fields that are no JSON object, JSON text
     that is no command. `Invalid` is only what the core means by it, which includes the
-    document that carries a clip and a table to import, since the core checks those.
+    document that carries a clip, since the core checks that. (A table to import that is
+    malformed was `Invalid` too; since the second review it is `BadRequest`, A153.)
 134. **Whole numbers that Dart sends cross in 64 bits and are checked on arrival** (from the
     review; adds to A123). A Dart `int` has 64 bits. The mirror types had the core's widths
     (`u32`, `i32`, `u8`), and the generated Dart wrote only that many bits, so row 4294967296
@@ -1388,28 +1389,29 @@ are where milestones 4, 5 and 6, built apart, meet).
     the web, which is not a target (A121), numbers beyond 2 to the 53rd would lose
     precision, where before they would have been exact.
 135. **A table to import crosses as one flat list** (from the evaluation after the review;
-    changes A123). `TableData` was a table whose cells could hold tables. The generated
-    decoder, the conversion and the freeing of such a value all call themselves once per
-    level, and the first two run before any check of ours can: a table nested a few thousand
-    deep overflowed the stack of the thread, which ends the process and is not a panic that
-    anything catches. Now `TableData.cells` is every cell in document order, each followed at
-    once by the cells of the grid inside it, and a cell with a grid says only the size of it
-    (`GridSize`: columns and number of cells). No type in `api/wire.rs` contains itself any
-    more, so nothing generated recurses. `convert.rs` puts the core's `Table` together with a
-    list of the grids that are open; `Table::new` refuses one nested deeper than a document
-    may be (`Limit`) as soon as it is made, so nothing deeper is ever built. A grid that says
-    it has more cells than follow is a `BadRequest`; no cells, no columns and rows that are
-    not whole are the core's to refuse (`Invalid`), as before. JSON has the same flat form.
-136. **The JSON form is strict** (from the review; adds to A123). As `serde` reads by default,
-    a field that may be none was none when left out, and unknown fields were passed over: a
-    recorded `SetRangeColor` without its `color` removed the colour, and a misspelt field
-    was read as if it were not there. Now every type of `api/wire.rs` refuses unknown fields,
-    and a field that may be none must be there, as `null`. One thing is still read that is
-    never written: `{"Run": null}` for `"Run"`, and the same for every other name without
-    fields. `serde` reads such a name from either form; both say the same thing, so nothing
-    is lost or guessed, and refusing one would take a reader written by hand for each of
-    seven types. A test pins it. None of this touches what crosses between Dart and Rust:
-    the generated code writes every field in order, without names.
+    changes A123). `TableData` was a table whose cells could hold tables. The generated decoder,
+    the conversion and the freeing of such a value all call themselves once per level, and the
+    first two run before any check of ours can: a table nested a few thousand deep overflowed
+    the stack of the thread, which ends the process and is not a panic that anything catches.
+    Now `TableData.cells` is every cell in document order, each followed at once by the cells of
+    the grid inside it, and a cell with a grid says only the size of it (`GridSize`: columns and
+    number of cells). No type in `api/wire.rs` contains itself any more, so nothing generated
+    recurses. `convert.rs` puts the core's `Table` together with a list of the grids that are
+    open; `Table::new` refuses one nested deeper than a document may be (`Limit`) as soon as it
+    is made, so nothing deeper is ever built. A list that is no table is a `BadRequest`, refused
+    by the bridge before the core sees it: a grid that says it has more cells than follow, and a
+    grid, the outermost or one inside, with no cells, no columns or a row that is not whole
+    (A153). `Limit` stays for a table nested too deep, with too many cells or with a text too
+    long. JSON has the same flat form.
+136. **The JSON form is strict** (from the review; adds to A123). As `serde` reads by default, a
+    field that may be none was none when left out, and unknown fields were passed over: a
+    recorded `SetRangeColor` without its `color` removed the colour, and a misspelt field was
+    read as if it were not there. Now every type of `api/wire.rs` refuses unknown fields, and a
+    field that may be none must be there, as `null`. Unknown and missing fields were not all
+    that `serde` reads and never writes: it also reads an object from a list of its values, and
+    `{"Run": null}` for `"Run"`. Both are refused since A152, which compares what was read with
+    what is written. None of this touches what crosses between Dart and Rust: the generated code
+    writes every field in order, without names.
 137. **Half a surrogate pair in a Dart string is documented, not refused** (from the review).
     A Dart string may hold one, which is no character; Dart's encoder writes U+FFFD in its
     place before Rust sees the string, so the bridge cannot tell it from a U+FFFD that was
@@ -1439,7 +1441,10 @@ are where milestones 4, 5 and 6, built apart, meet).
     false "changed on disk" teaches people to overwrite without looking. Between checking
     and writing, another program can still save and be overwritten; closing that gap would
     take locking, which is not attempted (`write_atomic` already says that two programs
-    saving at once are not protected from each other).
+    saving at once are not protected from each other). The same gap is in creating: `create`
+    looks whether a file is there and then writes, and a file that another program makes at
+    the path between the two is replaced unseen; so is the file that a copy makes. The
+    comment of `create` says so (from the second review).
 139. **A copy of a document that fails removes what it made** (from the evaluation after the
     review). `copy_document` copies the images, then the view state, then saves the document,
     so that a copy that is there is complete. When a later step failed, the image folder with
@@ -1475,30 +1480,33 @@ are where milestones 4, 5 and 6, built apart, meet).
     happened to the file is found by `save()`. It is a flag that every change clears, undo
     and redo included, not a comparison: undo and then redo after a save lead back to what
     was saved and the document is still called unsaved; saving then writes the same bytes
-    again. A command that changes nothing (an empty report) leaves it as it is.
-141. **A file is open in one document at a time** (from the review). Two `OpenDocument`s on
-    one file each saved over the other's work without a word. The bridge keeps a set of the
-    files that documents of this process have open (`open_files.rs`); `open`, `create` and
-    `open_copy` (for the file it makes) first claim the file and are refused with
-    `AlreadyOpen`, with the path as it was asked for, when a document has it. The claim is
-    part of the document and is given up when the document is closed or dropped, and with
-    it when opening fails half-way, so a file is never held by a document that does not
-    exist. Checking and claiming are one step under one lock, so of two opens at the same
-    moment one is refused. What is copied from may be open: a copy only reads it.
-    A file is known by the name of the file that a save would replace, however the path is
-    spelt: where symbolic links lead, without `.` and `..`, from the root
-    (`fs::canonicalize`). A file that is not there yet (`create`, the target of a copy, a
-    file removed while it was open) is known by that name of its folder and its own name.
-    A path through a link that leads nowhere names nothing; nothing is opened or made
-    through such a link anyway. Not seen to be the same file: a second hard link to it, and,
-    for a file that is not there yet, a name that differs only in a way the file system
-    ignores (case on macOS and Windows). And a claim stays on the file that the path named
-    when the document was opened: if a link on the way is changed while it is open, saving
-    follows the new link and the claim does not. The set is the bridge's one piece of state shared
-    by the whole process; it is not in the core, which has none. It knows nothing of other
-    processes: what another program does to the file is seen at saving (A140). A lock that
-    a panicking thread left poisoned is used all the same, since no step on the set can
-    leave it half done.
+    again. A command that changes nothing in the document leaves it as it is: one that asks
+    for nothing new (an empty report), and a `Run` after which formula cells show something
+    else but no cell is different (a report with only `recalculated`; A151).
+141. **A file is open in one document at a time** (from the review). Two `OpenDocument`s on one
+    file each saved over the other's work without a word. The bridge keeps a set of the files
+    that documents of this process have open (`open_files.rs`); `open`, `create` and `open_copy`
+    (for the file it makes) first claim the file and are refused with `AlreadyOpen`, with the
+    path as it was asked for, when a document has it. The claim is part of the document and is
+    given up when the document is closed or dropped, and with it when opening fails half-way, so
+    a file is never held by a document that does not exist. Checking and claiming are one step
+    under one lock, so of two opens at the same moment one is refused. What is copied from may
+    be open: a copy only reads it. A file is known by up to three names, however the path is
+    spelt, and is open if a document holds any of them (A150): the real name of the file that a
+    save would replace (`fs::canonicalize`), the name below its real folder (or below the
+    nearest folder above that is there), and the path as asked, from the root. A file that is
+    not there yet (`create`, the target of a copy, a file removed while it was open) has the
+    last two. A path through a link that leads nowhere has them too and no real name; nothing is
+    opened or made through such a link anyway. Not seen to be the same file: a second hard link
+    to it, and, for a file that is not there yet, a name that differs only in a way the file
+    system ignores (case on macOS and Windows). A claim stays on the names the document had when
+    it was opened: on the file that the path named then, and on the path itself. If a link on
+    the way is changed while the document is open, saving follows the new link; the path is
+    still held, so nothing else is opened or made through it, but the file the link now leads to
+    is not held under its own name. The set is the bridge's one piece of state shared by the
+    whole process; it is not in the core, which has none. It knows nothing of other processes:
+    what another program does to the file is seen at saving (A140). A lock that a panicking
+    thread left poisoned is used all the same, since no step on the set can leave it half done.
 142. **An open document is ended by closing it, and saved when it is dropped unclosed** (from
     the review). There was no close: a handle that Dart let go of took its unsaved edits with
     it. The interface has no notion of throwing edits away (`UI_SPEC.md` has no Save, Close
@@ -1509,7 +1517,8 @@ are where milestones 4, 5 and 6, built apart, meet).
       save fails, the error is returned and the document stays open exactly as it was, so
       nothing is lost; from there `overwrite()` and `close()` keep this document, and
       disposing of the handle keeps the other program's file.
-    - With nothing unsaved, `close()` writes nothing and does not look at the file. So a
+    - With nothing unsaved, `close()` writes nothing and does not look at the file; that
+      includes a document on which only a `Run` that changed no cell was carried out (A151). So a
       document that was only read always closes; a file that was removed meanwhile is not
       brought back, and one that someone else changed is not complained about. (`save()`
       does both, A140: it is asked to make the file hold the document. `close()` is asked
@@ -1540,14 +1549,14 @@ are where milestones 4, 5 and 6, built apart, meet).
     better than saving half a command over what was whole. Calls that only read, and
     saving, set no note: they do not change the document, and a save that panics has not
     replaced the file (the new file gets its name in one last step).
-144. **The app reaches a document through one Dart class that sends its calls in order**
-    (from the review; the Dart part of A127). `Session` (`app/lib/session.dart`) holds the
-    handle `OpenDocument` and is the only thing the app and its tests use. Each call
-    starts when the one made before it has ended, well or badly, whether or not the caller
-    waited: a chain of futures, on the Dart side because that is where the order of calls
-    is known. An error goes to the caller of its own call and the calls after it are
-    carried out all the same. The review's test (40 insertions into one cell without
-    waiting, 20 rounds) was wrong in 2 of 20 rounds on the bare handle when it was run
+144. **The app reaches a document through one Dart class that sends its calls in order** (from
+    the review; the Dart part of A127). `Session` (`app/lib/session.dart`) holds the handle
+    `OpenDocument` and is the only thing the app and its tests use. Each call starts when the
+    one made before it has ended, well or badly, whether or not the caller waited: a chain of
+    futures, on the Dart side because that is where the order of calls is known. An error goes
+    to the caller of its own call and the calls after it are carried out all the same. (An error
+    that no caller waited for was dropped; A154.) The review's test (40 insertions into one cell
+    without waiting, 20 rounds) was wrong in 2 of 20 rounds on the bare handle when it was run
     again here, and is right through the class. What else the class decides:
     - `id`, `root` and `path` are read once when the document is opened and are plain
       values from then on: they never change, and so nothing has to wait for them.
@@ -1564,43 +1573,50 @@ are where milestones 4, 5 and 6, built apart, meet).
       (`PanicException`, then `Internal` on every call) the screen shows one fixed
       sentence and never the text of the exception (A129).
     - `codePoints(text, units)` turns a position in a Dart string, counted in UTF-16
-      units, into the code points the core counts (A11). Nothing sends a position yet.
+      units, into the code points the core counts (A11), and refuses a position outside
+      the text (A154). Nothing sends a position yet.
     - The class carries the comments a Dart developer needs, because the generator drops
       those of the handle's type and of `Command` (A137).
     `InTurn`, the few lines that do the ordering, is a class of its own because the grid
-    screen's logic uses the same thing for its own steps (A146).
-145. **The app saves the document by itself; there is no Save** (from the evaluation after
-    the review; `UI_SPEC.md` has no Save, Close or Discard for documents). The simple grid
-    screen had a menu entry "Save" and nothing else, so the back button, swiping the app
-    away or the system ending it lost every edit. Now `Stage` (`app/lib/grid/stage.dart`)
-    saves:
+    screen's logic uses the same thing for its own steps (A146), and since the third review
+    the keeper of the document and the screen's actions do too (A155, A158).
+145. **The app saves the document by itself; there is no Save** (from the evaluation after the
+    review; `UI_SPEC.md` has no Save, Close or Discard for documents). The simple grid screen
+    had a menu entry "Save" and nothing else, so the back button, swiping the app away or the
+    system ending it lost every edit. Now the document is saved without being asked. (As first
+    built, by `Stage`, `app/lib/grid/stage.dart`; since A155 by `Keeper`, `app/lib/keeper.dart`,
+    which owns the document for every screen on it. What follows is as it is now.) It is saved:
     - **one second after the first change that is not saved yet.** Later changes do not put
       the clock back, so steady typing cannot keep the file old; a change is in the file
-      a second later at the latest, plus the time of the save, while the app runs. Not
+      a second later at the latest, plus the time of the save, while the app runs and the
+      save works (one that fails is tried again by itself, A155). Not
       after every command: on the 100,000-cell document of `measure.dart` (profile build,
       Linux desktop, measured again for this decision) a save takes 213 ms (worst of five
       302 ms) and an edit that no formula depends on 1.2 ms. Saving after each command
       would make such an edit about 170 times dearer, and every next edit would wait for
       the save before it, since calls go one at a time (A144).
-    - **at once when the app is no longer in front** (`AppLifecycleState` inactive, hidden,
-      paused or detached; `WidgetsBindingObserver` in the grid screen), because after that
-      the system may end the app without another word. What is in the editor at that
-      moment is entered into the cell first (the editor stays open), so that half a
-      sentence is not lost either. A save with nothing to save only looks at the file.
-    - **when the screen goes** (`Stage.close`, which is `Session.close`).
-    A save that fails is not swallowed: `Stage.saveError` holds it until a save works, and
-    the screen shows it in a line that stays, with "Try again". For `ChangedOnDisk`
-    (A140) the line offers the choice: "Keep mine" (`overwrite`) or "Open theirs" (let go
-    of this document, open the file again, start at the root; what was not saved here is
-    lost, which is the choice). After a fault in the program (`PanicException`, or
-    `Internal` on any call; A143) the stage lets go of the document, nothing more is
-    saved, every control that reaches the document is gone and the screen shows one
-    fixed sentence. The bridge's own saving when a handle is dropped (A142) stays what it
-    was, a safety net.
-    Not done: nothing is written while the user types into the editor (typing is not
-    bridged as commands yet, A127), so an app that is killed outright, without being
-    moved out of sight first, loses what is in the editor and at most the last second
-    of entered changes.
+    - **at once when the app is no longer in front**, because after that the system may end
+      the app without another word. When it is out of sight (`AppLifecycleState` hidden,
+      paused or detached), what is in the editor is entered into the cell first (the editor
+      stays open), so that half a sentence is not lost either. When it is only `inactive` (a
+      window that lost the focus, a dialog of the system), what is in the document is saved
+      and the editor is left alone. As first built, every state but `resumed` entered the
+      editor's text, from an observer in the grid screen; the third review showed what that
+      did to the cross (A157). The observer is now where the app owns its document (A155). A
+      save with nothing to save only looks at the file.
+    - **when the screen goes** (`Keeper.close`, which is `Session.close` after what is in the
+      editor was entered; A155). A save that fails is not swallowed: `Keeper.saveError` (which
+      `Stage` passes on) holds it until a save works, and the screen shows it in a line that
+      stays, with "Try again". For `ChangedOnDisk` (A140) the line offers the choice: "Keep
+      mine" (`overwrite`) or "Open theirs" (let go of this document, open the file again, start
+      at the root; what was not saved here is lost, which is the choice; since A159 only once
+      that file is known to be readable). After a fault in the program (`PanicException`, or
+      `Internal` on any call; A143) the keeper lets go of the document, nothing more is saved,
+      every control that reaches the document is gone and the screen shows one fixed sentence.
+      The bridge's own saving when a handle is dropped (A142) stays what it was, a safety net.
+      Not done: nothing is written while the user types into the editor (typing is not bridged
+      as commands yet, A127), so an app that is killed outright, without being moved out of
+      sight first, loses what is in the editor and at most the last second of entered changes.
 146. **The steps of the grid screen are taken in order, and none is dropped** (from the
     evaluation after the review). The screen dropped every action that came while another
     ran, a second tap on Undo as well as, before A145, Save. And nothing kept two steps of
@@ -1613,6 +1629,10 @@ are where milestones 4, 5 and 6, built apart, meet).
     any more. Also: going into a grid or up reads first and moves the trail after, so an
     error leaves the stage where it was; and an edit that the core made is not reported as
     failed when reading the stage again fails (`Stage.readError`, shown with "Try again").
+    The third review found that "judges each by the stage as it is when its turn comes" was
+    true of `Stage` and not of the screen, which still decided when the finger came down
+    whether an editor was open, and that "none is dropped" did not hold with the editor
+    open. A158 gives the screen's actions a queue of their own.
 147. **Text in the editor is never thrown away by a tap elsewhere.** The simple grid screen
     closed the editor without a word when one went into a grid, up, along the trail, or
     tapped another cell. `UI_SPEC.md` section 6 says that a tap outside the editor only
@@ -1623,32 +1643,318 @@ are where milestones 4, 5 and 6, built apart, meet).
     - the up arrow, the trail, Undo and Redo enter the text, close the editor and then do
       what they are for. The spec does not say; they are bars, not the grid, and doing
       nothing would make them need two taps. Undo therefore first undoes what was just
-      entered;
+      entered. (If more was typed while the text was entered, the action is not done and
+      the message line says so; A158.)
     - if the core refuses the text, the editor stays open with it and the action is not
       done;
     - if keys were typed while the core worked on Return or the tick, the editor stays
       where it is with those keys, and is not moved or closed over them;
     - the cross (cancel), which the spec does not have, stays for now: it is the one way
-      to say "not this", and it is asked for by name.
-148. **Where the app keeps its document is still temporary** (changes the last sentence
-    of A130). The app made a new folder in the system's temporary folder at every start
-    and the bridge check at every press of Open, and removed none. Now the app has one
-    document, `wombat/example.wombat` in the system's temporary folder: the copy of the
-    example at the first start, and the same file, with everything done to it, at every
-    later start, which is what makes saving mean something. The bridge check has one
-    folder per visit of its screen and removes it when the screen goes. A place that the
-    system does not clear needs the `path_provider` plugin (there is no way to ask
-    Android or iOS for the app's own folder from Dart alone). A dry run of adding it
-    (2.1.6) showed 15 new packages in `pubspec.lock`, among them `jni` and build hooks
-    that compile native code for Android, and registration code generated into
-    `android/` and `linux/`; the Android build could not be run on the machine this was
-    written on (no SDK). It was not added;
-    it belongs with the decision where documents live (also Android's picked documents,
-    which are not paths). Until then the system may clear the folder: on Linux at a
-    restart, and on Android, where it should be the app's cache folder (not tried), when
-    storage is short. If it does so under an open document, the
-    next save writes the file again when the folder is still there (A140) and is shown as
-    failed when it is not.
+      to say "not this", and it is asked for by name. (After the app had been put away
+      the text was in the document already and the cross kept it; A157 makes the cross
+      take it back.)
+148. **Where the app keeps its document is still temporary** (changes the last sentence of A130;
+    **changed by A156** for Linux, macOS and Windows, where it is now the user's data folder.
+    What follows still holds on Android and iOS). The app made a new folder in the system's
+    temporary folder at every start and the bridge check at every press of Open, and removed
+    none. Now the app has one document, `wombat/example.wombat` in the system's temporary
+    folder: the copy of the example at the first start, and the same file, with everything done
+    to it, at every later start, which is what makes saving mean something. The bridge check has
+    one folder per visit of its screen and removes it when the screen goes. A place that the
+    system does not clear needs the `path_provider` plugin (there is no way to ask Android or
+    iOS for the app's own folder from Dart alone). A dry run of adding it (2.1.6) showed 15 new
+    packages in `pubspec.lock`, among them `jni` and build hooks that compile native code for
+    Android, and registration code generated into `android/` and `linux/`; the Android build
+    could not be run on the machine this was written on (no SDK). It was not added; it belongs
+    with the decision where documents live (also Android's picked documents, which are not
+    paths). Until then the system may clear the folder: on Linux at a restart, and on Android,
+    where it should be the app's cache folder (not tried), when storage is short. If it does so
+    under an open document, the next save writes the file again when the folder is still there
+    (A140) and is shown as failed when it is not.
+149. **An open document knows its file by the path from the root that it had when it was
+    opened** (from the second review, R1; adds to A140 and A141). `OpenDocument` kept the
+    path as it was given and worked it out again at every save, while the claim on the file
+    (A141) was made absolute once. After the program's working folder changed, a document
+    opened as `rel.wombat` saved to a new `rel.wombat` in the new folder and answered
+    success; the first file kept its old content, and the new one could be opened beside the
+    document that had just written it. Now the path is made absolute when the document is
+    opened (`std::path::absolute`: against the working folder of that moment, `.` taken
+    out, `..` and links left as they are) and that one path is what is read, saved to,
+    checked and answered by `path()`. Links are deliberately not followed for it: saving
+    through a link goes where the link leads at the time of the save, which is the storage
+    layer's rule (`write_atomic`). A path that cannot be made absolute (the empty path) is an
+    `Io` error with the path as asked. The test changes the working folder, which belongs to
+    the whole process, so it is alone in its test file (`tests/working_folder.rs`).
+150. **A claim holds every name the document's file has** (from the second review, R3, and a
+    case the Dart side reported; changes A141). A claim held one name: where links lead. But
+    an open document is two things that can come apart: the file it read, and the name it
+    saves to. A document opened through a link `L` to `T` held `T`; when `L` was removed,
+    `create(L)` succeeded while the first document went on saving to `L`. A claim now holds
+    up to three names, and a file is open if any name of the newcomer is held by a document:
+    1. the real name of the file that a save would replace (links followed, no `.` or `..`),
+       if there is such a file: a second open through another link, or of the file itself,
+       meets this one;
+    2. the name below its real folder, without following a link that the name itself is. If
+       the folder is not there (it was removed under the open document and may be made
+       again), it is the name below the nearest folder above that is there;
+    3. the path as asked, from the root, which stays when a link on the way to the folder is
+       changed.
+
+    So nothing is opened or made at the name of an open document when its link was removed
+    or made to lead elsewhere, when its file is gone, or when its folder is gone or was
+    removed and made again, however the path is spelt. Opening the link's target directly,
+    or through a second link, is refused as before. All names are given up together when the
+    document is closed or dropped; checking and claiming are still one step under one lock.
+    Still not seen to be the same file: a second hard link, and for a file that is not there
+    yet a name that differs only in a way the file system ignores. Still possible: a link is
+    made to lead to a file that a second document already has open by its real name;
+    `overwrite()` on the first then writes into the second's file (`save()` refuses with
+    `ChangedOnDisk`).
+151. **Only a change to the document makes it unsaved** (from the second review, R4; changes
+    the last sentences of A140). The flag "saved" was cleared by every report that was not
+    empty, and a report also lists the formula cells that show something else
+    (`recalculated`). Program > Run on a saved document whose program changes no cell gives
+    a report with only that list: nothing joins the undo history and a save would write the
+    same bytes, but the document counted as unsaved, and `close()` then answered
+    `ChangedOnDisk` if another program had changed the file, although a document with
+    nothing unsaved always closes (A142). The flag now follows the core's `Changes`
+    (changed, created, removed, grids, tags): what formula cells show is worked out from the
+    document and is in no file.
+152. **Only the form of JSON that is written is read** (from the second review, R5; replaces
+    the exception in A136). `serde` reads more forms than it writes. Besides `{"Run": null}`
+    for `"Run"`, which A136 allowed, it reads any object from a list of its values in order:
+    `{"InsertText": ["<id>", 1, "x"]}`, a colour as `[1, 2, 3]`, a report as six lists. A
+    list has no names, so a value in the wrong place is read as another field, which is what
+    strict reading is there to prevent. `record.rs` now reads the text a second time as JSON
+    of any kind and compares it with what is written for the value it read; text in any
+    other form is a `BadRequest`. What may differ is what JSON itself takes for the same:
+    spaces and line ends, the order of the fields of an object, and a whole number where a
+    fraction may stand (`1` for `1.0`). `{"Run": null}` is refused with the rest. The other
+    way, a deserializer that hands `serde` only maps for objects, has to wrap the
+    deserializer, the visitor, the seed and the accesses to lists, maps, enums and variants
+    for the rule to reach nested values: an estimated 180 lines of forwarding (it was not
+    written) against 35 here. The price is time: a text is read twice and written once,
+    about three times the cost of reading, which a record that is played back can afford.
+    Nothing of this touches what crosses between Dart and Rust.
+153. **A list that is no table is a bad request, never `Invalid`** (from the second review,
+    R8; changes the end of A135 and completes A133). A malformed table got two kinds: a grid
+    short of cells or a number out of range was `BadRequest`; no cells, no columns and rows
+    that are not whole were `Invalid`, the core's word for a file that breaks a rule of the
+    format. A caller could not read `Invalid` as "the file is broken", which is what A133
+    made `BadRequest` for. `convert.rs` now checks the shape of every grid of the flat list,
+    the outermost and each one inside, before the core is asked: at least one column, at
+    least one cell, only whole rows, and as many cells as it says. What is left for the core
+    to refuse is a table past a limit of documents, and that stays `Limit`: nested too deep,
+    too many cells, a text too long. This is a deliberate change of behaviour: lists that
+    were answered `Invalid` are answered `BadRequest`.
+
+    Also from the second review, about CI (R12): the check that the generated bridge code is
+    fresh removes the generated Dart folder (`app/lib/src/rust`) and `frb_generated.rs`
+    before it runs the generator, so that a file the generator writes no more shows as
+    deleted; run over the files in place, such a file was neither changed nor new and
+    stayed unseen. The generator runs without them (tried with 2.13.0: no difference on the
+    committed code; a stale file committed under `app/lib/src/rust/api/` passes the old
+    check and fails the new one). Still as it was: the bridge is never built for iOS, and
+    for Android only with rustup's `stable` (A131); actions are pinned by tag, not by commit.
+154. **The queue of calls loses no error and does not wait for itself** (from the third
+    review, of the Dart side; adds to A144). `InTurn` chained every piece of work to the one
+    before, and so that one failure would not end the chain, the chain took every error;
+    for Dart that counted as the error having been handled, so the error of a call that
+    nobody awaited vanished. And a piece that awaited another piece of its own queue waited
+    for ever, since that one comes after it. Now:
+    - The answer that `run` gives knows whether anyone has taken it (`await`, `then`,
+      `catchError`, `whenComplete`, `timeout`, `asStream`). If someone has when the piece
+      fails, the error goes to that caller alone. If no one has, it goes once to the
+      handler the owner of the queue gave (`onUnheard`; the grid screen shows it on its
+      message line), or without one to the zone as an error nobody caught, which is where
+      Dart sends such errors and what fails a test. "At the moment it fails" is the rule
+      Dart itself has for futures: someone who takes the answer only afterwards finds the
+      error in it as well.
+    - Each piece runs in a zone that carries a mark of its own, and the queue remembers the
+      mark of the piece that runs. `run` called from inside that piece fails at once with a
+      `StateError` that says so, and runs nothing; waited for or not, since the two cannot
+      be told apart. Something a piece left behind (a timer, a listener) that runs after it
+      may ask the queue again. The mark is taken off just after
+      the piece has ended (in the next microtask), so in that instant such a call is refused
+      too; nothing in the app does that.
+    - The chain is made of plain callbacks. With `whenComplete` or an `async` closure in
+      it, 16,000 queued pieces took 90 seconds in a test (each one a little longer than
+      the one before); as it is they take about a quarter of a second.
+
+    Three smaller things from the same review. `Session.over` lets go of the handle when
+    the handle cannot say its ID, root or path, instead of leaving a file taken by
+    something nobody holds. `codePoints` refuses a position below 0 or beyond the text with
+    a `RangeError`, as the core refuses a position and never moves it (A11); that includes
+    -1, which a `TextSelection` gives when there is no selection, so a caller asks
+    `selection.isValid` first. Clamping was the other choice and would have put text at the
+    start of a cell for a selection that is none. And the Dart tests ask cargo where it
+    built the library they load (`--message-format=json`) instead of working the folder
+    out, which was wrong for a relative `CARGO_TARGET_DIR` and silent for other settings.
+155. **Saving belongs to what owns the document, not to a screen** (the coordinator's
+    decision after the third review; changes A145 and A146). The clock that saves after a
+    change was in `Stage`, the watching of the app's lifecycle in the grid screen's widget,
+    and "ended after a fault" a state of each `Stage`: a second screen on the same document
+    would have had none of it, or a second copy of all of it. `Keeper`
+    (`app/lib/keeper.dart`) now owns the `Session` for every screen on the document:
+    - Screens read and change the document through it (`grid`, `apply`, `undo`, `redo`),
+      one call at a time (`InTurn`). A change starts the clock (A145); a fault ends the
+      work for everyone (`ended`); `saveError`, `ended` and `opens` are what a screen
+      shows, and it is told when they change. `Stage` holds no `Session` any more, only
+      passes those on, and asks (`save`, `keepMine`, `openTheirs`).
+    - **A save that failed is tried again by itself** (the review's finding: after one
+      failure nothing was tried until the next change or the user). The wait starts at the
+      delay of saving, one second, and doubles with every failure up to a minute: 1, 2, 4,
+      8, 16 and 32 seconds after the failure before, then every 60. A save that works puts
+      it back to one second. Not tried again: `ChangedOnDisk`, which only the user can
+      answer. It stops when the document is closed, let go of or ended. While a save is
+      waiting to be tried again, a new change does not bring it forward.
+    - **The app's lifecycle is watched where the app owns its document**: `Kept` in `main.dart`,
+      a widget around the screen. `inactive` calls `Keeper.save`; `hidden`, `paused` and
+      `detached` call `Keeper.putAway`, which first lets everything that works on the document
+      finish what it has begun and then saves. What "finish" means each says itself
+      (`addFinisher`): a stage waits for the steps asked of it, the grid screen enters what is
+      in its editor (A157). A screen that goes away with text in its editor enters it as one
+      more step of its stage, which the keeper waits for like the others. If something cannot
+      finish, the document is saved all the same.
+    - **A close that cannot save leaves the document open** (changes A145's "when the
+      screen goes"). `Stage.close` let go of the document when the save failed, which made
+      the bridge try the same save again on the thread that draws (A142) and told no
+      screen. `Keeper.close` now throws, keeps the document in use, puts the error in
+      `saveError` and tries again like any save that failed, so that a screen can say so.
+      Only an owner with no screen left calls `letGo` (`endKeeping` in `main.dart`, when
+      the app's last screen goes), which is the bridge's safety net and never writes over
+      another program's work.
+    - The keeper does not close itself and `Stage` does not close it: whoever made it does.
+    Four queues are now one inside the other (the screen's actions, the stage's steps, the
+    keeper's calls, the session's calls). Each asks only the one below it, and the guard
+    of A154 turns a mistake in that order into an error instead of a wait without end.
+    The price of the move: something that calls `Keeper.save` directly is not ordered after
+    a stage's steps that have not reached the keeper yet; `putAway` and `close` are, through
+    the finishers, and the save by the clock need not be.
+156. **On desktops the document is in the user's data folder; a document that cannot be
+    opened can be put aside** (the coordinator's decision after the third review; changes
+    A148). `wombat/` in the system's temporary folder is `/tmp/wombat` on Linux: one folder
+    for every user of the machine, which the system clears. Without a new dependency,
+    `documentFolder` in `app/lib/main.dart` works the folder out from the environment:
+    - Linux: `$XDG_DATA_HOME/wombat` if that is set and starts at the root (the
+      specification says to pass over one that does not), else `$HOME/.local/share/wombat`;
+    - macOS: `$HOME/Library/Application Support/wombat`;
+    - Windows: `%APPDATA%\wombat`;
+    - Android, iOS, anything else, and a desktop whose environment does not say:
+      `wombat` in `Directory.systemTemp`. On a phone that is the app's own cache folder,
+      **which the system may clear** when storage is short; a real documents folder there
+      needs the `path_provider` plugin or a picker (A148 says what adding it brings), and
+      is still to decide.
+
+    The function takes the system's name, the environment and the temporary folder as
+    arguments, and a test goes through every branch; the macOS and Windows branches have
+    never run on those systems. A document that an earlier build left in `/tmp/wombat` on a
+    desktop is not moved: there is none anyone keeps.
+    The app has one fixed file, so a file there that cannot be read (a save cut short by
+    a crash of the machine, another program's file) showed the same error at every start
+    and offered nothing. The start screen now says that the document could not be opened,
+    names the file, and has two buttons: "Try again", and "Put that file aside and start
+    with the example", which gives the file the name `example-put-aside-<time>.wombat` in
+    the same folder and opens a new copy of the example. Nothing is deleted. The second is
+    not offered when the file is merely open already (`AlreadyOpen`), which is not the file's
+    doing, or when there is no file to put aside (the folder could not be made). It is
+    offered after a fault while opening: a file that makes the core fail is exactly what to
+    put aside.
+157. **Text that went into the document because the app was put away is not yet said yes
+    to** (the coordinator's decision after the third review; changes A147). When the app
+    goes out of sight, what is in the editor is entered so that it is in the file (A145).
+    The user has not pressed the tick, though, and after coming back the cross closed the
+    editor and left the text in the cell, and the tick made a second step of the undo
+    history out of one editing. The bridge has no groups of commands yet (A127), so with
+    what there is:
+    - The screen remembers the text that went in that way (only if it changed the cell).
+    - **The cross undoes it.** That entering is the latest command, so one undo puts the
+      cell, and the undo history, back as they were before the editor opened.
+    - **The next entering takes its place**: the tick, Return, a tap elsewhere, an action
+      of the bars, or the app put away once more first undo that command and then enter
+      the text as it is now (`Stage.enterText` with `insteadOfLast`), so one editing is one
+      step whatever happened in the middle. If the text is the one that went in, nothing
+      is sent. If it is the text the cell had before, the undo is all, and no step is left.
+      If the core refuses the new text, the undone command is redone and the editor stays.
+    - Only `hidden`, `paused` and `detached` enter the text; `inactive` does not (A155), so
+      a window that loses the focus leaves nothing to take back.
+
+    What this cannot do, and what remains:
+    - After the cross, Redo brings the cancelled text back: the entering is in the redo
+      history. And whatever could be redone before the app was put away cannot any more:
+      the entering emptied the redo history, as every command does.
+    - It rests on that entering being the latest command when the cross or the tick comes.
+      That holds while one screen works on the document, since every other action of the
+      screen closes the editor first. A second screen that changed the document in between
+      would have its command undone instead. Entering as one group of commands, which the
+      core has (`begin_group`, `end_group`) and the bridge does not carry, would remove
+      both this and the point above.
+    - Between the undo and the new entering the document holds the old text; a save by the
+      clock that falls exactly there writes that, and the next save, a second later,
+      writes the new text.
+    - An app that is ended while it is only `inactive` loses what is in the editor, as an
+      app that is ended outright does (A145).
+158. **Every action on the grid screen goes through one queue** (the coordinator's decision
+    after the third review; completes A146). `Stage` took its steps in order, but the
+    screen read "is an editor open?" when the finger came down and acted on it when the
+    step before had ended. A cell tapped and then "Open ›", the up arrow or the trail,
+    while any step was still at work (the document's own save is enough), opened the editor
+    and then moved the stage away from under it; the second of two taps on Undo with the
+    editor open was dropped, and so was an action when more had been typed while the
+    editor's text was entered. Now a tap on a cell or on "Open ›", up, the trail, Undo,
+    Redo, Return, the tick, the cross, the buttons of the line that says what is wrong, the
+    system's back and the app being put away each become one action in one queue
+    (`InTurn`), and an action looks at the editor and the stage when its turn comes. The
+    three sequences of the review, and the same with up and the trail, now end as if the
+    taps had come one after the other: the editor opens, and the tap after it, being a tap
+    outside the editor, closes it (A147).
+    - **No action is dropped without a word.** It is done, or the message line says why
+      not: what the core refused; "Not done: more was typed in the meantime. It is still in
+      the editor." when an action of the bars could not close the editor because the user
+      typed on while its text was entered (what was sent is in the document); and an error
+      nobody expected, through the queue's handler (A154). After a fault the sentence that
+      takes the place of the grid is the answer to every action still in the queue.
+    - **One thing is done without a word, on purpose:** a tap on a cell or on "Open ›"
+      whose cell is no longer on the stage when its turn comes does nothing. That is the
+      second of two taps on "Open ›", and a cell tapped while the way up was still being
+      read. The stage has visibly moved; a message would be noise after every double tap,
+      and opening whatever is at that place now would act on a cell the user never saw.
+    - The message line is cleared when the user acts, not when the action's turn comes, so
+      what one action said is not wiped by the next one in the queue before it was seen.
+    - **The system's back is "up one level"** (`UI_SPEC.md` section 10; it was not handled,
+      so Android's back left the app from any level). The screen never lets the route pop
+      by itself (`PopScope`); back is the same action as the arrow, what is typed is kept
+      first, and at the root the action asks the system to leave the app
+      (`SystemNavigator.pop`). Deciding in the action and not when the frame was built is
+      what keeps two quick backs from leaving the app from a level that was only about to
+      be left. The price: Android's animation that shows where back leads is off for this
+      screen. After a fault back is the system's again.
+    - **Return keeps the keyboard.** The editor's action is "next", and Flutter's answer to
+      that is to move the focus to the next widget unless the field says what Return does
+      (`onEditingComplete`). The focus only came back when the editor moved to the cell
+      below; when the core refused the text, the editor stayed open without it. The test
+      that was to show keys typed while Return is at work passed because
+      `tester.enterText` gives the field the focus first; the screen's tests now type into
+      whatever has the keyboard, as a user does.
+    - The screen takes another stage when it is given one (`didUpdateWidget`), and enters
+      what is in its editor when it goes (`dispose`); neither was handled.
+159. **"Open theirs" looks before it lets go** (the coordinator's decision after the third
+    review; changes A145). The choice let go of this document and then opened the file. If
+    the other program's file could not be read, the unsaved work was gone, nothing was
+    open, and since the app has one fixed file every later start failed too. The bridge
+    opens a file once (A141), so the file cannot be opened beside the document that holds
+    it; but a copy only reads what it copies from. `readable` in `app/lib/keeper.dart` asks
+    the core for a copy of the file in a folder of its own in the system's temporary
+    folder, closes it and removes the folder: if that works, the file can be read. Only
+    then is this document let go of and the file opened. If it does not work, nothing
+    changed: the document is open and unsaved, the line still offers "Keep mine" and "Open
+    theirs", and the message says that the other file cannot be opened and why.
+    The copy costs reading and writing the document once (and its pictures). A gap is
+    left: the file can be changed again between the look and the opening. If it then
+    cannot be read, no document is open; the screen says so, and that at the next start
+    the app offers to put the file aside (A156). Closing the gap needs a call that opens a
+    file in place of the document a handle holds, or one that reads a file without opening
+    it, in the bridge.
 
 ## B. Deliberate departures from TreeSheets
 

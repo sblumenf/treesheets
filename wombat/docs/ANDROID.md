@@ -27,9 +27,12 @@ SDK and NDK 2.7 GB, Gradle's downloads 3.7 GB, the build folder 4.3 GB).
 
 ## Each time: get the code and a device
 
+The branch this work is on, `claude/affectionate-dijkstra-bx8xxw` when this was written
+(use the branch you were given if it has moved on):
+
 ```sh
-git fetch origin claude/focused-cannon-r4a117
-git checkout claude/focused-cannon-r4a117
+git fetch origin claude/affectionate-dijkstra-bx8xxw
+git checkout claude/affectionate-dijkstra-bx8xxw
 cd wombat/app
 flutter pub get
 flutter devices
@@ -51,12 +54,28 @@ Nobody has seen this screen yet, on any device: say what looks wrong, what is to
 tap, and what the on-screen keyboard covers.
 
 There is no Save: the app saves by itself (`milestones/UI1.md`). **This has never run on a
-phone, so try it on purpose:** type into a cell and, without pressing the tick, go to the
-home screen, then swipe the app away and start it again. What was typed should be in the
-cell. Do the same with the back button, and by turning the phone off and on while typing.
-The document is kept in what Dart calls the system's temporary folder for now (decision
-A148); on Android that should be the app's cache folder, which Android may clear when
-storage is short. Say in `milestones/UI1.md` where it really was.
+phone, so try it on purpose:**
+
+- Type into a cell and, without pressing the tick, go to the home screen, then swipe the
+  app away and start it again. What was typed should be in the cell.
+- Type into a cell, go to the home screen and come back: the editor should be as it was.
+  Then press the cross: the cell should have the text from before the editor opened
+  (decision A157). Do it again with the tick, and then press Undo once: the same.
+- Pull down the notification shade, or open the list of apps and come straight back, while
+  typing: that makes the app `inactive` but not hidden, and the text should stay in the
+  editor only.
+- The back button and the back swipe: with a nested grid open they should go up one level,
+  with the editor open they should keep what was typed first, and at the root they should
+  leave the app (A158). Say what the keyboard's own back does.
+- Return on the on-screen keyboard (it is shown as "next"): the editor should move to the
+  cell below and keep the keyboard.
+- Turn the phone off and on while typing.
+
+The document is kept in what Dart calls the system's temporary folder (decisions A148 and
+A156); on Android that should be the app's cache folder, which Android may clear when
+storage is short. Say in `milestones/UI1.md` where it really was. If the app ever starts
+with "The document could not be opened", it offers to put the file aside: say what led to
+it.
 
 ## 2. Let the tests press the buttons
 
