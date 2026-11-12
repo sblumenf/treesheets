@@ -311,7 +311,7 @@ Future<Measurement> measure(
     '${folder.path}/nested-${nested.map((s) => '${s.$1}x${s.$2}').join('-')}.wombat',
   );
   if (!deep.existsSync()) {
-    await _write(deep, nestedTable(nested), 'Nested');
+    await writeDocument(deep, nestedTable(nested), 'Nested');
   }
   final levels = await Session.open(deep.path);
   final count = nestedTable(nested).cells.length + 1;
@@ -455,10 +455,17 @@ Future<(T, Duration)> heldDuring<T>(Future<T> Function() call) async {
 /// Builds the document with one import command: one call across the bridge, and the
 /// core makes all the cells in one step. A hundred thousand commands would measure the
 /// bridge a hundred thousand times before the measuring starts, and fill the history.
-Future<void> _build(File file, int across, int down) {
+Future<void> _build(File file, int across, int down) =>
+    // The formula finds the root by this text.
+    writeDocument(file, largeTable(across, down), 'Large');
+
+/// The large document as a table to import: `across` by `down` sections, each with
+/// a grid of 10 by 10 cells with text; the last cell of all is a formula that reads
+/// every cell of a document whose root has the text "Large".
+TableData largeTable(int across, int down) {
   final sections = across * down;
   // A table is one flat list: each section is followed by the cells of its grid.
-  final table = TableData(
+  return TableData(
     xs: across,
     cells: [
       for (var n = 0; n < sections; n++) ...[
@@ -477,13 +484,11 @@ Future<void> _build(File file, int across, int down) {
       ],
     ],
   );
-  // The formula finds the root by this text.
-  return _write(file, table, 'Large');
 }
 
 /// Makes the document whose root has the text `name` and `table` as its grid, and
 /// saves it at `file`.
-Future<void> _write(File file, TableData table, String name) async {
+Future<void> writeDocument(File file, TableData table, String name) async {
   // Under another name until it is whole, so that a run that was stopped half-way does
   // not leave a file that the next run takes for the document.
   final part = File('${file.path}.part');

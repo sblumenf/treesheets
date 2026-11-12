@@ -146,7 +146,7 @@ jobs:
           exit 1
         fi
     - name: Format
-      run: dart format --output=none --set-exit-if-changed lib/*.dart lib/grid test integration_test test_driver
+      run: dart format --output=none --set-exit-if-changed lib/*.dart lib/grid lib/phone test integration_test test_driver
     - name: Analyze
       run: flutter analyze
     - name: Build the bridge

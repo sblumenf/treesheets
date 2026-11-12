@@ -4,7 +4,8 @@
 // that a widget test does not let pass by itself (`until` does, and waits for the
 // thing, not for a time), and on a stand-in for the core where time or a failure must
 // be made. The screen is the least there can be (`ProbeScreen`), since none of this
-// is a screen's; the last group has the app with the screen it really shows.
+// is a screen's; the last group has the app with the screen it really shows, and
+// the test documents of the prototype that the start screen opens for it.
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
@@ -810,54 +811,281 @@ void main() {
     });
   });
 
-  // The app as it is until the interface of UI_SPEC is built: with the simple grid
-  // screen. These go with that screen.
-  group('with the stand-in screen', () {
-    testWidgets('the app shows the grid of its document', (tester) async {
-      final folder = Directory('${root.path}/grid-${count++}');
+  // The app with the screen it really shows, and what the start screen does for it:
+  // the test documents of the prototype, and its log.
+  group('with the phone screen', () {
+    String? line(WidgetTester tester, String name) =>
+        key(name).evaluate().isEmpty ? null : text(tester, name);
+
+    /// Asks the core something, and waits for it as `until` waits.
+    Future<T> real<T>(WidgetTester tester, Future<T> Function() work) async {
+      T? value;
+      var done = false;
+      unawaited(
+        work().then((answer) {
+          value = answer;
+          done = true;
+        }),
+      );
+      await until(tester, () => done);
+      return value as T;
+    }
+
+    Future<Directory> startedPhone(WidgetTester tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(400, 800);
+      addTearDown(tester.view.reset);
+      final folder = Directory('${root.path}/phone-${count++}');
       await tester.pumpWidget(WombatApp(folder: folder));
-      await until(tester, () => key('title').evaluate().isNotEmpty);
-      expect(text(tester, 'title'), 'Example');
-      await tester.tap(key('cell-1'));
+      await until(tester, () => line(tester, 'title') == 'Example');
+      await until(tester, () => key('stage-across').evaluate().isNotEmpty);
+      return folder;
+    }
+
+    /// Chooses a test document from the menu, and waits until its level shows.
+    Future<void> show(WidgetTester tester, String name, String title) async {
+      await tester.tap(key('menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('document-$name'));
+      await until(
+        tester,
+        () =>
+            key('opening').evaluate().isEmpty &&
+            key('reading').evaluate().isEmpty &&
+            line(tester, 'title') == title &&
+            line(tester, 'state') == 'Saved',
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the app shows its document, and keeps what is typed on it', (
+      tester,
+    ) async {
+      final folder = await startedPhone(tester);
+      // No banner of the debug build over the menu.
+      expect(
+        tester.widget<MaterialApp>(find.byType(MaterialApp)),
+        isA<MaterialApp>().having(
+          (app) => app.debugShowCheckedModeBanner,
+          'banner',
+          isFalse,
+        ),
+      );
+      await tester.tap(key('cell-1-0'));
       await until(tester, () => key('editor').evaluate().isNotEmpty);
       tester.testTextInput.enterText('typed and left');
-      // The app is taken away with the editor open: the text is entered as a step
-      // of the stage, which the keeper waits for before it closes the document.
+      // The app is taken away with the editor open: the text is entered, which
+      // the keeper waits for before it closes the document.
       await end(tester);
       expect(
         File('${folder.path}/example.wombat').readAsStringSync(),
         contains('"typed and left"'),
       );
+      // What was done is in the prototype log, which is in the app's folder.
+      final log = File('${folder.path}/$logName');
+      await until(tester, log.existsSync);
+      expect(log.readAsLinesSync().first, contains('"what":"edit"'));
+      expect(log.readAsStringSync(), isNot(contains('typed and left')));
     });
 
-    testWidgets('the stage goes with the screen', (tester) async {
-      final fake = FakeDocument();
-      final keeper = Keeper(await Session.over(fake));
-      await tester.pumpWidget(MaterialApp(home: GridOnKeeper(keeper)));
-      await tester.pump();
-      expect(text(tester, 'title'), 'Root');
-      // ignore: invalid_use_of_protected_member
-      expect(keeper.hasListeners, isTrue);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump();
-      // ignore: invalid_use_of_protected_member
-      expect(keeper.hasListeners, isFalse);
-      await keeper.close();
-    });
-
-    testWidgets('a root that cannot be read is said', (tester) async {
-      final fake = FakeDocument()..cells.remove('root');
-      final keeper = Keeper(await Session.over(fake));
-      await tester.pumpWidget(MaterialApp(home: GridOnKeeper(keeper)));
-      await tester.pump();
+    testWidgets('the test documents are in the menu, each made when first asked '
+        'for', (tester) async {
+      final folder = await startedPhone(tester);
+      // Something typed and not said yes to goes with the document it was typed
+      // in, when another is shown.
+      await tester.tap(key('cell-1-0'));
+      await until(tester, () => key('editor').evaluate().isNotEmpty);
+      tester.testTextInput.enterText('left for another document');
+      final example = keeperOf(tester);
+      await show(tester, 'forms', 'Depth forms');
+      expect(example.ended, 'The document was closed.');
+      expect(key('editor'), findsNothing);
       expect(
-        text(tester, 'stage-error'),
-        startsWith('The document could not be read. Error (notFound): '),
+        File('${folder.path}/example.wombat').readAsStringSync(),
+        contains('"left for another document"'),
       );
-      await tester.pumpWidget(const SizedBox());
-      // ignore: invalid_use_of_protected_member
-      expect(keeper.hasListeners, isFalse);
-      await keeper.close();
+      expect(keeperOf(tester).path, '${folder.path}/depth-forms.wombat');
+      // Each form of the depth budget is on its first screen, at this width.
+      for (final form in ['full-1-0', 'preview-1-1']) {
+        expect(key(form), findsOneWidget, reason: form);
+      }
+      await tester.drag(key('stage-down-0'), const Offset(0, -300));
+      await tester.pumpAndSettle();
+      expect(key('shape-1-2/0-0'), findsOneWidget);
+      expect(key('badge-1-3/0-0'), findsOneWidget);
+      expect(key('badge-1-3/1-0'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await show(tester, 'empty', 'Wombat');
+      expect(key('empty-root'), findsOneWidget);
+      // The one that is shown cannot be chosen again.
+      await tester.tap(key('menu'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<PopupMenuItem<VoidCallback>>(key('document-empty'))
+            .enabled,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<PopupMenuItem<VoidCallback>>(key('document-example'))
+            .enabled,
+        isTrue,
+      );
+      await tester.tap(key('document-example'));
+      await until(tester, () => line(tester, 'title') == 'Example');
+      await until(tester, () => key('cell-1-0').evaluate().isNotEmpty);
+      await until(
+        tester,
+        () =>
+            tester
+                .widget<Text>(
+                  find.descendant(
+                    of: key('cell-1-0'),
+                    matching: find.byType(Text),
+                  ),
+                )
+                .textSpan!
+                .toPlainText() ==
+            'left for another document',
+      );
+      expect(
+        names(folder),
+        containsAll(['depth-forms.wombat', 'empty.wombat', 'example.wombat']),
+      );
+      // Made once: the next time it is the file as it was left.
+      final made = File('${folder.path}/depth-forms.wombat').lastModifiedSync();
+      await show(tester, 'forms', 'Depth forms');
+      expect(
+        File('${folder.path}/depth-forms.wombat').lastModifiedSync(),
+        made,
+      );
+      await end(tester);
+    });
+
+    testWidgets('the large and the six-level document open, and are what they '
+        'say', (tester) async {
+      await startedPhone(tester);
+      await show(tester, 'nested', 'Six levels');
+      var keeper = keeperOf(tester);
+      var grid = await real(tester, () => keeper.stage(keeper.root, phoneAsk));
+      expect((grid.grids.first.xs, grid.grids.first.ys), (12, 20));
+      // Six levels of grids below the root's own.
+      var cell = keeper.root;
+      for (var level = 0; level < 6; level++) {
+        final at = cell;
+        final cells = (await real(tester, () => keeper.grid(at))).cells;
+        expect(cells, isNotEmpty, reason: 'level $level');
+        cell = cells.first.id;
+      }
+      final last = cell;
+      expect((await real(tester, () => keeper.grid(last))).cells, isEmpty);
+      await show(tester, 'large', 'Large');
+      keeper = keeperOf(tester);
+      final large = keeper;
+      grid = await real(tester, () => large.stage(large.root, phoneAsk));
+      expect((grid.grids.first.xs, grid.grids.first.ys), (10, 100));
+      expect(grid.summaries.first.xs * grid.summaries.first.ys, 100);
+      expect(key('preview-0-0'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await end(tester);
+    });
+
+    testWidgets(
+      'a test document that cannot be opened: said, with the way back '
+      'to the example',
+      (tester) async {
+        final folder = await startedPhone(tester);
+        File('${folder.path}/empty.wombat').writeAsStringSync('half written');
+        await tester.tap(key('menu'));
+        await tester.pumpAndSettle();
+        await tester.tap(key('document-empty'));
+        await until(tester, () => key('start-error').evaluate().isNotEmpty);
+        expect(
+          text(tester, 'start-error'),
+          startsWith('The document could not be opened. Error (syntax): '),
+        );
+        // Not put aside: only the app's own document is.
+        expect(key('start-over'), findsNothing);
+        await tester.tap(key('start-again'));
+        await until(tester, () => key('start-error').evaluate().isNotEmpty);
+        await tester.tap(key('start-example'));
+        await until(tester, () => line(tester, 'title') == 'Example');
+        expect(
+          File('${folder.path}/empty.wombat').readAsStringSync(),
+          'half written',
+        );
+        await end(tester);
+      },
+    );
+
+    test(
+      'a log that is exported goes where the system has room for it',
+      () async {
+        // The folder the system shares with the user, and the app's own where
+        // the system has none, or cannot say.
+        final fallback = Directory('/fallback');
+        expect(
+          (await exportFolder(
+            fallback,
+            shared: () async => Directory('/downloads'),
+          )).path,
+          '/downloads',
+        );
+        expect(
+          (await exportFolder(fallback, shared: () async => null)).path,
+          '/fallback',
+        );
+        expect(
+          (await exportFolder(
+            fallback,
+            shared: () => throw UnsupportedError('no such folder here'),
+          )).path,
+          '/fallback',
+        );
+      },
+    );
+
+    testWidgets('exported from the app: into a folder beside its documents', (
+      tester,
+    ) async {
+      final folder = await startedPhone(tester);
+      await tester.tap(key('menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('menu-settings'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('variant-pin'));
+      await tester.pump();
+      await tester.ensureVisible(key('log-export'));
+      await tester.tap(key('log-export'));
+      await until(tester, () => key('log-said').evaluate().isNotEmpty);
+      final exported = Directory('${folder.path}/exports').listSync();
+      expect(exported.single.path, endsWith('.jsonl'));
+      expect(
+        File(exported.single.path).readAsStringSync(),
+        contains('"what":"variant"'),
+      );
+      await tester.tap(key('settings-close'));
+      await tester.pumpAndSettle();
+      // The switches are the app's, not a document's: they stay when another
+      // document is shown.
+      await show(tester, 'forms', 'Depth forms');
+      expect(key('stage-first-row'), findsNothing);
+      await end(tester);
+    });
+
+    testWidgets('the bridge check is behind the menu', (tester) async {
+      await startedPhone(tester);
+      await tester.tap(key('menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('bridge-check'));
+      await tester.pumpAndSettle();
+      expect(find.text('Press Open.'), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(line(tester, 'title'), 'Example');
+      await end(tester);
     });
   });
 }

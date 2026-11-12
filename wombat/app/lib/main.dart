@@ -8,19 +8,22 @@ import 'package:path_provider/path_provider.dart';
 
 import 'demo_screen.dart';
 import 'example.dart';
-import 'grid/grid_screen.dart';
-import 'grid/stage.dart';
 import 'keeper.dart';
+import 'phone/log.dart';
+import 'phone/phone_screen.dart';
+import 'phone/variants.dart';
+import 'phone/words.dart';
 import 'session.dart';
 import 'src/rust/api/wire.dart';
 import 'src/rust/frb_generated.dart';
+import 'test_documents.dart';
 
 /// The name of the app's one document in its folder.
 const documentName = 'example.wombat';
 
-/// The Wombat app as far as it goes: a simple grid screen on one document, which starts
-/// as the example, and the plain-text check of the bridge behind a menu entry. Not yet
-/// the interface that `docs/UI_SPEC.md` specifies.
+/// The Wombat app as far as it goes: the phone screen of `docs/UI_SPEC.md`, its first
+/// slice, on one document, which starts as the example; the prototype's test
+/// documents and the plain-text check of the bridge are behind its menu.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
@@ -113,20 +116,47 @@ Future<Directory> putAside(Directory folder, {DateTime? now}) async {
   return aside;
 }
 
-/// The Wombat app: its one document, opened at the start and kept in its file, and
-/// on it the screen that `screen` builds.
+/// The file of the prototype log in the app's folder.
+const logName = 'prototype-log.jsonl';
+
+/// Where a log that the user exports is written: the folder that `shared` gives,
+/// or `fallback` where the system has none. Without `shared` the system is asked:
+/// on Android for the app's folder on the storage that a computer sees when the
+/// phone is plugged in (`Android/data/<application ID>/files`), elsewhere for the
+/// user's folder for downloads.
+Future<Directory> exportFolder(
+  Directory fallback, {
+  Future<Directory?> Function()? shared,
+}) async {
+  try {
+    final folder =
+        await (shared ??
+            (Platform.isAndroid
+                ? getExternalStorageDirectory
+                : getDownloadsDirectory))();
+    if (folder != null) return folder;
+  } on Object {
+    // Not every system has such a folder, and some say so by throwing.
+  }
+  return fallback;
+}
+
+/// The Wombat app: its document, opened at the start and kept in its file, and on
+/// it the phone screen, or the screen that `screen` builds.
 class WombatApp extends StatelessWidget {
-  const WombatApp({super.key, this.folder, this.screen = GridOnKeeper.new});
+  const WombatApp({super.key, this.folder, this.screen});
 
   /// Where the app keeps its document; see [StartScreen.folder].
   final Directory? folder;
 
   /// See [StartScreen.screen].
-  final Widget Function(Keeper keeper) screen;
+  final Widget Function(Keeper keeper)? screen;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Wombat',
+    title: Words.app,
+    // The banner of a debug build would lie over the menu.
+    debugShowCheckedModeBanner: false,
     home: StartScreen(folder: folder, screen: screen),
   );
 }
@@ -134,16 +164,26 @@ class WombatApp extends StatelessWidget {
 /// Opens the app's document, at first a copy of the example that comes with the app,
 /// keeps it ([Kept]) and shows the screen on it. A document that cannot be opened is
 /// said, with the ways out.
+///
+/// The phone screen's menu has the prototype's test documents ([TestDocument]): the
+/// one that is open is closed, and the other opened in its place, made first if it
+/// is not there yet. Every start begins with the example.
+///
+/// Keys: `opening` while a document is opened; `start-error` with `start-again`,
+/// `start-over` and `start-example`; in the menu `document-<name>` for each test
+/// document and `bridge-check`.
 class StartScreen extends StatefulWidget {
-  const StartScreen({super.key, this.folder, this.screen = GridOnKeeper.new});
+  const StartScreen({super.key, this.folder, this.screen});
 
   /// Where the document is kept. Without one it is [documentFolder]. Tests give a
-  /// folder of their own, so that none writes where a user's documents are.
+  /// folder of their own, so that none writes where a user's documents are; an
+  /// exported log then goes into `exports` in that folder.
   final Directory? folder;
 
-  /// Builds the screen that works on the document through its keeper. The keeper is
-  /// the start screen's: it is closed when the app goes, not by the screen.
-  final Widget Function(Keeper keeper) screen;
+  /// Builds the screen that works on the document through its keeper, in place of
+  /// the phone screen: for tests of the start and the end of the app. The keeper
+  /// is the start screen's: it is closed when the app goes, not by the screen.
+  final Widget Function(Keeper keeper)? screen;
 
   @override
   State<StartScreen> createState() => _StartScreenState();
@@ -155,12 +195,26 @@ class _StartScreenState extends State<StartScreen> {
   /// Where the document is kept, once that is known.
   Directory? _folder;
 
-  Future<Keeper> _open(AssetBundle assets) async => Keeper(
-    await openDocument(
-      _folder ??= widget.folder ?? await documentFolder(),
-      example: () => assets.load('assets/example.wombat'),
-    ),
-  );
+  /// Which of the test documents is shown.
+  TestDocument _document = TestDocument.example;
+
+  /// The prototype's switches and its log, which outlive the document shown.
+  final _variants = ValueNotifier(const Variants());
+  ProtoLog? _log;
+
+  Future<Keeper> _open(AssetBundle assets) async {
+    final folder = _folder ??= widget.folder ?? await documentFolder();
+    _log ??= ProtoLog(file: File('${folder.path}/$logName'))..load();
+    final which = _document;
+    return Keeper(
+      which == TestDocument.example
+          ? await openDocument(
+              folder,
+              example: () => assets.load('assets/example.wombat'),
+            )
+          : await openTestDocument(which, folder),
+    );
+  }
 
   /// The way out when what an earlier start left cannot be opened: it is put aside,
   /// so that nothing is thrown away, and the app starts with a new copy of the
@@ -174,11 +228,65 @@ class _StartScreenState extends State<StartScreen> {
     _opening = opening;
   });
 
+  /// Shows another test document: the one that is open is closed first, with
+  /// what is being typed on its screen entered, and saved.
+  Future<void> _show(TestDocument which, AssetBundle assets) async {
+    Keeper? open;
+    try {
+      // While its screen is still there: what is typed on it goes into the
+      // document, and where it is into the view state.
+      open = await _opening;
+      await open?.putAway();
+    } on Object {
+      // Nothing was open, or its work has ended.
+    }
+    if (!mounted) return;
+    _document = which;
+    _again(() async {
+      if (open != null) await endKeeping(open);
+      return _open(assets);
+    }());
+  }
+
   /// The document goes with the app.
   @override
   void dispose() {
     _opening?.then(endKeeping, onError: (Object _) {});
+    _variants.dispose();
     super.dispose();
+  }
+
+  /// The phone screen on `keeper`, with the test documents and the bridge check
+  /// in its menu.
+  Widget _phone(BuildContext context, Keeper keeper, AssetBundle assets) {
+    final folder = _folder!;
+    final given = widget.folder;
+    return PhoneScreen(
+      keeper: keeper,
+      variants: _variants,
+      log: _log!,
+      exportFolder: given != null
+          ? () async => Directory('${given.path}/exports')
+          : () => exportFolder(folder),
+      menu: [
+        const PopupMenuDivider(),
+        for (final which in TestDocument.values)
+          PopupMenuItem(
+            key: Key('document-${which.name}'),
+            enabled: which != _document,
+            value: () => _show(which, assets),
+            child: Text(which.label),
+          ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          key: const Key('bridge-check'),
+          value: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const DemoScreen())),
+          child: const Text(Words.bridgeCheck),
+        ),
+      ],
+    );
   }
 
   @override
@@ -187,19 +295,30 @@ class _StartScreenState extends State<StartScreen> {
     return FutureBuilder<Keeper>(
       future: _opening ??= _open(assets),
       builder: (context, snapshot) {
-        final keeper = snapshot.data;
+        // While another document is opened, the snapshot still has the one before.
+        final done = snapshot.connectionState == ConnectionState.done;
+        final keeper = done ? snapshot.data : null;
         if (keeper != null) {
-          return Kept(keeper: keeper, child: widget.screen(keeper));
+          final screen = widget.screen;
+          return Kept(
+            keeper: keeper,
+            // A screen is of one keeper: another keeper, another screen.
+            child: KeyedSubtree(
+              key: ObjectKey(keeper),
+              child: screen != null
+                  ? screen(keeper)
+                  : _phone(context, keeper, assets),
+            ),
+          );
         }
-        final error = snapshot.connectionState == ConnectionState.done
-            ? snapshot.error
-            : null;
+        final error = done ? snapshot.error : null;
         if (error == null) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(child: CircularProgressIndicator(key: Key('opening'))),
           );
         }
         final folder = _folder;
+        final example = _document == TestDocument.example;
         return Scaffold(
           body: SafeArea(
             child: Center(
@@ -209,24 +328,30 @@ class _StartScreenState extends State<StartScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'The document could not be opened. ${describeError(error)}',
+                      Words.notOpened(describeError(error)),
                       key: const Key('start-error'),
                     ),
                     const SizedBox(height: 16),
                     FilledButton(
                       key: const Key('start-again'),
                       onPressed: () => _again(_open(assets)),
-                      child: const Text('Try again'),
+                      child: const Text(Words.tryAgain),
                     ),
-                    if (folder != null && canBePutAside(error, folder)) ...[
+                    if (!example) ...[
                       const SizedBox(height: 16),
-                      Text('Its file is ${folder.path}/$documentName'),
+                      OutlinedButton(
+                        key: const Key('start-example'),
+                        onPressed: () => _show(TestDocument.example, assets),
+                        child: const Text(Words.openExample),
+                      ),
+                    ] else if (folder != null &&
+                        canBePutAside(error, folder)) ...[
+                      const SizedBox(height: 16),
+                      Text(Words.itsFile('${folder.path}/$documentName')),
                       OutlinedButton(
                         key: const Key('start-over'),
                         onPressed: () => _again(_startOver(assets, folder)),
-                        child: const Text(
-                          'Put that file aside and start with the example',
-                        ),
+                        child: const Text(Words.putAside),
                       ),
                     ],
                   ],
@@ -371,69 +496,4 @@ class _KeptState extends State<Kept> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => widget.child;
-}
-
-/// The stand-in for the app's screen until the interface of `docs/UI_SPEC.md` is
-/// built: the simple grid screen on a stage of its own, with the plain-text check of
-/// the bridge behind its menu.
-class GridOnKeeper extends StatefulWidget {
-  const GridOnKeeper(this.keeper, {super.key});
-
-  final Keeper keeper;
-
-  @override
-  State<GridOnKeeper> createState() => _GridOnKeeperState();
-}
-
-class _GridOnKeeperState extends State<GridOnKeeper> {
-  late final Future<Stage> _stage;
-
-  @override
-  void initState() {
-    super.initState();
-    _stage = Stage.open(widget.keeper);
-  }
-
-  /// The stage goes with the screen, when the steps asked of it are done.
-  @override
-  void dispose() {
-    _stage.then((stage) => stage.leave(), onError: (Object _) {});
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => FutureBuilder<Stage>(
-    future: _stage,
-    builder: (context, snapshot) {
-      final stage = snapshot.data;
-      if (stage != null) {
-        return GridScreen(
-          stage: stage,
-          menu: [
-            PopupMenuItem(
-              key: const Key('bridge-check'),
-              value: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const DemoScreen()),
-              ),
-              child: const Text('Bridge check'),
-            ),
-          ],
-        );
-      }
-      final error = snapshot.error;
-      return Scaffold(
-        body: Center(
-          child: error == null
-              ? const CircularProgressIndicator()
-              : Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    'The document could not be read. ${describeError(error)}',
-                    key: const Key('stage-error'),
-                  ),
-                ),
-        ),
-      );
-    },
-  );
 }
