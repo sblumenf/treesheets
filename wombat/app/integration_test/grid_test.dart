@@ -1,9 +1,15 @@
 // The simple grid screen of the real app on a real device (or desktop): goes into a
-// nested grid, types into a cell, comes back out and undoes.
+// nested grid, types into a cell, comes back out and undoes; then that the document is
+// in its file without anyone saving it, and is there again at the next start.
 // Run with: flutter test integration_test/grid_test.dart -d linux   (or -d <a device>)
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:wombat_app/grid/grid_screen.dart';
 import 'package:wombat_app/main.dart';
 import 'package:wombat_app/src/rust/frb_generated.dart';
 
@@ -29,8 +35,21 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('into a grid, type, back out, undo', (tester) async {
-    await tester.pumpWidget(const WombatApp());
+  /// Waits, for a few seconds at most, until `done` says so.
+  Future<void> until(WidgetTester tester, bool Function() done) async {
+    for (var i = 0; i < 100 && !done(); i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(done(), isTrue);
+  }
+
+  testWidgets('into a grid, type, back out, undo; saved without asking', (
+    tester,
+  ) async {
+    // A folder of this run's own: the app keeps its document between starts.
+    final folder = await Directory.systemTemp.createTemp('wombat-grid-test');
+    final file = File('${folder.path}/example.wombat');
+    await tester.pumpWidget(WombatApp(folder: folder));
     await tester.pumpAndSettle();
 
     // The root: two columns, three rows, a formula that shows its result.
@@ -41,6 +60,26 @@ void main() {
     expect(key('open-2'), findsOneWidget);
     expect(key('open-1'), findsNothing);
     expect(tester.widget<IconButton>(key('up')).onPressed, isNull);
+
+    // What is open is a copy with IDs of its own, not the file that every install
+    // has (decision A28): no ID of the example is in the copy's file, and the stage
+    // shows the cells of that file.
+    final example = utf8.decode(
+      (await rootBundle.load('assets/example.wombat')).buffer.asUint8List(),
+    );
+    final ids = RegExp(r'"id": "([0-9a-f-]{36})"');
+    final theirs = ids.allMatches(example).map((m) => m[1]!).toSet();
+    final mine = ids
+        .allMatches(file.readAsStringSync())
+        .map((m) => m[1]!)
+        .toSet();
+    expect(theirs.length, 15);
+    expect(mine.length, 15);
+    expect(mine.intersection(theirs), isEmpty);
+    final stage = tester.widget<GridScreen>(find.byType(GridScreen)).stage;
+    expect(mine, contains(stage.grid.cell.id));
+    expect(mine.containsAll(stage.grid.cells.map((c) => c.id)), isTrue);
+    expect(Directory(folder.path).listSync().map((e) => e.path), [file.path]);
 
     // Into "Costs".
     await press(tester, 'open-2');
@@ -56,6 +95,9 @@ void main() {
     expect(key('editor'), findsNothing);
     expect(shown(tester, 0), '30');
 
+    // Nobody saved, and a moment later it is in the file.
+    await until(tester, () => file.readAsStringSync().contains('"text": "30"'));
+
     // Cancel leaves the cell as it is.
     await press(tester, 'cell-1');
     await tester.enterText(key('editor'), '999');
@@ -69,12 +111,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(shown(tester, 1), '20');
     expect(tester.widget<TextField>(key('editor')).controller!.text, '5');
-    await press(tester, 'cancel');
 
-    // Back out by the trail: the formula has followed.
+    // Back out by the trail, with the editor open: what is in it is kept, and the
+    // formula has followed.
+    await tester.enterText(key('editor'), '7');
     await press(tester, 'trail-0');
+    expect(key('editor'), findsNothing);
     expect(title(tester), 'Example');
-    expect(shown(tester, 5), '55');
+    expect(shown(tester, 5), '57');
 
     // The editor of a formula cell shows the formula, not the result.
     await press(tester, 'cell-5');
@@ -84,7 +128,9 @@ void main() {
     );
     await press(tester, 'cancel');
 
-    // Undo twice, then once more with nothing left; redo.
+    // Undo three times, then once more with nothing left; redo.
+    await press(tester, 'undo');
+    expect(shown(tester, 5), '55');
     await press(tester, 'undo');
     expect(shown(tester, 5), '37');
     await press(tester, 'undo');
@@ -102,9 +148,45 @@ void main() {
     await press(tester, 'up');
     expect(title(tester), 'Example');
 
-    // The plain-text check of the bridge is behind the menu.
+    // The app goes out of sight with something half typed: that is in the file at
+    // once, and the editor is as it was when the app comes back.
+    await press(tester, 'cell-1');
+    await tester.enterText(key('editor'), 'typed and left');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await until(
+      tester,
+      () => file.readAsStringSync().contains('"text": "typed and left"'),
+    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(key('editor')).controller!.text,
+      'typed and left',
+    );
+    await press(tester, 'cancel');
+
+    // The plain-text check of the bridge is behind the menu, and there is no Save.
     await press(tester, 'menu');
+    expect(find.text('Save'), findsNothing);
     await press(tester, 'bridge-check');
     expect(find.text('Press Open.'), findsOneWidget);
+
+    // The app ends and starts again: the document is as it was left.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpWidget(WombatApp(folder: folder));
+    await tester.pumpAndSettle();
+    expect(key('start-error'), findsNothing);
+    expect(title(tester), 'Example');
+    expect(shown(tester, 1), 'typed and left');
+    expect(shown(tester, 5), '37');
+    await press(tester, 'open-2');
+    expect([for (var i = 0; i < 3; i++) shown(tester, i)], ['30', '2', '5']);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
+    await folder.delete(recursive: true);
   });
 }

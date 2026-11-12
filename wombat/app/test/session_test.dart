@@ -1,6 +1,5 @@
 // The session: calls to one document in the order they were made, errors, closing.
 // Against the real core, and against a stand-in where the order must be seen.
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart'
@@ -56,13 +55,7 @@ void main() {
     final fake = FakeDocument();
     final doc = await Session.over(fake);
     // The first call is held up; without a queue the second would overtake it.
-    final gate = Completer<void>();
-    var held = false;
-    fake.before = (call) {
-      if (held) return null;
-      held = true;
-      return gate.future;
-    };
+    final gate = holdFirst(fake, 'apply');
     final first = doc.apply(const Command.setText(cell: 'a', text: '1'));
     final second = doc.undo();
     final third = doc.grid('a');

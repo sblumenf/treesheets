@@ -20,6 +20,29 @@ class FakeCell {
   List<String> cells;
 }
 
+/// Makes the first call named `call` wait until the returned completer is completed;
+/// the calls after it go on at once.
+Completer<void> holdFirst(FakeDocument doc, String call) {
+  final gate = Completer<void>();
+  var held = false;
+  doc.before = (name) {
+    if (held || name != call) return null;
+    held = true;
+    return gate.future;
+  };
+  return gate;
+}
+
+/// Makes the first call named `call` fail with `error`.
+void failFirst(FakeDocument doc, String call, Object error) {
+  var failed = false;
+  doc.before = (name) {
+    if (failed || name != call) return;
+    failed = true;
+    throw error;
+  };
+}
+
 /// A stand-in for the core, in Dart alone, for tests of what the app does around a
 /// document: it can be made to wait, to fail and to count. It knows `EnterText` and
 /// `SetText`, undo and redo of those, and reading a grid.
@@ -80,11 +103,11 @@ class FakeDocument implements OpenDocument {
   }
 
   Report _set(String id, String text) {
-    _info(id);
+    final same = _info(id).text == text;
     cells[id]!.text = text;
-    saved = false;
+    saved = saved && same;
     return Report(
-      changed: [id],
+      changed: same ? const [] : [id],
       created: const [],
       removed: const [],
       grids: const [],
@@ -127,8 +150,11 @@ class FakeDocument implements OpenDocument {
         message: 'the stand-in does not know this command',
       ),
     };
-    _done.add((cell, _info(cell).text, text));
-    _undone.clear();
+    // As in the core: a command that asks for nothing new leaves nothing to undo.
+    if (_info(cell).text != text) {
+      _done.add((cell, _info(cell).text, text));
+      _undone.clear();
+    }
     return _set(cell, text);
   });
 

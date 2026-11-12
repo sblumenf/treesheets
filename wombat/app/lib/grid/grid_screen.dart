@@ -8,7 +8,7 @@ import 'stage.dart';
 const double _target = 48;
 
 /// The simple grid screen: one grid, into a nested grid and back out, and the text of one
-/// cell edited at a time, with undo and redo. A first step towards the screen that
+/// cell edited at a time, with undo and redo; the document saves itself. A first step towards the screen that
 /// `docs/UI_SPEC.md` specifies, with none of its previews, gestures or animations.
 class GridScreen extends StatefulWidget {
   const GridScreen({super.key, required this.stage, this.menu = const []});
@@ -22,13 +22,12 @@ class GridScreen extends StatefulWidget {
   State<GridScreen> createState() => _GridScreenState();
 }
 
-class _GridScreenState extends State<GridScreen> {
+class _GridScreenState extends State<GridScreen> with WidgetsBindingObserver {
   final _editor = TextEditingController();
   final _focus = FocusNode();
 
   /// The cell whose text is being edited.
   String? _editing;
-  bool _busy = false;
 
   /// What the last action had to say: an error, or that there was nothing to do. It has
   /// a line of its own, so that it never lies over something that can be tapped.
@@ -40,10 +39,12 @@ class _GridScreenState extends State<GridScreen> {
   void initState() {
     super.initState();
     _stage.addListener(_redraw);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _stage.removeListener(_redraw);
     _editor.dispose();
     _focus.dispose();
@@ -52,32 +53,46 @@ class _GridScreenState extends State<GridScreen> {
 
   void _redraw() => setState(() {});
 
-  /// Runs one action; a second one that starts while it runs is dropped. What goes
-  /// wrong is shown in the message line, and the screen stays as it was.
-  Future<void> _run(
+  /// The app is no longer in front, and the system may end it without another word:
+  /// what is being typed goes into the document and the document into its file, now.
+  /// The editor stays as it is for when the app comes back.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed || _stage.ended != null) return;
+    _commit(close: false);
+    _stage.save();
+  }
+
+  /// Runs one action and says whether it did what it was for. Nothing is dropped while
+  /// another runs: the stage takes its steps in the order they were asked for. What
+  /// goes wrong is shown in the message line, and the screen stays as it was.
+  Future<bool> _run(
     Future<Object?> Function() action, {
     String? nothing,
   }) async {
-    if (_busy) return;
-    setState(() {
-      _busy = true;
-      _message = null;
-    });
+    if (_message != null) setState(() => _message = null);
     String? message;
+    var done = false;
     try {
-      if (await action() == false) message = nothing;
+      done = await action() != false;
+      if (!done) message = nothing;
     } catch (error) {
       message = describeError(error);
     }
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _message = message;
-    });
+    if (mounted && message != null) setState(() => _message = message);
+    return done;
   }
 
-  void _edit(CellInfo cell) {
-    if (_busy) return;
+  /// Opens the editor on a cell of the stage, as it is when everything asked for before
+  /// the tap is done: an undo still under way must not leave the editor with the text
+  /// from before it.
+  Future<void> _edit(String id) => _run(() async {
+    final cell = await _stage.cell(id);
+    if (cell != null && mounted && _editing == null) _show(cell);
+    return true;
+  });
+
+  void _show(CellInfo cell) {
     setState(() {
       _editing = cell.id;
       _editor.text = cell.text;
@@ -88,36 +103,55 @@ class _GridScreenState extends State<GridScreen> {
 
   void _close() => setState(() => _editing = null);
 
-  /// Sends what was typed to the core and closes the editor, or with `below` moves it to
-  /// the cell under the one edited, if there is one. If the core refuses, the editor
-  /// stays open with what was typed.
-  Future<void> _save({bool below = false}) async {
+  /// Sends what was typed to the core, and then closes the editor, or with `below`
+  /// moves it to the cell under the one edited, if there is one. Returns whether the
+  /// text is in the document and the editor where it was asked to be; with no editor
+  /// open that is so at once.
+  ///
+  /// If the core refuses, the editor stays open with what was typed. If more was typed
+  /// while the core worked, the editor stays as it is, with that: closing or moving it
+  /// would throw those keys away.
+  Future<bool> _commit({bool close = true, bool below = false}) async {
     final cell = _editing;
-    if (cell == null) return;
-    var saved = false;
-    await _run(() async {
-      await _stage.enterText(cell, _editor.text);
-      saved = true;
-      return true;
-    });
-    if (!saved || !mounted) return;
+    if (cell == null) return true;
+    final text = _editor.text;
+    if (!await _run(() => _stage.enterText(cell, text))) return false;
+    if (!mounted || _editing != cell || _editor.text != text) return false;
+    if (!close) return true;
     final grid = _stage.grid;
     final at = grid.cells.indexWhere((c) => c.id == cell);
     final next = at + grid.xs;
     if (below && at >= 0 && grid.xs > 0 && next < grid.cells.length) {
-      _edit(grid.cells[next]);
+      // The stage was read just now, so the cell below is as the document has it.
+      _show(grid.cells[next]);
     } else {
       _close();
     }
+    return true;
   }
 
-  Future<void> _dive(CellInfo cell) async {
-    _close();
-    await _run(() => _stage.dive(cell.id));
+  /// A tap on a cell, on its text or on the way into its grid. While the editor is
+  /// open, a tap outside it only closes the editor (UI_SPEC section 6), keeping what
+  /// was typed; it does not open another cell or go into a grid.
+  Future<void> _tap(CellInfo cell, {required bool dive}) async {
+    if (_editing != null) {
+      await _commit();
+    } else if (dive) {
+      await _run(() => _stage.dive(cell.id));
+    } else {
+      await _edit(cell.id);
+    }
+  }
+
+  /// An action of the bars. What is being typed is kept first; if that cannot be done,
+  /// the action is not, and the editor stays.
+  Future<void> _act(Future<bool> Function() action, {String? nothing}) async {
+    if (await _commit()) await _run(action, nothing: nothing);
   }
 
   @override
   Widget build(BuildContext context) {
+    final ended = _stage.ended;
     final grid = _stage.grid;
     final title = grid.cell.text.isEmpty ? 'Wombat' : grid.cell.text;
     return Scaffold(
@@ -128,38 +162,103 @@ class _GridScreenState extends State<GridScreen> {
             key: const Key('undo'),
             tooltip: 'Undo',
             icon: const Icon(Icons.undo),
-            onPressed: () => _run(_stage.undo, nothing: 'Nothing to undo'),
+            onPressed: ended != null
+                ? null
+                : () => _act(_stage.undo, nothing: 'Nothing to undo'),
           ),
           IconButton(
             key: const Key('redo'),
             tooltip: 'Redo',
             icon: const Icon(Icons.redo),
-            onPressed: () => _run(_stage.redo, nothing: 'Nothing to redo'),
+            onPressed: ended != null
+                ? null
+                : () => _act(_stage.redo, nothing: 'Nothing to redo'),
           ),
-          PopupMenuButton<VoidCallback>(
-            key: const Key('menu'),
-            onSelected: (action) => action(),
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: () => _run(() async {
-                  await _stage.save();
-                  return true;
-                }),
-                child: const Text('Save'),
-              ),
-              ...widget.menu,
-            ],
-          ),
+          // No Save: the document saves itself (UI_SPEC has none either).
+          if (widget.menu.isNotEmpty)
+            PopupMenuButton<VoidCallback>(
+              key: const Key('menu'),
+              onSelected: (action) => action(),
+              itemBuilder: (context) => widget.menu,
+            ),
         ],
       ),
       body: SafeArea(
-        child: Column(
+        child: ended != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(ended, key: const Key('ended')),
+                ),
+              )
+            : Column(
+                children: [
+                  Expanded(child: _cells(context, grid)),
+                  ?_trouble(context),
+                  if (_message != null) _messageLine(context, _message!),
+                  const Divider(height: 1),
+                  _trail(context),
+                  if (_editing != null) _editorBar(context),
+                ],
+              ),
+      ),
+    );
+  }
+
+  /// What stays wrong until something is done about it, with the ways to do that: the
+  /// document is not in its file, or the stage could not be read again. Unlike the
+  /// message line it does not go away with the next action.
+  Widget? _trouble(BuildContext context) {
+    final saveError = _stage.saveError;
+    final readError = _stage.readError;
+    final String text;
+    final List<(String, String, VoidCallback)> ways;
+    if (saveError is BridgeError && saveError.kind == ErrorKind.changedOnDisk) {
+      text = 'Not saved: another program changed the file.';
+      ways = [
+        ('keep-mine', 'Keep mine', _stage.keepMine),
+        // The choice is the other file, so what is being typed goes with the rest.
+        (
+          'open-theirs',
+          'Open theirs',
+          () {
+            _close();
+            _stage.openTheirs();
+          },
+        ),
+      ];
+    } else if (saveError != null) {
+      text = 'Not saved. ${describeError(saveError)}';
+      ways = [('save-again', 'Try again', _stage.save)];
+    } else if (readError != null) {
+      text = 'What is shown may be old. ${describeError(readError)}';
+      ways = [('read-again', 'Try again', () => _run(_stage.refresh))];
+    } else {
+      return null;
+    }
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
           children: [
-            Expanded(child: _cells(context, grid)),
-            if (_message != null) _messageLine(context, _message!),
-            const Divider(height: 1),
-            _trail(context),
-            if (_editing != null) _editorBar(context),
+            Expanded(
+              child: Text(
+                text,
+                key: const Key('trouble'),
+                style: TextStyle(color: colors.onErrorContainer),
+              ),
+            ),
+            for (final (key, label, action) in ways)
+              TextButton(
+                key: Key(key),
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(_target, _target),
+                ),
+                onPressed: action,
+                child: Text(label),
+              ),
           ],
         ),
       ),
@@ -216,7 +315,7 @@ class _GridScreenState extends State<GridScreen> {
         children: [
           InkWell(
             key: Key('cell-$index'),
-            onTap: () => _edit(cell),
+            onTap: () => _tap(cell, dive: false),
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: _target),
               child: Padding(
@@ -236,7 +335,7 @@ class _GridScreenState extends State<GridScreen> {
           if (cell.hasGrid)
             InkWell(
               key: Key('open-$index'),
-              onTap: () => _dive(cell),
+              onTap: () => _tap(cell, dive: true),
               child: Container(
                 constraints: const BoxConstraints(minHeight: _target),
                 margin: const EdgeInsets.fromLTRB(6, 0, 6, 6),
@@ -291,12 +390,7 @@ class _GridScreenState extends State<GridScreen> {
             key: const Key('up'),
             tooltip: 'Up one level',
             icon: const Icon(Icons.chevron_left),
-            onPressed: _stage.atRoot
-                ? null
-                : () {
-                    _close();
-                    _run(_stage.up);
-                  },
+            onPressed: _stage.atRoot ? null : () => _act(_stage.up),
           ),
           Expanded(
             child: ListView(
@@ -308,10 +402,7 @@ class _GridScreenState extends State<GridScreen> {
                     key: Key('trail-$i'),
                     onPressed: i == trail.length - 1
                         ? null
-                        : () {
-                            _close();
-                            _run(() => _stage.jumpTo(i));
-                          },
+                        : () => _act(() => _stage.jumpTo(i)),
                     child: Text(
                       '${i == 0 ? '' : '› '}'
                       '${trail[i].text.isEmpty ? '(empty)' : trail[i].text}',
@@ -343,14 +434,14 @@ class _GridScreenState extends State<GridScreen> {
                   border: OutlineInputBorder(),
                 ),
                 // Return: save, and on to the cell below.
-                onSubmitted: (_) => _save(below: true),
+                onSubmitted: (_) => _commit(below: true),
               ),
             ),
             IconButton(
               key: const Key('save'),
               tooltip: 'Save',
               icon: const Icon(Icons.check),
-              onPressed: _save,
+              onPressed: _commit,
             ),
             IconButton(
               key: const Key('cancel'),

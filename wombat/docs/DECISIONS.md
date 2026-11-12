@@ -1568,7 +1568,86 @@ are where milestones 4, 5 and 6, built apart, meet).
     - The class carries the comments a Dart developer needs, because the generator drops
       those of the handle's type and of `Command` (A137).
     `InTurn`, the few lines that do the ordering, is a class of its own because the grid
-    screen's logic uses the same thing for its own steps (A145).
+    screen's logic uses the same thing for its own steps (A146).
+145. **The app saves the document by itself; there is no Save** (from the evaluation after
+    the review; `UI_SPEC.md` has no Save, Close or Discard for documents). The simple grid
+    screen had a menu entry "Save" and nothing else, so the back button, swiping the app
+    away or the system ending it lost every edit. Now `Stage` (`app/lib/grid/stage.dart`)
+    saves:
+    - **one second after the first change that is not saved yet.** Later changes do not put
+      the clock back, so steady typing cannot keep the file old; a change is in the file
+      a second later at the latest, plus the time of the save, while the app runs. Not
+      after every command: on the 100,000-cell document of `measure.dart` (profile build,
+      Linux desktop, measured again for this decision) a save takes 213 ms (worst of five
+      302 ms) and an edit that no formula depends on 1.2 ms. Saving after each command
+      would make such an edit about 170 times dearer, and every next edit would wait for
+      the save before it, since calls go one at a time (A144).
+    - **at once when the app is no longer in front** (`AppLifecycleState` inactive, hidden,
+      paused or detached; `WidgetsBindingObserver` in the grid screen), because after that
+      the system may end the app without another word. What is in the editor at that
+      moment is entered into the cell first (the editor stays open), so that half a
+      sentence is not lost either. A save with nothing to save only looks at the file.
+    - **when the screen goes** (`Stage.close`, which is `Session.close`).
+    A save that fails is not swallowed: `Stage.saveError` holds it until a save works, and
+    the screen shows it in a line that stays, with "Try again". For `ChangedOnDisk`
+    (A140) the line offers the choice: "Keep mine" (`overwrite`) or "Open theirs" (let go
+    of this document, open the file again, start at the root; what was not saved here is
+    lost, which is the choice). After a fault in the program (`PanicException`, or
+    `Internal` on any call; A143) the stage lets go of the document, nothing more is
+    saved, every control that reaches the document is gone and the screen shows one
+    fixed sentence. The bridge's own saving when a handle is dropped (A142) stays what it
+    was, a safety net.
+    Not done: nothing is written while the user types into the editor (typing is not
+    bridged as commands yet, A127), so an app that is killed outright, without being
+    moved out of sight first, loses what is in the editor and at most the last second
+    of entered changes.
+146. **The steps of the grid screen are taken in order, and none is dropped** (from the
+    evaluation after the review). The screen dropped every action that came while another
+    ran, a second tap on Undo as well as, before A145, Save. And nothing kept two steps of
+    `Stage` apart: two taps on the way into a grid in one frame put the cell on the trail
+    twice. `Stage` now takes its steps one at a time in the order they were asked for
+    (`InTurn`, as `Session` does for calls), and judges each by the stage as it is when
+    its turn comes: the second of those two taps finds the cell no longer on the stage and
+    does nothing, two taps on Undo undo twice, and a cell tapped while an undo runs opens
+    the editor on the text the undo left (`Stage.cell`). The screen has no "busy" flag
+    any more. Also: going into a grid or up reads first and moves the trail after, so an
+    error leaves the stage where it was; and an edit that the core made is not reported as
+    failed when reading the stage again fails (`Stage.readError`, shown with "Try again").
+147. **Text in the editor is never thrown away by a tap elsewhere.** The simple grid screen
+    closed the editor without a word when one went into a grid, up, along the trail, or
+    tapped another cell. `UI_SPEC.md` section 6 says that a tap outside the editor only
+    closes it and never dives or selects, and section 7 has a tick that closes the editor
+    and no cancel, so closing means keeping. Hence:
+    - a tap on a cell or on the way into a grid, while the editor is open, enters the text
+      and closes the editor, and does nothing else (section 6);
+    - the up arrow, the trail, Undo and Redo enter the text, close the editor and then do
+      what they are for. The spec does not say; they are bars, not the grid, and doing
+      nothing would make them need two taps. Undo therefore first undoes what was just
+      entered;
+    - if the core refuses the text, the editor stays open with it and the action is not
+      done;
+    - if keys were typed while the core worked on Return or the tick, the editor stays
+      where it is with those keys, and is not moved or closed over them;
+    - the cross (cancel), which the spec does not have, stays for now: it is the one way
+      to say "not this", and it is asked for by name.
+148. **Where the app keeps its document is still temporary** (changes the last sentence
+    of A130). The app made a new folder in the system's temporary folder at every start
+    and the bridge check at every press of Open, and removed none. Now the app has one
+    document, `wombat/example.wombat` in the system's temporary folder: the copy of the
+    example at the first start, and the same file, with everything done to it, at every
+    later start, which is what makes saving mean something. The bridge check has one
+    folder per visit of its screen and removes it when the screen goes. A place that the
+    system does not clear needs the `path_provider` plugin (there is no way to ask
+    Android or iOS for the app's own folder from Dart alone). A dry run of adding it
+    (2.1.6) showed 15 new packages in `pubspec.lock`, among them `jni` and build hooks
+    that compile native code for Android, and registration code generated into
+    `android/` and `linux/`; the Android build could not be run on the machine this was
+    written on (no SDK). It was not added;
+    it belongs with the decision where documents live (also Android's picked documents,
+    which are not paths). Until then the system may clear the folder, on Linux at a
+    restart, on Android when storage is short. If it does so under an open document, the
+    next save writes the file again when the folder is still there (A140) and is shown as
+    failed when it is not.
 
 ## B. Deliberate departures from TreeSheets
 
