@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +13,9 @@ import 'keeper.dart';
 import 'session.dart';
 import 'src/rust/api/wire.dart';
 import 'src/rust/frb_generated.dart';
+
+/// The name of the app's one document in its folder.
+const documentName = 'example.wombat';
 
 /// The Wombat app as far as it goes: a simple grid screen on one document, which starts
 /// as the example, and the plain-text check of the bridge behind a menu entry. Not yet
@@ -58,47 +63,108 @@ String documentFolder({
   return '${data ?? temp}${separator}wombat';
 }
 
-/// The stage of the first screen on a document that was just opened, which a new
-/// keeper keeps from here on. If there is no stage to be had, the document is let go
-/// of, so that its file does not stay taken by something nobody holds.
-Future<Stage> onStage(Session doc) async {
-  final keeper = Keeper(doc);
-  try {
-    return await Stage.open(keeper);
-  } catch (_) {
-    await keeper.letGo();
-    rethrow;
+/// Opens the app's document in `folder`: what an earlier start left there, with
+/// everything done to it, or if nothing is there yet, a copy of the example that
+/// comes with the app, which `example` reads. Whatever has the document's name is
+/// taken for the document, also a folder or a link that leads nowhere: it cannot be
+/// opened then, and [putAside] is the way out.
+Future<Session> openDocument(
+  Directory folder, {
+  required Future<ByteData> Function() example,
+}) async {
+  await folder.create(recursive: true);
+  final path = '${folder.path}/$documentName';
+  if (FileSystemEntity.typeSync(path, followLinks: false) !=
+      FileSystemEntityType.notFound) {
+    return Session.open(path);
   }
+  return openExampleCopy(
+    bytesOf(await example()),
+    folder: folder,
+    to: documentName,
+  );
 }
 
+/// Whether [putAside] is a way out after `error` kept the document in `folder` from
+/// being opened. It is not when the file is whole and merely taken: open in this
+/// app already, or made by another start of the app between this one's look and its
+/// copy of the example. Nor when nothing is there to put aside.
+bool canBePutAside(Object error, Directory folder) =>
+    !(error is BridgeError &&
+        (error.kind == ErrorKind.alreadyOpen ||
+            error.kind == ErrorKind.alreadyExists)) &&
+    FileSystemEntity.typeSync(
+          '${folder.path}/$documentName',
+          followLinks: false,
+        ) !=
+        FileSystemEntityType.notFound;
+
+/// Puts the document in `folder` aside, with what belongs to its name
+/// (`docs/FILE_FORMAT.md`): its image folder, and the folder of view states, which
+/// are this one document's since the app keeps no other here. They go, under the
+/// names they have, into a new folder `put-aside-<date>-<something>` in `folder`,
+/// which is returned. Nothing is deleted and nothing replaced: the folder is made
+/// new by the system, with a name that was not there, also for two calls in the same
+/// instant.
+Future<Directory> putAside(Directory folder, {DateTime? now}) async {
+  final date = (now ?? DateTime.now()).toIso8601String().substring(0, 10);
+  final aside = await folder.createTemp('put-aside-$date-');
+  for (final name in [documentName, '$documentName.images', '.wombat-view']) {
+    final from = '${folder.path}/$name';
+    final to = '${aside.path}/$name';
+    // Each as what it is: a link is moved, not what it leads to.
+    switch (FileSystemEntity.typeSync(from, followLinks: false)) {
+      case FileSystemEntityType.directory:
+        await Directory(from).rename(to);
+      case FileSystemEntityType.link:
+        await Link(from).rename(to);
+      case FileSystemEntityType.notFound:
+        break;
+      default:
+        await File(from).rename(to);
+    }
+  }
+  return aside;
+}
+
+/// The Wombat app: its one document, opened at the start and kept in its file, and
+/// on it the screen that `screen` builds.
 class WombatApp extends StatelessWidget {
-  const WombatApp({super.key, this.folder});
+  const WombatApp({super.key, this.folder, this.screen = GridOnKeeper.new});
 
   /// Where the app keeps its document; see [StartScreen.folder].
   final Directory? folder;
 
+  /// See [StartScreen.screen].
+  final Widget Function(Keeper keeper) screen;
+
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Wombat',
-    home: StartScreen(folder: folder),
+    home: StartScreen(folder: folder, screen: screen),
   );
 }
 
 /// Opens the app's document, at first a copy of the example that comes with the app,
-/// and shows it on the grid screen.
+/// keeps it ([Kept]) and shows the screen on it. A document that cannot be opened is
+/// said, with the ways out.
 class StartScreen extends StatefulWidget {
-  const StartScreen({super.key, this.folder});
+  const StartScreen({super.key, this.folder, this.screen = GridOnKeeper.new});
 
   /// Where the document is kept. Without one it is [documentFolder]. Tests give a
   /// folder of their own.
   final Directory? folder;
+
+  /// Builds the screen that works on the document through its keeper. The keeper is
+  /// the start screen's: it is closed when the app goes, not by the screen.
+  final Widget Function(Keeper keeper) screen;
 
   @override
   State<StartScreen> createState() => _StartScreenState();
 }
 
 class _StartScreenState extends State<StartScreen> {
-  late Future<Stage> _stage = _open();
+  Future<Keeper>? _opening;
 
   Directory get _folder =>
       widget.folder ??
@@ -110,65 +176,41 @@ class _StartScreenState extends State<StartScreen> {
         ),
       );
 
-  File get _file => File('${_folder.path}/example.wombat');
+  Future<Keeper> _open(AssetBundle assets) async => Keeper(
+    await openDocument(
+      _folder,
+      example: () => assets.load('assets/example.wombat'),
+    ),
+  );
 
-  /// The document is the one that the last start left, with everything done to it, or
-  /// if there is none yet, a copy of the example.
-  Future<Stage> _open() async {
-    await _folder.create(recursive: true);
-    if (_file.existsSync()) return onStage(await Session.open(_file.path));
-    final example = await rootBundle.load('assets/example.wombat');
-    return onStage(
-      await openExampleCopy(
-        bytesOf(example),
-        folder: _folder,
-        to: 'example.wombat',
-      ),
-    );
+  /// The way out when what an earlier start left cannot be opened: it is put aside,
+  /// so that nothing is thrown away, and the app starts with a new copy of the
+  /// example.
+  Future<Keeper> _startOver(AssetBundle assets) async {
+    await putAside(_folder);
+    return _open(assets);
   }
 
-  /// The way out when the document that an earlier start left cannot be opened: its
-  /// file gets another name, so that nothing is thrown away, and the app starts with
-  /// a new copy of the example.
-  Future<Stage> _startOver() async {
-    final stamp = DateTime.now().millisecondsSinceEpoch;
-    await _file.rename('${_folder.path}/example-put-aside-$stamp.wombat');
-    return _open();
-  }
-
-  void _again(Future<Stage> Function() open) => setState(() {
-    _stage = open();
+  void _again(Future<Keeper> opening) => setState(() {
+    _opening = opening;
   });
 
-  /// The document goes with the screen; see [Kept].
+  /// The document goes with the app.
   @override
   void dispose() {
-    _stage.then(endKeeping, onError: (Object _) {});
+    _opening?.then(endKeeping, onError: (Object _) {});
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Stage>(
-      future: _stage,
+    final assets = DefaultAssetBundle.of(context);
+    return FutureBuilder<Keeper>(
+      future: _opening ??= _open(assets),
       builder: (context, snapshot) {
-        final stage = snapshot.data;
-        if (stage != null) {
-          return Kept(
-            keeper: stage.keeper,
-            child: GridScreen(
-              stage: stage,
-              menu: [
-                PopupMenuItem(
-                  key: const Key('bridge-check'),
-                  value: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: (_) => const DemoScreen()),
-                  ),
-                  child: const Text('Bridge check'),
-                ),
-              ],
-            ),
-          );
+        final keeper = snapshot.data;
+        if (keeper != null) {
+          return Kept(keeper: keeper, child: widget.screen(keeper));
         }
         final error = snapshot.connectionState == ConnectionState.done
             ? snapshot.error
@@ -178,11 +220,6 @@ class _StartScreenState extends State<StartScreen> {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        // A file that this app has open already is whole; one that is not there
-        // cannot be put aside.
-        final unreadable =
-            !(error is BridgeError && error.kind == ErrorKind.alreadyOpen) &&
-            _file.existsSync();
         return Scaffold(
           body: SafeArea(
             child: Center(
@@ -198,15 +235,15 @@ class _StartScreenState extends State<StartScreen> {
                     const SizedBox(height: 16),
                     FilledButton(
                       key: const Key('start-again'),
-                      onPressed: () => _again(_open),
+                      onPressed: () => _again(_open(assets)),
                       child: const Text('Try again'),
                     ),
-                    if (unreadable) ...[
+                    if (canBePutAside(error, _folder)) ...[
                       const SizedBox(height: 16),
-                      Text('Its file is ${_file.path}'),
+                      Text('Its file is ${_folder.path}/$documentName'),
                       OutlinedButton(
                         key: const Key('start-over'),
-                        onPressed: () => _again(_startOver),
+                        onPressed: () => _again(_startOver(assets)),
                         child: const Text(
                           'Put that file aside and start with the example',
                         ),
@@ -223,59 +260,204 @@ class _StartScreenState extends State<StartScreen> {
   }
 }
 
-/// Ends the keeping of a document when its last screen has gone: saves and closes it.
-/// If it cannot be saved there is no one left to ask, so it is let go of, which never
-/// writes over what another program put in the file.
-Future<void> endKeeping(Stage stage) =>
-    stage.keeper.close().catchError((Object _) => stage.keeper.letGo());
-
-/// Tells the keeper of the document on the screen below it when the app is no longer
-/// in front. It is where the app owns its document, and not in a screen, so that
-/// every screen on the document is covered by it (decision A155).
+/// Where the app owns its document, and not in a screen, so that every screen on the
+/// document is covered by it (decision A155): tells the keeper when the app is no
+/// longer in front, and holds the app's exit until the document is in its file.
 class Kept extends StatefulWidget {
-  const Kept({super.key, required this.keeper, required this.child});
+  const Kept({
+    super.key,
+    required this.keeper,
+    required this.child,
+    this.exitWithin = const Duration(seconds: 5),
+  });
 
   final Keeper keeper;
   final Widget child;
+
+  /// How long an exit that the system asks for waits for the document to be put
+  /// away. After that the app leaves all the same, so that a save that hangs cannot
+  /// keep the app from ever being closed.
+  final Duration exitWithin;
 
   @override
   State<Kept> createState() => _KeptState();
 }
 
 class _KeptState extends State<Kept> with WidgetsBindingObserver {
+  /// An exit was held back because the document was not in its file, and it still
+  /// is not: the next one is let through.
+  bool _heldBack = false;
+  late Attachment _attachment;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _attach();
+  }
+
+  @override
+  void didUpdateWidget(Kept old) {
+    super.didUpdateWidget(old);
+    if (identical(old.keeper, widget.keeper)) return;
+    _attachment.detach();
+    _attach();
+  }
+
+  void _attach() {
+    _heldBack = false;
+    final keeper = widget.keeper;
+    _attachment = keeper.attach(
+      onChange: () {
+        if (keeper.state == KeeperState.saved) _heldBack = false;
+      },
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _attachment.detach();
     super.dispose();
+  }
+
+  /// Nothing waits for what the keeper is asked here, and after the end of the work
+  /// there is nothing to put away.
+  void _ask(Future<void> Function() what) {
+    if (widget.keeper.ended != null) return;
+    what()
+        .then<void>((_) {})
+        .catchError(
+          (Object _) {},
+          test: (error) =>
+              error is BridgeError && error.kind == ErrorKind.closed,
+        );
   }
 
   /// A window that loses the focus, a dialog of the system or the list of apps make
   /// the app `inactive`: it is still there and the user has not left, so only what is
   /// in the document already is saved. Out of sight (`hidden`, `paused`, `detached`)
   /// the system may end the app without another word, so what is being typed goes
-  /// into the document first. Flutter passes through `hidden` on the way to `paused`
-  /// and `detached`, so the first of the three does the work and the others find
-  /// nothing left to do; all three are named so that this does not rest on that.
+  /// into the document as well. Flutter passes through `hidden` on the way to
+  /// `paused` and `detached`, so the first of the three does the work and the others
+  /// find nothing left to do; all three are named so that this does not rest on that.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
         break;
       case AppLifecycleState.inactive:
-        widget.keeper.save();
+        _ask(widget.keeper.save);
       case AppLifecycleState.hidden ||
           AppLifecycleState.paused ||
           AppLifecycleState.detached:
-        widget.keeper.putAway();
+        _ask(widget.keeper.putAway);
     }
+  }
+
+  /// The system asks whether the app may exit: on Linux, macOS and Windows when its
+  /// window is closed. (Android and iOS do not ask; there the app is put away
+  /// first, which is the case above.) The answer waits until the document is put
+  /// away and closed, but no longer than [Kept.exitWithin].
+  ///
+  /// If the document is then not in its file, or what was being typed could not be
+  /// entered, the exit is held back once, so that the user sees what the screen says
+  /// about it. Asked again with nothing better, the app leaves.
+  @override
+  Future<AppExitResponse> didRequestAppExit() => _leave().timeout(
+    widget.exitWithin,
+    onTimeout: () {
+      // Whether everything was saved cannot be known here.
+      debugPrint(
+        'Wombat: leaving after waiting ${widget.exitWithin.inSeconds} s for '
+        'the document to be saved; whether it was saved is not known.',
+      );
+      return AppExitResponse.exit;
+    },
+  );
+
+  Future<AppExitResponse> _leave() async {
+    final keeper = widget.keeper;
+    try {
+      final unfinished = await keeper.putAway();
+      final safe = unfinished.isEmpty && keeper.state == KeeperState.saved;
+      if (!safe && !_heldBack) {
+        _heldBack = true;
+        return AppExitResponse.cancel;
+      }
+    } on BridgeError catch (error) {
+      // The work had ended before: there is nothing to keep.
+      if (error.kind != ErrorKind.closed) rethrow;
+    }
+    await endKeeping(keeper);
+    return AppExitResponse.exit;
   }
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+/// The stand-in for the app's screen until the interface of `docs/UI_SPEC.md` is
+/// built: the simple grid screen on a stage of its own, with the plain-text check of
+/// the bridge behind its menu.
+class GridOnKeeper extends StatefulWidget {
+  const GridOnKeeper(this.keeper, {super.key});
+
+  final Keeper keeper;
+
+  @override
+  State<GridOnKeeper> createState() => _GridOnKeeperState();
+}
+
+class _GridOnKeeperState extends State<GridOnKeeper> {
+  late final Future<Stage> _stage;
+
+  @override
+  void initState() {
+    super.initState();
+    _stage = Stage.open(widget.keeper);
+  }
+
+  /// The stage goes with the screen, when the steps asked of it are done.
+  @override
+  void dispose() {
+    _stage.then((stage) => stage.leave(), onError: (Object _) {});
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Stage>(
+    future: _stage,
+    builder: (context, snapshot) {
+      final stage = snapshot.data;
+      if (stage != null) {
+        return GridScreen(
+          stage: stage,
+          menu: [
+            PopupMenuItem(
+              key: const Key('bridge-check'),
+              value: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const DemoScreen()),
+              ),
+              child: const Text('Bridge check'),
+            ),
+          ],
+        );
+      }
+      final error = snapshot.error;
+      return Scaffold(
+        body: Center(
+          child: error == null
+              ? const CircularProgressIndicator()
+              : Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'The document could not be read. ${describeError(error)}',
+                    key: const Key('stage-error'),
+                  ),
+                ),
+        ),
+      );
+    },
+  );
 }

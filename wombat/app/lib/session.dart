@@ -245,8 +245,11 @@ class _Answer<T> implements Future<T> {
 ///
 /// **After a fault in the program** (a panic in the core) the call that hit it throws a
 /// [PanicException], and every later call throws a [BridgeError] of kind
-/// [ErrorKind.internal]. The document may be half changed and nothing more is saved
-/// from it; its file is as it was last saved. [isFatal] is true for both: [discard]
+/// [ErrorKind.internal]. If the fault was in a call that changes the document, the
+/// document may be half changed, and nothing more is saved from it: its file is as it
+/// was last saved. After a fault in a call that only reads or saves, the document is
+/// whole, and letting go of it saves it as letting go of any document does. [isFatal]
+/// is true for both: [discard]
 /// the session and open the file again. Show [describeError], never the exception's
 /// own text, which can name files of the machine that built the app.
 ///
@@ -447,7 +450,8 @@ bool isFatal(Object error) =>
 /// app.
 const String faultSentence =
     'Something went wrong inside Wombat, and this document cannot be used '
-    'any more. Its file is as it was last saved. Close Wombat and open it again.';
+    'any more. Its file holds what was last saved, or more. Close Wombat and '
+    'open it again.';
 
 /// An error as text for the screen.
 String describeError(Object error) => isFatal(error)

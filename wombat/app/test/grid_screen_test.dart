@@ -3,6 +3,8 @@
 // the document is saved without being asked, and what the screen says when it is not.
 import 'dart:async';
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart'
@@ -124,7 +126,7 @@ void main() {
         ),
       );
       await body(tester, stage, fake);
-      await keeper.close();
+      if (keeper.ended == null) await keeper.close();
     });
   }
 
@@ -1337,6 +1339,27 @@ void main() {
         await press(tester, 'cancel');
       },
       canBeRead: (_) => throw broken,
+    );
+
+    // Read by the fourth review: a look that could not be made at all was said to
+    // be the other program's file being unreadable.
+    screenTest(
+      'open theirs when the file cannot even be looked at: said as that',
+      (tester, stage, fake) async {
+        await stage.enterText('d', 'mine');
+        fake.fileChanged = true;
+        await tester.pump(const Duration(seconds: 1));
+        await press(tester, 'open-theirs');
+        expect(
+          message(tester),
+          'The other program\'s file was not opened, so this document is still '
+          'open, and not saved. '
+          'Error: FileSystemException: no room, path = \'/tmp\'',
+        );
+        expect(fake.disposed, isFalse);
+        await press(tester, 'keep-mine');
+      },
+      canBeRead: (_) => throw const FileSystemException('no room', '/tmp'),
     );
 
     screenTest(

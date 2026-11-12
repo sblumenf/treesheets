@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../keeper.dart';
 import '../session.dart';
 import '../src/rust/api/wire.dart';
 import 'stage.dart';
@@ -62,6 +63,9 @@ class _GridScreenState extends State<GridScreen> {
   /// The cross takes it back, and the next entering takes its place (decision A157).
   String? _left;
 
+  /// What the keeper asks through to enter what is being typed.
+  late Attachment _attachment;
+
   /// What the last action had to say: an error, or that there was nothing to do. It has
   /// a line of its own, so that it never lies over something that can be tapped.
   String? _message;
@@ -92,7 +96,10 @@ class _GridScreenState extends State<GridScreen> {
 
   void _arrive() {
     _stage.addListener(_redraw);
-    _stage.keeper.addFinisher(_putAway);
+    _attachment = _stage.keeper.attach(
+      queue: _actions,
+      finish: () => _enter(away: true),
+    );
   }
 
   /// The screen stops showing `stage`. What is in the editor is entered, as by a tap
@@ -100,7 +107,7 @@ class _GridScreenState extends State<GridScreen> {
   /// before it closes the document. There is no one left to show a refusal to.
   void _leave(Stage stage) {
     stage.removeListener(_redraw);
-    stage.keeper.removeFinisher(_putAway);
+    _attachment.detach();
     final cell = _editing;
     if (cell != null && _editor.text != _left) {
       stage
@@ -165,7 +172,9 @@ class _GridScreenState extends State<GridScreen> {
   /// throw away.
   ///
   /// `away` says that the app is being put away and the user has not said yes to the
-  /// text: it is remembered in [_left].
+  /// text: it is remembered in [_left]. The keeper asks for that, in the turn of the
+  /// screen's actions, and saves when it is done; the editor stays as it is for when
+  /// the app comes back.
   Future<_Entered> _enter({bool away = false}) async {
     final cell = _editing;
     if (cell == null) return _Entered.yes;
@@ -186,15 +195,6 @@ class _GridScreenState extends State<GridScreen> {
     _left = away && (changed || text == _left) ? text : null;
     return _editor.text == text ? _Entered.yes : _Entered.typedOn;
   }
-
-  /// The app is put away: what is being typed goes into the document, and the editor
-  /// stays as it is for when the app comes back. The keeper asks for this, and saves
-  /// when it is done.
-  ///
-  /// It takes its turn like every other action, so that it finds the editor as the
-  /// actions before it left it. No test can tell that from entering at once: the
-  /// stage takes its steps in order whichever way they are asked for.
-  Future<void> _putAway() => _actions.run(() => _enter(away: true));
 
   /// A tap on a cell, on its text or on the way into its grid. While the editor is
   /// open, a tap outside it only closes the editor (UI_SPEC section 6), keeping what
@@ -273,9 +273,13 @@ class _GridScreenState extends State<GridScreen> {
     try {
       await _stage.openTheirs();
     } catch (error) {
+      // Only the core's answer to reading the file says something about the file.
+      final theirs =
+          isFatal(error) ||
+          error is BridgeError && error.kind != ErrorKind.refused;
       return _say(
-        'The file as the other program left it cannot be opened, so this '
-        'document is still open, and not saved. '
+        '${theirs ? 'The file as the other program left it cannot be opened' : 'The other program\'s file was not opened'}, '
+        'so this document is still open, and not saved. '
         '${isFatal(error) ? 'Reading it ran into a fault.' : describeError(error)}',
       );
     }

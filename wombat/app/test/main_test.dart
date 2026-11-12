@@ -1,22 +1,64 @@
-// The app as it starts, without a device, on the real core: where its document is, the
-// first start and the next, a document that cannot be opened and the way out, and the
-// document going with its screen. The core answers in real time, which a widget test
-// does not let pass by itself: `until` does, and waits for the thing, not for a time.
+// The app as it starts and as it ends, without a device: where its document is, the
+// first start and the next, a document that cannot be opened and the ways out, the
+// app put away and its window closed. On the real core, which answers in real time
+// that a widget test does not let pass by itself (`until` does, and waits for the
+// thing, not for a time), and on a stand-in for the core where time or a failure must
+// be made. The screen is the least there can be (`ProbeScreen`), since none of this
+// is a screen's; the last group has the app with the screen it really shows.
+import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wombat_app/example.dart';
-import 'package:wombat_app/grid/grid_screen.dart';
-import 'package:wombat_app/grid/stage.dart';
 import 'package:wombat_app/keeper.dart';
 import 'package:wombat_app/main.dart';
 import 'package:wombat_app/session.dart';
 import 'package:wombat_app/src/rust/api/wire.dart';
 
 import 'fake_document.dart';
+import 'probe_screen.dart';
 import 'support.dart';
+
+/// A file that cannot be deleted.
+class _Stuck implements File {
+  _Stuck(this._real);
+
+  final File _real;
+
+  @override
+  String get path => _real.path;
+
+  @override
+  Future<File> writeAsBytes(
+    List<int> bytes, {
+    FileMode mode = FileMode.write,
+    bool flush = false,
+  }) => _real.writeAsBytes(bytes, mode: mode, flush: flush);
+
+  @override
+  Future<FileSystemEntity> delete({bool recursive = false}) =>
+      throw FileSystemException('cannot be deleted', path);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// The app's assets, where reading the example first does what `before` does: what
+/// another start of the app may do between this one's look and its copy.
+class _Assets extends CachingAssetBundle {
+  _Assets(this.before);
+
+  final void Function() before;
+
+  @override
+  Future<ByteData> load(String key) {
+    before();
+    return rootBundle.load(key);
+  }
+}
 
 void main() {
   late Directory root;
@@ -31,13 +73,17 @@ void main() {
 
   Finder key(String name) => find.byKey(Key(name));
 
-  String title(WidgetTester tester) => tester.widget<Text>(key('title')).data!;
+  String text(WidgetTester tester, String name) =>
+      tester.widget<Text>(key(name)).data!;
 
-  String shown(WidgetTester tester, int index) => tester
-      .widget<Text>(
-        find.descendant(of: key('cell-$index'), matching: find.byType(Text)),
-      )
-      .data!;
+  Keeper keeperOf(WidgetTester tester) =>
+      tester.widget<Kept>(find.byType(Kept)).keeper;
+
+  Widget app(Directory folder) =>
+      WombatApp(folder: folder, screen: ProbeScreen.new);
+
+  List<String> names(Directory folder) =>
+      folder.listSync().map((e) => e.path.split('/').last).toList()..sort();
 
   /// Lets real time pass until `done` says so, ten seconds at most.
   Future<void> until(WidgetTester tester, bool Function() done) async {
@@ -56,11 +102,30 @@ void main() {
     await tester.pump();
   }
 
+  /// The app on a folder of its own, started and showing its document.
+  Future<(Directory, File)> started(WidgetTester tester) async {
+    final folder = Directory('${root.path}/app-${count++}');
+    await tester.pumpWidget(app(folder));
+    await until(tester, () => key('probe-shown').evaluate().isNotEmpty);
+    await until(tester, () => text(tester, 'probe-shown') == 'Shopping');
+    return (folder, File('${folder.path}/example.wombat'));
+  }
+
+  /// The system asks the app whether it may exit, and gets its answer.
+  Future<AppExitResponse> exitAsked(WidgetTester tester) async {
+    AppExitResponse? answer;
+    unawaited(
+      tester.binding.handleRequestAppExit().then((said) => answer = said),
+    );
+    await until(tester, () => answer != null);
+    return answer!;
+  }
+
   /// Takes the app off the screen and waits until its document is closed.
   Future<void> end(WidgetTester tester) async {
-    final stage = tester.widget<GridScreen>(find.byType(GridScreen)).stage;
+    final keeper = keeperOf(tester);
     await tester.pumpWidget(const SizedBox());
-    await until(tester, () => stage.ended != null);
+    await until(tester, () => keeper.ended != null);
   }
 
   group('where the document is kept', () {
@@ -157,33 +222,23 @@ void main() {
       );
       expect(folder.listSync().map((e) => e.path), [doc.path]);
     });
-  });
 
-  group('the document goes with its screen', () {
-    Future<(Stage, FakeDocument)> standIn() async {
-      final fake = FakeDocument();
-      return (await Stage.open(Keeper(await Session.over(fake))), fake);
-    }
-
-    testWidgets('saved and closed', (tester) async {
-      final (stage, fake) = await standIn();
-      await stage.enterText('a', 'typed');
-      await endKeeping(stage);
-      expect((fake.saves, fake.closed, fake.disposed), (1, true, true));
-    });
-
-    testWidgets('let go of when it cannot be saved, and no error for that', (
-      tester,
-    ) async {
-      final (stage, fake) = await standIn();
-      await stage.enterText('a', 'typed');
-      fake.fileChanged = true;
-      await endKeeping(stage);
-      expect((fake.closed, fake.disposed), (false, true));
-      expect((fake.saves, fake.overwrites), (0, 0));
-      expect(stage.ended, 'The document was closed.');
-      await tester.pump(const Duration(minutes: 5));
-      expect(fake.log.last, 'close.');
+    // The third review's fix, which the fourth found untested.
+    test('is opened all the same when that file cannot be deleted', () async {
+      final folder = await root.createTemp('stuck');
+      final example = File('assets/example.wombat').readAsBytesSync();
+      final doc = await IOOverrides.runZoned(
+        () => openExampleCopy(example, folder: folder, to: 'a.wombat'),
+        createFile: (path) {
+          final real = Zone.root.run(() => File(path));
+          return path.endsWith('/example-original.wombat')
+              ? _Stuck(real)
+              : real;
+        },
+      );
+      expect((await doc.grid(doc.root)).cell.text, 'Example');
+      expect(names(folder), ['a.wombat', 'example-original.wombat']);
+      await doc.close();
     });
   });
 
@@ -194,11 +249,10 @@ void main() {
       // A folder that is not there yet, as at the very first start.
       final folder = Directory('${root.path}/first-${count++}/wombat');
       final file = File('${folder.path}/example.wombat');
-      await tester.pumpWidget(WombatApp(folder: folder));
+      await tester.pumpWidget(app(folder));
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      await until(tester, () => key('title').evaluate().isNotEmpty);
-      expect(title(tester), 'Example');
-      expect(shown(tester, 0), 'Shopping');
+      await until(tester, () => key('probe-shown').evaluate().isNotEmpty);
+      await until(tester, () => text(tester, 'probe-shown') == 'Shopping');
       // The copy, and nothing beside it.
       expect(folder.listSync().map((e) => e.path), [file.path]);
       // The file is the app's while it runs.
@@ -211,17 +265,19 @@ void main() {
         }
       });
 
-      await press(tester, 'cell-1');
-      tester.testTextInput.enterText('typed and left');
-      // The app is taken away with the editor open: the text is entered, the
+      // The app is taken away with something typed: the text is entered, the
       // document saved and closed, and its file free.
+      await tester.enterText(key('probe-typing'), 'typed and left');
       await end(tester);
       expect(file.readAsStringSync(), contains('"typed and left"'));
 
       // The next start has the document as it was left.
-      await tester.pumpWidget(WombatApp(folder: folder));
-      await until(tester, () => key('title').evaluate().isNotEmpty);
-      expect(shown(tester, 1), 'typed and left');
+      await tester.pumpWidget(app(folder));
+      await until(tester, () => key('probe-shown').evaluate().isNotEmpty);
+      await until(
+        tester,
+        () => text(tester, 'probe-shown') == 'typed and left',
+      );
       expect(key('start-error'), findsNothing);
       await end(tester);
     });
@@ -233,11 +289,16 @@ void main() {
       final file = File('${folder.path}/example.wombat');
       const theirs = 'half written by another program';
       file.writeAsStringSync(theirs);
-      await tester.pumpWidget(WombatApp(folder: folder));
+      // What belongs to the document's name, and something that does not.
+      Directory('${file.path}.images').createSync();
+      File('${file.path}.images/a.png').writeAsStringSync('a picture');
+      Directory('${folder.path}/.wombat-view').createSync();
+      File('${folder.path}/.wombat-view/an-id.json').writeAsStringSync('{}');
+      File('${folder.path}/other.txt').writeAsStringSync('not ours');
+      await tester.pumpWidget(app(folder));
       await until(tester, () => key('start-error').evaluate().isNotEmpty);
-      final said = tester.widget<Text>(key('start-error')).data!;
       expect(
-        said,
+        text(tester, 'start-error'),
         startsWith('The document could not be opened. Error (syntax): '),
       );
       expect(find.textContaining(file.path), findsOneWidget);
@@ -247,29 +308,68 @@ void main() {
       await until(tester, () => key('start-error').evaluate().isNotEmpty);
       expect(file.readAsStringSync(), theirs);
 
-      // The way out: the file gets another name, and the example is opened.
+      // The way out: the file is put aside with what belongs to it (the fourth
+      // review's M4: its pictures stayed, under the new document's name), and the
+      // example is opened.
       await press(tester, 'start-over');
-      await until(tester, () => key('title').evaluate().isNotEmpty);
-      expect(title(tester), 'Example');
-      final names = folder.listSync().map((e) => e.path).toList()..sort();
-      expect(names.length, 2);
-      expect(names.first, matches(RegExp(r'/example-put-aside-\d+\.wombat$')));
-      expect(File(names.first).readAsStringSync(), theirs);
-      expect(names.last, file.path);
+      await until(tester, () => key('probe-shown').evaluate().isNotEmpty);
+      await until(tester, () => text(tester, 'probe-shown') == 'Shopping');
+      final left = names(folder);
+      expect(left, ['example.wombat', 'other.txt', startsWith('put-aside-')]);
+      final aside = '${folder.path}/${left.last}';
+      expect(File('$aside/example.wombat').readAsStringSync(), theirs);
+      expect(
+        File('$aside/example.wombat.images/a.png').readAsStringSync(),
+        'a picture',
+      );
+      expect(File('$aside/.wombat-view/an-id.json').readAsStringSync(), '{}');
       await end(tester);
     });
+
+    // The fourth review's (M1, M2): these got "already exists" and no way out.
+    for (final (what, make) in <(String, void Function(String))>[
+      ('a folder', (path) => Directory(path).createSync()),
+      ('a link that leads nowhere', (path) => Link(path).createSync('$path-x')),
+    ]) {
+      testWidgets('$what in the document\'s place: the same way out', (
+        tester,
+      ) async {
+        final folder = Directory('${root.path}/odd-${count++}')..createSync();
+        final path = '${folder.path}/example.wombat';
+        make(path);
+        await tester.pumpWidget(app(folder));
+        await until(tester, () => key('start-error').evaluate().isNotEmpty);
+        expect(
+          text(tester, 'start-error'),
+          startsWith('The document could not be opened. Error (io): '),
+        );
+        await press(tester, 'start-over');
+        await until(tester, () => key('probe-shown').evaluate().isNotEmpty);
+        final left = names(folder);
+        expect(left, ['example.wombat', startsWith('put-aside-')]);
+        // Moved as what it is, not followed and not emptied.
+        expect(
+          FileSystemEntity.typeSync(
+            '${folder.path}/${left.last}/example.wombat',
+            followLinks: false,
+          ),
+          what == 'a folder'
+              ? FileSystemEntityType.directory
+              : FileSystemEntityType.link,
+        );
+        await end(tester);
+      });
+    }
 
     testWidgets(
       'a folder that cannot be made: said, with nothing to put aside',
       (tester) async {
         final file = File('${root.path}/a-file-${count++}')
           ..writeAsStringSync('');
-        await tester.pumpWidget(
-          WombatApp(folder: Directory('${file.path}/in')),
-        );
+        await tester.pumpWidget(app(Directory('${file.path}/in')));
         await until(tester, () => key('start-error').evaluate().isNotEmpty);
         expect(
-          tester.widget<Text>(key('start-error')).data,
+          text(tester, 'start-error'),
           startsWith('The document could not be opened. Error: '),
         );
         expect(key('start-again'), findsOneWidget);
@@ -284,19 +384,437 @@ void main() {
       final folder = Directory('${root.path}/taken-${count++}')..createSync();
       final file = '${folder.path}/example.wombat';
       final holder = (await tester.runAsync(() => Session.create(file)))!;
-      await tester.pumpWidget(WombatApp(folder: folder));
+      await tester.pumpWidget(app(folder));
       await until(tester, () => key('start-error').evaluate().isNotEmpty);
       expect(
-        tester.widget<Text>(key('start-error')).data,
+        text(tester, 'start-error'),
         startsWith('The document could not be opened. Error (alreadyOpen): '),
       );
       // Its file is whole, so there is only trying again, which works once it is free.
       expect(key('start-over'), findsNothing);
       await tester.runAsync(holder.close);
       await press(tester, 'start-again');
-      await until(tester, () => key('title').evaluate().isNotEmpty);
-      expect(title(tester), 'Wombat');
+      await until(tester, () => find.byType(Kept).evaluate().isNotEmpty);
       await end(tester);
+    });
+
+    // Read by the fourth review: the second of two first starts was offered to put
+    // the first one's live document aside.
+    testWidgets('a document that another start made meanwhile is not either', (
+      tester,
+    ) async {
+      final folder = Directory('${root.path}/twice-${count++}')..createSync();
+      final file = File('${folder.path}/example.wombat');
+      final example = File('assets/example.wombat').readAsBytesSync();
+      var first = true;
+      await tester.pumpWidget(
+        DefaultAssetBundle(
+          bundle: _Assets(() {
+            if (first) file.writeAsBytesSync(example);
+            first = false;
+          }),
+          child: app(folder),
+        ),
+      );
+      await until(tester, () => key('start-error').evaluate().isNotEmpty);
+      expect(
+        text(tester, 'start-error'),
+        startsWith('The document could not be opened. Error (alreadyExists): '),
+      );
+      expect(key('start-over'), findsNothing);
+      // Trying again opens what is there now.
+      await press(tester, 'start-again');
+      await until(tester, () => key('probe-shown').evaluate().isNotEmpty);
+      expect(names(folder), ['example.wombat']);
+      await end(tester);
+    });
+  });
+
+  group('putting a document aside', () {
+    test('twice in the same instant: two folders, nothing replaced', () async {
+      final folder = await root.createTemp('aside');
+      final file = File('${folder.path}/example.wombat');
+      final now = DateTime(2026, 11, 12, 9, 30);
+      file.writeAsStringSync('first');
+      final first = await putAside(folder, now: now);
+      file.writeAsStringSync('second');
+      final second = await putAside(folder, now: now);
+      expect(first.path, isNot(second.path));
+      for (final aside in [first, second]) {
+        expect(aside.path, startsWith('${folder.path}/put-aside-2026-11-12-'));
+      }
+      expect(File('${first.path}/example.wombat').readAsStringSync(), 'first');
+      expect(
+        File('${second.path}/example.wombat').readAsStringSync(),
+        'second',
+      );
+      // With nothing there, an empty folder is all.
+      final third = await putAside(folder, now: now);
+      expect(third.listSync(), isEmpty);
+    });
+
+    test('is a way out only when something is there that is not taken', () {
+      final folder = root.createTempSync('whether');
+      const syntax = BridgeError(kind: ErrorKind.syntax, message: 'x');
+      expect(canBePutAside(syntax, folder), isFalse);
+      File('${folder.path}/example.wombat').writeAsStringSync('x');
+      expect(canBePutAside(syntax, folder), isTrue);
+      expect(canBePutAside(StateError('x'), folder), isTrue);
+      for (final kind in [ErrorKind.alreadyOpen, ErrorKind.alreadyExists]) {
+        expect(
+          canBePutAside(BridgeError(kind: kind, message: 'x'), folder),
+          isFalse,
+        );
+      }
+    });
+  });
+
+  group('the app is closed', () {
+    // The fourth review's (G1, M3): closing the window lost the editor's text and
+    // every change younger than the save clock.
+    testWidgets('the system asks to exit: all is in the file first', (
+      tester,
+    ) async {
+      final (_, file) = await started(tester);
+      final keeper = keeperOf(tester);
+      await tester.enterText(
+        key('probe-typing'),
+        'typed before the window closed',
+      );
+      expect(await exitAsked(tester), AppExitResponse.exit);
+      // When the answer is given, not some time after it.
+      expect(
+        file.readAsStringSync(),
+        contains('"typed before the window closed"'),
+      );
+      expect(keeper.ended, 'The document was closed.');
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a document that cannot be saved holds the exit back, once', (
+      tester,
+    ) async {
+      final (_, file) = await started(tester);
+      final keeper = keeperOf(tester);
+      await tester.enterText(key('probe-typing'), 'mine');
+      final theirs = '${file.readAsStringSync()}\n';
+      file.writeAsStringSync(theirs);
+      expect(await exitAsked(tester), AppExitResponse.cancel);
+      await tester.pump();
+      // The user sees why, and the document is open for the choice.
+      expect(text(tester, 'probe-state'), 'changedOnDisk');
+      expect(keeper.ended, isNull);
+      // Asked again with nothing better, the app leaves; the other program's file
+      // is not written over.
+      expect(await exitAsked(tester), AppExitResponse.exit);
+      expect(file.readAsStringSync(), theirs);
+      expect(keeper.ended, isNotNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('held back again after a save that worked in between', (
+      tester,
+    ) async {
+      final (_, file) = await started(tester);
+      final keeper = keeperOf(tester);
+      for (final mine in ['mine', 'mine again']) {
+        await tester.enterText(key('probe-typing'), mine);
+        file.writeAsStringSync('${file.readAsStringSync()}\n');
+        expect(await exitAsked(tester), AppExitResponse.cancel);
+        await tester.runAsync(keeper.keepMine);
+        expect(keeper.state, KeeperState.saved);
+      }
+      expect(await exitAsked(tester), AppExitResponse.exit);
+      expect(file.readAsStringSync(), contains('"mine again"'));
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  // On a stand-in for the core, with the clock of the test.
+  group('the document is kept', () {
+    const out = [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+      AppLifecycleState.detached,
+    ];
+
+    int calls(FakeDocument fake, String call) =>
+        fake.log.where((name) => name == call).length;
+
+    void keptTest(
+      String name,
+      Future<void> Function(
+        WidgetTester tester,
+        Keeper keeper,
+        FakeDocument fake,
+      )
+      body, {
+      Duration exitWithin = const Duration(seconds: 5),
+    }) {
+      testWidgets(name, (tester) async {
+        addTearDown(
+          () => tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.resumed,
+          ),
+        );
+        final fake = FakeDocument();
+        final keeper = Keeper(await Session.over(fake));
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Kept(
+              keeper: keeper,
+              exitWithin: exitWithin,
+              child: ProbeScreen(keeper),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(text(tester, 'probe-shown'), 'one');
+        await body(tester, keeper, fake);
+        await tester.pumpWidget(const SizedBox());
+        await endKeeping(keeper);
+      });
+    }
+
+    Future<void> lifecycle(WidgetTester tester, AppLifecycleState state) async {
+      tester.binding.handleAppLifecycleStateChanged(state);
+      await tester.pump();
+    }
+
+    keptTest(
+      'saved when the app is no longer in front, without what is typed',
+      (tester, keeper, fake) async {
+        await keeper.apply(const Command.enterText(cell: 'd', text: 'entered'));
+        await tester.enterText(key('probe-typing'), 'half a sentence');
+        // A window that loses the focus, a dialog of the system: not leaving.
+        await lifecycle(tester, AppLifecycleState.inactive);
+        expect((fake.saves, fake.saved), (1, true));
+        expect((calls(fake, 'apply'), fake.cells['a']!.text), (1, 'one'));
+        await lifecycle(tester, AppLifecycleState.resumed);
+        expect(calls(fake, 'save'), 1);
+      },
+    );
+
+    for (var steps = 2; steps <= out.length; steps++) {
+      final state = out[steps - 1];
+      keptTest('put away when the app is ${state.name}, with what is typed', (
+        tester,
+        keeper,
+        fake,
+      ) async {
+        await tester.enterText(key('probe-typing'), 'half a sentence');
+        for (final step in out.take(steps)) {
+          await lifecycle(tester, step);
+        }
+        expect(fake.cells['a']!.text, 'half a sentence');
+        // Entered once and written once, however many steps the way has.
+        expect((calls(fake, 'apply'), fake.saves, fake.saved), (1, 1, true));
+        expect(fake.log, containsAllInOrder(['apply.', 'save']));
+        expect(text(tester, 'probe-state'), 'saved');
+      });
+    }
+
+    // No test noticed when `paused` and `detached` did nothing: Flutter passes
+    // through `hidden` first. Each is named so that this does not rest on that.
+    for (final state in [
+      AppLifecycleState.paused,
+      AppLifecycleState.detached,
+    ]) {
+      keptTest('put away when the app is ${state.name} without more ado', (
+        tester,
+        keeper,
+        fake,
+      ) async {
+        await tester.enterText(key('probe-typing'), 'half a sentence');
+        // As an observer is told, with no states made up in between.
+        final kept = tester.state<State<Kept>>(find.byType(Kept));
+        (kept as WidgetsBindingObserver).didChangeAppLifecycleState(state);
+        await tester.pump();
+        expect((fake.cells['a']!.text, fake.saved), ('half a sentence', true));
+      });
+    }
+
+    keptTest('what has gone is no longer told that the app is put away', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await keeper.apply(const Command.enterText(cell: 'd', text: 'entered'));
+      await tester.pumpWidget(const SizedBox());
+      // ignore: invalid_use_of_protected_member
+      expect(keeper.hasListeners, isFalse);
+      await lifecycle(tester, AppLifecycleState.inactive);
+      await lifecycle(tester, AppLifecycleState.hidden);
+      expect(calls(fake, 'save'), 0);
+      expect(await tester.binding.handleRequestAppExit(), AppExitResponse.exit);
+      expect((calls(fake, 'save'), keeper.ended), (0, null));
+    });
+
+    keptTest('after the end of the work nothing is asked, and nothing thrown', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await keeper.close();
+      final before = fake.log.length;
+      for (final state in [...out, AppLifecycleState.resumed]) {
+        await lifecycle(tester, state);
+      }
+      expect(await tester.binding.handleRequestAppExit(), AppExitResponse.exit);
+      expect(fake.log.length, before);
+    });
+
+    keptTest('the work ends while the app is being put away: nothing thrown', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await keeper.apply(const Command.enterText(cell: 'd', text: 'entered'));
+      final gate = holdFirst(fake, 'save');
+      await lifecycle(tester, AppLifecycleState.inactive);
+      await lifecycle(tester, AppLifecycleState.hidden);
+      final gone = keeper.letGo();
+      gate.complete();
+      await gone;
+      await tester.pump();
+      expect(keeper.ended, isNotNull);
+    });
+
+    keptTest('the exit waits for the document, which is closed', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await tester.enterText(key('probe-typing'), 'typed');
+      final gate = holdFirst(fake, 'apply');
+      AppExitResponse? answer;
+      unawaited(
+        tester.binding.handleRequestAppExit().then((said) => answer = said),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      expect(answer, isNull);
+      gate.complete();
+      await tester.pump();
+      expect(answer, AppExitResponse.exit);
+      expect(
+        (fake.cells['a']!.text, fake.saves, fake.closed),
+        ('typed', 1, true),
+      );
+    });
+
+    keptTest('a save that hangs does not keep the app from being closed', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await keeper.apply(const Command.enterText(cell: 'd', text: 'entered'));
+      final gate = holdFirst(fake, 'save');
+      AppExitResponse? answer;
+      unawaited(
+        tester.binding.handleRequestAppExit().then((said) => answer = said),
+      );
+      await tester.pump(const Duration(milliseconds: 2999));
+      expect(answer, isNull);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(answer, AppExitResponse.exit);
+      gate.complete();
+    }, exitWithin: const Duration(seconds: 3));
+
+    keptTest('what cannot be entered holds the exit back, once', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      final wrong = keeper.attach(finish: () async => throw StateError('no'));
+      expect(
+        await tester.binding.handleRequestAppExit(),
+        AppExitResponse.cancel,
+      );
+      expect((keeper.ended, fake.closed), (null, false));
+      expect(await tester.binding.handleRequestAppExit(), AppExitResponse.exit);
+      // With no one to ask it was let go of.
+      expect((keeper.ended, fake.disposed), ('The document was closed.', true));
+      wrong.detach();
+    });
+
+    keptTest('a fault while it is put away holds the exit back, once', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await keeper.apply(const Command.enterText(cell: 'd', text: 'entered'));
+      failFirst(
+        fake,
+        'save',
+        const BridgeError(kind: ErrorKind.internal, message: 'half changed'),
+      );
+      expect(
+        await tester.binding.handleRequestAppExit(),
+        AppExitResponse.cancel,
+      );
+      expect(keeper.ended, faultSentence);
+      expect(await tester.binding.handleRequestAppExit(), AppExitResponse.exit);
+    });
+
+    testWidgets('given another keeper, it tells that one', (tester) async {
+      final fakes = [FakeDocument(), FakeDocument()];
+      final keepers = [
+        for (final fake in fakes) Keeper(await Session.over(fake)),
+      ];
+      for (final keeper in keepers) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Kept(keeper: keeper, child: const SizedBox()),
+          ),
+        );
+        await keeper.apply(const Command.enterText(cell: 'a', text: 'typed'));
+      }
+      // ignore: invalid_use_of_protected_member
+      expect(keepers.first.hasListeners, isFalse);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      expect((fakes.first.saves, fakes.last.saves), (0, 1));
+      for (final keeper in keepers) {
+        await endKeeping(keeper);
+      }
+    });
+  });
+
+  // The app as it is until the interface of UI_SPEC is built: with the simple grid
+  // screen. These go with that screen.
+  group('with the stand-in screen', () {
+    testWidgets('the app shows the grid of its document', (tester) async {
+      final folder = Directory('${root.path}/grid-${count++}');
+      await tester.pumpWidget(WombatApp(folder: folder));
+      await until(tester, () => key('title').evaluate().isNotEmpty);
+      expect(text(tester, 'title'), 'Example');
+      await tester.tap(key('cell-1'));
+      await until(tester, () => key('editor').evaluate().isNotEmpty);
+      tester.testTextInput.enterText('typed and left');
+      // The app is taken away with the editor open: the text is entered as a step
+      // of the stage, which the keeper waits for before it closes the document.
+      await end(tester);
+      expect(
+        File('${folder.path}/example.wombat').readAsStringSync(),
+        contains('"typed and left"'),
+      );
+    });
+
+    testWidgets('a root that cannot be read is said', (tester) async {
+      final fake = FakeDocument()..cells.remove('root');
+      final keeper = Keeper(await Session.over(fake));
+      await tester.pumpWidget(MaterialApp(home: GridOnKeeper(keeper)));
+      await tester.pump();
+      expect(
+        text(tester, 'stage-error'),
+        startsWith('The document could not be read. Error (notFound): '),
+      );
+      await tester.pumpWidget(const SizedBox());
+      // ignore: invalid_use_of_protected_member
+      expect(keeper.hasListeners, isFalse);
+      await keeper.close();
     });
   });
 }

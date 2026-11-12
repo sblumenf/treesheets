@@ -130,10 +130,7 @@ void main() {
         ),
       );
       await body(tester, stage, doc, watch);
-      await real(
-        tester,
-        () => keeper.close().catchError((Object _) => keeper.letGo()),
-      );
+      await real(tester, () => endKeeping(keeper));
     });
   }
 

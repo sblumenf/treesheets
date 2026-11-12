@@ -39,7 +39,8 @@ mixin Hooks {
   Future<void> next(String call) =>
       (_awaited[call] ??= Completer<void>()).future;
 
-  /// Called when a call that changes the document was failed with a panic.
+  /// Called when a call that changes the document was failed with a panic, or any
+  /// call with the error that the bridge gives after one.
   void broke() {}
 
   Future<T> hooked<T>(String name, FutureOr<T> Function() work) async {
@@ -49,6 +50,11 @@ mixin Hooks {
         await before?.call(name);
       } on PanicException {
         if (const {'apply', 'undo', 'redo'}.contains(name)) broke();
+        rethrow;
+      } on BridgeError catch (error) {
+        // The bridge answers so only once a panic has left the document half
+        // changed, whatever the call.
+        if (error.kind == ErrorKind.internal) broke();
         rethrow;
       }
       return await work();
@@ -181,7 +187,8 @@ class FakeDocument with Hooks implements OpenDocument {
 
   Future<T> _call<T>(String name, T Function() work) => hooked(name, () {
     if (broken) {
-      throw const BridgeError(
+      // A new error for every failure, as the core makes them.
+      throw BridgeError(
         kind: ErrorKind.internal,
         message: 'a call before this one did not end',
       );
@@ -192,7 +199,7 @@ class FakeDocument with Hooks implements OpenDocument {
   /// What `save` does, and `close` before it gives the document up.
   void _save() {
     if (fileChanged) {
-      throw const BridgeError(
+      throw BridgeError(
         kind: ErrorKind.changedOnDisk,
         message: 'the file was changed by another program',
       );

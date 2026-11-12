@@ -7,7 +7,6 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge.dart'
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wombat_app/grid/stage.dart';
 import 'package:wombat_app/keeper.dart';
-import 'package:wombat_app/main.dart' show onStage;
 import 'package:wombat_app/session.dart';
 import 'package:wombat_app/src/rust/api/wire.dart';
 
@@ -29,7 +28,7 @@ void main() {
   final keepers = <Keeper>[];
   tearDown(() async {
     for (final keeper in keepers) {
-      await keeper.close().catchError((Object _) => keeper.letGo());
+      await endKeeping(keeper);
     }
     keepers.clear();
   });
@@ -520,12 +519,13 @@ void main() {
       told = 0;
       await stage.save();
       expect(kindOf(stage.saveError), ErrorKind.changedOnDisk);
-      expect(told, 1);
+      // That it is being saved, and that it could not be.
+      expect(told, 2);
       expect(File(doc.path).readAsStringSync(), theirs);
 
       await stage.keepMine();
       expect(stage.saveError, isNull);
-      expect(told, 2);
+      expect(told, 3);
       expect(File(doc.path).readAsStringSync(), contains('"mine"'));
       expect(await doc.isSaved(), isTrue);
     });
@@ -564,13 +564,14 @@ void main() {
         failFirst(fake, 'save', broken);
         await stage.save();
         expect(stage.saveError, broken);
-        expect((told, fake.saves), (1, 0));
+        // That it is being saved, and that it could not be.
+        expect((told, fake.saves), (2, 0));
         await stage.save();
         expect(stage.saveError, isNull);
-        expect((told, fake.saves), (2, 1));
+        expect((told, fake.saves), (3, 1));
         // Nothing new to tell.
         await stage.save();
-        expect(told, 2);
+        expect(told, 3);
       },
     );
 
@@ -627,6 +628,8 @@ void main() {
     test('open theirs comes after the steps asked before it', () async {
       final theirs = FakeDocument()..cells['a']!.text = 'theirs';
       final (stage, fake) = await standIn(reopen: (_) => Session.over(theirs));
+      fake.fileChanged = true;
+      await stage.save();
       final gate = holdFirst(fake, 'apply');
       final edit = stage.enterText('a', 'mine');
       final open = stage.openTheirs();
@@ -647,6 +650,8 @@ void main() {
           reopen: (_) => Session.over(theirs),
         );
         await stage.dive('c');
+        fake.fileChanged = true;
+        await stage.save();
         failFirst(theirs, 'grid', broken);
         await stage.openTheirs();
         expect(stage.ended, isNull);
@@ -664,6 +669,8 @@ void main() {
       () async {
         // It could be read when it was looked at, and cannot when it is opened.
         final (stage, fake) = await standIn(reopen: (_) => throw broken);
+        fake.fileChanged = true;
+        await stage.save();
         var told = 0;
         stage.addListener(() => told++);
         await stage.openTheirs();
@@ -681,12 +688,38 @@ void main() {
     test('a root that cannot be read is an error, not a crash', () async {
       final fake = FakeDocument();
       fake.cells.remove('root');
-      await expectLater(
-        Session.over(fake).then(onStage),
-        refusedAs(ErrorKind.notFound),
-      );
-      // No stage, so no one to close the document: its file must not stay taken.
-      expect(fake.disposed, isTrue);
+      final keeper = Keeper(await Session.over(fake));
+      keepers.add(keeper);
+      await expectLater(Stage.open(keeper), refusedAs(ErrorKind.notFound));
+      // No stage, so nothing of one is left with the keeper, which is its owner's
+      // to close as before.
+      // ignore: invalid_use_of_protected_member
+      expect(keeper.hasListeners, isFalse);
+      await keeper.close();
+      expect(fake.closed, isTrue);
+    });
+
+    // The fourth review's (P14): a stage stayed with its keeper for good.
+    test('a stage that is left is no longer told or asked', () async {
+      final (stage, fake) = await standIn();
+      final other = await Stage.open(stage.keeper);
+      final gate = holdFirst(fake, 'apply');
+      final step = stage.enterText('a', 'typed');
+      final left = stage.leave();
+      await pumpEventQueue();
+      // Not before the steps asked of it are done: the keeper waits for those.
+      // ignore: invalid_use_of_protected_member
+      expect(stage.keeper.hasListeners, isTrue);
+      gate.complete();
+      await step;
+      await left;
+      await other.leave();
+      // ignore: invalid_use_of_protected_member
+      expect(stage.keeper.hasListeners, isFalse);
+      var told = 0;
+      stage.addListener(() => told++);
+      await stage.keeper.undo();
+      expect(told, 0);
     });
 
     test(
@@ -770,12 +803,13 @@ void main() {
         await expectLater(stage.undo(), refusedAs(ErrorKind.closed));
         await expectLater(stage.dive('c'), refusedAs(ErrorKind.closed));
         await expectLater(stage.cell('a'), refusedAs(ErrorKind.closed));
-        await stage.save();
-        await stage.keepMine();
-        await stage.openTheirs();
-        await stage.keeper.putAway();
-        await stage.keeper.close();
-        await stage.keeper.letGo();
+        // Every call after the end fails the same way (see the keeper's tests).
+        await expectLater(stage.save(), refusedAs(ErrorKind.closed));
+        await expectLater(stage.keepMine(), refusedAs(ErrorKind.closed));
+        await expectLater(stage.openTheirs(), refusedAs(ErrorKind.closed));
+        await expectLater(stage.keeper.putAway(), refusedAs(ErrorKind.closed));
+        await expectLater(stage.keeper.close(), refusedAs(ErrorKind.closed));
+        await expectLater(stage.keeper.letGo(), refusedAs(ErrorKind.closed));
         expect(fake.log.length, calls);
         expect((fake.saves, fake.overwrites, fake.closed), (0, 0, false));
         // And nothing more is said or tried.

@@ -51,10 +51,19 @@ class Stage extends ChangeNotifier {
   static Future<Stage> open(Keeper keeper) async {
     final stage = Stage._(keeper);
     await stage._start();
-    keeper.addListener(stage._kept);
-    keeper.addFinisher(stage._settled);
+    // The keeper waits for the stage's steps before it puts the document away.
+    stage._attachment = keeper.attach(
+      onChange: stage._kept,
+      queue: stage._turns,
+    );
     return stage;
   }
+
+  late final Attachment _attachment;
+
+  /// The stage is no longer used: when every step asked of it before is done, the
+  /// keeper stops telling and asking it. Whoever opened the stage calls this.
+  Future<void> leave() => _turns.run(() async => _attachment.detach());
 
   /// Ends when every step asked of the stage before now is done.
   Future<void> _settled() => _turns.run(() async {});
