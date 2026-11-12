@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'demo.dart';
+import 'example.dart';
 import 'session.dart';
 
 /// The screen of milestone B1: plain text and three buttons, to show that a document
@@ -56,7 +57,7 @@ class _DemoScreenState extends State<DemoScreen> {
     final folder = _folder ??= await Directory.systemTemp.createTemp(
       'wombat-check',
     );
-    return _demo.open(folder, example.buffer.asUint8List());
+    return _demo.open(folder, bytesOf(example));
   }
 
   /// Closes the document, and only then removes its folder; both after a step that is
@@ -76,6 +77,8 @@ class _DemoScreenState extends State<DemoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // `_run` drops a press while a step runs whatever the buttons look like; they
+    // are switched off as well so that the user sees that nothing can be pressed.
     final ready = !_busy && _demo.isOpen;
     return Scaffold(
       body: SafeArea(

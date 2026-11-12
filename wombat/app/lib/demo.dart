@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'example.dart';
 import 'session.dart';
 import 'src/rust/api/wire.dart';
 
@@ -14,18 +15,16 @@ class Demo {
   /// Whether a document is open.
   bool get isOpen => _doc != null;
 
-  /// Opens the example: `example` is the file that comes with the app. Many installs
-  /// have the same file, so the core makes a copy of it with IDs of its own in `folder`
-  /// (decision A28), and that copy is what is opened.
+  /// Opens the example: `example` is the file that comes with the app, and what is
+  /// opened is a copy of it in `folder`, with IDs of its own ([openExampleCopy]).
   Future<String> open(Directory folder, Uint8List example) async {
     // The copy from the press before is done with: saved, and its file left there.
     await close();
-    final original = File('${folder.path}/example-original.wombat');
-    await original.writeAsBytes(example, flush: true);
     final stamp = DateTime.now().microsecondsSinceEpoch;
-    final doc = await Session.openCopy(
-      from: original.path,
-      to: '${folder.path}/example-$stamp.wombat',
+    final doc = await openExampleCopy(
+      example,
+      folder: folder,
+      to: 'example-$stamp.wombat',
     );
     _doc = doc;
     _edits = 0;
@@ -33,11 +32,21 @@ class Demo {
         'document ${doc.id}\n\n${await _show(doc)}';
   }
 
-  /// Saves and closes the document that is open, if one is.
+  /// Saves and closes the document that is open, if one is. If it cannot be saved,
+  /// the error is thrown and the document is let go of all the same: this is a check
+  /// on copies that nobody keeps, and a document neither closed nor let go of would
+  /// hold its file until the app ends.
   Future<void> close() async {
     final doc = _doc;
-    _doc = null;
-    await doc?.close();
+    if (doc == null) return;
+    try {
+      await doc.close();
+    } catch (_) {
+      await doc.discard();
+      rethrow;
+    } finally {
+      _doc = null;
+    }
   }
 
   /// Sets the text of one cell (the first cost) and shows what the core reports.

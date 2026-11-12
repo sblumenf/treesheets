@@ -77,6 +77,38 @@ void main() {
     },
   );
 
+  test('a close that cannot save lets go of the document all the same', () async {
+    final demo = Demo();
+    final example = await File('assets/example.wombat').readAsBytes();
+    final opened = await demo.open(folder, example);
+    final path = opened.split('\n').first.substring('Opened '.length);
+    // Only the copy is in the folder: the file it was copied from is gone again.
+    expect(
+      File('${folder.path}/example-original.wombat').existsSync(),
+      isFalse,
+    );
+    await demo.change();
+    // Another program saves something else under the name.
+    final theirs = '${File(path).readAsStringSync()}\n';
+    File(path).writeAsStringSync(theirs);
+    await expectLater(
+      demo.close(),
+      throwsA(
+        isA<BridgeError>().having(
+          (e) => e.kind,
+          'kind',
+          ErrorKind.changedOnDisk,
+        ),
+      ),
+    );
+    // Forgotten, not written over the other program's work, and its file free.
+    expect(demo.isOpen, isFalse);
+    expect(File(path).readAsStringSync(), theirs);
+    final again = await Session.open(path);
+    await again.close();
+    await demo.close();
+  });
+
   test('the copy that is opened has IDs of its own', () async {
     final example = File('assets/example.wombat');
     final original = await Session.open(example.path);
