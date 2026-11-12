@@ -269,9 +269,12 @@ class Keeper extends ChangeNotifier {
 
 /// Finds out whether the document in the file at `path` can be read, also while a
 /// session has that file open: the core reads it into a copy in a folder of its own,
-/// which is removed again. Throws what opening the file would throw.
-Future<void> readable(String path) async {
-  final folder = await Directory.systemTemp.createTemp('wombat-look');
+/// which is removed again. Throws what opening the file would throw. The folder is made
+/// in `within`, or without one in the system's temporary folder.
+Future<void> readable(String path, {Directory? within}) async {
+  final folder = await (within ?? Directory.systemTemp).createTemp(
+    'wombat-look',
+  );
   try {
     final copy = await Session.openCopy(
       from: path,

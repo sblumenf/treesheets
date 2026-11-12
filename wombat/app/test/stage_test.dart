@@ -587,7 +587,6 @@ void main() {
         File(doc.path).writeAsStringSync(theirs);
         await stage.save();
         expect(kindOf(stage.saveError), ErrorKind.changedOnDisk);
-        final before = Directory.systemTemp.listSync().length;
         told = 0;
 
         await expectLater(stage.openTheirs(), refusedAs(ErrorKind.syntax));
@@ -598,8 +597,6 @@ void main() {
         expect(File(doc.path).readAsStringSync(), theirs);
         expect(await doc.isSaved(), isFalse);
         expect(texts(stage)[1], 'an hour of work');
-        // The copy that was tried is gone again.
-        expect(Directory.systemTemp.listSync().length, before);
 
         await stage.keepMine();
         expect(stage.saveError, isNull);

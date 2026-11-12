@@ -473,34 +473,42 @@ void main() {
   });
 
   group('whether a file can be read', () {
-    Set<String> looks() => {
-      for (final entry in Directory.systemTemp.listSync())
-        if (entry.path.contains('wombat-look')) entry.path,
-    };
+    // The looks of these tests are made in a folder of their own: other test files
+    // run at the same time and look into the system's temporary folder.
+    late Directory within;
+    setUp(() async => within = await folder.createTemp('looks'));
 
     test('also while it is open, and nothing is left behind', () async {
-      final before = looks();
       final doc = await openExample(folder, 'open');
       await doc.apply(Command.setText(cell: doc.root, text: 'not saved'));
       final bytes = File(doc.path).readAsBytesSync();
-      await readable(doc.path);
+      await readable(doc.path, within: within);
       // The file was read, not written, and the document is as it was.
       expect(File(doc.path).readAsBytesSync(), bytes);
       expect(await doc.isSaved(), isFalse);
-      expect(looks(), before);
+      expect(within.listSync(), isEmpty);
+      // Without a folder given, it is the system's temporary folder.
+      await readable(doc.path);
       await doc.close();
+      // The copy was made where it was said, and not somewhere else all the same.
+      await expectLater(
+        readable(doc.path, within: Directory('${folder.path}/none')),
+        throwsA(isA<FileSystemException>()),
+      );
     });
 
     test('says why not, and leaves nothing behind either', () async {
-      final before = looks();
       final file = File('${folder.path}/half.wombat')
         ..writeAsStringSync('half written by the other program');
-      await expectLater(readable(file.path), refusedAs(ErrorKind.syntax));
       await expectLater(
-        readable('${folder.path}/none.wombat'),
+        readable(file.path, within: within),
+        refusedAs(ErrorKind.syntax),
+      );
+      await expectLater(
+        readable('${folder.path}/none.wombat', within: within),
         refusedAs(ErrorKind.io),
       );
-      expect(looks(), before);
+      expect(within.listSync(), isEmpty);
     });
   });
 }
