@@ -386,3 +386,146 @@ jobs:
         tail -n 60 "$RUNNER_TEMP/emulator.log" || true
         echo "::endgroup::"
         df -h / || true
+
+  # The app built for an iPhone simulator, and one test file run on one. A job of its own
+  # on a Mac, the only kind of machine that builds for iOS; no other job waits for it.
+  # Nothing is signed and no account of Apple's is used: a simulator takes an unsigned
+  # app, a real iPhone does not, so what this builds cannot be put on a phone.
+  #
+  # What this shows is that the iOS project builds, that the bridge compiles for iOS and
+  # is linked into the app, and that the library loads and answers on a simulator. A
+  # simulator runs on the Mac's processor and file system: nothing here is an iPhone's
+  # speed or memory, and the on-screen keyboard, the gestures and what iOS does to an app
+  # out of sight stay untried.
+  ios:
+    name: App for iOS (simulator build)
+    # Not `macos-latest`, which moves to another Xcode by itself. Apple's processor.
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: wombat/app
+    env:
+      # Of the archive for a Mac with Apple's processor, of the version named at the top.
+      FLUTTER_MACOS_SHA256: 6545b85938745dc5070e9faf2adf70233c1811009d87fe6d27bfcda5a04b7698
+    steps:
+    - uses: actions/checkout@v7
+    - name: Cache the crates
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+        key: wombat-ios-${{ runner.os }}-${{ hashFiles('wombat/Cargo.lock') }}
+    - name: Cache the Dart packages
+      uses: actions/cache@v6
+      with:
+        path: ~/.pub-cache
+        key: wombat-pub-${{ runner.os }}-${{ env.FLUTTER_VERSION }}-${{ hashFiles('wombat/app/pubspec.lock', 'wombat/app/rust_builder/cargokit/build_tool/pubspec.lock') }}
+    - name: Install Flutter
+      working-directory: ${{ runner.temp }}
+      run: |
+        curl -fsSL --retry 3 -o flutter.zip "https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_${FLUTTER_VERSION}-stable.zip"
+        echo "${FLUTTER_MACOS_SHA256}  flutter.zip" | shasum -a 256 -c -
+        unzip -q flutter.zip
+        rm flutter.zip
+        echo "$PWD/flutter/bin" >> "$GITHUB_PATH"
+    # The build compiles the bridge with rustup's `stable`, not the pinned version (A131),
+    # and would add the targets by itself; here a download that fails is seen as that. The
+    # two of a simulator, one for each processor a Mac may have, since the build is for
+    # any simulator. The iPhone's own is not built here; it is added so that this is the
+    # whole list an iOS build can ask for.
+    - name: Install the Rust targets of iOS
+      run: |
+        rustup toolchain install stable --no-self-update
+        rustup target add --toolchain stable aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+    - name: Show toolchain
+      run: |
+        sw_vers
+        xcodebuild -version
+        xcrun --sdk iphonesimulator --show-sdk-version
+        pod --version
+        rustup toolchain list
+        flutter doctor -v
+        df -h .
+    # On a Mac this also writes `ios/Podfile` from Flutter's template: none is committed,
+    # since no machine with Xcode has made one yet (docs/IOS.md).
+    - name: Get packages
+      run: flutter pub get --enforce-lockfile
+    - name: Build
+      run: flutter build ios --simulator --debug
+    # The bridge is a static library put whole into a framework of its name, which is
+    # where the Dart side looks for it. The step fails if it is not there: an app without
+    # it builds all the same and fails only when it starts.
+    - name: Show what was built
+      run: |
+        app=build/ios/iphonesimulator/Runner.app
+        ls -l "$app" "$app/Frameworks"
+        du -sh "$app"
+        lipo -info "$app/Frameworks/wombat_bridge.framework/wombat_bridge"
+        ls -l "$app/Frameworks/wombat_bridge.framework/wombat_bridge"
+        /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' -c 'Print :CFBundleDisplayName' -c 'Print :MinimumOSVersion' "$app/Info.plist"
+    # A new simulator, so that nothing an earlier use left is on it. Which iOS versions and
+    # which iPhones a runner has changes with its image, so none is named: the newest iOS
+    # that is not newer than the Xcode in use, and of the iPhones without a suffix (not
+    # Pro, Plus or SE) the newest. The lists are printed, for when the rule finds nothing.
+    - name: Make and start the simulator
+      timeout-minutes: 15
+      run: |
+        xcrun simctl list runtimes
+        xcrun simctl list devicetypes | grep -i iphone || true
+        xcrun simctl list runtimes --json > "$RUNNER_TEMP/runtimes.json"
+        sdk=$(xcrun --sdk iphonesimulator --show-sdk-version)
+        python3 - "$RUNNER_TEMP/runtimes.json" "$sdk" > "$RUNNER_TEMP/choice.txt" <<'PY'
+        import json, re, sys
+
+        def number(text):
+            return tuple(int(part) for part in re.findall(r"\d+", text))
+
+        runtimes = [
+            r for r in json.load(open(sys.argv[1]))["runtimes"]
+            if r.get("isAvailable") and "SimRuntime.iOS-" in r.get("identifier", "")
+        ]
+        if not runtimes:
+            sys.exit("no iOS simulator runtime is available")
+        sdk = number(sys.argv[2])
+        # A runtime newer than the Xcode in use may be listed and still not start with it.
+        fitting = [r for r in runtimes if number(r["version"])[:2] <= sdk[:2]] or runtimes
+        runtime = max(fitting, key=lambda r: number(r["version"]))
+        phones = [
+            t for t in runtime.get("supportedDeviceTypes", [])
+            if t.get("name", "").startswith("iPhone")
+        ]
+        if not phones:
+            sys.exit("the runtime " + runtime["identifier"] + " lists no iPhone")
+        plain = [t for t in phones if re.fullmatch(r"iPhone \d+", t["name"])]
+        phone = max(plain, key=lambda t: number(t["name"])) if plain else phones[0]
+        print(phone["identifier"])
+        print(runtime["identifier"])
+        PY
+        cat "$RUNNER_TEMP/choice.txt"
+        device_type=$(sed -n 1p "$RUNNER_TEMP/choice.txt")
+        runtime=$(sed -n 2p "$RUNNER_TEMP/choice.txt")
+        udid=$(xcrun simctl create wombat "$device_type" "$runtime")
+        echo "SIMULATOR=$udid" >> "$GITHUB_ENV"
+        xcrun simctl boot "$udid"
+        # Returns when the simulator has started; the limit of this step is its limit.
+        xcrun simctl bootstatus "$udid"
+        xcrun simctl list devices booted
+        flutter devices
+    # One file, the plain-text check of the bridge: enough to see the library load and
+    # the core answer. With a limit of its own, since a test on a device has none, and a
+    # Mac has no `timeout` command. It builds once more, for this one simulator, on top
+    # of what the build above left.
+    - name: Test the bridge check on the simulator
+      timeout-minutes: 20
+      run: flutter test integration_test/app_test.dart -d "$SIMULATOR"
+    # What the app logged, for a failure above. Also after a failure, and never one
+    # itself.
+    - name: Show what the simulator logged
+      if: ${{ !cancelled() }}
+      run: |
+        if [ -n "${SIMULATOR:-}" ]; then
+          xcrun simctl spawn "$SIMULATOR" log show --last 20m --style compact --predicate 'process == "Runner"' | tail -n 400 || true
+        fi
+        df -h . || true
