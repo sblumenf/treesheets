@@ -35,7 +35,9 @@ Formats
            for Excel, Google Sheets and LibreOffice
   text     TreeSheets' indented text: a line per cell, two spaces per level. Lines end
            in CR LF, as TreeSheets writes them on Linux and Windows, or with --lf in LF,
-           as on macOS (of the options below only --lf and --overwrite apply)
+           as on macOS (of the options below only --lf and --overwrite apply). A line
+           is a cell there, so a line break inside a text is written as a space; the
+           other formats keep it, in a quoted field
 
 Options (csv, tsv, flat, lookup)
   --delimiter comma|semicolon|tab   what separates fields (default comma; tsv: tab).
@@ -88,8 +90,8 @@ Makes a new document from another file. The format is taken from the file's name
                   starts a grid inside that one
 
 Delimited text is read as RFC 4180 says (quoted fields may hold the delimiter, doubled
-quotes and line breaks; a line break inside a field becomes a space, since cell text has
-none); rows are padded with empty cells to a rectangle.
+quotes and line breaks; a line break inside a quoted field is kept as a line break of the
+cell's text); rows are padded with empty cells to a rectangle.
 
   --delimiter comma|semicolon|tab
                   what separates the fields, whatever the name or the content say
