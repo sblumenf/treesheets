@@ -500,7 +500,8 @@ impl Parser {
             } else if !in_quotes && c == ':' && word.key.is_none() && !word.quoted {
                 word.key = Some(std::mem::take(&mut word.text));
             } else {
-                // Control characters cannot be in cell text; a space is what they become.
+                // Of the control characters only a line break can be in cell text, and it
+                // is found as a space, as every one of them is in a note (`fold`).
                 word.text.push(if c.is_control() { ' ' } else { c });
             }
             self.at = self.at.saturating_add(1);
