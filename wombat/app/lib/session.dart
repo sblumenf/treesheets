@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart'
     show PanicException;
@@ -7,18 +9,98 @@ import 'src/rust/api/wire.dart';
 
 /// Runs pieces of work one at a time, in the order they were asked for, whether or not
 /// the caller waits for one before asking for the next.
+///
+/// **An error is never lost.** It goes to the caller of its own piece, if the caller has
+/// taken the answer by the time the piece fails (`await`, `then`, `catchError` and the
+/// like). If no one has, it goes once to `onUnheard`, which the owner of the queue
+/// gives, or without one to the zone as an error that nobody caught. Someone who takes
+/// the answer only after that still finds the error in it.
+///
+/// **A piece must not ask its own queue for more.** A piece that waits for another
+/// piece of the same queue would wait for ever, since that one comes after it. [run]
+/// called from inside a piece of this queue fails at once with a [StateError] and runs
+/// nothing. Hand the work to a different queue, or do it in the piece itself.
 class InTurn {
+  InTurn({this.onUnheard});
+
+  /// Where an error goes that no caller had taken when its piece failed.
+  final void Function(Object error, StackTrace stack)? onUnheard;
   Future<void> _last = Future.value();
 
+  /// What the piece that runs now carries in its zone, to know itself by.
+  Object? _now;
+
   /// Runs `work` when everything asked for before has ended, well or badly, and
-  /// answers with what it answers. An error goes to the caller of this piece alone:
-  /// the pieces after it run all the same, in their order.
+  /// answers with what it answers. The pieces after one that failed run all the same,
+  /// in their order.
   Future<T> run<T>(Future<T> Function() work) {
-    final result = _last.then((_) => work());
+    if (_now != null && identical(Zone.current[this], _now)) {
+      return Future.error(
+        StateError(
+          'A piece of work asked its own queue for more work; it would wait '
+          'for that for ever.',
+        ),
+        StackTrace.current,
+      );
+    }
+    final asked = Zone.current;
+    final ran = _last.then((_) {
+      final piece = Object();
+      _now = piece;
+      return runZoned(work, zoneValues: {this: piece});
+    });
+    final answer = _Answer<T>(ran);
     // The chain itself never fails, or one error would end every later piece.
-    _last = result.then<void>((_) {}, onError: (Object _) {});
-    return result;
+    _last = ran.then<void>(
+      (_) {
+        _now = null;
+      },
+      onError: (Object error, StackTrace stack) {
+        _now = null;
+        if (answer.taken) return;
+        try {
+          (onUnheard ?? asked.handleUncaughtError)(error, stack);
+        } catch (error, stack) {
+          asked.handleUncaughtError(error, stack);
+        }
+      },
+    );
+    return answer;
   }
+}
+
+/// The answer of a piece of work, which knows whether anyone has taken it.
+class _Answer<T> implements Future<T> {
+  _Answer(this._answer);
+
+  final Future<T> _answer;
+  bool taken = false;
+
+  Future<T> get _taken {
+    taken = true;
+    return _answer;
+  }
+
+  @override
+  Future<R> then<R>(
+    FutureOr<R> Function(T value) onValue, {
+    Function? onError,
+  }) => _taken.then(onValue, onError: onError);
+
+  @override
+  Future<T> catchError(Function onError, {bool Function(Object error)? test}) =>
+      _taken.catchError(onError, test: test);
+
+  @override
+  Future<T> whenComplete(FutureOr<void> Function() action) =>
+      _taken.whenComplete(action);
+
+  @override
+  Stream<T> asStream() => _taken.asStream();
+
+  @override
+  Future<T> timeout(Duration limit, {FutureOr<T> Function()? onTimeout}) =>
+      _taken.timeout(limit, onTimeout: onTimeout);
 }
 
 /// An open document: the one way the app, and its tests, reach a document of the core.
@@ -55,8 +137,15 @@ class Session {
   /// A session on a handle that is already open, for tests that put a stand-in for the
   /// core under it.
   @visibleForTesting
-  static Future<Session> over(OpenDocument doc) async =>
-      Session._(doc, await doc.id(), await doc.root(), await doc.path());
+  static Future<Session> over(OpenDocument doc) async {
+    try {
+      return Session._(doc, await doc.id(), await doc.root(), await doc.path());
+    } catch (_) {
+      // No session, so no one to let go of the handle: its file must not stay taken.
+      doc.dispose();
+      rethrow;
+    }
+  }
 
   /// Opens the document in the file at `path`.
   static Future<Session> open(String path) async =>
@@ -88,7 +177,8 @@ class Session {
   /// The ID of the root cell.
   final String root;
 
-  /// The file the document is saved to, as it was given when the document was opened.
+  /// The file the document is saved to, as a path from the root: the path it was opened
+  /// with, made absolute at that moment (decision A149).
   final String path;
 
   /// What every call goes through: its turn, and the refusal once the document is gone.
@@ -211,10 +301,17 @@ class Session {
 
 /// How many code points the first `units` UTF-16 units of `text` are: turns a position
 /// in a Dart string, such as `TextEditingController.selection` gives, into the position
-/// that the core counts in ([Session.apply]). `units` is from 0 to `text.length`. A
-/// position between the two halves of a surrogate pair, where no cursor stands, counts
-/// as after the pair.
-int codePoints(String text, int units) => text.substring(0, units).runes.length;
+/// that the core counts in ([Session.apply]). A position between the two halves of a
+/// surrogate pair, where no cursor stands, counts as after the pair.
+///
+/// `units` is from 0 to `text.length`; anything else is refused with a [RangeError], as
+/// the core refuses a position outside the text and never moves it. That includes -1,
+/// which a `TextSelection` gives when there is no selection: that is no position, so
+/// ask `selection.isValid` first.
+int codePoints(String text, int units) {
+  RangeError.checkValueInInterval(units, 0, text.length, 'units');
+  return text.substring(0, units).runes.length;
+}
 
 /// Whether an error says that the document cannot be used any more: a fault in the
 /// program, as it happened or as every call after it reports it.

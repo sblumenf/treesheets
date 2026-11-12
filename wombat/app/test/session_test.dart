@@ -1,5 +1,6 @@
 // The session: calls to one document in the order they were made, errors, closing.
 // Against the real core, and against a stand-in where the order must be seen.
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart'
@@ -208,6 +209,159 @@ void main() {
     await doc.close();
   });
 
+  test('a position outside the text is refused, not moved', () {
+    expect(codePoints('abc', 3), 3);
+    // What a selection gives when there is none.
+    expect(() => codePoints('abc', -1), throwsRangeError);
+    expect(() => codePoints('abc', 4), throwsRangeError);
+    expect(() => codePoints('', 1), throwsRangeError);
+  });
+
+  test('discarding comes after the calls made before it', () async {
+    final fake = FakeDocument();
+    final doc = await Session.over(fake);
+    final gate = holdFirst(fake, 'apply');
+    final edit = doc.apply(const Command.setText(cell: 'a', text: '1'));
+    final gone = doc.discard();
+    await pumpEventQueue();
+    expect(fake.disposed, isFalse);
+    gate.complete();
+    expect((await edit).changed, ['a']);
+    await gone;
+    expect(fake.disposed, isTrue);
+    // A second time is nothing, and so is one after a close.
+    await doc.discard();
+    final closed = await Session.over(FakeDocument());
+    await closed.close();
+    await closed.discard();
+  });
+
+  test('a handle that cannot say what it is is let go of', () async {
+    final fake = _NoRoot();
+    await expectLater(Session.over(fake), refusedAs(ErrorKind.io));
+    expect(fake.disposed, isTrue);
+  });
+
+  group('one piece at a time', () {
+    test('many pieces, and one that throws at once', () async {
+      final turns = InTurn();
+      var n = 0;
+      late Future<int> last;
+      for (var i = 0; i < 100000; i++) {
+        last = turns.run(() async => ++n);
+      }
+      expect(await last, 100000);
+      // Not an asynchronous function: it throws before it answers.
+      final bad = turns.run<int>(() => throw StateError('at once'));
+      final after = turns.run(() async => 7);
+      await expectLater(bad, throwsStateError);
+      expect(await after, 7);
+    });
+
+    test('an error that no one waits for goes to the owner, once', () async {
+      final unheard = <Object>[];
+      final turns = InTurn(onUnheard: (error, _) => unheard.add(error));
+      final lost = StateError('lost');
+      final answer = turns.run<void>(() async => throw lost);
+      final after = turns.run(() async => 1);
+      expect(await after, 1);
+      expect(unheard, [lost]);
+      // Whoever takes the answer afterwards still finds the error in it.
+      await expectLater(answer, throwsA(lost));
+      expect(unheard, [lost]);
+    });
+
+    test(
+      'an error that its caller waits for goes to the caller alone',
+      () async {
+        final unheard = <Object>[];
+        final turns = InTurn(onUnheard: (error, _) => unheard.add(error));
+        await expectLater(
+          turns.run<void>(() async => throw StateError('heard')),
+          throwsStateError,
+        );
+        // Each way of taking the answer counts.
+        final caught = turns
+            .run<int>(() async => throw StateError('caught'))
+            .catchError((Object _) => 0);
+        final timed = turns
+            .run<int>(() async => throw StateError('timed'))
+            .timeout(const Duration(hours: 1))
+            .catchError((Object _) => 0);
+        final finished = turns
+            .run<int>(() async => throw StateError('finished'))
+            .whenComplete(() {})
+            .catchError((Object _) => 0);
+        final streamed = turns
+            .run<int>(() async => throw StateError('streamed'))
+            .asStream()
+            .handleError((Object _) {})
+            .drain<void>();
+        expect((await caught, await timed, await finished), (0, 0, 0));
+        await streamed;
+        expect(unheard, isEmpty);
+      },
+    );
+
+    test(
+      'without an owner to tell, an unheard error is not swallowed',
+      () async {
+        final uncaught = <Object>[];
+        await runZonedGuarded(() async {
+          final turns = InTurn();
+          unawaited(turns.run<void>(() async => throw StateError('lost')));
+          expect(await turns.run(() async => 1), 1);
+        }, (error, _) => uncaught.add(error));
+        expect(uncaught.single, isStateError);
+      },
+    );
+
+    test(
+      'an owner that fails to take an error does not stop the queue',
+      () async {
+        final uncaught = <Object>[];
+        await runZonedGuarded(() async {
+          final turns = InTurn(onUnheard: (_, _) => throw StateError('owner'));
+          unawaited(turns.run<void>(() async => throw ArgumentError('lost')));
+          expect(await turns.run(() async => 1), 1);
+        }, (error, _) => uncaught.add(error));
+        expect(uncaught.single, isStateError);
+      },
+    );
+
+    test('a piece that asks its own queue for more fails at once', () async {
+      final turns = InTurn();
+      final other = InTurn();
+      var ran = false;
+      final outer = turns.run(
+        () => turns.run(() async {
+          ran = true;
+          return 1;
+        }),
+      );
+      await expectLater(
+        outer.timeout(const Duration(seconds: 5)),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('its own queue'),
+          ),
+        ),
+      );
+      expect(ran, isFalse);
+      // The queue is not stuck, another queue may be asked from inside a piece, and so
+      // may this one by something that a piece left behind and that runs after it.
+      expect(await turns.run(() => other.run(() async => 2)), 2);
+      late Future<int> later;
+      await turns.run(() async {
+        Timer.run(() => later = turns.run(() async => 3));
+      });
+      await pumpEventQueue();
+      expect(await later, 3);
+    });
+  });
+
   test('a fault in the program is told in a fixed sentence', () {
     final panic = PanicException('panicked at /home/builder/src/core.rs:1:1');
     const after = BridgeError(
@@ -224,4 +378,11 @@ void main() {
     expect(describeError(refused), 'Error (refused): not so');
     expect(faultSentence, isNot(contains('/')));
   });
+}
+
+/// A handle that fails when asked for its root.
+class _NoRoot extends FakeDocument {
+  @override
+  Future<String> root() async =>
+      throw const BridgeError(kind: ErrorKind.io, message: 'no root');
 }
