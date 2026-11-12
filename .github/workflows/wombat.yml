@@ -10,45 +10,99 @@ on:
       - 'wombat/**'
       - '.github/workflows/wombat.yml'
 
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request makes the run before it pointless.
+concurrency:
+  group: wombat-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The version the app was made with; raise it together with `app/pubspec.lock`.
+  FLUTTER_VERSION: 3.47.9
+  FLUTTER_SHA256: 25ed8c3c29d51a7353f2a944310b478af8214920639524b19c50a19e6c044c5a
+  # Nothing is built twice in one run and a backtrace needs line numbers only, which leaves
+  # the cached `target` at a third of the size.
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+
 jobs:
   check:
     name: Format, lint and test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: wombat
     steps:
     - uses: actions/checkout@v7
+    # No restore-keys: what another lock file or compiler built would only be carried along.
+    - name: Cache the crates and what was built of them
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          wombat/target
+        key: wombat-check-${{ runner.os }}-${{ hashFiles('wombat/Cargo.lock', 'wombat/rust-toolchain.toml') }}
+    # The first call installs what `rust-toolchain.toml` pins.
     - name: Show toolchain
       run: rustc --version && cargo --version
     - name: Format
       run: cargo fmt --all -- --check
     - name: Lint
-      run: cargo clippy --workspace --all-targets -- -D warnings
+      run: cargo clippy --locked --workspace --all-targets -- -D warnings
     - name: Test
-      run: cargo test --workspace
+      run: cargo test --locked --workspace
     - name: Build for the web and for phones
       run: |
         for target in wasm32-unknown-unknown aarch64-linux-android aarch64-apple-ios; do
-          cargo check --target "$target" -p wombat-core -p wombat-search
+          cargo check --locked --target "$target" -p wombat-core -p wombat-search
         done
 
   app:
-    name: Bridge and bare app
+    name: Bridge and app on Linux
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: wombat/app
     env:
-      # The version the app was made with; raise it together with `app/pubspec.lock`.
-      FLUTTER_VERSION: 3.47.9
-      FLUTTER_SHA256: 25ed8c3c29d51a7353f2a944310b478af8214920639524b19c50a19e6c044c5a
+      # The generator of the same version as the `flutter_rust_bridge` crate and package.
+      CODEGEN_VERSION: 2.13.0
+      CODEGEN_SHA256: 1bb088e6ea42782848ea6507ab745371dbde58c83abef137d3e1e68ce510d45b
+      # The generator calls it. It has no prebuilt release, so it is built once and cached.
+      CARGO_EXPAND_VERSION: 1.0.127
     steps:
     - uses: actions/checkout@v7
+    # What `flutter build linux` needs, and a display for the app to run on.
+    - name: Install the Linux build tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev xvfb
+    - name: Cache the crates and what was built of them
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          wombat/target
+        key: wombat-app-${{ runner.os }}-${{ hashFiles('wombat/Cargo.lock', 'wombat/rust-toolchain.toml') }}
+    - name: Cache cargo-expand
+      uses: actions/cache@v6
+      with:
+        path: ~/.cargo/bin/cargo-expand
+        key: cargo-expand-${{ runner.os }}-${{ env.CARGO_EXPAND_VERSION }}
+    - name: Cache the Dart packages
+      uses: actions/cache@v6
+      with:
+        path: ~/.pub-cache
+        key: wombat-pub-${{ runner.os }}-${{ env.FLUTTER_VERSION }}-${{ hashFiles('wombat/app/pubspec.lock', 'wombat/app/rust_builder/cargokit/build_tool/pubspec.lock') }}
     - name: Install Flutter
       working-directory: ${{ runner.temp }}
       run: |
-        curl -fsS -o flutter.tar.xz "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+        curl -fsSL --retry 3 -o flutter.tar.xz "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
         echo "${FLUTTER_SHA256}  flutter.tar.xz" | sha256sum -c -
         tar -xJf flutter.tar.xz
         rm flutter.tar.xz
@@ -56,14 +110,102 @@ jobs:
     - name: Show toolchain
       run: flutter --version && rustc --version
     - name: Get packages
-      run: flutter pub get
+      run: flutter pub get --enforce-lockfile
+    - name: Install the bridge generator
+      working-directory: ${{ runner.temp }}
+      run: |
+        curl -fsSL --retry 3 -o codegen.tgz "https://github.com/fzyzcjy/flutter_rust_bridge/releases/download/v${CODEGEN_VERSION}/flutter_rust_bridge_codegen-x86_64-unknown-linux-gnu-v${CODEGEN_VERSION}.tgz"
+        echo "${CODEGEN_SHA256}  codegen.tgz" | sha256sum -c -
+        mkdir codegen
+        tar -xzf codegen.tgz -C codegen
+        rm codegen.tgz
+        echo "$PWD/codegen" >> "$GITHUB_PATH"
+    # The generator would install the newest one by itself; this one is the version named above.
+    - name: Install cargo-expand
+      run: |
+        if ! cargo expand --version | grep -qxF "cargo-expand $CARGO_EXPAND_VERSION"; then
+          cargo install --locked --force cargo-expand --version "$CARGO_EXPAND_VERSION"
+        fi
+    - name: Check that the generated code is what the generator writes
+      run: |
+        flutter_rust_bridge_codegen generate
+        (cd .. && cargo fmt --all)
+        cd "$GITHUB_WORKSPACE"
+        generated=(wombat/crates/wombat-bridge/src/frb_generated.rs wombat/app/lib/src/rust)
+        # `git status` and not `git diff`, which says nothing of a file that is new.
+        if [ -n "$(git status --porcelain -- "${generated[@]}")" ]; then
+          git status --short -- "${generated[@]}"
+          # `head` closing the pipe early must not end the step before the message.
+          git diff -- "${generated[@]}" | head -n 200 || true
+          echo "::error::The generated bridge code is not what flutter_rust_bridge_codegen ${CODEGEN_VERSION} writes from crates/wombat-bridge/src/api/. In wombat/app run 'flutter_rust_bridge_codegen generate', then in wombat 'cargo fmt --all', and commit the result (wombat/AGENTS.md)."
+          exit 1
+        fi
     - name: Format
       run: dart format --output=none --set-exit-if-changed lib/*.dart lib/grid test integration_test test_driver
     - name: Analyze
       run: flutter analyze
     - name: Build the bridge
       working-directory: wombat
-      run: cargo build -p wombat_bridge
+      run: cargo build --locked -p wombat_bridge
     # Without a device: the Dart side calls the real core through the library just built.
-    - name: Test
+    - name: Test without a device
       run: flutter test
+    # The real app, built for Linux and its buttons pressed. One file at a time: with the
+    # whole folder in one call the second app does not start.
+    - name: Test the app on Linux
+      run: |
+        for test in integration_test/*_test.dart; do
+          echo "::group::$test"
+          xvfb-run -a flutter test "$test" -d linux
+          echo "::endgroup::"
+        done
+
+  # A job of its own, so that it is plain which of the two failed. Nothing runs: there is
+  # no phone here. It shows that the bridge and the app still build for one.
+  android:
+    name: App for Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: wombat/app
+    env:
+      # What Flutter of the version above asks for (`flutter.ndkVersion`).
+      ANDROID_NDK_VERSION: 28.2.13676358
+    steps:
+    - uses: actions/checkout@v7
+    - name: Cache the crates
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+        key: wombat-android-${{ runner.os }}-${{ hashFiles('wombat/Cargo.lock') }}
+    - name: Cache the Dart packages
+      uses: actions/cache@v6
+      with:
+        path: ~/.pub-cache
+        key: wombat-pub-${{ runner.os }}-${{ env.FLUTTER_VERSION }}-${{ hashFiles('wombat/app/pubspec.lock', 'wombat/app/rust_builder/cargokit/build_tool/pubspec.lock') }}
+    - name: Install Flutter
+      working-directory: ${{ runner.temp }}
+      run: |
+        curl -fsSL --retry 3 -o flutter.tar.xz "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+        echo "${FLUTTER_SHA256}  flutter.tar.xz" | sha256sum -c -
+        tar -xJf flutter.tar.xz
+        rm flutter.tar.xz
+        echo "$PWD/flutter/bin" >> "$GITHUB_PATH"
+    # The runner has the Android SDK with its licences accepted. No answer is given to a
+    # question, so that one asked fails here and does not wait.
+    - name: Install the NDK
+      run: |
+        "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${ANDROID_NDK_VERSION}" < /dev/null
+    # The build compiles the bridge with rustup's `stable`, not the pinned version (A131).
+    - name: Show toolchain
+      run: |
+        flutter doctor -v
+        rustup toolchain list
+        df -h .
+    - name: Get packages
+      run: flutter pub get --enforce-lockfile
+    - name: Build
+      run: flutter build apk --debug --target-platform android-arm64
