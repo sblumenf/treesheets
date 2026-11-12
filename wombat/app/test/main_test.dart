@@ -614,9 +614,13 @@ void main() {
           await lifecycle(tester, step);
         }
         expect(fake.cells['a']!.text, 'half a sentence');
-        // Entered once and written once, however many steps the way has.
-        expect((calls(fake, 'apply'), fake.saves, fake.saved), (1, 1, true));
-        expect(fake.log, containsAllInOrder(['apply.', 'save']));
+        // One editing, held and written once, however many steps the way has.
+        expect(
+          (calls(fake, 'beginGroup'), fake.saves, fake.saved),
+          (1, 1, true),
+        );
+        expect(calls(fake, 'endGroup'), 0);
+        expect(fake.log, containsAllInOrder(['retype.', 'apply.', 'save']));
         expect(text(tester, 'probe-state'), 'saved');
       });
     }
