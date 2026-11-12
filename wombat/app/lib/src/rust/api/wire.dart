@@ -816,6 +816,9 @@ enum ErrorKind {
   /// A document of this app has the file open already, and no file is open twice;
   /// `path` is the file as it was asked for.
   alreadyOpen,
+
+  /// The call was made on a document that was closed; nothing was done.
+  closed,
 }
 
 /// A cell and the cells of its grid.

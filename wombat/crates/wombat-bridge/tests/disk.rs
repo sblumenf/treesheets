@@ -47,7 +47,7 @@ fn unsaved_and_the_file_untouched_is_written() {
     let (mut doc, path) = open_example("unsaved-unchanged");
     doc.apply(set_text(&doc, "ours")).unwrap();
     doc.save().unwrap();
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     assert_eq!(text_in_file(&path), "ours");
     // What was written is remembered as the document's own: the next save is not
     // taken for a change by someone else, however often.
@@ -79,7 +79,7 @@ fn unsaved_and_the_file_gone_is_written() {
     doc.apply(set_text(&doc, "ours")).unwrap();
     std::fs::remove_file(&path).unwrap();
     doc.save().unwrap();
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     assert_eq!(text_in_file(&path), "ours");
 }
 
@@ -91,9 +91,9 @@ fn saved_and_the_file_gone_is_written() {
     std::fs::remove_file(&path).unwrap();
     // "Saved" is about what was done to the document, not about the disk: it does not
     // look at the file.
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     doc.save().unwrap();
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     assert_eq!(text_in_file(&path), "ours");
     // And that file is the document's own again.
     doc.apply(set_text(&doc, "more")).unwrap();
@@ -108,12 +108,12 @@ fn unsaved_and_the_file_changed_is_refused_and_not_overwritten() {
     change_by_someone_else(&path);
     changed_on_disk(doc.save().err().unwrap(), &path);
     assert_eq!(text_in_file(&path), "theirs");
-    assert!(!doc.is_saved());
+    assert!(!doc.is_saved().unwrap());
     // Being refused once does not make the file the document's own.
     changed_on_disk(doc.save().err().unwrap(), &path);
     assert_eq!(text_in_file(&path), "theirs");
     // The document is as it was and can be worked on.
-    let root = doc.grid(doc.root()).unwrap();
+    let root = doc.grid(doc.root().unwrap()).unwrap();
     assert_eq!(root.cells[1].text, "ours");
     doc.apply(set_text(&doc, "ours still")).unwrap();
 }
@@ -122,10 +122,10 @@ fn unsaved_and_the_file_changed_is_refused_and_not_overwritten() {
 fn saved_and_the_file_changed_is_refused_and_not_overwritten() {
     let (mut doc, path) = open_example("saved-changed");
     change_by_someone_else(&path);
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     changed_on_disk(doc.save().err().unwrap(), &path);
     assert_eq!(text_in_file(&path), "theirs");
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
 }
 
 /// The document is reached through a link whose file is then removed: saving would have
@@ -150,14 +150,14 @@ fn a_link_that_leads_nowhere_is_an_error_saved_or_not() {
     let saved = doc.save().err().unwrap();
     assert_eq!(saved.kind, ErrorKind::Io);
     assert_eq!(saved.path, Some(link.display().to_string()));
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     doc.apply(set_text(&doc, "unsaved")).unwrap();
     let unsaved = doc.save().err().unwrap();
     assert_eq!(unsaved.kind, ErrorKind::Io);
-    assert!(!doc.is_saved());
+    assert!(!doc.is_saved().unwrap());
     // Nor on purpose: there is no file to go over.
     assert_eq!(doc.overwrite().err().unwrap().kind, ErrorKind::Io);
-    assert!(!doc.is_saved());
+    assert!(!doc.is_saved().unwrap());
     assert!(!real.exists());
     assert!(std::fs::symlink_metadata(&link).unwrap().is_symlink());
 }
@@ -167,7 +167,7 @@ fn a_new_document_and_a_copy_know_their_files() {
     let path = folder("disk", "create").join("new.wombat");
     let mut doc = OpenDocument::create_with(&path, ids()).unwrap();
     let grid = Command::CreateGrid {
-        cell: doc.root(),
+        cell: doc.root().unwrap(),
         xs: 1,
         ys: 1,
     };
@@ -187,14 +187,14 @@ fn a_new_document_and_a_copy_know_their_files() {
 #[test]
 fn a_command_that_changes_nothing_leaves_the_document_saved() {
     let (mut doc, _) = open_example("no-op");
-    let same = doc.grid(doc.root()).unwrap().cells[1].text.clone();
+    let same = doc.grid(doc.root().unwrap()).unwrap().cells[1].text.clone();
     let report = doc.apply(set_text(&doc, &same)).unwrap();
     assert_eq!(report, Report::default());
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     assert_eq!(doc.undo().unwrap(), None);
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     assert_eq!(doc.redo().unwrap(), None);
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
 }
 
 #[test]
@@ -204,11 +204,11 @@ fn undo_and_redo_make_the_document_unsaved() {
     doc.save().unwrap();
     // The file has "ours"; after undo the document does not.
     assert!(doc.undo().unwrap().is_some());
-    assert!(!doc.is_saved());
+    assert!(!doc.is_saved().unwrap());
     doc.save().unwrap();
     assert_eq!(text_in_file(&path), "what to buy");
     assert!(doc.redo().unwrap().is_some());
-    assert!(!doc.is_saved());
+    assert!(!doc.is_saved().unwrap());
     doc.save().unwrap();
     assert_eq!(text_in_file(&path), "ours");
     // Undo and then redo give the document that was saved, but "saved" is a flag that any
@@ -216,9 +216,9 @@ fn undo_and_redo_make_the_document_unsaved() {
     let bytes = std::fs::read(&path).unwrap();
     doc.undo().unwrap();
     doc.redo().unwrap();
-    assert!(!doc.is_saved());
+    assert!(!doc.is_saved().unwrap());
     doc.save().unwrap();
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     assert_eq!(std::fs::read(&path).unwrap(), bytes);
 }
 
@@ -243,7 +243,7 @@ fn overwriting_is_asked_for_by_name() {
     change_by_someone_else(&path);
     changed_on_disk(doc.save().err().unwrap(), &path);
     doc.overwrite().unwrap();
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     assert_eq!(text_in_file(&path), "ours");
     // The file is the document's own again.
     doc.apply(set_text(&doc, "more")).unwrap();
@@ -251,7 +251,7 @@ fn overwriting_is_asked_for_by_name() {
     assert_eq!(text_in_file(&path), "more");
     // With nothing unsaved it writes too: the file may hold anything.
     change_by_someone_else(&path);
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     doc.overwrite().unwrap();
     assert_eq!(text_in_file(&path), "more");
     // And where the file is gone.

@@ -9,8 +9,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 import 'wire.dart';
 
-// These functions are ignored because they are not marked as `pub`: `now`, `os_ids`, `report`, `with`, `write`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Clock`
+// These functions are ignored because they are not marked as `pub`: `closed`, `now`, `os_ids`, `report`, `save_quietly`, `save`, `session_mut`, `session`, `with`, `write`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Clock`, `Session`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `drop`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `copy_with`, `create_with`, `open_with`, `set_fixed_time`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OpenDocument>>
@@ -19,8 +20,25 @@ abstract class OpenDocument implements RustOpaqueInterface {
   /// exactly as before.
   Future<Report> apply({required Command command});
 
+  /// Ends the work on the document: saves what is unsaved and gives the document up.
+  ///
+  /// - If anything was done since the last save, it is saved as by
+  ///   [`OpenDocument::save`], with the same refusals. If that fails, the error is
+  ///   returned and the document **stays open** exactly as it was, so that nothing is
+  ///   lost: the caller can try again, [`OpenDocument::overwrite`] and close, or keep
+  ///   working.
+  /// - If nothing was done since the last save, nothing is written and the file is not
+  ///   looked at: closing a document that was only read never fails, never brings back a
+  ///   file that was removed, and never complains about a file that someone else changed.
+  ///
+  /// After a close that succeeded the file may be opened again, the memory is freed, and
+  /// every later call on this handle, `close` included, is refused with
+  /// [`ErrorKind::Closed`]. The handle itself is still Dart's to dispose of.
+  Future<void> close();
+
   /// Makes a new document with an empty root cell and saves it at `path`, where no file
-  /// may be yet.
+  /// may be yet ([`ErrorKind::AlreadyExists`]) and no document may be open
+  /// ([`ErrorKind::AlreadyOpen`]).
   static Future<OpenDocument> create({required String path}) =>
       RustLib.instance.api.crateApiDocumentOpenDocumentCreate(path: path);
 
@@ -38,14 +56,17 @@ abstract class OpenDocument implements RustOpaqueInterface {
   /// when the two together lead back to what was saved: any change clears the flag.
   Future<bool> isSaved();
 
-  /// Opens the document in the file at `path`.
+  /// Opens the document in the file at `path`. Refused if a document has that file open
+  /// ([`ErrorKind::AlreadyOpen`]).
   static Future<OpenDocument> open({required String path}) =>
       RustLib.instance.api.crateApiDocumentOpenDocumentOpen(path: path);
 
-  /// Makes a copy of the document in the file `from` at `to`, where no file may be yet,
-  /// and opens the copy. The copy has new IDs for itself and every cell: this is how a
-  /// document that many people get the same file of, such as an example that comes with
-  /// the app, becomes a document of one's own.
+  /// Makes a copy of the document in the file `from` at `to`, where no file may be yet
+  /// and no document may be open, and opens the copy. The copy has new IDs for itself
+  /// and every cell: this is how a document that many people get the same file of, such
+  /// as an example that comes with the app, becomes a document of one's own. `from` may
+  /// be open; what is copied is its file, not what was done since it was saved. If the
+  /// copy fails, nothing of it stays.
   static Future<OpenDocument> openCopy({
     required String from,
     required String to,
@@ -60,7 +81,7 @@ abstract class OpenDocument implements RustOpaqueInterface {
   /// `save`, so that no ordinary save can overwrite by a wrong argument.
   Future<void> overwrite();
 
-  /// The file the document is saved to.
+  /// The file the document is saved to, as it was given when the document was opened.
   Future<String> path();
 
   /// Redoes the command that was undone last and returns what that changed, or `None`

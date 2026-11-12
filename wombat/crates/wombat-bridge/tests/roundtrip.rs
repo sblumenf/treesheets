@@ -94,6 +94,7 @@ const KINDS: &[ErrorKind] = &[
     ErrorKind::HalfSaved,
     ErrorKind::ChangedOnDisk,
     ErrorKind::AlreadyOpen,
+    ErrorKind::Closed,
 ];
 
 #[test]
@@ -112,7 +113,8 @@ fn every_kind_is_listed() {
             | ErrorKind::AlreadyExists
             | ErrorKind::HalfSaved
             | ErrorKind::ChangedOnDisk
-            | ErrorKind::AlreadyOpen => {}
+            | ErrorKind::AlreadyOpen
+            | ErrorKind::Closed => {}
         }
     }
     let distinct: BTreeSet<String> = KINDS.iter().map(|kind| format!("{kind:?}")).collect();

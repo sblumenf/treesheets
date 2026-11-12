@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1208753817;
+  int get rustContentHash => -1414368767;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -86,6 +86,8 @@ abstract class RustLibApi extends BaseApi {
     required OpenDocument that,
     required Command command,
   });
+
+  Future<void> crateApiDocumentOpenDocumentClose({required OpenDocument that});
 
   Future<OpenDocument> crateApiDocumentOpenDocumentCreate({
     required String path,
@@ -189,6 +191,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiDocumentOpenDocumentClose({required OpenDocument that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentCloseConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentCloseConstMeta =>
+      const TaskConstMeta(debugName: "OpenDocument_close", argNames: ["that"]);
+
+  @override
   Future<OpenDocument> crateApiDocumentOpenDocumentCreate({
     required String path,
   }) {
@@ -200,7 +233,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 3,
             port: port_,
           );
         },
@@ -236,7 +269,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 4,
             port: port_,
           );
         },
@@ -270,13 +303,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 5,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_bridge_error,
         ),
         constMeta: kCrateApiDocumentOpenDocumentIdConstMeta,
         argValues: [that],
@@ -303,13 +336,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_bridge_error,
         ),
         constMeta: kCrateApiDocumentOpenDocumentIsSavedConstMeta,
         argValues: [that],
@@ -336,7 +369,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -369,7 +402,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -406,7 +439,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -442,13 +475,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_bridge_error,
         ),
         constMeta: kCrateApiDocumentOpenDocumentPathConstMeta,
         argValues: [that],
@@ -475,7 +508,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -508,13 +541,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_bridge_error,
         ),
         constMeta: kCrateApiDocumentOpenDocumentRootConstMeta,
         argValues: [that],
@@ -539,7 +572,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -572,7 +605,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 14,
             port: port_,
           );
         },
@@ -599,7 +632,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -626,7 +659,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -653,7 +686,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 17,
             port: port_,
           );
         },
@@ -3073,6 +3106,23 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   Future<Report> apply({required Command command}) => RustLib.instance.api
       .crateApiDocumentOpenDocumentApply(that: this, command: command);
 
+  /// Ends the work on the document: saves what is unsaved and gives the document up.
+  ///
+  /// - If anything was done since the last save, it is saved as by
+  ///   [`OpenDocument::save`], with the same refusals. If that fails, the error is
+  ///   returned and the document **stays open** exactly as it was, so that nothing is
+  ///   lost: the caller can try again, [`OpenDocument::overwrite`] and close, or keep
+  ///   working.
+  /// - If nothing was done since the last save, nothing is written and the file is not
+  ///   looked at: closing a document that was only read never fails, never brings back a
+  ///   file that was removed, and never complains about a file that someone else changed.
+  ///
+  /// After a close that succeeded the file may be opened again, the memory is freed, and
+  /// every later call on this handle, `close` included, is refused with
+  /// [`ErrorKind::Closed`]. The handle itself is still Dart's to dispose of.
+  Future<void> close() =>
+      RustLib.instance.api.crateApiDocumentOpenDocumentClose(that: this);
+
   /// The cell `cell` and the cells of its grid, each with its text, what it shows if it
   /// is a formula cell, and whether it has a grid. A cell without a grid gives 0 by 0
   /// cells.
@@ -3097,7 +3147,7 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   Future<void> overwrite() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentOverwrite(that: this);
 
-  /// The file the document is saved to.
+  /// The file the document is saved to, as it was given when the document was opened.
   Future<String> path() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentPath(that: this);
 

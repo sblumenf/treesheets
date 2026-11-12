@@ -1447,6 +1447,34 @@ are where milestones 4, 5 and 6, built apart, meet).
     processes: what another program does to the file is seen at saving (A140). A lock that
     a panicking thread left poisoned is used all the same, since no step on the set can
     leave it half done.
+142. **An open document is ended by closing it, and saved when it is dropped unclosed** (from
+    the review). There was no close: a handle that Dart let go of took its unsaved edits with
+    it. The interface has no notion of throwing edits away (`UI_SPEC.md` has no Save, Close
+    or Discard at all, which this does not contradict), so:
+    - `close()` saves what is unsaved, as `save()` does and with the same refusals, and then
+      gives the document up: the file may be opened again, the memory is freed, and every
+      later call on the handle, a second `close` included, is refused with `Closed`. If the
+      save fails, the error is returned and the document stays open exactly as it was, so
+      nothing is lost; from there `overwrite()` and `close()` keep this document, and
+      disposing of the handle keeps the other program's file.
+    - With nothing unsaved, `close()` writes nothing and does not look at the file. So a
+      document that was only read always closes; a file that was removed meanwhile is not
+      brought back, and one that someone else changed is not complained about. (`save()`
+      does both, A140: it is asked to make the file hold the document. `close()` is asked
+      to lose nothing.)
+    - A document that is dropped without having been closed, unsaved, is saved if its file
+      is as it was or gone. If someone else changed the file, or it cannot be looked at,
+      nothing is written: a drop has no one to ask and no one to tell. This is a safety
+      net, not the way to save. It runs when Dart disposes of the handle or collects it, on
+      the thread that does so, which it blocks for the time of the save (about 0.2 s for
+      100,000 cells); it can report nothing; and when the system kills the app it does not
+      run. The interface saves by calling `save` and `close`.
+    - The generated function that drops a handle has no guard, and a panic that leaves an
+      `extern "C"` function ends the process (A129). So the save in the drop is inside
+      `catch_unwind`, the payload of a caught panic is forgotten and not dropped, and
+      giving up the claim on the file cannot panic (A141).
+    After `close()` the handle holds nothing; it is still Dart's to dispose of. `id()`,
+    `root()`, `path()` and `is_saved()` can now fail, with `Closed`.
 
 ## B. Deliberate departures from TreeSheets
 

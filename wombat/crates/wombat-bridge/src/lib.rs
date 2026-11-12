@@ -4,7 +4,8 @@
 //! across the boundary between the two languages with `flutter_rust_bridge`.
 //!
 //! - [`api`]: what Dart can call and the data that crosses. [`api::document`] has the open
-//!   document (open, create, read one grid, apply a command, undo, redo, save, overwrite);
+//!   document (open, create, read one grid, apply a command, undo, redo, save, overwrite,
+//!   close);
 //!   [`api::wire`] has the serialised form of commands, change reports and errors.
 //! - [`convert`]: between that form and the types of the core.
 //! - [`record`]: the same form as JSON text, to record commands and play them back.
@@ -25,3 +26,6 @@ pub mod record;
 
 #[allow(unsafe_code, clippy::unwrap_used)]
 mod frb_generated;
+
+#[cfg(test)]
+mod panic_tests;

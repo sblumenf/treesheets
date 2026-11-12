@@ -51,11 +51,11 @@ fn texts(grid: &GridInfo) -> Vec<&str> {
 #[test]
 fn the_sequence_of_the_bare_app() {
     let (mut doc, path) = open_example("sequence");
-    assert!(doc.is_saved());
-    assert_eq!(doc.path(), text(&path));
+    assert!(doc.is_saved().unwrap());
+    assert_eq!(doc.path().unwrap(), text(&path));
 
     // The root grid: two columns, three rows; nested grids and a formula with its result.
-    let root = doc.root();
+    let root = doc.root().unwrap();
     let before = doc.grid(root.clone()).unwrap();
     assert_eq!((before.xs, before.ys), (2, 3));
     assert_eq!(before.cell.text, "Example");
@@ -93,7 +93,7 @@ fn the_sequence_of_the_bare_app() {
         ..Report::default()
     };
     assert_eq!(report, expected);
-    assert!(!doc.is_saved());
+    assert!(!doc.is_saved().unwrap());
     let after = doc.grid(root.clone()).unwrap();
     assert_eq!(after.cells[5].result.as_deref(), Some("37"));
     let costs_after = doc.grid(before.cells[2].id.clone()).unwrap();
@@ -109,12 +109,12 @@ fn the_sequence_of_the_bare_app() {
     assert_eq!(doc.redo().unwrap(), Some(expected));
     assert_eq!(doc.redo().unwrap(), None);
     doc.save().unwrap();
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     // A file is open once (decision A141), so the document is let go of first.
-    let id = doc.id();
+    let id = doc.id().unwrap();
     drop(doc);
     let again = OpenDocument::open_with(&path, ids()).unwrap();
-    assert_eq!(again.id(), id);
+    assert_eq!(again.id().unwrap(), id);
     assert_eq!(again.grid(root).unwrap(), after);
 }
 
@@ -122,16 +122,16 @@ fn the_sequence_of_the_bare_app() {
 fn a_copy_has_ids_of_its_own() {
     let original = OpenDocument::open_with(&example(), ids()).unwrap();
     let (copy, _) = open_example("copy");
-    assert_ne!(copy.id(), original.id());
-    assert_ne!(copy.root(), original.root());
+    assert_ne!(copy.id().unwrap(), original.id().unwrap());
+    assert_ne!(copy.root().unwrap(), original.root().unwrap());
     let (a, b) = (
-        original.grid(original.root()).unwrap(),
-        copy.grid(copy.root()).unwrap(),
+        original.grid(original.root().unwrap()).unwrap(),
+        copy.grid(copy.root().unwrap()).unwrap(),
     );
     assert_eq!(texts(&a), texts(&b));
     assert!(a.cells.iter().zip(&b.cells).all(|(a, b)| a.id != b.id));
     // A second copy does not go over the first: not while it is open, and not after.
-    let path = copy.path();
+    let path = copy.path().unwrap();
     let again = OpenDocument::copy_with(&example(), Path::new(&path), ids());
     assert_eq!(again.err().unwrap().kind, ErrorKind::AlreadyOpen);
     drop(copy);
@@ -144,8 +144,8 @@ fn a_new_document_is_saved_at_once_and_has_a_root_without_a_grid() {
     let path = folder("create").join("new.wombat");
     let mut doc = OpenDocument::create_with(&path, ids()).unwrap();
     assert!(path.exists());
-    assert!(doc.is_saved());
-    let root = doc.root();
+    assert!(doc.is_saved().unwrap());
+    let root = doc.root().unwrap();
     let view = doc.grid(root.clone()).unwrap();
     assert_eq!((view.xs, view.ys, view.cells.len()), (0, 0, 0));
     assert!(!view.cell.has_grid);
@@ -177,7 +177,7 @@ fn a_new_document_is_saved_at_once_and_has_a_root_without_a_grid() {
 #[test]
 fn edits_stamp_the_time_of_the_clock_given() {
     let (mut doc, path) = open_example("clock");
-    let root = doc.grid(doc.root()).unwrap();
+    let root = doc.grid(doc.root().unwrap()).unwrap();
     let cell = root.cells[1].id.clone();
     doc.set_fixed_time(Some(1234));
     let set = |text: &str| Command::SetText {
@@ -202,7 +202,7 @@ fn edits_stamp_the_time_of_the_clock_given() {
 }
 
 fn set_text(doc: &OpenDocument, text: &str) -> Command {
-    let root = doc.grid(doc.root()).unwrap();
+    let root = doc.grid(doc.root().unwrap()).unwrap();
     Command::SetText {
         cell: root.cells[1].id.clone(),
         text: text.into(),
@@ -223,7 +223,7 @@ fn errors_are_values_with_a_kind_and_leave_the_document_as_it_was() {
     assert_eq!(error.kind, ErrorKind::Syntax);
 
     let (mut doc, _) = open_example("errors-doc");
-    let root = doc.root();
+    let root = doc.root().unwrap();
     let before = doc.grid(root.clone()).unwrap();
     // A cell that is not there.
     let nowhere = "00000000-0000-4000-8000-000000000000".to_string();
@@ -251,7 +251,7 @@ fn errors_are_values_with_a_kind_and_leave_the_document_as_it_was() {
     };
     assert_eq!(doc.apply(rows).err().unwrap().kind, ErrorKind::Refused);
     assert_eq!(doc.grid(root).unwrap(), before);
-    assert!(doc.is_saved());
+    assert!(doc.is_saved().unwrap());
     assert_eq!(doc.undo().unwrap(), None);
 }
 
@@ -260,12 +260,12 @@ fn the_public_entry_points_seed_ids_from_the_system() {
     let dir = folder("public");
     let a = OpenDocument::create(text(&dir.join("a.wombat"))).unwrap();
     let b = OpenDocument::create(text(&dir.join("b.wombat"))).unwrap();
-    assert_ne!(a.id(), b.id());
+    assert_ne!(a.id().unwrap(), b.id().unwrap());
     let copy = OpenDocument::open_copy(text(&example()), text(&dir.join("c.wombat"))).unwrap();
-    let (id, path) = (copy.id(), copy.path());
+    let (id, path) = (copy.id().unwrap(), copy.path().unwrap());
     drop(copy);
     let again = OpenDocument::open(path).unwrap();
-    assert_eq!(id, again.id());
+    assert_eq!(id, again.id().unwrap());
 }
 
 /// Commands that were recorded as JSON play back to the same document.
@@ -274,7 +274,7 @@ fn recorded_commands_play_back() {
     use wombat_bridge::convert::command_out;
     use wombat_bridge::record::{command_from_json, command_to_json};
     let (mut doc, _) = open_example("record");
-    let root = doc.grid(doc.root()).unwrap();
+    let root = doc.grid(doc.root().unwrap()).unwrap();
     let cell = root.cells[1].id.clone();
     let commands = vec![
         Command::SetText {
@@ -294,11 +294,11 @@ fn recorded_commands_play_back() {
         recorded.push(command_to_json(&core).unwrap());
         doc.apply(command).unwrap();
     }
-    let after = doc.grid(doc.root()).unwrap();
+    let after = doc.grid(doc.root().unwrap()).unwrap();
     while doc.undo().unwrap().is_some() {}
     for line in &recorded {
         let core = command_from_json(line).unwrap();
         doc.apply(command_out(&core).unwrap()).unwrap();
     }
-    assert_eq!(doc.grid(doc.root()).unwrap(), after);
+    assert_eq!(doc.grid(doc.root().unwrap()).unwrap(), after);
 }

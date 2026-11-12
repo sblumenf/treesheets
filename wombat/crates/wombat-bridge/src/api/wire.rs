@@ -829,6 +829,8 @@ pub enum ErrorKind {
     /// A document of this app has the file open already, and no file is open twice;
     /// `path` is the file as it was asked for.
     AlreadyOpen,
+    /// The call was made on a document that was closed; nothing was done.
+    Closed,
 }
 
 /// An error, as a value an interface can show.

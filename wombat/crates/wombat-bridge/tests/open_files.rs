@@ -39,7 +39,10 @@ fn a_file_is_open_once_and_free_when_the_document_is_dropped() {
     doc.save().unwrap();
     drop(doc);
     let again = OpenDocument::open_with(&path, ids()).unwrap();
-    assert_eq!(again.grid(again.root()).unwrap().cells[1].text, "ours");
+    assert_eq!(
+        again.grid(again.root().unwrap()).unwrap().cells[1].text,
+        "ours"
+    );
     already_open(OpenDocument::open_with(&path, ids()), &path);
 }
 
@@ -73,7 +76,7 @@ fn a_copy_may_be_made_of_a_document_that_is_open() {
     let to = path.with_file_name("copy.wombat");
     // Other IDs than the first copy drew, which had the same seed.
     let copy = OpenDocument::copy_with(&path, &to, SeededIds::from_u64(12)).unwrap();
-    assert_ne!(copy.id(), doc.id());
+    assert_ne!(copy.id().unwrap(), doc.id().unwrap());
     // And the copy is open in its turn.
     already_open(OpenDocument::open_with(&to, ids()), &to);
 }

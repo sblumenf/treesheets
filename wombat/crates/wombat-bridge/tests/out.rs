@@ -51,7 +51,7 @@ fn a_report_names_removed_cells_and_tags() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let mut doc = OpenDocument::create_with(&dir.join("a.wombat"), SeededIds::from_u64(1)).unwrap();
-    let root = doc.root();
+    let root = doc.root().unwrap();
     let grid = Command::CreateGrid {
         cell: root.clone(),
         xs: 1,
@@ -89,7 +89,7 @@ fn a_formula_that_fails_is_marked_as_failed() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let mut doc = OpenDocument::create_with(&dir.join("a.wombat"), SeededIds::from_u64(2)).unwrap();
-    let root = doc.root();
+    let root = doc.root().unwrap();
     let grid = Command::CreateGrid {
         cell: root.clone(),
         xs: 3,

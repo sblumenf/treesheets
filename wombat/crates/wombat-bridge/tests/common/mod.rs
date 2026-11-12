@@ -35,7 +35,7 @@ pub fn open_example(suite: &str, name: &str) -> (OpenDocument, PathBuf) {
 
 /// A command that sets the text of the second cell of the root grid.
 pub fn set_text(doc: &OpenDocument, text: &str) -> Command {
-    let root = doc.grid(doc.root()).unwrap();
+    let root = doc.grid(doc.root().unwrap()).unwrap();
     Command::SetText {
         cell: root.cells[1].id.clone(),
         text: text.into(),
