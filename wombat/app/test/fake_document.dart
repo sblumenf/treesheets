@@ -140,6 +140,27 @@ class Watched with Hooks implements OpenDocument {
       hooked('retype', () => _real.retype(cell: cell, text: text));
 
   @override
+  Future<String> viewStage() => hooked('viewStage', _real.viewStage);
+
+  @override
+  Future<void> viewGo({required String cell, LevelInfo? left}) =>
+      hooked('viewGo', () => _real.viewGo(cell: cell, left: left));
+
+  @override
+  Future<void> viewRemember({required LevelInfo level}) =>
+      hooked('viewRemember', () => _real.viewRemember(level: level));
+
+  @override
+  Future<bool> setFolded({required String cell, required bool folded}) =>
+      hooked('setFolded', () => _real.setFolded(cell: cell, folded: folded));
+
+  @override
+  Future<bool> isViewSaved() => hooked('isViewSaved', _real.isViewSaved);
+
+  @override
+  Future<void> saveView() => hooked('saveView', _real.saveView);
+
+  @override
   Future<Report?> undo() => hooked('undo', _real.undo);
 
   @override
@@ -315,6 +336,27 @@ class FakeDocument with Hooks implements OpenDocument {
   @override
   Future<Report> retype({required String cell, required String text}) =>
       throw UnimplementedError('retype');
+
+  @override
+  Future<String> viewStage() => throw UnimplementedError('viewStage');
+
+  @override
+  Future<void> viewGo({required String cell, LevelInfo? left}) =>
+      throw UnimplementedError('viewGo');
+
+  @override
+  Future<void> viewRemember({required LevelInfo level}) =>
+      throw UnimplementedError('viewRemember');
+
+  @override
+  Future<bool> setFolded({required String cell, required bool folded}) =>
+      throw UnimplementedError('setFolded');
+
+  @override
+  Future<bool> isViewSaved() => throw UnimplementedError('isViewSaved');
+
+  @override
+  Future<void> saveView() => throw UnimplementedError('saveView');
 
   @override
   Future<Report> apply({required Command command}) => _call('apply', () {
