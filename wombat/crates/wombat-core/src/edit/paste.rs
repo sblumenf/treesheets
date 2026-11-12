@@ -96,27 +96,29 @@ impl Clip {
             tags: BTreeMap::new(),
             extra: Extra::new(),
         };
+        // `Clip::of` checks cell by cell. A document under construction is not checked at
+        // all (`crate::construct`), and a clip of one can break the rules that only a
+        // whole document has: a cell with the ID of the document, a link that names its
+        // own document.
         doc.validate()?;
         Ok(doc)
     }
 
     /// The clip that [`Clip::as_document`] made `doc` of: the root of `doc` and everything
-    /// inside it, as cells that came from the document `source`, where the top cell was in
-    /// the grid of `parent` (`None`: it was the root). Checked as [`Clip::of`] checks, and
-    /// refused if a cell has the ID of `source`, which no cell of that document can have.
-    pub fn from_document(
-        doc: &Document,
-        source: DocId,
-        parent: Option<CellId>,
-    ) -> Result<Clip, Error> {
+    /// inside it, as cells that came from the document whose ID `doc` has, where the top
+    /// cell was in the grid of `parent` (`None`: it was the root). The source is said in
+    /// one place only, the ID of `doc`, so that it cannot be said twice and differently.
+    /// Checked as [`Clip::of`] checks, and refused if a cell or `parent` has the ID of the
+    /// document, which no cell of a document can have, or if `parent` is among the cells.
+    pub fn from_document(doc: &Document, parent: Option<CellId>) -> Result<Clip, Error> {
         let mut clip = Clip::of(doc, doc.root())?;
+        let source = clip.doc;
         if clip.cell_ids().any(|id| id.0 == source.0) || parent.is_some_and(|p| p.0 == source.0) {
             return invalid(format!("a cell has the ID of the document {source}"));
         }
         if parent.is_some_and(|p| doc.cell(p).is_some()) {
             return invalid("the cell that the top cell was in is among the cells");
         }
-        clip.doc = source;
         if let Some(top) = clip.cells.first_mut() {
             top.parent = parent;
         }

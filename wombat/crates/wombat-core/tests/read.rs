@@ -13,7 +13,11 @@ mod support;
 
 use proptest::prelude::*;
 use support::{command, no_such_cell, op, Op};
-use wombat_core::{format, CellKind, Clip, Command, DocId, Document, Editor, Error, SeededIds};
+use wombat_core::construct::Construct;
+use wombat_core::model::{Extra, Link};
+use wombat_core::{
+    format, CellId, CellKind, Clip, Command, DocId, Document, Editor, Error, LinkTarget, SeededIds,
+};
 
 /// An editor on a document that random commands made of a 3 by 3 grid.
 fn edited(seed: u64, ops: &[Op]) -> Editor {
@@ -129,28 +133,86 @@ fn a_clip_does_not_come_back_with_an_id_of_its_document_or_inside_itself() {
     let cell = doc.child(doc.root(), 1, 1).unwrap();
     let clip = Clip::of(doc, doc.root()).unwrap();
     let out = clip.as_document().unwrap();
-    // The ID of a document is never that of a cell in it.
+    let invalid = |result: Result<Clip, Error>| match result {
+        Err(Error::Invalid(message)) => message,
+        other => panic!("{other:?}"),
+    };
+    // The top cell was not inside a cell with the ID of its document: no cell has that.
+    let parent = Some(CellId(clip.source().0));
+    assert!(invalid(Clip::from_document(&out, parent)).contains("the ID of the document"));
+    // Nor inside a cell that is inside it.
+    assert!(invalid(Clip::from_document(&out, Some(cell))).contains("among the cells"));
+    assert_eq!(Clip::from_document(&out, None).unwrap(), clip);
+}
+
+/// An ID source that gives the same ID every time, which no real one does.
+struct OneId;
+
+impl wombat_core::IdSource for OneId {
+    fn next_id(&mut self) -> wombat_core::Id {
+        wombat_core::Id::from_u128(5)
+    }
+}
+
+/// A document under construction is not checked, so a clip can be asked of one that
+/// breaks rules which only the whole document has. Neither way out gives it.
+#[test]
+fn a_clip_of_a_document_that_breaks_the_rules_does_not_leave() {
+    // A cell with the ID of its document.
+    let doc = Document::new(&mut OneId);
+    assert_eq!(doc.root().0, doc.id().0);
+    assert!(doc.validate().is_err());
+    let clip = Clip::of(&doc, doc.root()).unwrap();
+    assert!(matches!(clip.as_document(), Err(Error::Invalid(_))));
     assert!(matches!(
-        Clip::from_document(&out, DocId(cell.0), None),
+        Clip::from_document(&doc, None),
         Err(Error::Invalid(_))
     ));
-    assert!(matches!(
-        Clip::from_document(
-            &out,
-            clip.source(),
-            Some(wombat_core::CellId(clip.source().0))
-        ),
-        Err(Error::Invalid(_))
-    ));
-    // The top cell was not inside a cell that is inside it.
-    assert!(matches!(
-        Clip::from_document(&out, clip.source(), Some(cell)),
-        Err(Error::Invalid(_))
-    ));
+
+    // A link to a cell of the document that names the document.
+    let mut ids = SeededIds::from_u64(6);
+    let mut doc = Document::new(&mut ids);
+    let (id, root) = (doc.id(), doc.root());
+    let cell = doc.cell_mut(root).unwrap();
+    cell.text = "x".into();
+    cell.links.push(Link {
+        start: 0,
+        len: 1,
+        target: LinkTarget::Cell {
+            doc: Some(id),
+            cell: root,
+        },
+        extra: Extra::new(),
+    });
+    assert!(doc.validate().is_err());
+    let clip = Clip::of(&doc, root).unwrap();
+    assert!(matches!(clip.as_document(), Err(Error::Invalid(_))));
+}
+
+/// Where the cells of a clip came from is said by the ID of the document that carries
+/// them, and by nothing else.
+#[test]
+fn the_source_of_a_clip_is_the_id_of_the_document_it_comes_back_from() {
+    let editor = edited(5, &[]);
+    let doc = editor.document();
+    let clip = Clip::of(doc, doc.child(doc.root(), 0, 0).unwrap()).unwrap();
+    assert_eq!(clip.source(), doc.id());
+    let out = clip.as_document().unwrap();
+    assert_eq!(out.id(), doc.id());
     assert_eq!(
-        Clip::from_document(&out, clip.source(), None).unwrap(),
-        clip
+        Clip::from_document(&out, clip.parent()).unwrap().source(),
+        doc.id()
     );
+    // The same cells in a document with another ID are a clip from that document.
+    let other = DocId(wombat_core::Id::from_u128(9));
+    let text = format::to_string(&out).unwrap();
+    let text = text.replace(&doc.id().to_string(), &other.to_string());
+    let moved = format::from_slice(text.as_bytes()).unwrap();
+    assert_eq!(moved.id(), other);
+    let back = Clip::from_document(&moved, clip.parent()).unwrap();
+    assert_eq!(back.source(), other);
+    assert_eq!(back.as_document().unwrap(), moved);
+    assert_ne!(back, clip);
 }
 
 /// The editor holds nothing that ties it to the thread it was made on, so an interface can
@@ -208,11 +270,11 @@ proptest! {
             prop_assert_eq!(clip.parent(), doc.cell(id).unwrap().parent());
             let out = clip.as_document().unwrap();
             prop_assert_eq!(out.cell_count(), clip.cell_count());
-            let back = Clip::from_document(&out, clip.source(), clip.parent()).unwrap();
+            let back = Clip::from_document(&out, clip.parent()).unwrap();
             prop_assert_eq!(&back, &clip);
             let text = format::to_string(&out).unwrap();
             let read = format::from_slice(text.as_bytes()).unwrap();
-            let back = Clip::from_document(&read, clip.source(), clip.parent()).unwrap();
+            let back = Clip::from_document(&read, clip.parent()).unwrap();
             prop_assert_eq!(&back, &clip);
         }
     }

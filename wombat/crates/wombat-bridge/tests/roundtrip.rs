@@ -592,14 +592,46 @@ fn a_clip_that_was_tampered_with_is_refused() {
     let mut bad = good.clone();
     bad.document = "{}".into();
     assert!(paste(bad).is_err());
-    // A source that is no ID.
+    // A document whose ID, the source of the cells, is the ID of the top cell.
     let mut bad = good.clone();
-    bad.source = "me".into();
-    invalid(paste(bad));
+    let id = editor.document().id().to_string();
+    bad.document = bad.document.replacen(&id, &root.to_string(), 1);
+    assert_ne!(bad.document, good.document);
+    assert!(paste(bad).is_err());
+    // The cell that the top cell was in with the ID of the document.
+    let mut bad = good.clone();
+    bad.parent = Some(id);
+    assert_eq!(paste(bad).unwrap_err().kind, ErrorKind::Invalid);
     // The top cell inside one of its own cells.
     let mut bad = good;
     bad.parent = Some(editor.document().child(root, 0, 1).unwrap().to_string());
     invalid(paste(bad));
+}
+
+/// A clip says once where its cells came from: by the ID of the document it is carried as.
+#[test]
+fn the_source_of_a_carried_clip_is_the_id_of_its_document() {
+    let mut ids = SeededIds::from_u64(4);
+    let doc = Document::new(&mut ids);
+    let (id, root) = (doc.id(), doc.root());
+    let good = clip_out(&Clip::of(&doc, root).unwrap()).unwrap();
+    let source = |clip: wire::ClipData| {
+        let paste = wire::Command::PasteCells {
+            to: root.to_string(),
+            clip,
+        };
+        match command_in(paste).unwrap() {
+            Command::PasteCells { clip, .. } => clip.source(),
+            other => panic!("{other:?}"),
+        }
+    };
+    assert_eq!(source(good.clone()), id);
+    // The same cells carried as a document with another ID came from that document.
+    let other = DocId(Id::from_u128(77));
+    let mut carried = good.clone();
+    carried.document = good.document.replace(&id.to_string(), &other.to_string());
+    assert_ne!(carried.document, good.document);
+    assert_eq!(source(carried), other);
 }
 
 proptest! {

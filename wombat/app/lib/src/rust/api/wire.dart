@@ -114,28 +114,27 @@ enum CellKind {
 
 /// A cell with everything inside it, to paste or to move into a document. It is made by
 /// the core and only carried here: `document` is the text of a Wombat document whose root
-/// is the top cell, which the core reads and checks like any file.
+/// is the top cell, which the core reads and checks like any file. The ID of that document
+/// is the ID of the document the cells came from; it is said nowhere else.
 class ClipData {
-  /// The ID of the document the cells came from.
-  final String source;
-
   /// The ID of the cell whose grid the top cell was in, or `None` if it was the root.
+  /// It is not one of the cells carried.
   final String? parent;
 
-  /// The cells, as the text of a document.
+  /// The cells, as the text of a document that has the ID of the document they came
+  /// from.
   final String document;
 
-  const ClipData({required this.source, this.parent, required this.document});
+  const ClipData({this.parent, required this.document});
 
   @override
-  int get hashCode => source.hashCode ^ parent.hashCode ^ document.hashCode;
+  int get hashCode => parent.hashCode ^ document.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ClipData &&
           runtimeType == other.runtimeType &&
-          source == other.source &&
           parent == other.parent &&
           document == other.document;
 }

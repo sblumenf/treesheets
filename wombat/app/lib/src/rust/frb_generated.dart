@@ -780,12 +780,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ClipData dco_decode_clip_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
     return ClipData(
-      source: dco_decode_String(arr[0]),
-      parent: dco_decode_opt_String(arr[1]),
-      document: dco_decode_String(arr[2]),
+      parent: dco_decode_opt_String(arr[0]),
+      document: dco_decode_String(arr[1]),
     );
   }
 
@@ -1470,14 +1469,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   ClipData sse_decode_clip_data(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_source = sse_decode_String(deserializer);
     var var_parent = sse_decode_opt_String(deserializer);
     var var_document = sse_decode_String(deserializer);
-    return ClipData(
-      source: var_source,
-      parent: var_parent,
-      document: var_document,
-    );
+    return ClipData(parent: var_parent, document: var_document);
   }
 
   @protected
@@ -2316,7 +2310,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_clip_data(ClipData self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.source, serializer);
     sse_encode_opt_String(self.parent, serializer);
     sse_encode_String(self.document, serializer);
   }

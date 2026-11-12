@@ -1270,8 +1270,8 @@ are where milestones 4, 5 and 6, built apart, meet).
     referee cases are written in.
 124. **A clip crosses a boundary as a document.** `Clip::as_document` gives the cells as a
     document whose root is the top cell, and `Clip::from_document` makes the clip again, checked
-    as `Clip::of` checks. The bridge carries the text of that document with the ID of the
-    document the cells came from and the cell the top cell was in. So the two paste commands are
+    as `Clip::of` checks. The bridge carries the text of that document and the cell the top
+    cell was in (A132: the ID of the document says where the cells came from). So the two paste commands are
     in the serialised form like the other 43, and there is still no way to make a clip of cells
     that break the model's rules. (The bridge has no call yet that gives Dart a clip; that comes
     with copy and paste in the interface.)
@@ -1312,6 +1312,13 @@ are where milestones 4, 5 and 6, built apart, meet).
     cargokit knows only stable, beta and nightly. The checks and CI use the pin. And the crate,
     the Dart package and the generator must be the same version of `flutter_rust_bridge`
     (2.13.0), pinned exactly in all three places.
+132. **A clip says once where its cells came from** (from the review of the bridge; changes
+    A124). The carried form had the ID of the source document twice, as a field `source` and
+    as the ID of the document that carries the cells, and when the two differed the field won
+    without a word. `ClipData` has no `source` now, and `Clip::from_document(doc, parent)`
+    takes the source from the ID of `doc`, which is what `Clip::as_document` writes there.
+    The check in `as_document` stays: a document under construction is not checked, and a
+    clip of one can break rules that only a whole document has (a test builds two such).
 
 ## B. Deliberate departures from TreeSheets
 

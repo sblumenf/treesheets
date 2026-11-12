@@ -257,13 +257,12 @@ fn prop_out(prop: &core::Prop) -> In<Prop> {
 fn clip_in(clip: ClipData) -> In<Clip> {
     let doc = core::format::from_slice(clip.document.as_bytes())?;
     let parent = clip.parent.as_deref().map(cell_id).transpose()?;
-    Ok(Clip::from_document(&doc, doc_id(&clip.source)?, parent)?)
+    Ok(Clip::from_document(&doc, parent)?)
 }
 
 /// A clip to carry.
 pub fn clip_out(clip: &Clip) -> In<ClipData> {
     Ok(ClipData {
-        source: clip.source().to_string(),
         parent: clip.parent().map(|p| p.to_string()),
         document: core::format::to_string(&clip.as_document()?)?,
     })

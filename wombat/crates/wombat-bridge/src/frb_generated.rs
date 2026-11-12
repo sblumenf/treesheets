@@ -797,11 +797,9 @@ impl SseDecode for crate::api::wire::CellKind {
 impl SseDecode for crate::api::wire::ClipData {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_source = <String>::sse_decode(deserializer);
         let mut var_parent = <Option<String>>::sse_decode(deserializer);
         let mut var_document = <String>::sse_decode(deserializer);
         return crate::api::wire::ClipData {
-            source: var_source,
             parent: var_parent,
             document: var_document,
         };
@@ -1792,7 +1790,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::CellKind> for crate::ap
 impl flutter_rust_bridge::IntoDart for crate::api::wire::ClipData {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.source.into_into_dart().into_dart(),
             self.parent.into_into_dart().into_dart(),
             self.document.into_into_dart().into_dart(),
         ]
@@ -2530,7 +2527,6 @@ impl SseEncode for crate::api::wire::CellKind {
 impl SseEncode for crate::api::wire::ClipData {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.source, serializer);
         <Option<String>>::sse_encode(self.parent, serializer);
         <String>::sse_encode(self.document, serializer);
     }
