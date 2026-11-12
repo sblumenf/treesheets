@@ -664,6 +664,28 @@ void main() {
       },
     );
 
+    // No test noticed when the stage forgot which document it shows (the fourth
+    // review's Q3): every later word from the keeper sent it back to the root.
+    test(
+      'after open theirs, later news leaves the stage where it is',
+      () async {
+        final theirs = FakeDocument();
+        final (stage, fake) = await standIn(
+          reopen: (_) => Session.over(theirs),
+        );
+        fake.fileChanged = true;
+        await stage.save();
+        await stage.openTheirs();
+        expect(await stage.dive('c'), isTrue);
+        await stage.enterText('e', 'x');
+        failFirst(theirs, 'save', broken);
+        await stage.save();
+        await pumpEventQueue();
+        expect((kindOf(stage.saveError), stage.atRoot), (ErrorKind.io, false));
+        await stage.save();
+      },
+    );
+
     test(
       'a file that is changed again while it is opened ends the work',
       () async {

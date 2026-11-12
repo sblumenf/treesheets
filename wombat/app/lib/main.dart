@@ -335,10 +335,12 @@ class _KeptState extends State<Kept> with WidgetsBindingObserver {
     }
   }
 
-  /// The system asks whether the app may exit: on Linux, macOS and Windows when its
-  /// window is closed. (Android and iOS do not ask; there the app is put away
-  /// first, which is the case above.) The answer waits until the document is put
-  /// away and closed, but no longer than [Kept.exitWithin].
+  /// The system asks whether the app may exit, when its window is closed: on Linux,
+  /// where that was seen, and by Flutter's documentation on macOS; for Windows the
+  /// documentation of Flutter 3.47 does not say so, and it was not tried. (Android
+  /// and iOS do not ask; there the app is put away first, which is the case above.)
+  /// The answer waits until the document is put away and closed, but no longer than
+  /// [Kept.exitWithin].
   ///
   /// If the document is then not in its file, or what was being typed could not be
   /// entered, the exit is held back once, so that the user sees what the screen says
