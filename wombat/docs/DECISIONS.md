@@ -1644,8 +1644,9 @@ are where milestones 4, 5 and 6, built apart, meet).
     `android/` and `linux/`; the Android build could not be run on the machine this was
     written on (no SDK). It was not added;
     it belongs with the decision where documents live (also Android's picked documents,
-    which are not paths). Until then the system may clear the folder, on Linux at a
-    restart, on Android when storage is short. If it does so under an open document, the
+    which are not paths). Until then the system may clear the folder: on Linux at a
+    restart, and on Android, where it should be the app's cache folder (not tried), when
+    storage is short. If it does so under an open document, the
     next save writes the file again when the folder is still there (A140) and is shown as
     failed when it is not.
 

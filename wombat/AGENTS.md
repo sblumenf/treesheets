@@ -24,7 +24,7 @@ memory: sessions do not remember each other, so anything agreed must be written 
 | `crates/wombat-cts` | Read-only importer of TreeSheets `.cts` files (all format versions up to 31), a testing tool; `tests/referee.rs` compares it with `referee/golden/`, `tests/quirks/` holds hand-built files with their own golden data |
 | `crates/wombat-search` | The search service: folding of text for comparison (`fold.rs`), queries and their text syntax (`query.rs`), what is indexed per document and how it follows edits (`index.rs`), searching and ranking (`engine.rs`), the slow reference scanner that the tests compare with (`naive.rs`), find and replace (`replace.rs`), the index of a workspace folder (`workspace.rs`, the only file access, through `wombat_core::scan`); `tests/support/` has the query generator and the made-up workspace of the size tests |
 | `crates/wombat-bridge` | The bridge to the Flutter interface (package `wombat_bridge`), a thin layer over the core: `api/document.rs` the open document that Dart holds (open, create, read one grid, apply a command, undo, redo, save, overwrite, close), `api/wire.rs` the serialised form of commands, change reports and errors, `convert.rs` between that and the core's types, `record.rs` the same as JSON text, `open_files.rs` the set of files that are open, so that none is open twice, `panic_tests.rs` what an open document does when something panics (inside the crate, since nothing outside can cause a panic); `frb_generated.rs` is generated and never edited; `tests/roundtrip.rs` every command through the serialised form and what is refused on the way in, `tests/deep.rs` the flat form of a table, `tests/out.rs` what goes out (reports, results, every error), `tests/session.rs` an open document as the app uses it, `tests/disk.rs` an open document and its file (when saving writes and when it refuses), `tests/open_files.rs` one open document per file, `tests/close.rs` closing a document and dropping one unclosed, `tests/randseq.rs` random commands through an open document beside an editor of the core (it takes the core's generator from `crates/wombat-core/tests/support` by path), `tests/common/` what those share |
-| `app/` | The Flutter app as far as it goes: a simple grid screen (`lib/grid/stage.dart` its logic without widgets, `lib/grid/grid_screen.dart` the widgets; `docs/milestones/UI1.md`), and the plain-text check of the bridge from milestone B1 (`lib/demo.dart` its three steps, `lib/demo_screen.dart` the screen); `lib/main.dart` opens the example and shows the grid screen; `lib/src/rust/` is generated; `rust_builder/` is the build glue that `flutter_rust_bridge` put there (cargokit), not ours to edit; `assets/example.wombat` the document it opens; `lib/measure.dart` times the app on a 100,000-cell document it builds itself; `test/` runs without a device, `integration_test/` on one (`test_driver/` prints the measurements) |
+| `app/` | The Flutter app as far as it goes: `lib/session.dart` the open document as Dart holds it, the only way to the bridge's handle: calls in the order they were made, closing, the text for errors (A144); a simple grid screen (`lib/grid/stage.dart` its logic without widgets, with the saving, `lib/grid/grid_screen.dart` the widgets; `docs/milestones/UI1.md`), and the plain-text check of the bridge from milestone B1 (`lib/demo.dart` its three steps, `lib/demo_screen.dart` the screen); `lib/main.dart` opens the app's document, at first a copy of the example, and shows the grid screen; `lib/src/rust/` is generated; `rust_builder/` is the build glue that `flutter_rust_bridge` put there (cargokit), not ours to edit; `assets/example.wombat` the example; `lib/measure.dart` times the app on a 100,000-cell document it builds itself; `test/` runs without a device (`support.dart` builds and loads the bridge's library, `fake_document.dart` is a stand-in for the core that can be held up and made to fail), `integration_test/` on one, one file per call (`test_driver/` prints the measurements) |
 | `crates/wombat-cli` | The `wombat` command-line tool, a thin layer over the core; `edit.rs` reads the editing commands of `wombat edit`; `tests/ops.rs` compares commands with `referee/ops/` |
 | `referee/` | Scripts that drive the real TreeSheets app, and the reference ("golden") data it produced |
 | `referee/ops/` | Operation cases: one edit done by the real app (`cases/*.lobster`) and as Wombat commands (`cases/*.edit`) on `fixture.cts`, the app's result (`golden/`), and `make_ops` to regenerate |
@@ -57,10 +57,28 @@ flutter analyze
 flutter test
 ```
 
-CI (`.github/workflows/wombat.yml`) runs the same three on every push that touches `wombat/`, and
-checks that the core and the search service build for the web, Android and iOS. A second job
-runs the app's format check, analyzer and device-free test. The Rust version
-is pinned in `rust-toolchain.toml` so that CI and every machine use the same compiler and lints.
+On a machine with a display or `xvfb-run`, also run the built app's tests, one file per call
+(the whole folder in one call fails):
+
+```sh
+for test in integration_test/*_test.dart; do xvfb-run -a flutter test "$test" -d linux; done
+```
+
+In Dart, reach a document only through `Session` (`app/lib/session.dart`), never through the
+generated `OpenDocument`: its calls are kept apart but not in order (A127, A144).
+
+CI (`.github/workflows/wombat.yml`) runs on every push that touches `wombat/`, in three jobs.
+The first runs the same three with `--locked`, and checks that the core and the search service
+build for the web, Android and iOS. The second runs the generator and fails when the committed
+generated code is not what it writes (regenerate as above and commit), then the app's format
+check, analyzer and device-free tests, and then builds the app for Linux and runs each file of
+`app/integration_test/` on it, one call per file, under `xvfb-run`. The third builds the debug
+package for Android (arm64); nothing runs there. Cargo and pub may not change their lock files
+in CI: commit `Cargo.lock` and `app/pubspec.lock` with the change that needs them. The versions
+of Flutter, the generator and `cargo-expand` are pinned at the top of the workflow; raise them
+there together with the lock files. The Rust version is pinned in `rust-toolchain.toml` so that
+CI and every machine use the same compiler and lints; the app's own build of the bridge
+(cargokit) uses rustup's `stable` all the same (A131).
 
 ## Engineering rules
 

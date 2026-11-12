@@ -50,6 +50,14 @@ bottom; undo and redo at the top; the menu, and "Bridge check" in it with its th
 Nobody has seen this screen yet, on any device: say what looks wrong, what is too small to
 tap, and what the on-screen keyboard covers.
 
+There is no Save: the app saves by itself (`milestones/UI1.md`). **This has never run on a
+phone, so try it on purpose:** type into a cell and, without pressing the tick, go to the
+home screen, then swipe the app away and start it again. What was typed should be in the
+cell. Do the same with the back button, and by turning the phone off and on while typing.
+The document is kept in what Dart calls the system's temporary folder for now (decision
+A148); on Android that should be the app's cache folder, which Android may clear when
+storage is short. Say in `milestones/UI1.md` where it really was.
+
 ## 2. Let the tests press the buttons
 
 ```sh
