@@ -1,9 +1,10 @@
 //! Between the serialised form (`api/wire.rs`) and the types of the core. On the way in
 //! everything is checked: an ID must be in its canonical text, a whole number in the range
 //! the core takes, a scale finite, unknown
-//! fields a JSON object, and a clip or a table goes through the core's own constructors,
-//! which check what they are given. On the way out nothing can fail but a clip that the
-//! core would not write as a document.
+//! fields a JSON object, a table a list of whole rows, and a clip or a table goes through
+//! the core's own constructors, which check what they are given: a clip as a file, a
+//! table against the limits of a document. On the way out nothing can fail but a clip that
+//! the core would not write as a document.
 
 use std::path::Path;
 
@@ -293,6 +294,21 @@ pub fn clip_out(clip: &Clip) -> In<ClipData> {
     })
 }
 
+/// Refuses a grid of a table that has no size: it needs a column, a cell, and only whole
+/// rows. The core refuses the same when a table is made, but with its word for a file
+/// that breaks a rule of the format (`Invalid`); a table is something the caller sends,
+/// so the bridge looks first and says that the request is bad. What is left for the core
+/// to refuse is a table past a limit of documents.
+fn whole_rows(xs: u32, cells: usize) -> In<()> {
+    if xs == 0 || cells == 0 || !cells.is_multiple_of(xs as usize) {
+        return Err(BridgeError::bad_request(format!(
+            "a grid of {cells} cells in {xs} columns: a table has at least one cell and \
+             only whole rows"
+        )));
+    }
+    Ok(())
+}
+
 /// A grid of a table that is being put together from the flat list.
 struct Open {
     xs: u32,
@@ -329,10 +345,13 @@ fn table_in(table: TableData) -> In<Table> {
         }
         match entry.grid {
             Some(grid) => {
+                let (xs, cells) = (unsigned(grid.xs)?, unsigned(grid.cells)?);
+                // Before any of its cells is read: it will be exactly this size or short.
+                whole_rows(xs, cells as usize)?;
                 let inner = Open {
-                    xs: unsigned(grid.xs)?,
+                    xs,
                     cells: Vec::new(),
-                    inside: Some((cell, unsigned(grid.cells)?)),
+                    inside: Some((cell, cells)),
                 };
                 outer.push(std::mem::replace(&mut now, inner));
             }
@@ -352,6 +371,7 @@ fn table_in(table: TableData) -> In<Table> {
             "a grid inside the table is {left} cells short"
         )));
     }
+    whole_rows(now.xs, now.cells.len())?;
     Ok(Table::new(now.xs, now.cells)?)
 }
 

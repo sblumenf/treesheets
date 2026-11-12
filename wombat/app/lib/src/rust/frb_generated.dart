@@ -3110,8 +3110,11 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   /// - **A command that asks for nothing new succeeds and changes nothing** (setting a
   ///   colour that a cell already has, inserting empty text): the report is empty,
   ///   nothing is added to the undo history, and the document stays saved if it was.
-  ///   (`Run` can change what formula cells show without changing the document; those
-  ///   cells are then in `recalculated` of a report that is otherwise empty.)
+  /// - **Only a change to the document makes it unsaved**: a report with a cell or a
+  ///   tag in one of its first five lists. `Run` can change what formula cells show
+  ///   without changing the document; those cells are then in `recalculated` of a
+  ///   report that is otherwise empty, nothing is added to the undo history, and the
+  ///   document stays saved if it was.
   /// - **Positions and lengths in text are counted in Unicode code points**, not in the
   ///   UTF-16 units of a Dart string, and must not cut a user-perceived character (a
   ///   letter with its accents, a flag, an emoji made of several). One that does, or is
@@ -3160,7 +3163,9 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   /// Whether nothing was done to the document since it was read from or written to its
   /// file. This does not look at the file: that another program removed or changed it
   /// shows when saving. Undoing or redoing after a save makes the document unsaved, also
-  /// when the two together lead back to what was saved: any change clears the flag.
+  /// when the two together lead back to what was saved: any change to the document
+  /// clears the flag. What is no change to the document does not: a command that asks
+  /// for nothing new, and formula cells that show something else after `Run`.
   Future<bool> isSaved() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentIsSaved(that: this);
 
@@ -3171,7 +3176,10 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   Future<void> overwrite() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentOverwrite(that: this);
 
-  /// The file the document is saved to, as it was given when the document was opened.
+  /// The file the document is saved to: the path it was opened with, from the root. A
+  /// path that did not start at the root was taken from the working folder of the
+  /// program as it was when the document was opened, and is not worked out again: the
+  /// document stays with its file when the working folder changes.
   Future<String> path() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentPath(that: this);
 

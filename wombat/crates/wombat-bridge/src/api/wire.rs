@@ -253,15 +253,20 @@ pub struct EntryData {
 /// grid. A table of two cells `a` and `b`, where `a` holds a grid of `c` and `d`, is the
 /// list `a` (with a grid of 2 cells), `c`, `d`, `b`. The form is flat so that a table
 /// nested however deep is read and refused without the depth costing anything: nothing
-/// that handles it calls itself (decision A135). A list where a grid says it has more
-/// cells than follow is refused, and so is a table nested deeper than a document may be.
+/// that handles it calls itself (decision A135).
+///
+/// A list that is no table is refused with [`ErrorKind::BadRequest`]: a grid, the
+/// outermost or one inside, with no column, no cell or a row that is not whole, a grid
+/// that says it has more cells than follow, a number out of range. A table that is one,
+/// but nested deeper than a document may be, with more cells or with a longer text, is
+/// refused with [`ErrorKind::Limit`]. A table is never [`ErrorKind::Invalid`].
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TableData {
     /// The number of columns of the outermost grid, from 1 to 4294967295.
     pub xs: i64,
-    /// The cells in the order described: the outermost grid has whole rows and at least
-    /// one cell.
+    /// The cells in the order described. Those that are in no grid inside are the
+    /// outermost grid: at least one, and whole rows of `xs`.
     pub cells: Vec<EntryData>,
 }
 
@@ -279,8 +284,11 @@ pub struct TableData {
 ///   The commands that take text turn each into a space. Notes may hold any text.
 /// - **Rows and columns** are counted from 0.
 /// - **Whole numbers** are positions, counts and sizes from 0 to 4294967295, but for each
-///   `delta`, which is from -2147483648 to 2147483647. A number outside its range is
-///   refused ([`ErrorKind::BadRequest`]); it is never cut to fit.
+///   `delta`, which is from -2147483648 to 2147483647, and for the parts of a colour,
+///   from 0 to 255. A number outside its range is refused ([`ErrorKind::BadRequest`]); it
+///   is never cut to fit. (A number inside its range can still be one that the command
+///   has no use for, such as a row that the grid does not have: that is
+///   [`ErrorKind::Refused`].)
 /// - **A command that asks for nothing new** (setting a colour a cell already has,
 ///   inserting empty text) succeeds with an empty [`Report`], changes nothing and leaves
 ///   nothing to undo.
@@ -806,12 +814,16 @@ pub enum ErrorKind {
     /// The file was written by a newer Wombat than this one reads.
     NewerVersion,
     /// The document breaks a rule of the format or of the model: a file, or the document
-    /// that carries a clip, is not what the core accepts.
+    /// that carries a clip, is not what the core accepts. Nothing else is: a command with
+    /// something wrong in it is [`ErrorKind::BadRequest`], [`ErrorKind::Refused`] or
+    /// [`ErrorKind::Limit`].
     Invalid,
     /// What was sent over the bridge is not a request at all, and the bridge refused it
     /// before the core saw it: text that is no ID, a number out of range or not finite,
-    /// unknown fields that are no JSON object, JSON text that is no command. This is a
-    /// mistake of the caller, not of the user or of a file; nothing changed.
+    /// unknown fields that are no JSON object, a list that is no table (a grid without
+    /// a column or a cell, with a row that is not whole, or short of cells), JSON text
+    /// that is no command. This is a mistake of the caller, not of the user or of a
+    /// file; nothing changed.
     BadRequest,
     /// The command cannot be carried out on the document as it is; nothing changed.
     Refused,

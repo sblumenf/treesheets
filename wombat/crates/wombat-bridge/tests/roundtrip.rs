@@ -568,10 +568,10 @@ fn what_cannot_be_a_command_is_refused_as_a_value() {
         replace: false,
     };
     command_in(table(2, 4)).unwrap();
-    // A table is the core's to judge, as a document is.
-    invalid(command_in(table(2, 3)));
-    invalid(command_in(table(0, 3)));
-    invalid(command_in(table(1, 0)));
+    // A list that is no table is the caller's mistake too (`deep.rs` has every way).
+    bad_request(command_in(table(2, 3)));
+    bad_request(command_in(table(0, 3)));
+    bad_request(command_in(table(1, 0)));
 }
 
 /// Dart's whole numbers have 64 bits and cross as they are (decision A134). What does not

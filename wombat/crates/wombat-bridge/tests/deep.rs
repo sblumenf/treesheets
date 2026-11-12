@@ -77,6 +77,23 @@ fn a_table_nested_100_000_deep_is_refused_as_the_core_refuses_it() {
     assert_eq!(error.kind, ErrorKind::BadRequest, "{error:?}");
 }
 
+/// The limits of a document are the core's to keep, and are told apart from a list that
+/// is no table: too deep is above; too many cells and a text too long are here.
+#[test]
+fn a_table_past_a_limit_is_refused_as_the_core_refuses_it() {
+    let many = wombat_core::limits::MAX_CELLS;
+    let error = table(import(1, vec![entry("", None); many])).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Limit, "{error:?}");
+    // One too many inside, in whole rows: the shape is right, the size is not.
+    let mut cells = vec![entry("a", Some((2, many as i64)))];
+    cells.extend(vec![entry("", None); many]);
+    let error = table(import(1, cells)).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Limit, "{error:?}");
+    let long = "x".repeat(wombat_core::limits::MAX_TEXT_CODE_POINTS + 1);
+    let error = table(import(1, vec![entry(&long, None)])).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Limit, "{error:?}");
+}
+
 #[test]
 fn a_flat_list_is_the_table_it_describes() {
     // a b
@@ -133,21 +150,33 @@ fn a_list_that_is_no_table_is_refused() {
         let list = vec![entry("a", Some((xs, cells))), plain()];
         assert_eq!(kind(1, list), ErrorKind::BadRequest);
     }
-    // What the core does not take for a table: no cells, no columns, rows that are not
-    // whole, in the outermost grid and in one inside.
-    assert_eq!(kind(1, vec![]), ErrorKind::Invalid);
-    assert_eq!(kind(0, vec![plain()]), ErrorKind::Invalid);
-    assert_eq!(kind(2, vec![plain(); 3]), ErrorKind::Invalid);
-    assert_eq!(
-        kind(1, vec![entry("a", Some((1, 0))), plain()]),
-        ErrorKind::Invalid
-    );
-    assert_eq!(
-        kind(1, vec![entry("a", Some((0, 1))), plain()]),
-        ErrorKind::Invalid
-    );
-    let ragged = vec![entry("a", Some((2, 3))), plain(), plain(), plain()];
-    assert_eq!(kind(1, ragged), ErrorKind::Invalid);
+    // What is no table of any size: no cells, no columns, rows that are not whole, in
+    // the outermost grid and in one inside. It is the caller's mistake like the rest, and
+    // the bridge says so itself: the core's word for it, `Invalid`, is kept for a file.
+    assert_eq!(kind(1, vec![]), ErrorKind::BadRequest);
+    assert_eq!(kind(0, vec![plain()]), ErrorKind::BadRequest);
+    assert_eq!(kind(0, vec![]), ErrorKind::BadRequest);
+    assert_eq!(kind(2, vec![plain(); 3]), ErrorKind::BadRequest);
+    let inside = |xs, cells, follow| {
+        let mut list = vec![entry("a", Some((xs, cells)))];
+        list.extend(vec![plain(); follow]);
+        list
+    };
+    assert_eq!(kind(1, inside(1, 0, 1)), ErrorKind::BadRequest);
+    assert_eq!(kind(1, inside(0, 1, 1)), ErrorKind::BadRequest);
+    assert_eq!(kind(1, inside(0, 0, 0)), ErrorKind::BadRequest);
+    assert_eq!(kind(1, inside(2, 3, 3)), ErrorKind::BadRequest);
+    // Cells after a grid inside that leave the outermost grid with a row not whole.
+    assert_eq!(kind(2, inside(1, 1, 3)), ErrorKind::BadRequest);
+    let error = table(import(2, inside(3, 4, 5))).unwrap_err();
+    assert!(error.message.contains("4 cells in 3 columns"), "{error:?}");
+    // In a grid deep inside, and the same as JSON text.
+    let mut deep = vec![entry("x", Some((1, 1))); 10];
+    deep.extend(inside(2, 3, 3));
+    assert_eq!(kind(1, deep.clone()), ErrorKind::BadRequest);
+    let text = serde_json::to_string(&import(1, deep)).unwrap();
+    let error = command_from_json(&text).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::BadRequest, "{error:?}");
     // The cells after a grid that is full belong to the grid around it.
     let after = vec![entry("a", Some((1, 1))), plain(), plain()];
     assert_eq!(table(import(1, after)).unwrap().cells().len(), 2);
