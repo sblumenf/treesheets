@@ -370,6 +370,136 @@ void main() {
       await pumpEventQueue();
       expect(await later, 4);
     });
+
+    // The fourth review's (P1): the mark of a piece went with everything the piece
+    // started, so the keeper's save clock was refused while the step that made the
+    // change still ran.
+    test('a timer that a piece left may ask while the piece still runs', () async {
+      final turns = InTurn();
+      final gate = Completer<void>();
+      final asked = Completer<int>();
+      final ticks = <Future<int>>[];
+      final piece = turns.run(() async {
+        Timer(Duration.zero, () => asked.complete(turns.run(() async => 5)));
+        final tick = Timer.periodic(
+          const Duration(milliseconds: 1),
+          (_) => ticks.add(turns.run(() async => 6)),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        tick.cancel();
+        // What the piece itself goes on to do after a wait is still the piece.
+        await expectLater(turns.run(() async => 0), throwsStateError);
+        await gate.future;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      gate.complete();
+      await piece;
+      expect(await asked.future, 5);
+      expect(ticks, isNotEmpty);
+      expect(await Future.wait(ticks), everyElement(6));
+    });
+
+    test('work that a piece sets apart may ask the queue', () async {
+      final turns = InTurn();
+      late Future<int> later;
+      await turns.run(() async {
+        InTurn.apart(() => later = turns.run(() async => 8));
+        // The piece itself is refused as before.
+        await expectLater(turns.run(() async => 0), throwsStateError);
+      });
+      expect(await later, 8);
+    });
+
+    // The fourth review's (P4): each of two queues waited for the other, for ever.
+    test('two queues that would wait for each other: refused', () async {
+      final a = InTurn();
+      final b = InTurn();
+      final third = InTurn();
+      final gate = Completer<void>();
+      // A piece of b, asked from outside, asks a after a while; meanwhile the piece
+      // of a asks b, through a third queue for good measure.
+      final fromB = b.run(() async {
+        await gate.future;
+        return a.run(() async => 1);
+      });
+      final fromA = a.run(() async {
+        final asked = third.run(() => b.run(() async => 2));
+        gate.complete();
+        return asked;
+      });
+      await expectLater(
+        fromB.timeout(const Duration(seconds: 5)),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('wait for each other'),
+          ),
+        ),
+      );
+      expect(await fromA.timeout(const Duration(seconds: 5)), 2);
+      // Asking the other queue is fine while it does not wait for this one, and
+      // again once the piece that did has ended.
+      expect(await b.run(() => a.run(() async => 3)), 3);
+      expect(await a.run(() => third.run(() => b.run(() async => 4))), 4);
+    });
+
+    test('a piece is joined by what asks from inside it', () async {
+      final turns = InTurn();
+      final order = <String>[];
+      final gate = Completer<void>();
+      final first = turns.run(() async {
+        await gate.future;
+        // Its turn is now: it does not wait for itself.
+        expect(await turns.join(() async => 'joined'), 'joined');
+        order.add('first');
+      });
+      // From outside it waits for its turn like any other.
+      final second = turns.join(() async => order.add('second'));
+      gate.complete();
+      await first;
+      await second;
+      expect(order, ['first', 'second']);
+      await expectLater(
+        turns.run(() => turns.join<void>(() async => throw StateError('x'))),
+        throwsStateError,
+      );
+    });
+
+    test('work done for no one: its error always goes to the owner', () async {
+      final unheard = <Object>[];
+      final turns = InTurn(onUnheard: (error, _) => unheard.add(error));
+      final order = <int>[];
+      turns.post(() async => order.add(1));
+      turns.post(() async => throw StateError('posted'));
+      turns.post(() async => order.add(2));
+      // Also the refusal, when a piece posts to its own queue.
+      await turns.run(() async => turns.post(() async => order.add(3)));
+      await turns.run(() async {});
+      expect(order, [1, 2]);
+      expect(unheard.map((e) => (e as StateError).message), [
+        'posted',
+        contains('its own queue'),
+      ]);
+    });
+
+    // The fourth review's (P3). An asynchronous function that returns the answer has
+    // taken it: the error is in what that function answers, and is its caller's.
+    test('an answer passed on by an async function is heard by it', () async {
+      final unheard = <Object>[];
+      final uncaught = <Object>[];
+      final turns = InTurn(onUnheard: (error, _) => unheard.add(error));
+      Future<void> wrapped() async =>
+          turns.run<void>(() async => throw StateError('wrapped'));
+      await runZonedGuarded(() async {
+        unawaited(wrapped());
+        await turns.run(() async {});
+        await pumpEventQueue();
+      }, (error, _) => uncaught.add(error));
+      // Told once, where Dart tells of a future nobody listens to.
+      expect(unheard, isEmpty);
+      expect(uncaught.single, isStateError);
+    });
   });
 
   test('a fault in the program is told in a fixed sentence', () {

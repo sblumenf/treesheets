@@ -10,16 +10,28 @@ import 'src/rust/api/wire.dart';
 /// Runs pieces of work one at a time, in the order they were asked for, whether or not
 /// the caller waits for one before asking for the next.
 ///
-/// **An error is never lost.** It goes to the caller of its own piece, if the caller has
-/// taken the answer by the time the piece fails (`await`, `then`, `catchError` and the
-/// like). If no one has, it goes once to `onUnheard`, which the owner of the queue
-/// gives, or without one to the zone as an error that nobody caught. Someone who takes
-/// the answer only after that still finds the error in it.
+/// **An error is never lost.** It goes to whoever has taken the answer of its piece by
+/// the time the piece fails (`await`, `then`, `catchError` and the like). If no one
+/// has, it goes once to `onUnheard`, which the owner of the queue gives, or without
+/// one to the zone as an error that nobody caught. Someone who takes the answer only
+/// after that still finds the error in it. An asynchronous function that returns the
+/// answer has taken it: the error is then in what that function answers, and is its
+/// caller's to hear, as any error of that function is. Work that is done for no one
+/// goes through [post], which gives no answer to pass on.
 ///
-/// **A piece must not ask its own queue for more.** A piece that waits for another
-/// piece of the same queue would wait for ever, since that one comes after it. [run]
-/// called from inside a piece of this queue fails at once with a [StateError] and runs
-/// nothing. Hand the work to a different queue, or do it in the piece itself.
+/// **A piece must not wait for its own queue.** A piece that waits for another piece
+/// of the same queue would wait for ever, since that one comes after it; and so would
+/// two pieces of two queues that each wait for the other's queue. [run] called from
+/// inside a piece fails at once with a [StateError], and runs nothing, when the piece
+/// that runs now in this queue is the caller itself or (through any number of queues)
+/// has asked the caller's queue for something that is not answered yet. Whether the
+/// caller waits for the answer cannot be seen, so it is taken to.
+///
+/// What is "inside a piece": the work itself and everything it starts that is not set
+/// apart, whether the piece waits for it or not (Dart does not tell `await f()` from
+/// `unawaited(f())`). Set apart are the callbacks of timers the piece makes, which run
+/// when it may long have ended, and what is run through [apart]. So a wait for ever
+/// that goes through a timer's callback is not seen.
 class InTurn {
   InTurn({this.onUnheard});
 
@@ -27,46 +39,160 @@ class InTurn {
   final void Function(Object error, StackTrace stack)? onUnheard;
   Future<void> _last = Future.value();
 
-  /// What the piece that runs now carries in its zone, to know itself by.
-  Object? _now;
+  /// The piece that runs now.
+  _Piece? _now;
+
+  /// Under this key a zone has the pieces, of any queues, that what runs in it is
+  /// inside of.
+  static final _inside = Object();
+
+  /// Set while a timer's callback is on its way into the zone it was made in.
+  static bool _timer = false;
+
+  static List<_Piece> get _around =>
+      Zone.current[_inside] as List<_Piece>? ?? const [];
+
+  /// Runs `work` as something that is inside no piece, although a piece starts it:
+  /// for what the piece does not wait for, such as telling listeners, which may then
+  /// ask the queues that the piece is in.
+  static R apart<R>(R Function() work) =>
+      runZoned(work, zoneValues: {_inside: const <_Piece>[]});
+
+  /// A timer's callback runs apart from the piece that made the timer.
+  static final _pieceZone = ZoneSpecification(
+    createTimer: (self, parent, zone, duration, callback) =>
+        parent.createTimer(zone, duration, () {
+          _timer = true;
+          try {
+            callback();
+          } finally {
+            _timer = false;
+          }
+        }),
+    createPeriodicTimer: (self, parent, zone, period, callback) =>
+        parent.createPeriodicTimer(zone, period, (timer) {
+          _timer = true;
+          try {
+            callback(timer);
+          } finally {
+            _timer = false;
+          }
+        }),
+    run: <R>(self, parent, zone, R Function() f) =>
+        parent.run(_timer ? _apartFrom(zone) : zone, f),
+    runUnary: <R, T>(self, parent, zone, R Function(T) f, T arg) =>
+        parent.runUnary(_timer ? _apartFrom(zone) : zone, f, arg),
+  );
+
+  static Zone _apartFrom(Zone zone) {
+    _timer = false;
+    return zone.fork(zoneValues: {_inside: const <_Piece>[]});
+  }
+
+  /// Whether the piece that runs now waits for something of `queue`, as far as can be
+  /// seen: it is asking this very queue, or what it has asked and not got yet leads
+  /// there.
+  bool _waitsFor(InTurn queue) =>
+      identical(this, queue) ||
+      (_now?.asked.any((other) => other._waitsFor(queue)) ?? false);
 
   /// Runs `work` when everything asked for before has ended, well or badly, and
   /// answers with what it answers. The pieces after one that failed run all the same,
   /// in their order.
   Future<T> run<T>(Future<T> Function() work) {
-    if (_now != null && identical(Zone.current[this], _now)) {
-      return Future.error(
+    final asked = Zone.current;
+    // The pieces the caller is inside of that still run: they wait for this one.
+    final callers = [
+      for (final piece in _around)
+        if (identical(piece.queue._now, piece)) piece,
+    ];
+    final own = callers.any((piece) => identical(piece.queue, this));
+    final refused = callers.any((piece) => _waitsFor(piece.queue));
+    final Future<T> ran;
+    if (refused) {
+      ran = Future.error(
         StateError(
-          'A piece of work asked its own queue for more work; it would wait '
-          'for that for ever.',
+          own
+              ? 'A piece of work asked its own queue for more work; it would '
+                    'wait for that for ever.'
+              : 'A piece of work asked a queue whose piece is waiting for the '
+                    'queue of the asker; the two would wait for each other for '
+                    'ever.',
         ),
         StackTrace.current,
       );
+    } else {
+      for (final piece in callers) {
+        piece.asked.add(this);
+      }
+      ran = _last.then((_) {
+        final piece = _Piece(this);
+        _now = piece;
+        return runZoned(
+          work,
+          zoneValues: {
+            _inside: [..._around, piece],
+          },
+          zoneSpecification: _pieceZone,
+        );
+      });
     }
-    final asked = Zone.current;
-    final ran = _last.then((_) {
-      final piece = Object();
-      _now = piece;
-      return runZoned(work, zoneValues: {this: piece});
-    });
     final answer = _Answer<T>(ran);
+    void unheard(Object error, StackTrace stack) {
+      if (answer.taken) return;
+      try {
+        (onUnheard ?? asked.handleUncaughtError)(error, stack);
+      } catch (error, stack) {
+        asked.handleUncaughtError(error, stack);
+      }
+    }
+
+    if (refused) {
+      ran.then<void>((_) {}, onError: unheard);
+      return answer;
+    }
+    void ended() {
+      _now = null;
+      for (final piece in callers) {
+        piece.asked.remove(this);
+      }
+    }
+
     // The chain itself never fails, or one error would end every later piece.
     _last = ran.then<void>(
-      (_) {
-        _now = null;
-      },
+      (_) => ended(),
       onError: (Object error, StackTrace stack) {
-        _now = null;
-        if (answer.taken) return;
-        try {
-          (onUnheard ?? asked.handleUncaughtError)(error, stack);
-        } catch (error, stack) {
-          asked.handleUncaughtError(error, stack);
-        }
+        ended();
+        unheard(error, stack);
       },
     );
     return answer;
   }
+
+  /// Runs `work` in its turn, or at once when the caller is inside the piece that
+  /// runs now: its turn is then, and it is part of that piece. For work that belongs
+  /// in this queue and may be asked for by a piece of the queue itself.
+  Future<T> join<T>(Future<T> Function() work) =>
+      _around.any((piece) => identical(piece, _now))
+      ? Future.sync(work)
+      : run(work);
+
+  /// Runs `work` in its turn for no one: there is no answer to take, so what it
+  /// throws always goes to `onUnheard` (or the zone), and so does the refusal of
+  /// [run]. For what the user does, which nothing waits for.
+  void post(Future<void> Function() work) {
+    run(work);
+  }
+}
+
+/// A piece of work that runs or ran in a queue.
+class _Piece {
+  _Piece(this.queue);
+
+  final InTurn queue;
+
+  /// The queues it has asked for something that has not ended yet, once for each.
+  final List<InTurn> asked = [];
 }
 
 /// The answer of a piece of work, which knows whether anyone has taken it.
