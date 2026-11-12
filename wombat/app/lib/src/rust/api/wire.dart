@@ -221,7 +221,7 @@ sealed class Command with _$Command {
     /// character.
     required int at,
 
-    /// What to insert; control characters become spaces. Half of a
+    /// What to insert; line ends become U+000A, other control characters spaces. Half of a
     /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
     required String text,
   }) = Command_InsertText;
@@ -252,7 +252,7 @@ sealed class Command with _$Command {
     /// How many code points to replace.
     required int len,
 
-    /// The new text; control characters become spaces. Half of a
+    /// The new text; line ends become U+000A, other control characters spaces. Half of a
     /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
     required String text,
   }) = Command_ReplaceText;
@@ -263,7 +263,7 @@ sealed class Command with _$Command {
     /// The cell.
     required String cell,
 
-    /// The new text; control characters become spaces. Half of a
+    /// The new text; line ends become U+000A, other control characters spaces. Half of a
     /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
     required String text,
   }) = Command_SetText;
@@ -526,7 +526,7 @@ sealed class Command with _$Command {
   /// Adds a tag to the document, or changes its colours. A cell has a tag when its
   /// text is the tag's name.
   const factory Command.setTag({
-    /// The name; not empty, no control characters.
+    /// The name; not empty, no control characters, so no line break either.
     required String name,
 
     /// The background colour of cells with the tag.
@@ -717,8 +717,8 @@ sealed class Command with _$Command {
     /// The cell.
     required String cell,
 
-    /// The text typed; control characters become spaces, and half of a surrogate
-    /// pair on its own arrives as U+FFFD.
+    /// The text typed; line ends become U+000A, other control characters spaces,
+    /// and half of a surrogate pair on its own arrives as U+FFFD.
     required String text,
   }) = Command_EnterText;
 
@@ -841,7 +841,8 @@ enum DrawStyle {
 
 /// One cell of a [`TableData`].
 class EntryData {
-  /// The text. Characters that cell text cannot hold become spaces.
+  /// The text. A line end becomes U+000A, and every other character that cell text
+  /// cannot hold a space.
   final String text;
 
   /// Whether the cell becomes a formula cell; only a text that is a formula does.

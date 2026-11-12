@@ -106,7 +106,8 @@ pub enum Command {
         cell: CellId,
         /// Where to insert.
         at: u32,
-        /// What to insert; control characters become spaces.
+        /// What to insert; line ends become U+000A (CR LF one of them), other control
+        /// characters spaces ([`crate::text::clean`]).
         text: String,
     },
     /// Deletes a range of text. Stamps the last-edit time.
@@ -127,7 +128,8 @@ pub enum Command {
         start: u32,
         /// How many code points to replace.
         len: u32,
-        /// The new text; control characters become spaces.
+        /// The new text; line ends become U+000A (CR LF one of them), other control
+        /// characters spaces ([`crate::text::clean`]).
         text: String,
     },
     /// Replaces the whole text and, as TreeSheets does, drops all runs and links. Stamps the
@@ -135,7 +137,8 @@ pub enum Command {
     SetText {
         /// The cell.
         cell: CellId,
-        /// The new text; control characters become spaces.
+        /// The new text; line ends become U+000A (CR LF one of them), other control
+        /// characters spaces ([`crate::text::clean`]).
         text: String,
     },
     /// Switches style bits on and off for a range of text: the bits of `set` on, then the
@@ -336,7 +339,7 @@ pub enum Command {
     /// Adds a tag to the document, or changes its colours. A cell has a tag when its
     /// text is the tag's name.
     SetTag {
-        /// The name; not empty, no control characters.
+        /// The name; not empty, no control characters, so no line break either.
         name: String,
         /// The background colour of cells with the tag.
         cell_color: Color,

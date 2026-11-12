@@ -242,7 +242,8 @@ pub struct GridSize {
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EntryData {
-    /// The text. Characters that cell text cannot hold become spaces.
+    /// The text. A line end becomes U+000A, and every other character that cell text
+    /// cannot hold a space.
     pub text: String,
     /// Whether the cell becomes a formula cell; only a text that is a formula does.
     pub formula: bool,
@@ -286,8 +287,13 @@ pub struct TableData {
 ///   must not cut a user-perceived character (an extended grapheme cluster: a letter with
 ///   its combining accents, a flag, a family emoji). A position or range that would, or
 ///   that is outside the text, is refused ([`ErrorKind::Refused`]); it is never moved.
-/// - **Cell text holds no control characters** (below U+0020: no line breaks, no tabs).
-///   The commands that take text turn each into a space. Notes may hold any text.
+/// - **Cell text may hold line breaks, and no other control character** (below
+///   U+0020). A line break in a cell is U+000A. The commands that take text make every
+///   line end one: CR LF becomes one U+000A, which is one code point less, and so does a
+///   CR on its own; every other control character, a tab too, becomes a space. So the
+///   text that is in the cell afterwards can be shorter than the text that was sent:
+///   count positions in what the document gives back, not in what was sent. The name
+///   of a tag holds no control character at all. Notes may hold any text.
 /// - **Rows and columns** are counted from 0.
 /// - **Whole numbers** are positions, counts and sizes from 0 to 4294967295, but for each
 ///   `delta`, which is from -2147483648 to 2147483647, and for the parts of a colour,
@@ -311,7 +317,7 @@ pub enum Command {
         /// Where to insert: a position in code points, not inside a user-perceived
         /// character.
         at: i64,
-        /// What to insert; control characters become spaces. Half of a
+        /// What to insert; line ends become U+000A, other control characters spaces. Half of a
         /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
         text: String,
     },
@@ -335,7 +341,7 @@ pub enum Command {
         start: i64,
         /// How many code points to replace.
         len: i64,
-        /// The new text; control characters become spaces. Half of a
+        /// The new text; line ends become U+000A, other control characters spaces. Half of a
         /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
         text: String,
     },
@@ -344,7 +350,7 @@ pub enum Command {
     SetText {
         /// The cell.
         cell: String,
-        /// The new text; control characters become spaces. Half of a
+        /// The new text; line ends become U+000A, other control characters spaces. Half of a
         /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
         text: String,
     },
@@ -551,7 +557,7 @@ pub enum Command {
     /// Adds a tag to the document, or changes its colours. A cell has a tag when its
     /// text is the tag's name.
     SetTag {
-        /// The name; not empty, no control characters.
+        /// The name; not empty, no control characters, so no line break either.
         name: String,
         /// The background colour of cells with the tag.
         cell_color: Rgb,
@@ -705,8 +711,8 @@ pub enum Command {
     EnterText {
         /// The cell.
         cell: String,
-        /// The text typed; control characters become spaces, and half of a surrogate
-        /// pair on its own arrives as U+FFFD.
+        /// The text typed; line ends become U+000A, other control characters spaces,
+        /// and half of a surrogate pair on its own arrives as U+FFFD.
         text: String,
     },
     /// TreeSheets' Toggle to-do checkbox: cells without a checkbox (U+2610 or U+2611 at

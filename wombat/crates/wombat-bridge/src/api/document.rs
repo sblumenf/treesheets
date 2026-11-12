@@ -637,8 +637,10 @@ impl OpenDocument {
     ///   UTF-16 units of a Dart string, and must not cut a user-perceived character (a
     ///   letter with its accents, a flag, an emoji made of several). One that does, or is
     ///   outside the text, is refused ([`ErrorKind::Refused`]); it is never moved.
-    /// - **Control characters in cell text become spaces** (everything below U+0020:
-    ///   line breaks and tabs too). Notes keep them.
+    /// - **Cell text may hold line breaks (U+000A) and no other control character.**
+    ///   In text that is sent, CR LF and a CR on its own become one U+000A, and every
+    ///   other character below U+0020, a tab too, becomes a space. The text in the cell
+    ///   can therefore be shorter than what was sent. Notes keep everything.
     /// - Cells are named by their ID as text; text that is no ID is refused
     ///   ([`ErrorKind::BadRequest`]) and an ID that no cell has is
     ///   [`ErrorKind::NotFound`]. Whole numbers out of range are refused, never cut.
@@ -779,10 +781,13 @@ impl OpenDocument {
     /// made it: `text` is the whole new text.
     ///
     /// It is one `ReplaceText` command and everything [`OpenDocument::apply`] says
-    /// holds: one step of the undo history or part of the open group; characters that
-    /// cell text may not hold are changed first; the new part takes the style and link
-    /// of the first replaced character. A text that the cell has already changes
-    /// nothing: the report is empty and nothing is added to the undo history.
+    /// holds: one step of the undo history or part of the open group; the new part
+    /// takes the style and link of the first replaced character. Before the two texts
+    /// are compared, `text` is made what a cell may hold (CR LF and CR become one
+    /// U+000A, other control characters spaces), so the text in the cell afterwards can
+    /// be shorter than `text`: read it back rather than assume it. A text that the cell
+    /// has already, after that, changes nothing: the report is empty and nothing is
+    /// added to the undo history.
     ///
     /// The kind of the cell is left alone: a formula cell stays one and is worked out
     /// again, and text that starts with `=` does not become a formula. To settle that

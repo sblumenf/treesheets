@@ -775,7 +775,7 @@ class Command_InsertText extends Command {
 /// Where to insert: a position in code points, not inside a user-perceived
 /// character.
  final  int at;
-/// What to insert; control characters become spaces. Half of a
+/// What to insert; line ends become U+000A, other control characters spaces. Half of a
 /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
  final  String text;
 
@@ -930,7 +930,7 @@ class Command_ReplaceText extends Command {
  final  int start;
 /// How many code points to replace.
  final  int len;
-/// The new text; control characters become spaces. Half of a
+/// The new text; line ends become U+000A, other control characters spaces. Half of a
 /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
  final  String text;
 
@@ -1005,7 +1005,7 @@ class Command_SetText extends Command {
 
 /// The cell.
  final  String cell;
-/// The new text; control characters become spaces. Half of a
+/// The new text; line ends become U+000A, other control characters spaces. Half of a
 /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
  final  String text;
 
@@ -2545,7 +2545,7 @@ class Command_SetTag extends Command {
   const Command_SetTag({required this.name, required this.cellColor, required this.textColor}): super._();
   
 
-/// The name; not empty, no control characters.
+/// The name; not empty, no control characters, so no line break either.
  final  String name;
 /// The background colour of cells with the tag.
  final  Rgb cellColor;
@@ -3637,8 +3637,8 @@ class Command_EnterText extends Command {
 
 /// The cell.
  final  String cell;
-/// The text typed; control characters become spaces, and half of a surrogate
-/// pair on its own arrives as U+FFFD.
+/// The text typed; line ends become U+000A, other control characters spaces,
+/// and half of a surrogate pair on its own arrives as U+FFFD.
  final  String text;
 
 /// Create a copy of Command
