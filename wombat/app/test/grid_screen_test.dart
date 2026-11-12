@@ -85,8 +85,14 @@ void main() {
       stage,
       fake,
     ) async {
+      // The core is slow to read the grid, so the second tap comes while the first
+      // is still at work.
+      final gate = holdFirst(fake, 'grid');
       await tester.tap(key('open-2'));
       await tester.tap(key('open-2'));
+      await tester.pump();
+      expect(title(tester), 'Root');
+      gate.complete();
       await tester.pump();
       expect(title(tester), 'three');
       expect(stage.trail.length, 2);
@@ -97,8 +103,13 @@ void main() {
       await stage.enterText('a', '1');
       await stage.enterText('d', '4');
       await tester.pump();
+      // The second tap comes while the first undo is still at work: it is not dropped.
+      final gate = holdFirst(fake, 'undo');
       await tester.tap(key('undo'));
       await tester.tap(key('undo'));
+      await tester.pump();
+      expect((shown(tester, 0), shown(tester, 3)), ('1', '4'));
+      gate.complete();
       await tester.pump();
       expect((shown(tester, 0), shown(tester, 3)), ('one', 'four'));
     });
