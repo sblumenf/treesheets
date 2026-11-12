@@ -40,3 +40,5 @@ getrandom = "0.3"
 
 [dev-dependencies]
 proptest = "1"
+# For the generator of random commands that `tests/randseq.rs` takes from the core's tests.
+unicode-segmentation = "1.13.3"

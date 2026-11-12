@@ -1215,6 +1215,7 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
+ "unicode-segmentation",
  "wombat-core",
 ]
 
