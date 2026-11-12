@@ -164,9 +164,9 @@ class Keeper extends ChangeNotifier {
 
   /// Everything listeners are told of. An error is the same as the one before when
   /// it says the same: the core makes a new one for every failure, and two of them
-  /// are equal when their kind and message are. ([opens] is not here: it changes only
-  /// when [state] does.)
-  Object get _view => (state, _saveError, _ended);
+  /// are equal when their kind and message are. ([ended] and [opens] are not here:
+  /// they change only when [state] does.)
+  Object get _view => (state, _saveError);
 
   /// Tells the listeners if there is something new, apart from the piece that runs.
   void _tell() {
