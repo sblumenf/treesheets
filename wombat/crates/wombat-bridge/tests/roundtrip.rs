@@ -78,6 +78,43 @@ fn index(command: &Command) -> usize {
     }
 }
 
+/// Every kind of error. The match in [`every_kind_is_listed`] does not compile when one is
+/// added; then this needs the new one.
+const KINDS: &[ErrorKind] = &[
+    ErrorKind::Io,
+    ErrorKind::Syntax,
+    ErrorKind::WrongFormat,
+    ErrorKind::NewerVersion,
+    ErrorKind::Invalid,
+    ErrorKind::BadRequest,
+    ErrorKind::Refused,
+    ErrorKind::Limit,
+    ErrorKind::NotFound,
+    ErrorKind::AlreadyExists,
+    ErrorKind::HalfSaved,
+];
+
+#[test]
+fn every_kind_is_listed() {
+    for kind in KINDS {
+        match kind {
+            ErrorKind::Io
+            | ErrorKind::Syntax
+            | ErrorKind::WrongFormat
+            | ErrorKind::NewerVersion
+            | ErrorKind::Invalid
+            | ErrorKind::BadRequest
+            | ErrorKind::Refused
+            | ErrorKind::Limit
+            | ErrorKind::NotFound
+            | ErrorKind::AlreadyExists
+            | ErrorKind::HalfSaved => {}
+        }
+    }
+    let distinct: BTreeSet<String> = KINDS.iter().map(|kind| format!("{kind:?}")).collect();
+    assert_eq!(distinct.len(), KINDS.len());
+}
+
 fn cell() -> impl Strategy<Value = CellId> {
     any::<u128>().prop_map(|bits| CellId(Id::from_u128(bits)))
 }
@@ -505,6 +542,15 @@ fn the_form_of_a_command_as_json_is_as_documented() {
     assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), expected);
 }
 
+/// The message of what the bridge itself refused, which has a kind of its own.
+fn bad_request<T: std::fmt::Debug>(result: Result<T, BridgeError>) -> String {
+    let error = result.unwrap_err();
+    assert_eq!(error.kind, ErrorKind::BadRequest, "{error:?}");
+    assert_eq!(error.path, None);
+    error.message
+}
+
+/// The message of what the core refused as breaking a rule of documents.
 fn invalid<T: std::fmt::Debug>(result: Result<T, BridgeError>) -> String {
     let error = result.unwrap_err();
     assert_eq!(error.kind, ErrorKind::Invalid, "{error:?}");
@@ -513,22 +559,22 @@ fn invalid<T: std::fmt::Debug>(result: Result<T, BridgeError>) -> String {
 
 #[test]
 fn what_cannot_be_a_command_is_refused_as_a_value() {
-    invalid(command_from_json("{"));
-    invalid(command_from_json("\"NoSuchCommand\""));
-    invalid(command_from_json(r#"{"RemoveGrid": {"cell": "1"}}"#));
+    bad_request(command_from_json("{"));
+    bad_request(command_from_json("\"NoSuchCommand\""));
+    bad_request(command_from_json(r#"{"RemoveGrid": {"cell": "1"}}"#));
     // Only the canonical text of an ID is one: lower case, with its hyphens.
     let upper = r#"{"RemoveGrid": {"cell": "00000000-0000-0000-0000-00000000000A"}}"#;
-    assert!(invalid(command_from_json(upper)).contains("is not an ID"));
+    assert!(bad_request(command_from_json(upper)).contains("is not an ID"));
     let cell = "00000000-0000-0000-0000-000000000001".to_string();
     for scale in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let props = vec![wire::Prop::ImageScale(scale)];
         let cells = vec![cell.clone()];
-        invalid(command_in(wire::Command::SetProps { cells, props }));
+        bad_request(command_in(wire::Command::SetProps { cells, props }));
         let nan = Command::SetProps {
             cells: Vec::new(),
             props: vec![Prop::ImageScale(scale)],
         };
-        invalid(command_out(&nan));
+        bad_request(command_out(&nan));
     }
     let image = |extra: &str| wire::Command::SetProps {
         cells: vec![cell.clone()],
@@ -540,8 +586,8 @@ fn what_cannot_be_a_command_is_refused_as_a_value() {
     };
     command_in(image("")).unwrap();
     command_in(image(r#"{"crop": [1, 2]}"#)).unwrap();
-    invalid(command_in(image("[1]")));
-    invalid(command_in(image("{")));
+    bad_request(command_in(image("[1]")));
+    bad_request(command_in(image("{")));
     let table = |xs, n| wire::Command::Import {
         cell: cell.clone(),
         table: wire::TableData {
@@ -558,6 +604,7 @@ fn what_cannot_be_a_command_is_refused_as_a_value() {
         replace: false,
     };
     command_in(table(2, 4)).unwrap();
+    // A table is the core's to judge, as a document is.
     invalid(command_in(table(2, 3)));
     invalid(command_in(table(0, 3)));
     invalid(command_in(table(1, 0)));
@@ -601,9 +648,13 @@ fn a_clip_that_was_tampered_with_is_refused() {
     // The cell that the top cell was in with the ID of the document.
     let mut bad = good.clone();
     bad.parent = Some(id);
-    assert_eq!(paste(bad).unwrap_err().kind, ErrorKind::Invalid);
+    invalid(paste(bad));
+    // A parent that is no ID is the bridge's to refuse.
+    let mut bad = good.clone();
+    bad.parent = Some("above".into());
+    bad_request(paste(bad));
     // The top cell inside one of its own cells.
-    let mut bad = good;
+    let mut bad = good.clone();
     bad.parent = Some(editor.document().child(root, 0, 1).unwrap().to_string());
     invalid(paste(bad));
 }
@@ -655,13 +706,8 @@ proptest! {
     }
 
     #[test]
-    fn errors_survive_json(kind in 0..10usize, message in text(), path in proptest::option::of(text())) {
-        let kinds = [
-            ErrorKind::Io, ErrorKind::Syntax, ErrorKind::WrongFormat, ErrorKind::NewerVersion,
-            ErrorKind::Invalid, ErrorKind::Refused, ErrorKind::Limit, ErrorKind::NotFound,
-            ErrorKind::AlreadyExists, ErrorKind::HalfSaved,
-        ];
-        let error = BridgeError { kind: kinds[kind], message, path };
+    fn errors_survive_json(kind in pick(KINDS), message in text(), path in proptest::option::of(text())) {
+        let error = BridgeError { kind, message, path };
         let text = serde_json::to_string(&error).unwrap();
         prop_assert_eq!(serde_json::from_str::<BridgeError>(&text).unwrap(), error);
     }

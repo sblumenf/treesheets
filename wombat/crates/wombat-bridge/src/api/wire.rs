@@ -600,8 +600,14 @@ pub enum ErrorKind {
     WrongFormat,
     /// The file was written by a newer Wombat than this one reads.
     NewerVersion,
-    /// The document, or what was sent over the bridge, breaks a rule.
+    /// The document breaks a rule of the format or of the model: a file, or the document
+    /// that carries a clip, is not what the core accepts.
     Invalid,
+    /// What was sent over the bridge is not a request at all, and the bridge refused it
+    /// before the core saw it: text that is no ID, a number out of range or not finite,
+    /// unknown fields that are no JSON object, JSON text that is no command. This is a
+    /// mistake of the caller, not of the user or of a file; nothing changed.
+    BadRequest,
     /// The command cannot be carried out on the document as it is; nothing changed.
     Refused,
     /// A size, count or depth is over a limit.

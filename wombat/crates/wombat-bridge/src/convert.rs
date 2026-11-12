@@ -17,10 +17,11 @@ use crate::api::wire::{
 };
 
 impl BridgeError {
-    /// An error of the bridge itself: what came over it cannot be used.
-    pub(crate) fn invalid(message: impl Into<String>) -> BridgeError {
+    /// An error of the bridge itself: what came over it is no request that the core
+    /// could be asked.
+    pub(crate) fn bad_request(message: impl Into<String>) -> BridgeError {
         BridgeError {
-            kind: ErrorKind::Invalid,
+            kind: ErrorKind::BadRequest,
             message: message.into(),
             path: None,
         }
@@ -66,11 +67,11 @@ type In<T> = Result<T, BridgeError>;
 
 /// Reads the ID of a cell.
 pub(crate) fn cell_id(text: &str) -> In<CellId> {
-    CellId::parse(text).ok_or_else(|| BridgeError::invalid(format!("{text:?} is not an ID")))
+    CellId::parse(text).ok_or_else(|| BridgeError::bad_request(format!("{text:?} is not an ID")))
 }
 
 fn doc_id(text: &str) -> In<DocId> {
-    DocId::parse(text).ok_or_else(|| BridgeError::invalid(format!("{text:?} is not an ID")))
+    DocId::parse(text).ok_or_else(|| BridgeError::bad_request(format!("{text:?} is not an ID")))
 }
 
 fn cell_ids(texts: &[String]) -> In<Vec<CellId>> {
@@ -89,7 +90,9 @@ fn finite(number: f64) -> In<f64> {
     if number.is_finite() {
         Ok(number)
     } else {
-        Err(BridgeError::invalid("a scale that is not a finite number"))
+        Err(BridgeError::bad_request(
+            "a scale that is not a finite number",
+        ))
     }
 }
 
@@ -163,15 +166,16 @@ fn extra_in(text: &str) -> In<Extra> {
     if text.is_empty() {
         return Ok(Extra::new());
     }
-    serde_json::from_str(text)
-        .map_err(|e| BridgeError::invalid(format!("unknown fields that are no JSON object: {e}")))
+    serde_json::from_str(text).map_err(|e| {
+        BridgeError::bad_request(format!("unknown fields that are no JSON object: {e}"))
+    })
 }
 
 fn extra_out(extra: &Extra) -> In<String> {
     if extra.is_empty() {
         return Ok(String::new());
     }
-    serde_json::to_string(extra).map_err(|e| BridgeError::invalid(e.to_string()))
+    serde_json::to_string(extra).map_err(|e| BridgeError::bad_request(e.to_string()))
 }
 
 fn image_in(image: ImageRef) -> In<core::ImageRef> {

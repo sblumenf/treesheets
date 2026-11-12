@@ -1246,11 +1246,12 @@ impl SseDecode for crate::api::wire::ErrorKind {
             2 => crate::api::wire::ErrorKind::WrongFormat,
             3 => crate::api::wire::ErrorKind::NewerVersion,
             4 => crate::api::wire::ErrorKind::Invalid,
-            5 => crate::api::wire::ErrorKind::Refused,
-            6 => crate::api::wire::ErrorKind::Limit,
-            7 => crate::api::wire::ErrorKind::NotFound,
-            8 => crate::api::wire::ErrorKind::AlreadyExists,
-            9 => crate::api::wire::ErrorKind::HalfSaved,
+            5 => crate::api::wire::ErrorKind::BadRequest,
+            6 => crate::api::wire::ErrorKind::Refused,
+            7 => crate::api::wire::ErrorKind::Limit,
+            8 => crate::api::wire::ErrorKind::NotFound,
+            9 => crate::api::wire::ErrorKind::AlreadyExists,
+            10 => crate::api::wire::ErrorKind::HalfSaved,
             _ => unreachable!("Invalid variant for ErrorKind: {}", inner),
         };
     }
@@ -2197,11 +2198,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::wire::ErrorKind {
             Self::WrongFormat => 2.into_dart(),
             Self::NewerVersion => 3.into_dart(),
             Self::Invalid => 4.into_dart(),
-            Self::Refused => 5.into_dart(),
-            Self::Limit => 6.into_dart(),
-            Self::NotFound => 7.into_dart(),
-            Self::AlreadyExists => 8.into_dart(),
-            Self::HalfSaved => 9.into_dart(),
+            Self::BadRequest => 5.into_dart(),
+            Self::Refused => 6.into_dart(),
+            Self::Limit => 7.into_dart(),
+            Self::NotFound => 8.into_dart(),
+            Self::AlreadyExists => 9.into_dart(),
+            Self::HalfSaved => 10.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -2891,11 +2893,12 @@ impl SseEncode for crate::api::wire::ErrorKind {
                 crate::api::wire::ErrorKind::WrongFormat => 2,
                 crate::api::wire::ErrorKind::NewerVersion => 3,
                 crate::api::wire::ErrorKind::Invalid => 4,
-                crate::api::wire::ErrorKind::Refused => 5,
-                crate::api::wire::ErrorKind::Limit => 6,
-                crate::api::wire::ErrorKind::NotFound => 7,
-                crate::api::wire::ErrorKind::AlreadyExists => 8,
-                crate::api::wire::ErrorKind::HalfSaved => 9,
+                crate::api::wire::ErrorKind::BadRequest => 5,
+                crate::api::wire::ErrorKind::Refused => 6,
+                crate::api::wire::ErrorKind::Limit => 7,
+                crate::api::wire::ErrorKind::NotFound => 8,
+                crate::api::wire::ErrorKind::AlreadyExists => 9,
+                crate::api::wire::ErrorKind::HalfSaved => 10,
                 _ => {
                     unimplemented!("");
                 }

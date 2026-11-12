@@ -78,7 +78,7 @@ void main() {
       await doc.grid(cell: 'no ID');
       fail('read a cell that has no ID');
     } on BridgeError catch (error) {
-      expect(error.kind, ErrorKind.invalid);
+      expect(error.kind, ErrorKind.badRequest);
     }
     // The document is as it was: a root without a grid.
     final view = await doc.grid(cell: root);

@@ -9,7 +9,7 @@ use crate::api::wire::{BridgeError, Command, Report};
 use crate::convert::{command_in, command_out};
 
 fn bad(error: serde_json::Error) -> BridgeError {
-    BridgeError::invalid(format!("not a command or report as JSON: {error}"))
+    BridgeError::bad_request(format!("not a command or report as JSON: {error}"))
 }
 
 /// A command as JSON text.

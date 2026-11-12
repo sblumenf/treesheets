@@ -231,7 +231,7 @@ fn errors_are_values_with_a_kind_and_leave_the_document_as_it_was() {
     // Text that is no ID.
     assert_eq!(
         doc.grid("root".into()).err().unwrap().kind,
-        ErrorKind::Invalid
+        ErrorKind::BadRequest
     );
     // A command the document does not allow.
     let remove = Command::RemoveGrid { cell: root.clone() };

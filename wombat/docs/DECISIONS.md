@@ -1294,7 +1294,8 @@ are where milestones 4, 5 and 6, built apart, meet).
     device's clock. Tests give both.
 129. **Errors cross as `{kind, message, path}`.** The kind mirrors the variants of the core's
     error, for the interface to switch on; the message is the core's English text. What is
-    wrong with something sent over the bridge (text that is no ID, say) has the kind `Invalid`.
+    wrong with something sent over the bridge (text that is no ID, say) has a kind of its own,
+    `BadRequest` (A133).
     A panic, which the core is written not to have, is caught by `flutter_rust_bridge` at the
     boundary and arrives in Dart as a `PanicException`, not as a crash (tried in a throwaway
     project for synchronous and asynchronous calls; no test in the repository does it, since
@@ -1319,6 +1320,13 @@ are where milestones 4, 5 and 6, built apart, meet).
     takes the source from the ID of `doc`, which is what `Clip::as_document` writes there.
     The check in `as_document` stays: a document under construction is not checked, and a
     clip of one can break rules that only a whole document has (a test builds two such).
+133. **What the bridge itself refuses has its own kind of error, `BadRequest`** (from the
+    review; changes A129). `Invalid` meant both "the file is broken", which a user can be told,
+    and "what the interface sent is malformed", which is a mistake in the interface. Now
+    `BadRequest` is everything the bridge refuses before the core is asked: text that is no ID,
+    a number out of range or not finite, unknown fields that are no JSON object, JSON text
+    that is no command. `Invalid` is only what the core means by it, which includes the
+    document that carries a clip and a table to import, since the core checks those.
 
 ## B. Deliberate departures from TreeSheets
 
