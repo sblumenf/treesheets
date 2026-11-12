@@ -468,7 +468,10 @@ fn large_stages_are_read_within_a_set_time() {
     let open = |name: &str, doc: Document| {
         let path = dir.join(name);
         storage::save_document(&doc, &path).unwrap();
-        let editor = Editor::new(doc).unwrap();
+        // The core's part is timed on the document as read from the file, which is what
+        // the bridge holds: the same cells laid out in memory another way take another
+        // time, by more than the conversion does.
+        let editor = Editor::new(storage::load_document(&path).unwrap()).unwrap();
         (OpenDocument::open_with(&path, ids()).unwrap(), editor)
     };
 
