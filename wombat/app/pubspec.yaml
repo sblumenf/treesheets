@@ -37,6 +37,12 @@ dependencies:
     path: rust_builder
   flutter_rust_bridge: 2.13.0
   freezed_annotation: ^3.1.0
+  # Where the system keeps the app's own data (decision A161).
+  path_provider: ^2.1.6
+  # The Android part from before it was rewritten on JNI (2.3.0): that one brings a
+  # native JNI library into the Linux and Windows builds as well, which then need a
+  # JDK to compile, for nothing they use.
+  path_provider_android: ">=2.2.23 <2.3.0"
 
 dev_dependencies:
   flutter_test:

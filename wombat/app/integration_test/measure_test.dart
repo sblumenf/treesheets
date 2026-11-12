@@ -13,6 +13,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:wombat_app/measure.dart';
 import 'package:wombat_app/src/rust/frb_generated.dart';
 
@@ -21,8 +22,15 @@ void main() {
   setUpAll(() async => await RustLib.init());
 
   testWidgets('measure a document of 101,001 cells', (tester) async {
-    // A folder the app may write to on every platform, the same one at every run.
-    final folder = Directory('${Directory.systemTemp.path}/wombat-measure');
+    // A folder the app may write to, the same one at every run, so that the second
+    // run finds the document the first one built. On a phone that is the app's own
+    // data folder: the temporary one is emptied there when the app is installed
+    // again. On a desktop it stays the temporary folder, so that a developer's
+    // measuring leaves nothing among the data of the installed app.
+    final folder = Directory(
+      '${(Platform.isAndroid || Platform.isIOS ? await getApplicationSupportDirectory() : Directory.systemTemp).path}'
+      '/wombat-measure',
+    );
     final report = await tester.runAsync(() async {
       await folder.create(recursive: true);
       return (await measure(folder)).report();

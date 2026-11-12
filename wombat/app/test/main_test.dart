@@ -129,61 +129,72 @@ void main() {
   }
 
   group('where the document is kept', () {
-    String at(String os, Map<String, String> environment) =>
-        documentFolder(os: os, environment: environment, temp: '/tmp/x');
-
-    test('on Linux, where the user\'s data is', () {
-      expect(
-        at('linux', {'HOME': '/home/u', 'XDG_DATA_HOME': '/data/u'}),
-        '/data/u/wombat',
-      );
-      expect(at('linux', {'HOME': '/home/u'}), '/home/u/.local/share/wombat');
-      // Empty, or not from the root: not valid, so it is as if not set.
-      expect(
-        at('linux', {'HOME': '/home/u', 'XDG_DATA_HOME': ''}),
-        '/home/u/.local/share/wombat',
-      );
-      expect(
-        at('linux', {'HOME': '/home/u', 'XDG_DATA_HOME': 'data'}),
-        '/home/u/.local/share/wombat',
-      );
-      expect(at('linux', {'HOME': ''}), '/tmp/x/wombat');
-      expect(at('linux', {}), '/tmp/x/wombat');
+    test('in the folder the system gives the app for its data', () async {
+      for (final data in [
+        '/data/user/0/io.github.sblumenf.burrow/files',
+        '/home/u/.local/share/io.github.sblumenf.burrow',
+      ]) {
+        final folder = await documentFolder(
+          appData: () async => Directory(data),
+        );
+        expect(folder.path, '$data/documents');
+      }
     });
 
-    test('on macOS, in Application Support', () {
-      expect(
-        at('macos', {'HOME': '/Users/u', 'XDG_DATA_HOME': '/data/u'}),
-        '/Users/u/Library/Application Support/wombat',
-      );
-      expect(at('macos', {}), '/tmp/x/wombat');
-    });
-
-    test('on Windows, in the roaming application data', () {
-      expect(
-        documentFolder(
-          os: 'windows',
-          environment: {'APPDATA': r'C:\Users\u\AppData\Roaming', 'HOME': '/h'},
-          temp: r'C:\Temp',
+    test('nowhere when the system gives no path from the root', () async {
+      // As with a HOME that is not one: a folder that depends on where the app was
+      // started from.
+      await expectLater(
+        documentFolder(appData: () async => Directory('.local/share/burrow')),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.path,
+            'path',
+            '.local/share/burrow',
+          ),
         ),
-        r'C:\Users\u\AppData\Roaming\wombat',
       );
-      expect(
-        documentFolder(os: 'windows', environment: {}, temp: r'C:\Temp'),
-        r'C:\Temp\wombat',
+      // Nor when it cannot say at all: there is no second place.
+      await expectLater(
+        documentFolder(appData: () => throw StateError('no HOME')),
+        throwsStateError,
       );
     });
 
-    test('on a phone, in the app\'s own temporary folder', () {
-      // Whatever the environment says there: it is not the app's to write to.
-      const environment = {
-        'HOME': '/',
-        'XDG_DATA_HOME': '/data',
-        'APPDATA': 'x',
-      };
-      expect(at('android', environment), '/tmp/x/wombat');
-      expect(at('ios', environment), '/tmp/x/wombat');
-      expect(at('fuchsia', environment), '/tmp/x/wombat');
+    const channel = MethodChannel('plugins.flutter.io/path_provider');
+
+    testWidgets('the app asks the system, through the plugin', (tester) async {
+      final data = Directory('${root.path}/data-${count++}');
+      final asked = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        asked.add(call.method);
+        return data.path;
+      });
+      await tester.pumpWidget(const WombatApp(screen: ProbeScreen.new));
+      await until(tester, () => key('probe-shown').evaluate().isNotEmpty);
+      expect(asked, ['getApplicationSupportDirectory']);
+      expect(keeperOf(tester).path, '${data.path}/documents/example.wombat');
+      await end(tester);
+    });
+
+    testWidgets('a system that cannot say: said, with nothing to put aside', (
+      tester,
+    ) async {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        (call) async => throw PlatformException(code: 'none'),
+      );
+      await tester.pumpWidget(const WombatApp(screen: ProbeScreen.new));
+      await until(tester, () => key('start-error').evaluate().isNotEmpty);
+      expect(
+        text(tester, 'start-error'),
+        startsWith('The document could not be opened. Error: '),
+      );
+      expect(key('start-again'), findsOneWidget);
+      expect(key('start-over'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
     });
   });
 

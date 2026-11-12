@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'demo_screen.dart';
 import 'example.dart';
@@ -26,41 +27,26 @@ Future<void> main() async {
   runApp(const WombatApp());
 }
 
-/// The folder the app keeps its document in (decision A156).
+/// The folder the app keeps its documents in: `documents` in the folder that the
+/// system gives the app for its own data, on every system alike. `appData` asks the
+/// system for that one; without it the `path_provider` plugin does (its "application
+/// support" folder, which no other app reads, the system does not clear, and which
+/// stays when the app is updated).
 ///
-/// On Linux, macOS and Windows it is a folder `wombat` where the system keeps the data
-/// of this user's programs, found by the environment as the system defines it. On
-/// Android and iOS there is no finding the app's documents folder without a plugin;
-/// there, and wherever the environment does not say, it is `wombat` in `temp`, the
-/// system's temporary folder, which on a phone is the app's own cache folder and which
-/// the system may clear.
-String documentFolder({
-  required String os,
-  required Map<String, String> environment,
-  required String temp,
-}) {
-  String? at(String name) {
-    final value = environment[name];
-    return value == null || value.isEmpty ? null : value;
+/// A path that is not from the root is refused: it would be a different folder
+/// whenever the app is started from somewhere else. What `appData` throws when the
+/// system cannot say is thrown on. There is no other place to fall back to.
+Future<Directory> documentFolder({
+  Future<Directory> Function() appData = getApplicationSupportDirectory,
+}) async {
+  final data = await appData();
+  if (!data.isAbsolute) {
+    throw FileSystemException(
+      'The folder for the app\'s data is not a path from the root',
+      data.path,
+    );
   }
-
-  final home = at('HOME');
-  final xdg = at('XDG_DATA_HOME');
-  final data = switch (os) {
-    // A path that is not from the root is not valid there and is passed over, as
-    // the XDG Base Directory specification says.
-    'linux' =>
-      xdg != null && xdg.startsWith('/')
-          ? xdg
-          : home == null
-          ? null
-          : '$home/.local/share',
-    'macos' => home == null ? null : '$home/Library/Application Support',
-    'windows' => at('APPDATA'),
-    _ => null,
-  };
-  final separator = os == 'windows' ? r'\' : '/';
-  return '${data ?? temp}${separator}wombat';
+  return Directory('${data.path}/documents');
 }
 
 /// Opens the app's document in `folder`: what an earlier start left there, with
@@ -152,7 +138,7 @@ class StartScreen extends StatefulWidget {
   const StartScreen({super.key, this.folder, this.screen = GridOnKeeper.new});
 
   /// Where the document is kept. Without one it is [documentFolder]. Tests give a
-  /// folder of their own.
+  /// folder of their own, so that none writes where a user's documents are.
   final Directory? folder;
 
   /// Builds the screen that works on the document through its keeper. The keeper is
@@ -166,19 +152,12 @@ class StartScreen extends StatefulWidget {
 class _StartScreenState extends State<StartScreen> {
   Future<Keeper>? _opening;
 
-  Directory get _folder =>
-      widget.folder ??
-      Directory(
-        documentFolder(
-          os: Platform.operatingSystem,
-          environment: Platform.environment,
-          temp: Directory.systemTemp.path,
-        ),
-      );
+  /// Where the document is kept, once that is known.
+  Directory? _folder;
 
   Future<Keeper> _open(AssetBundle assets) async => Keeper(
     await openDocument(
-      _folder,
+      _folder ??= widget.folder ?? await documentFolder(),
       example: () => assets.load('assets/example.wombat'),
     ),
   );
@@ -186,8 +165,8 @@ class _StartScreenState extends State<StartScreen> {
   /// The way out when what an earlier start left cannot be opened: it is put aside,
   /// so that nothing is thrown away, and the app starts with a new copy of the
   /// example.
-  Future<Keeper> _startOver(AssetBundle assets) async {
-    await putAside(_folder);
+  Future<Keeper> _startOver(AssetBundle assets, Directory folder) async {
+    await putAside(folder);
     return _open(assets);
   }
 
@@ -220,6 +199,7 @@ class _StartScreenState extends State<StartScreen> {
             body: Center(child: CircularProgressIndicator()),
           );
         }
+        final folder = _folder;
         return Scaffold(
           body: SafeArea(
             child: Center(
@@ -238,12 +218,12 @@ class _StartScreenState extends State<StartScreen> {
                       onPressed: () => _again(_open(assets)),
                       child: const Text('Try again'),
                     ),
-                    if (canBePutAside(error, _folder)) ...[
+                    if (folder != null && canBePutAside(error, folder)) ...[
                       const SizedBox(height: 16),
-                      Text('Its file is ${_folder.path}/$documentName'),
+                      Text('Its file is ${folder.path}/$documentName'),
                       OutlinedButton(
                         key: const Key('start-over'),
-                        onPressed: () => _again(_startOver(assets)),
+                        onPressed: () => _again(_startOver(assets, folder)),
                         child: const Text(
                           'Put that file aside and start with the example',
                         ),
