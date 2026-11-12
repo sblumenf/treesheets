@@ -1,10 +1,12 @@
 // The measuring of `lib/measure.dart` on a small document, without a device, so that its
 // steps are tested on every push; the numbers mean nothing here.
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wombat_app/measure.dart';
 import 'package:wombat_app/session.dart';
+import 'package:wombat_app/src/rust/api/wire.dart';
 
 import 'support.dart';
 
@@ -76,6 +78,30 @@ void main() {
     expect(second.report(), contains('the file was there from an earlier run'));
     expect(file.readAsBytesSync(), before);
     expect(File('${folder.path}/work.wombat').existsSync(), isFalse);
+  });
+
+  test('a document that cannot be opened leaves no clock running', () async {
+    final broken = await folder.createTemp('broken');
+    File('${broken.path}/large-2x2.wombat').writeAsStringSync('no document');
+    // Every timer that the measuring starts, to see what became of it.
+    final timers = <Timer>[];
+    await runZoned(
+      () => expectLater(
+        measure(broken, across: 2, down: 2, runs: 1),
+        throwsA(
+          isA<BridgeError>().having((e) => e.kind, 'kind', ErrorKind.syntax),
+        ),
+      ),
+      zoneSpecification: ZoneSpecification(
+        createPeriodicTimer: (self, parent, zone, period, tick) {
+          final timer = parent.createPeriodicTimer(zone, period, tick);
+          timers.add(timer);
+          return timer;
+        },
+      ),
+    );
+    expect(timers.length, 1);
+    expect(timers.single.isActive, isFalse);
   });
 
   test('median and worst of a timing', () {

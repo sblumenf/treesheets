@@ -172,9 +172,14 @@ Future<Measurement> measure(
   });
   final opens = <Duration>[];
   var watch = Stopwatch()..start();
-  var doc = await Session.open(work.path);
+  Session doc;
+  try {
+    doc = await Session.open(work.path);
+  } finally {
+    // Also when the document cannot be opened: a timer left running keeps looking.
+    sampler.cancel();
+  }
   opens.add(watch.elapsed);
-  sampler.cancel();
   m.rssOpen = ProcessInfo.currentRss;
   m.sampledPeak = sampled > m.rssOpen ? sampled : m.rssOpen;
   if (resettable) m.peakSinceOpen = _peak();
