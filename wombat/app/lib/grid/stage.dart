@@ -31,7 +31,8 @@ class Level {
 class Stage extends ChangeNotifier {
   Stage._(this.keeper) : _opens = keeper.opens;
 
-  /// What keeps the document of this stage in its file.
+  /// What keeps the document of this stage in its file. The stage follows it for as
+  /// long as both are there.
   final Keeper keeper;
   final _turns = InTurn();
 
@@ -78,8 +79,9 @@ class Stage extends ChangeNotifier {
         try {
           await _start();
         } catch (error) {
-          // After a fault the keeper has ended the work, and that is what is shown.
-          if (!isFatal(error)) _readError = error;
+          // (After a fault the keeper has ended the work, and that is what is shown,
+          // whatever is noted here.)
+          _readError = error;
         }
         notifyListeners();
       });
@@ -287,13 +289,5 @@ class Stage extends ChangeNotifier {
     await _settled();
     await keeper.openTheirs();
     await _settled();
-  }
-
-  /// The stage is no longer used: it stops listening to the keeper, which stays open.
-  @override
-  void dispose() {
-    keeper.removeListener(_kept);
-    keeper.removeFinisher(_settled);
-    super.dispose();
   }
 }

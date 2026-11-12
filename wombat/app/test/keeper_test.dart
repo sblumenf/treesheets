@@ -71,11 +71,19 @@ void main() {
       await keeper.redo();
       await tester.pump(const Duration(seconds: 1));
       expect(fake.saves, 2);
-      // Nothing more without a change, and none for an undo with nothing to undo.
+      // Nothing more without a change, and none for an undo or a redo that found
+      // nothing to do.
       final before = calls(fake, 'save');
       await keeper.redo();
       await tester.pump(const Duration(minutes: 5));
       expect(calls(fake, 'save'), before);
+      await keeper.undo();
+      await keeper.undo();
+      await tester.pump(const Duration(seconds: 1));
+      expect(calls(fake, 'save'), before + 1);
+      await keeper.undo();
+      await tester.pump(const Duration(minutes: 5));
+      expect(calls(fake, 'save'), before + 1);
     });
 
     // The review's: after one failure the clock was not started again.
@@ -235,21 +243,10 @@ void main() {
       expect(fake.log, containsAllInOrder(['apply.', 'save']));
       expect((fake.saves, fake.saved), (1, true));
 
-      // Something already on its way counts too, once.
+      // And no more once it is taken back.
       keeper.removeFinisher(typed);
-      keeper.owe(
-        keeper
-            .apply(const Command.enterText(cell: 'd', text: 'owed'))
-            .then((_) {}),
-      );
       await keeper.putAway();
-      expect(
-        (fake.cells['d']!.text, fake.saves, fake.saved),
-        ('owed', 2, true),
-      );
-      expect(calls(fake, 'apply'), 2);
-      await keeper.putAway();
-      expect(calls(fake, 'apply'), 2);
+      expect(calls(fake, 'apply'), 1);
     });
 
     keeperTest('what cannot be finished does not keep the rest from the file', (
@@ -289,6 +286,19 @@ void main() {
       await keeper.close();
       await tester.pump(const Duration(seconds: 5));
       expect((fake.log.length, told), (before, 1));
+    });
+
+    keeperTest('a close that works takes back what a save before it said', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await keeper.apply(edit);
+      failFirst(fake, 'save', broken);
+      await keeper.save();
+      expect(keeper.saveError, broken);
+      await keeper.close();
+      expect((keeper.saveError, fake.closed, fake.saves), (null, true, 1));
     });
 
     keeperTest('comes after the calls made before it', (
@@ -395,6 +405,8 @@ void main() {
         fake.fileChanged = true;
         await keeper.save();
         expect((keeper.opens, told), (1, 1));
+        // A change after it, whose save is still to come when the choice is made.
+        await keeper.undo();
         await keeper.openTheirs();
         expect((keeper.opens, told), (2, 2));
         expect(keeper.saveError, isNull);
@@ -410,6 +422,22 @@ void main() {
         return Session.over(theirs);
       },
     );
+
+    keeperTest('is opened after the calls made before the choice', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      final gate = holdFirst(fake, 'apply');
+      final change = keeper.apply(edit);
+      final open = keeper.openTheirs();
+      await tester.pump();
+      expect(fake.disposed, isFalse);
+      gate.complete();
+      expect((await change).changed, ['a']);
+      await open;
+      expect(fake.disposed, isTrue);
+    }, reopen: (_) => Session.over(FakeDocument()));
 
     keeperTest(
       'that cannot be read leaves everything as it is',

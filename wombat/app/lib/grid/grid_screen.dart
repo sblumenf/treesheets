@@ -47,7 +47,11 @@ class _GridScreenState extends State<GridScreen> {
   /// them, not as they were when the finger came down. An error that an action did
   /// not expect is shown like the others.
   late final _actions = InTurn(
-    onUnheard: (error, _) => _say(describeError(error)),
+    onUnheard: (error, stack) {
+      // With no screen left to show it on, it is an error that nobody caught.
+      if (!mounted) Error.throwWithStackTrace(error, stack);
+      _say(describeError(error));
+    },
   );
 
   /// The cell whose text is being edited.
@@ -92,18 +96,16 @@ class _GridScreenState extends State<GridScreen> {
   }
 
   /// The screen stops showing `stage`. What is in the editor is entered, as by a tap
-  /// elsewhere; the keeper waits for that before it closes the document. There is no
-  /// one left to show a refusal to.
+  /// elsewhere. That is a step of the stage like any other, so the keeper waits for it
+  /// before it closes the document. There is no one left to show a refusal to.
   void _leave(Stage stage) {
     stage.removeListener(_redraw);
     stage.keeper.removeFinisher(_putAway);
     final cell = _editing;
     if (cell != null && _editor.text != _left) {
-      stage.keeper.owe(
-        stage
-            .enterText(cell, _editor.text, insteadOfLast: _left != null)
-            .then<void>((_) {}, onError: (Object _) {}),
-      );
+      stage
+          .enterText(cell, _editor.text, insteadOfLast: _left != null)
+          .then<void>((_) {}, onError: (Object _) {});
     }
     _editing = null;
     _left = null;
@@ -144,19 +146,17 @@ class _GridScreenState extends State<GridScreen> {
     if (!mounted) return;
     setState(() {
       _editing = cell.id;
+      // A new editing: nothing of it is in the document yet.
       _left = null;
+      // The cursor goes to the end of the text when the field gets the focus.
       _editor.text = cell.text;
-      _editor.selection = TextSelection.collapsed(offset: cell.text.length);
     });
     _focus.requestFocus();
   }
 
   void _close() {
     if (!mounted) return;
-    setState(() {
-      _editing = null;
-      _left = null;
-    });
+    setState(() => _editing = null);
   }
 
   /// Sends what is in the editor to the core, unless the document has it already. The
@@ -190,6 +190,10 @@ class _GridScreenState extends State<GridScreen> {
   /// The app is put away: what is being typed goes into the document, and the editor
   /// stays as it is for when the app comes back. The keeper asks for this, and saves
   /// when it is done.
+  ///
+  /// It takes its turn like every other action, so that it finds the editor as the
+  /// actions before it left it. No test can tell that from entering at once: the
+  /// stage takes its steps in order whichever way they are asked for.
   Future<void> _putAway() => _actions.run(() => _enter(away: true));
 
   /// A tap on a cell, on its text or on the way into its grid. While the editor is
@@ -203,6 +207,9 @@ class _GridScreenState extends State<GridScreen> {
       await _ask(() => _stage.dive(id));
     } else {
       // The cell as it is now: an undo before this tap may have changed its text.
+      // Asked of the stage and not read from what it shows, so that it also comes
+      // after steps that did not come from this screen; with this screen alone
+      // the two are the same.
       CellInfo? cell;
       await _ask(() async => cell = await _stage.cell(id));
       if (cell != null) _show(cell!);

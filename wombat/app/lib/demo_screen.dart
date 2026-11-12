@@ -68,7 +68,6 @@ class _DemoScreenState extends State<DemoScreen> {
       // There is no one left to show an error of these two to.
       () => _demo
           .close()
-          .catchError((Object _) {})
           .whenComplete(() => _folder?.delete(recursive: true))
           .catchError((Object _) {}),
     );

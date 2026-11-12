@@ -1,6 +1,8 @@
 // The widgets of the simple grid screen, without a device, on a stand-in for the core
 // that can be made to wait and to fail: what is shown, that nothing typed is lost, that
 // the document is saved without being asked, and what the screen says when it is not.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart'
@@ -437,6 +439,35 @@ void main() {
     });
   });
 
+  testWidgets('an error from where none is expected is shown too', (
+    tester,
+  ) async {
+    final fake = FakeDocument();
+    final keeper = _Mistaken(await Session.over(fake));
+    final stage = await Stage.open(keeper);
+    await tester.pumpWidget(MaterialApp(home: GridScreen(stage: stage)));
+    await stage.enterText('a', 'mine');
+    fake.fileChanged = true;
+    await tester.pump(const Duration(seconds: 1));
+    // Keeping mine never throws, and so nothing catches what it throws here.
+    await press(tester, 'keep-mine');
+    expect(message(tester), 'Error: Bad state: a mistake');
+    expect(tester.takeException(), isNull);
+    // With the screen gone there is no line to show it on: it is not swallowed.
+    // It goes where the tap came from, as an error that nobody caught.
+    final gate = keeper.gate = Completer<void>();
+    final uncaught = <Object>[];
+    await runZonedGuarded(
+      () => tester.tap(key('keep-mine')),
+      (error, _) => uncaught.add(error),
+    );
+    await tester.pumpWidget(const SizedBox());
+    gate.complete();
+    await tester.pump();
+    expect(uncaught.single, isStateError);
+    await keeper.letGo();
+  });
+
   group('the system\'s back', () {
     screenTest('goes up one level, and leaves the app only from the root', (
       tester,
@@ -570,12 +601,14 @@ void main() {
       final gate = holdFirst(fake, 'undo');
       await tester.tap(key('undo'));
       await tester.tap(key('undo'));
+      await tester.tap(key('open-2'));
       await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       gate.complete();
       await tester.pump();
       await tester.pump();
-      // The one that was at work ended; the one behind it never began.
+      // The one that was at work ended; the ones behind it never began.
       expect((fake.cells['a']!.text, fake.cells['d']!.text), ('1', 'four'));
+      expect(stage.atRoot, isTrue);
       expect(tester.takeException(), isNull);
     });
 
@@ -642,6 +675,32 @@ void main() {
       expect(editor(tester), 'four');
       await press(tester, 'cancel');
     });
+
+    for (final target in ['cell-3', 'open-2']) {
+      screenTest('a tap on $target with text that the core refuses: it stays', (
+        tester,
+        stage,
+        fake,
+      ) async {
+        await press(tester, 'cell-0');
+        type(tester, 'too much');
+        failFirst(fake, 'apply', broken);
+        await press(tester, target);
+        expect(editor(tester), 'too much');
+        expect(message(tester), 'Error (io): the disk is gone');
+        expect(title(tester), 'Root');
+        // More typed while the text is entered: that stays too, without a word.
+        final gate = holdFirst(fake, 'apply');
+        await press(tester, target);
+        type(tester, 'too much, and more');
+        gate.complete();
+        await tester.pump();
+        expect(fake.cells['a']!.text, 'too much');
+        expect(editor(tester), 'too much, and more');
+        expect(message(tester), isNull);
+        await press(tester, 'cancel');
+      });
+    }
 
     screenTest('going up keeps the text and goes up', (
       tester,
@@ -1026,6 +1085,52 @@ void main() {
       },
     );
 
+    screenTest('what one editing left unconfirmed is not the next one\'s', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await stage.enterText('d', 'before');
+      await press(tester, 'cell-0');
+      type(tester, 'half');
+      await awayAndBack(tester, AppLifecycleState.hidden);
+      // Return says yes to it and moves on; the cross on the next cell then has
+      // nothing to take back.
+      await pressReturn(tester);
+      expect(editor(tester), 'three');
+      await press(tester, 'cancel');
+      expect(fake.cells['a']!.text, 'half');
+      expect(fake.log.contains('undo'), isFalse);
+      // And after a cross that did take something back, neither has the next.
+      await press(tester, 'cell-1');
+      type(tester, 'not this');
+      await awayAndBack(tester, AppLifecycleState.hidden);
+      await press(tester, 'cancel');
+      await press(tester, 'cell-1');
+      await press(tester, 'cancel');
+      expect(fake.log.where((call) => call == 'undo').length, 1);
+      expect(
+        (fake.cells['a']!.text, fake.cells['d']!.text),
+        ('half', 'before'),
+      );
+    });
+
+    screenTest('a cross with nothing left to take back closes the editor', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-0');
+      type(tester, 'not this');
+      await awayAndBack(tester, AppLifecycleState.hidden);
+      // Taken back already, behind the screen, as a second screen could.
+      await stage.undo();
+      await press(tester, 'cancel');
+      expect(key('editor'), findsNothing);
+      expect(message(tester), isNull);
+      expect(fake.cells['a']!.text, 'one');
+    });
+
     screenTest('a cross that cannot take the text back leaves the editor', (
       tester,
       stage,
@@ -1086,6 +1191,9 @@ void main() {
       final calls = fake.log.length;
       // Its text was in the document already: nothing more is sent for it.
       await tester.pump();
+      expect(fake.log.length, calls);
+      // What watched the app's lifecycle for it went with it.
+      await awayAndBack(tester, AppLifecycleState.paused);
       expect(fake.log.length, calls);
       // Neither a change of the stage nor the app being put away reaches it.
       await stage.dive('c');
@@ -1237,7 +1345,7 @@ void main() {
     }
 
     final (keeper1, stage1, fake1) = await open('one');
-    final (keeper2, stage2, _) = await open('the other');
+    final (keeper2, stage2, fake2) = await open('the other');
     Widget on(Stage stage) => MaterialApp(home: GridScreen(stage: stage));
     await tester.pumpWidget(on(stage1));
     await press(tester, 'cell-0');
@@ -1258,7 +1366,14 @@ void main() {
     await press(tester, 'cell-0');
     await tester.pumpWidget(on(stage2));
     expect(editor(tester), 'changed');
+    // The keeper of the stage it left no longer asks it for what is being typed.
+    type(tester, 'typed on the second');
+    await keeper1.putAway();
+    expect(fake2.cells['a']!.text, 'changed');
+    await keeper2.putAway();
+    expect(fake2.cells['a']!.text, 'typed on the second');
     await press(tester, 'cancel');
+    expect(fake2.cells['a']!.text, 'changed');
     await keeper1.close();
     await keeper2.close();
   });
@@ -1292,7 +1407,24 @@ void main() {
     expect(fake.log.length, calls);
     // The system's back is the system's again, which leaves the app: there is
     // nothing to go up in.
-    expect(await back(tester), ['SystemNavigator.pop']);
+    final left = await back(tester);
+    await tester.pump();
+    await tester.pump();
+    expect(left, ['SystemNavigator.pop']);
     expect(fake.log.length, calls);
   });
+}
+
+/// A keeper with a mistake in it: keeping mine throws.
+class _Mistaken extends Keeper {
+  _Mistaken(super.doc);
+
+  /// What the mistake waits for, if anything.
+  Completer<void>? gate;
+
+  @override
+  Future<void> keepMine() async {
+    await gate?.future;
+    throw StateError('a mistake');
+  }
 }

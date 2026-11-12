@@ -221,6 +221,21 @@ void main() {
     expect(trail(stage), ['Example', 'Renamed', '3']);
   });
 
+  test('only the levels that a change names are read again', () async {
+    final (stage, fake) = await standIn();
+    await stage.dive('c');
+    int reads() => fake.log.where((call) => call == 'grid').length;
+    // A cell of the stage: the stage is read, and no level above it.
+    var before = reads();
+    await stage.enterText('e', 'typed');
+    expect(reads(), before + 1);
+    // The root, a level above: that one too.
+    before = reads();
+    await stage.enterText('root', 'Renamed');
+    expect(reads(), before + 2);
+    expect(trail(stage), ['Renamed', 'three']);
+  });
+
   group('text entered in place of the command before it', () {
     test('is one step of the undo history', () async {
       final (stage, doc) = await example();
@@ -394,16 +409,23 @@ void main() {
       expect(trail(stage), ['Example']);
     });
 
-    test('an edit asked for just before the close is made and saved', () async {
+    test('edits asked for just before the close are made and saved', () async {
       final (stage, fake) = await standIn();
-      final edit = stage.enterText('a', 'last words');
-      await stage.keeper.close();
-      expect((await edit).changed, ['a']);
+      // The first is held up, so the second has not reached the document when the
+      // close is asked for: the close waits for the stage to be done.
+      final gate = holdFirst(fake, 'apply');
+      final first = stage.enterText('a', 'first words');
+      final last = stage.enterText('d', 'last words');
+      final close = stage.keeper.close();
+      await pumpEventQueue();
+      gate.complete();
+      expect((await first).changed, ['a']);
+      expect((await last).changed, ['d']);
+      await close;
       expect(
-        (fake.cells['a']!.text, fake.saves, fake.closed),
+        (fake.cells['d']!.text, fake.saves, fake.closed),
         ('last words', 1, true),
       );
-      expect(fake.log, containsAllInOrder(['apply.', 'close']));
     });
 
     test('a save asked of the stage comes after the steps before it', () async {
@@ -423,20 +445,6 @@ void main() {
         'save',
         'overwrite',
       ]);
-    });
-
-    test('a stage that is done with no longer follows its keeper', () async {
-      final (stage, fake) = await standIn();
-      var told = 0;
-      stage.addListener(() => told++);
-      failFirst(fake, 'save', broken);
-      await stage.keeper.save();
-      expect(told, 1);
-      stage.dispose();
-      await stage.keeper.save();
-      expect(told, 1);
-      // And the keeper does not wait for it any more.
-      await stage.keeper.putAway();
     });
 
     test('a cell is read after what was asked before it', () async {

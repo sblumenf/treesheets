@@ -259,6 +259,25 @@ void main() {
       await end(tester);
     });
 
+    testWidgets(
+      'a folder that cannot be made: said, with nothing to put aside',
+      (tester) async {
+        final file = File('${root.path}/a-file-${count++}')
+          ..writeAsStringSync('');
+        await tester.pumpWidget(
+          WombatApp(folder: Directory('${file.path}/in')),
+        );
+        await until(tester, () => key('start-error').evaluate().isNotEmpty);
+        expect(
+          tester.widget<Text>(key('start-error')).data,
+          startsWith('The document could not be opened. Error: '),
+        );
+        expect(key('start-again'), findsOneWidget);
+        expect(key('start-over'), findsNothing);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
     testWidgets('a document that is open already is not put aside', (
       tester,
     ) async {

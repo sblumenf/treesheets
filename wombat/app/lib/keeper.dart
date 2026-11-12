@@ -51,7 +51,6 @@ class Keeper extends ChangeNotifier {
   String? _ended;
   int _opens = 1;
   final _finishers = <Future<void> Function()>[];
-  final _owed = <Future<void>>{};
 
   /// The ID of the root cell of the document.
   String get root => _doc.root;
@@ -169,24 +168,15 @@ class Keeper extends ChangeNotifier {
 
   /// Says how something that works on the document finishes what it has begun and is
   /// not in the document yet, for [putAway] and [close] to wait for: a stage the steps
-  /// asked of it, a screen what is being typed on it. `finish` ends when that is done,
-  /// and does not throw.
+  /// asked of it (also the last one of a screen that is going away), a screen what is
+  /// being typed on it. `finish` ends when that is done, and does not throw.
   void addFinisher(Future<void> Function() finish) => _finishers.add(finish);
 
   /// Takes back [addFinisher].
   void removeFinisher(Future<void> Function() finish) =>
       _finishers.remove(finish);
 
-  /// Something that is on its way into the document and must be there before the
-  /// document is saved by [putAway] or closed: what a screen that is going away had in
-  /// its editor. `work` does not throw.
-  void owe(Future<void> work) {
-    _owed.add(work);
-    work.then((_) => _owed.remove(work));
-  }
-
   Future<void> _finished() => Future.wait([
-    ..._owed,
     for (final finish in [..._finishers]) finish(),
   ]);
 

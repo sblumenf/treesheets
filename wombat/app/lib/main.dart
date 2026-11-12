@@ -153,7 +153,7 @@ class _StartScreenState extends State<StartScreen> {
       future: _stage,
       builder: (context, snapshot) {
         final stage = snapshot.data;
-        if (snapshot.connectionState == ConnectionState.done && stage != null) {
+        if (stage != null) {
           return Kept(
             keeper: stage.keeper,
             child: GridScreen(
@@ -178,9 +178,9 @@ class _StartScreenState extends State<StartScreen> {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        // A file that this app has open already, or a fault, is not the file's doing.
+        // A file that this app has open already is whole; one that is not there
+        // cannot be put aside.
         final unreadable =
-            !isFatal(error) &&
             !(error is BridgeError && error.kind == ErrorKind.alreadyOpen) &&
             _file.existsSync();
         return Scaffold(
@@ -259,7 +259,9 @@ class _KeptState extends State<Kept> with WidgetsBindingObserver {
   /// the app `inactive`: it is still there and the user has not left, so only what is
   /// in the document already is saved. Out of sight (`hidden`, `paused`, `detached`)
   /// the system may end the app without another word, so what is being typed goes
-  /// into the document first.
+  /// into the document first. Flutter passes through `hidden` on the way to `paused`
+  /// and `detached`, so the first of the three does the work and the others find
+  /// nothing left to do; all three are named so that this does not rest on that.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
