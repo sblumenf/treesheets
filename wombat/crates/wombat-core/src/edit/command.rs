@@ -970,8 +970,11 @@ pub(super) fn set_tag(tx: &mut Tx, name: String, tag: Option<Tag>) -> Result<(),
         None if old.is_none() => {
             return Err(Error::NotFound(format!("tag {name:?}")));
         }
-        Some(_) if name.is_empty() || !text::is_clean(&name) => {
-            return refused("a tag's name is not empty and has no control characters");
+        // No line break either: `TagCells` on a cell of several lines ends here.
+        Some(_) if name.is_empty() || !text::is_name(&name) => {
+            return refused(
+                "a tag's name is not empty and has no control characters or line breaks",
+            );
         }
         Some(_) if code_points(&name) > MAX_TEXT_CODE_POINTS => {
             return Err(Error::Limit("a tag name that long".into()));

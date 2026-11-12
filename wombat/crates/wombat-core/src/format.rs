@@ -583,7 +583,7 @@ mod tests {
         {
             let cell = doc.cell_mut(root).unwrap();
             cell.text = "Plan \"A\" \\ \u{1F600}".into();
-            // Control characters may only be in notes (decision A32).
+            // Control characters other than a line feed may only be in notes (decision A32).
             cell.note = "two\n\tlines \u{1}".into();
             cell.draw_style = DrawStyle::Lines;
             let grid = cell.grid_mut().unwrap();

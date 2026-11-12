@@ -41,6 +41,8 @@ pub const CLUSTERS: &[&str] = &[
     // The to-do checkboxes that `ToggleCheck` writes.
     "\u{2610}",
     "\u{2611}",
+    // A line break inside a cell.
+    "\n",
 ];
 
 /// A random command before it is fitted to a document: a kind and raw numbers.
@@ -252,8 +254,9 @@ pub fn command(doc: &Document, op: &Op) -> Command {
     let below_root: Vec<CellId> = all.iter().copied().filter(|c| *c != root).collect();
     let new_text = || {
         let mut text = text_of(&op.clusters);
+        // Now and then a line end as it comes from elsewhere, which becomes a line feed.
         if n4 % 9 == 0 {
-            text.push('\n');
+            text.push_str(["\r\n", "\r", "\t"][n3 as usize % 3]);
         }
         text
     };

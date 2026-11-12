@@ -51,13 +51,18 @@ fn extra() -> impl Strategy<Value = Extra> {
 fn text() -> impl Strategy<Value = String> {
     prop_oneof![
         vec(any::<char>(), 0..10).prop_map(|c| c.into_iter().collect()),
-        "[a-z \"\\\\\n\u{1F600}é]{0,10}",
+        "[a-z \"\\\\\n\r\u{1F600}é]{0,10}",
     ]
 }
 
-/// Any text a cell or a tag name may have: no control characters (decision A32).
+/// Any text a cell may have: no control characters but line feeds (decision A32).
 fn cell_text() -> impl Strategy<Value = String> {
     text().prop_map(|t| wombat_core::text::clean(&t))
+}
+
+/// Any name a tag may have: no control characters at all.
+fn tag_name() -> impl Strategy<Value = String> {
+    cell_text().prop_map(|t| t.replace('\n', " "))
 }
 
 /// Any valid image file name; the pattern alone also gives names such as `a.` and `NUL`.
@@ -265,7 +270,7 @@ fn doc_spec() -> impl Strategy<Value = DocSpec> {
     (
         any::<u64>(),
         cell_spec(),
-        btree_map(cell_text(), (color(), color(), extra()), 0..3),
+        btree_map(tag_name(), (color(), color(), extra()), 0..3),
         extra(),
     )
         .prop_map(|(seed, root, tags, extra)| DocSpec {

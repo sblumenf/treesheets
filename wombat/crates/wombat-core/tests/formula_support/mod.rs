@@ -23,7 +23,8 @@ pub fn kind(number: &Value) -> CellKind {
 
 fn fill(doc: &mut Document, id: CellId, spec: &Value, ids: &mut SeededIds) {
     let cell = doc.cell_mut(id).unwrap();
-    // Control characters become spaces, as in TreeSheets.
+    // What a cell can hold (a line break stays; no case that is compared with the real
+    // TreeSheets, which would make a space of it, has one).
     cell.text = wombat_core::text::clean(spec[0].as_str().unwrap());
     cell.kind = kind(&spec[1]);
     if let Some(cells) = spec.get(4) {

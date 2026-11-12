@@ -313,7 +313,7 @@ pub struct Cell {
     pub(crate) parent: Option<CellId>,
     pub(crate) grid: Option<Grid>,
     /// The text. For a formula cell this is the formula. No characters below U+0020
-    /// (decision A32).
+    /// except U+000A, a line break (decision A32).
     pub text: String,
     /// What the cell is to the formula system.
     pub kind: CellKind,
@@ -562,7 +562,7 @@ impl Document {
     pub fn validate(&self) -> Result<(), Error> {
         check_extra(&self.extra, crate::format::DOCUMENT_KEYS, "the document")?;
         for (name, tag) in &self.tags {
-            if !crate::text::is_clean(name) {
+            if !crate::text::is_name(name) {
                 return invalid(format!(
                     "tag {name:?} has a control character (below U+0020) in its name"
                 ));
@@ -802,7 +802,7 @@ pub(crate) fn validate_cell(cell: &Cell) -> Result<(), Error> {
     }
     if !crate::text::is_clean(&cell.text) {
         return invalid(format!(
-            "{place}: the text has a control character (below U+0020)"
+            "{place}: the text has a control character (below U+0020) that is no line feed"
         ));
     }
     check_ranges(cell.runs.iter().map(|r| (r.start, r.len)), len, "run", id)?;

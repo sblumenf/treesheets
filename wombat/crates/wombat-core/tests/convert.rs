@@ -1341,8 +1341,8 @@ fn a_table_is_always_a_rectangle_within_the_limits() {
     assert!(Table::new(0, vec![Entry::new("a")]).is_err());
     assert!(Table::new(1, vec![]).is_err());
     assert!(Table::new(2, vec![Entry::new("a")]).is_err());
-    let mut table = Table::new(1, vec![Entry::new("a\tb\n")]).unwrap();
-    assert_eq!(table.cells()[0].text(), "a b ");
+    let mut table = Table::new(1, vec![Entry::new("a\tb\r\n")]).unwrap();
+    assert_eq!(table.cells()[0].text(), "a b\n");
     for _ in 1..MAX_DEPTH {
         table = Table::new(1, vec![Entry::new("").with_grid(table)]).unwrap();
     }
@@ -1617,7 +1617,7 @@ fn as_imported(rows: Vec<Vec<String>>) -> Vec<Vec<String>> {
     rows.into_iter()
         .map(|row| {
             row.iter()
-                .map(|f| wombat_core::text::clean(&f.replace("\r\n", "\n")))
+                .map(|f| wombat_core::text::clean(f).replace('\n', " "))
                 .collect()
         })
         .collect()

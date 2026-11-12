@@ -63,8 +63,10 @@ pub fn cell_text() -> impl Strategy<Value = String> {
     prop_oneof![
         3 => proptest::sample::select(AWKWARD).prop_map(String::from),
         1 => "[ -~é日\u{1F600}]{0,8}",
-        1 => vec(any::<char>(), 0..6)
-            .prop_map(|c| wombat_core::text::clean(&c.into_iter().collect::<String>())),
+        // Without line breaks until the conversions say what they do with them.
+        1 => vec(any::<char>(), 0..6).prop_map(|c| {
+            wombat_core::text::clean(&c.into_iter().collect::<String>()).replace('\n', " ")
+        }),
     ]
 }
 

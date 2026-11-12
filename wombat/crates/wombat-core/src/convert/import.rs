@@ -55,7 +55,8 @@ pub struct Entry {
 }
 
 impl Entry {
-    /// A cell with this text; characters that cell text cannot hold become spaces.
+    /// A cell with this text, made what cell text can hold ([`text::clean`]): every line
+    /// end becomes a line feed and every other control character a space.
     pub fn new(text: &str) -> Entry {
         Entry {
             text: text::clean(text),
@@ -344,7 +345,7 @@ fn nothing() -> Error {
 /// Reads delimited text (CSV, TSV, semicolon separated) as one table: a row per line, a
 /// column per field, short rows padded with empty cells to a rectangle. How quotes, line
 /// breaks and the rest are read is in [`delimited::parse`]. Characters that cell text
-/// cannot hold (tabs and other control characters) become spaces.
+/// cannot hold (tabs and other control characters, but not line breaks) become spaces.
 ///
 /// With `formulas`, a field that starts with `=` and has more becomes a formula cell, as
 /// if it had been typed. Without, every cell is plain text, which is what TreeSheets'
