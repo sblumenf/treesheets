@@ -918,6 +918,7 @@ void main() {
         // no concern of the next.
         expect(kindOfError(keeper.viewError), ErrorKind.io);
         await keeper.openTheirs();
+        expect(keeper.viewError, isNull);
         // Theirs was last shown at the root, and has its own texts.
         expect(reader.stage.cell, 'root');
         expect(reader.stage.look('e')!.text, 'theirs');

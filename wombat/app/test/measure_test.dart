@@ -167,6 +167,14 @@ void main() {
     });
     expect(answer, 7);
     expect(held, greaterThanOrEqualTo(const Duration(milliseconds: 30)));
+    // Held to the very end of the call, as it is when the answer has just been
+    // decoded: counted too, though no turn of the timer comes after it.
+    final (_, last) = await heldDuring(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      final watch = Stopwatch()..start();
+      while (watch.elapsedMilliseconds < 30) {}
+    });
+    expect(last, greaterThanOrEqualTo(const Duration(milliseconds: 30)));
     // Not held at all: the call waits, and the thread is free meanwhile.
     final (_, free) = await heldDuring(
       () => Future<void>.delayed(const Duration(milliseconds: 60)),
