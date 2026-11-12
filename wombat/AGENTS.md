@@ -24,7 +24,7 @@ memory: sessions do not remember each other, so anything agreed must be written 
 | `crates/wombat-cts` | Read-only importer of TreeSheets `.cts` files (all format versions up to 31), a testing tool; `tests/referee.rs` compares it with `referee/golden/`, `tests/quirks/` holds hand-built files with their own golden data |
 | `crates/wombat-search` | The search service: folding of text for comparison (`fold.rs`), queries and their text syntax (`query.rs`), what is indexed per document and how it follows edits (`index.rs`), searching and ranking (`engine.rs`), the slow reference scanner that the tests compare with (`naive.rs`), find and replace (`replace.rs`), the index of a workspace folder (`workspace.rs`, the only file access, through `wombat_core::scan`); `tests/support/` has the query generator and the made-up workspace of the size tests |
 | `crates/wombat-bridge` | The bridge to the Flutter interface (package `wombat_bridge`), a thin layer over the core: `api/document.rs` the open document that Dart holds (open, create, read one grid, apply a command, undo, redo, save, overwrite, close), `api/wire.rs` the serialised form of commands, change reports and errors, `convert.rs` between that and the core's types, `record.rs` the same as JSON text, `open_files.rs` the set of files that are open, by every name each has, so that none is open twice, `panic_tests.rs` what an open document does when something panics (inside the crate, since nothing outside can cause a panic); `frb_generated.rs` is generated and never edited; `tests/roundtrip.rs` every command through the serialised form and what is refused on the way in, `tests/fields.rs` every field of every command against a table written by hand, each direction on its own, `tests/deep.rs` the flat form of a table, `tests/out.rs` what goes out (reports, results, every error), `tests/session.rs` an open document as the app uses it, `tests/disk.rs` an open document and its file (when saving writes and when it refuses), `tests/open_files.rs` one open document per file, `tests/working_folder.rs` a relative path after the working folder changed (one test, alone in its file because it changes the working folder of the process), `tests/close.rs` closing a document and dropping one unclosed, `tests/randseq.rs` random commands through an open document beside an editor of the core (it takes the core's generator from `crates/wombat-core/tests/support` by path), `tests/common/` what those share, with the list of the core's commands that does not compile when one is added |
-| `app/` | The Flutter app as far as it goes: `lib/session.dart` the open document as Dart holds it, the only way to the bridge's handle: calls in the order they were made, closing, the text for errors, and `InTurn`, the queue that keeps the order (A144, A154); `lib/keeper.dart` what owns the open document for every screen on it and is the one place that saves (A155); a simple grid screen (`lib/grid/stage.dart` its logic without widgets, `lib/grid/grid_screen.dart` the widgets and the one queue of the user's actions; `docs/milestones/UI1.md`), and the plain-text check of the bridge from milestone B1 (`lib/demo.dart` its three steps, `lib/demo_screen.dart` the screen); `lib/main.dart` says where the app's document is kept, opens it, at first a copy of the example (`lib/example.dart` makes the copy), shows the grid screen, and tells the keeper when the app is put away; `lib/src/rust/` is generated; `rust_builder/` is the build glue that `flutter_rust_bridge` put there (cargokit), not ours to edit; `assets/example.wombat` the example; `lib/measure.dart` times the app on a 100,000-cell document it builds itself; `test/` runs without a device (`support.dart` builds the bridge's library and loads it from where cargo says it is, `support_test.dart` tests that; `fake_document.dart` is a stand-in for the core that can be held up and made to fail, and `Watched`, the same switches over a document of the real core; `session_test.dart`, `keeper_test.dart`, `stage_test.dart`, `grid_screen_test.dart` on the stand-in and `grid_screen_real_test.dart` on the real core, `main_test.dart` the app's start, `demo_test.dart`, `demo_screen_test.dart`, `wire_test.dart`, `measure_test.dart`), `integration_test/` on one, one file per call (`test_driver/` prints the measurements) |
+| `app/` | The Flutter app as far as it goes: `lib/session.dart` the open document as Dart holds it, the only way to the bridge's handle: calls in the order they were made, closing, the text for errors, and `InTurn`, the queue that keeps the order (A144, A154, A160); `lib/keeper.dart` what owns the open document for every screen on it, is the one place that saves and says how the document stands with its file (A155, A161); a simple grid screen that stands in for the real interface until that is built (`lib/grid/stage.dart` its logic without widgets, `lib/grid/grid_screen.dart` the widgets and the one queue of the user's actions; `docs/milestones/UI1.md`), and the plain-text check of the bridge from milestone B1 (`lib/demo.dart` its three steps, `lib/demo_screen.dart` the screen); `lib/main.dart` says where the app's document is kept (A165), opens it, at first a copy of the example (`lib/example.dart` makes the copy), puts aside one that cannot be opened (A163), shows on it the screen it is given (the grid screen, `GridOnKeeper`), and in `Kept` tells the keeper when the app is put away and holds the app's exit until the document is saved (A162); `lib/src/rust/` is generated; `rust_builder/` is the build glue that `flutter_rust_bridge` put there (cargokit), not ours to edit; `assets/example.wombat` the example; `lib/measure.dart` times the app on a 100,000-cell document it builds itself; `test/` runs without a device (`support.dart` builds the bridge's library and loads it from where cargo says it is, `support_test.dart` tests that; `fake_document.dart` is a stand-in for the core that can be held up and made to fail, and `Watched`, the same switches over a document of the real core; `probe_screen.dart` is the least screen there can be on a keeper, for testing what is under every screen; `session_test.dart`, `keeper_test.dart` (on the stand-in and on the real core) and `main_test.dart` (the app's start and end, on the probe screen) test the layers that are kept; `stage_test.dart`, `grid_screen_test.dart` on the stand-in and `grid_screen_real_test.dart` on the real core test the grid screen and go with it; `demo_test.dart`, `demo_screen_test.dart`, `wire_test.dart`, `measure_test.dart`), `integration_test/` on one, one file per call (`test_driver/` prints the measurements) |
 | `crates/wombat-cli` | The `wombat` command-line tool, a thin layer over the core; `edit.rs` reads the editing commands of `wombat edit`; `tests/ops.rs` compares commands with `referee/ops/` |
 | `referee/` | Scripts that drive the real TreeSheets app, and the reference ("golden") data it produced |
 | `referee/ops/` | Operation cases: one edit done by the real app (`cases/*.lobster`) and as Wombat commands (`cases/*.edit`) on `fixture.cts`, the app's result (`golden/`), and `make_ops` to regenerate |
@@ -66,18 +66,49 @@ for test in integration_test/*_test.dart; do xvfb-run -a flutter test "$test" -d
 
 In Dart, reach a document only through `Session` (`app/lib/session.dart`), never through the
 generated `OpenDocument`: its calls are kept apart but not in order (A127, A144). A screen
-does not hold a `Session` either: it works through the `Keeper` of the document
-(`app/lib/keeper.dart`), which saves for every screen (A155), and puts everything the user
-does through one queue of actions (A158).
+on the app's document does not hold a `Session` either: it works through the `Keeper` of the
+document (`app/lib/keeper.dart`), which saves for every screen (A155). (The bridge check's
+screen has a document of its own, through `Demo`.)
 
-CI (`.github/workflows/wombat.yml`) runs on every push that touches `wombat/`, in three jobs.
-The first runs the same three with `--locked`, and checks that the core and the search service
-build for the web, Android and iOS. The second runs the generator and fails when the committed
-generated code is not what it writes (regenerate as above and commit; the check removes all
-generated code first, so a file the generator no longer writes fails it too), then the app's format
-check, analyzer and device-free tests, and then builds the app for Linux and runs each file of
-`app/integration_test/` on it, one call per file, under `xvfb-run`. The third builds the debug
-package for Android (arm64); nothing runs there. Cargo and pub may not change their lock files
+What a screen on a `Keeper` must do, which the code does not enforce:
+
+- **Put everything the user does through one queue** (`InTurn`, A158), with `post`, and give
+  the queue a handler for errors (`onUnheard`) that shows them.
+- **Attach itself** (`Keeper.attach`) for as long as it is there, with that queue and with a
+  `finish` that puts into the document what is being typed, and detach when it goes. Without
+  it the app is put away, closed and exited without what is on the screen. `finish` does
+  the work itself: the keeper runs it in the queue's turn, so it must not ask that queue.
+  It shows what the core refuses instead of throwing it, and it has two seconds.
+- **Show `Keeper.state`**, and what to do for `failed` and `changedOnDisk`: a document that
+  is not in its file holds the app's exit back once (A162), and the user has to see why.
+- **Start again at the root when `Keeper.opens` changes**: the document is another.
+- **Wait for what it starts inside an action**, or set it apart (`InTurn.apart`): work that
+  is merely started counts as part of the action for as long as the action runs (A160).
+
+The code does enforce the rest: calls in order, no call after the end, no wait of a queue
+for itself or of two for each other, saving, and what `close` and `openTheirs` wait for.
+
+CI (`.github/workflows/wombat.yml`) runs on every push that touches `wombat/`, in four jobs.
+"Format, lint and test" runs the same three with `--locked`, and checks that the core and the
+search service build for the web, Android and iOS. "Bridge and app on Linux" runs the
+generator and fails when the committed generated code is not what it writes (regenerate as
+above and commit; the check removes all generated code first, so a file the generator no
+longer writes fails it too), then the app's format check, analyzer and device-free tests, and
+then builds the app for Linux and runs each file of `app/integration_test/` on it, one call
+per file, under `xvfb-run`. "App for Android" builds the debug package for arm64 and runs
+nothing. "App on an Android emulator" starts an x86-64 emulator of Android 14
+(`system-images;android-34;default;x86_64`, `pixel_6`, 1080x2400, 4 GB, 2 processors, software
+drawing) with the SDK's own tools, builds a debug package for `android-x64` and runs each file
+of `app/integration_test/` on it in a call of its own with a time limit, the measurement last
+and twice. It takes about ten minutes, four of them the build; nothing of the emulator is
+cached. Android's animation settings are left as a phone has them, on purpose: with the
+transition animation scale at 0 Flutter runs its own animations at a twentieth of their
+length. A green emulator job says that the bridge's library loads on Android, that the app
+opens, changes and saves a document in its own storage there and draws at the size of a phone.
+It says nothing about the on-screen keyboard, the back button or gesture, or what Android does
+to an app out of sight: the tests act inside Flutter. A test of the built app waits for the
+thing it expects, not for a screen that has stopped drawing: the screen draws nothing while
+the core works, and nothing at all while the app is hidden. Cargo and pub may not change their lock files
 in CI: commit `Cargo.lock` and `app/pubspec.lock` with the change that needs them. The versions
 of Flutter, the generator and `cargo-expand` are pinned at the top of the workflow; raise them
 there together with the lock files. The Rust version is pinned in `rust-toolchain.toml` so that

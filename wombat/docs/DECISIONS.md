@@ -1654,8 +1654,8 @@ are where milestones 4, 5 and 6, built apart, meet).
       the text was in the document already and the cross kept it; A157 makes the cross
       take it back.)
 148. **Where the app keeps its document is still temporary** (changes the last sentence of A130;
-    **changed by A156** for Linux, macOS and Windows, where it is now the user's data folder.
-    What follows still holds on Android and iOS). The app made a new folder in the system's
+    **replaced by A165**: the document is in the app's own data folder on every system, found
+    with `path_provider`. What follows is how it was). The app made a new folder in the system's
     temporary folder at every start and the bridge check at every press of Open, and removed
     none. Now the app has one document, `wombat/example.wombat` in the system's temporary
     folder: the copy of the example at the first start, and the same file, with everything done
@@ -1757,7 +1757,8 @@ are where milestones 4, 5 and 6, built apart, meet).
     check and fails the new one). Still as it was: the bridge is never built for iOS, and
     for Android only with rustup's `stable` (A131); actions are pinned by tag, not by commit.
 154. **The queue of calls loses no error and does not wait for itself** (from the third
-    review, of the Dart side; adds to A144). `InTurn` chained every piece of work to the one
+    review, of the Dart side; adds to A144; **changed by A160**, which says what "inside a
+    piece" is, sets timers apart and sees two queues that wait for each other). `InTurn` chained every piece of work to the one
     before, and so that one failure would not end the chain, the chain took every error;
     for Dart that counted as the error having been handled, so the error of a call that
     nobody awaited vanished. And a piece that awaited another piece of its own queue waited
@@ -1791,7 +1792,11 @@ are where milestones 4, 5 and 6, built apart, meet).
     built the library they load (`--message-format=json`) instead of working the folder
     out, which was wrong for a relative `CARGO_TARGET_DIR` and silent for other settings.
 155. **Saving belongs to what owns the document, not to a screen** (the coordinator's
-    decision after the third review; changes A145 and A146). The clock that saves after a
+    decision after the third review; changes A145 and A146; **changed by A161**: `addFinisher`
+    is now `attach`, putting away saves first and waits no longer than two seconds, a close
+    that cannot finish leaves the document open, and listeners are told apart from the
+    keeper's own work; and by A162, which makes `endKeeping` run when the window is closed).
+    The clock that saves after a
     change was in `Stage`, the watching of the app's lifecycle in the grid screen's widget,
     and "ended after a fault" a state of each `Stage`: a second screen on the same document
     would have had none of it, or a second copy of all of it. `Keeper`
@@ -1833,7 +1838,8 @@ are where milestones 4, 5 and 6, built apart, meet).
     the finishers, and the save by the clock need not be.
 156. **On desktops the document is in the user's data folder; a document that cannot be
     opened can be put aside** (the coordinator's decision after the third review; changes
-    A148). `wombat/` in the system's temporary folder is `/tmp/wombat` on Linux: one folder
+    A148; **where the folder is was replaced by A165, and what is put aside and when by
+    A163**. What follows is how it was). `wombat/` in the system's temporary folder is `/tmp/wombat` on Linux: one folder
     for every user of the machine, which the system clears. Without a new dependency,
     `documentFolder` in `app/lib/main.dart` works the folder out from the environment:
     - Linux: `$XDG_DATA_HOME/wombat` if that is set and starts at the root (the
@@ -1939,7 +1945,8 @@ are where milestones 4, 5 and 6, built apart, meet).
     - The screen takes another stage when it is given one (`didUpdateWidget`), and enters
       what is in its editor when it goes (`dispose`); neither was handled.
 159. **"Open theirs" looks before it lets go** (the coordinator's decision after the third
-    review; changes A145). The choice let go of this document and then opened the file. If
+    review; changes A145; **A161 adds** that what is attached finishes first and that the
+    choice is refused when no other program changed the file). The choice let go of this document and then opened the file. If
     the other program's file could not be read, the unsaved work was gone, nothing was
     open, and since the app has one fixed file every later start failed too. The bridge
     opens a file once (A141), so the file cannot be opened beside the document that holds
@@ -1955,6 +1962,204 @@ are where milestones 4, 5 and 6, built apart, meet).
     the app offers to put the file aside (A156). Closing the gap needs a call that opens a
     file in place of the document a handle holds, or one that reads a file without opening
     it, in the bridge.
+160. **A piece of a queue is what it does and waits for; timers are apart; two queues that
+    wait for each other are refused** (from the fourth review, G3, G8 and G10; changes A154).
+    The guard of A154 marked a piece by its zone, and a zone goes with everything the piece
+    starts. So a timer made in a piece (the document's save clock, made by the step that
+    changed the document) was refused when it fired while that piece still ran, although
+    nothing waited for it. And a piece of queue A that waited for queue B, while a piece of B
+    waited for A, was not seen: both hung. Now, in `InTurn` (`app/lib/session.dart`):
+    - **Each piece knows which queues it has asked and not heard from.** `run` called from
+      inside a piece is refused, with a `StateError` that says which of the two it is, when
+      the piece that runs now in the queue asked is the caller itself, or has (through any
+      number of queues) asked the caller's queue for something that has not ended. That is
+      exact for the wait it can see and costs a walk over a handful of queues.
+    - **Dart cannot tell `await f()` from `unawaited(f())`**: both are a call that returns a
+      future. So everything a piece starts is inside it, waited for or not, and a call that
+      would wait for ever if it were waited for is refused also when it is not. That rule
+      cannot hang; what it costs is a refusal that says so, of work that would have been
+      safe. Two things are set apart, because they are known not to be waited for by the
+      piece: **the callbacks of timers** the piece makes (the zone of a piece hands a timer's
+      callback on to a zone without the mark), and what is run through **`InTurn.apart`**,
+      which is for telling listeners and the like. The price: a wait for ever that goes
+      through a timer's callback (`Future.delayed(d, () => queue.run(…))`, awaited) is not
+      seen. Nothing in the app does that.
+    - **`join`** runs work in its turn, or at once when the caller is inside the piece whose
+      turn it is: for work that belongs in a queue and may be asked for by a piece of that
+      queue (A161 uses it).
+    - **`post`** runs work for no one and gives no answer. `run` answers with a future that
+      knows whether anyone took it (A154); an `async` function that returns that answer has
+      taken it, and if nobody listens to *that* function, the error goes to the zone and not
+      to `onUnheard`. That is Dart's rule for every `async` function and no queue can see
+      past it; the comment of `InTurn` now says exactly what "heard" means. `post` is the way
+      to do something for no one (a user's action): there is no answer to pass on, so an
+      error, the refusal above included, always goes to `onUnheard`.
+161. **The keeper says how the document stands, bounds what it waits for, and its rules are in
+    the code** (from the fourth review, G2 to G4, G7, G9, G11 and what it read; changes A155
+    and A159). `Keeper` (`app/lib/keeper.dart`) is what the next screens are built on, and a
+    screen had to know its insides to be safe: not to ask it from a listener, not to close
+    from its own queue, to register a finisher. Now:
+    - **`state`**: `saved`, `unsaved` (a change the clock has not written yet), `saving`,
+      `failed` (tried again by itself), `changedOnDisk` (the user chooses) or `ended`. What
+      is wrong outranks what is under way, so a save that is tried again shows as `failed`
+      until one works. A command that changed nothing, by its report, leaves the document
+      `saved` and starts no clock (what formula cells show does not count, A151). Leaving is
+      safe when the state is `saved`.
+    - **Listeners are told once of each change** of `state` or `saveError` (`ended` and
+      `opens` change only when `state` does), and never of the same twice: two errors are
+      the same when their kind and message are, which is how the core's errors compare
+      (the core makes a new object for every failure; the keeper asked whether it was the
+      same object, the stand-in for the core threw one constant, and so the tests did not
+      see that the real app was told at every try). They are told apart from the keeper's own
+      piece (`InTurn.apart`, A160), when its work is done and when a write begins, so a
+      listener may ask the keeper at once.
+    - **`attach`** takes the place of `addFinisher` and `addListener` for a screen's logic:
+      what to tell (`onChange`), how to finish what has been begun (`finish`), and the
+      queue that orders the screen's work (`queue`), with one `Attachment` to `detach`. The
+      keeper runs `finish` in the turn of that queue, or as part of the piece when it is
+      asked from inside that queue. So a "close" action in a screen's own queue of actions
+      works, where it used to close without the editor's text and then throw.
+    - **Putting away saves first.** `putAway` saves what is in the document, then lets
+      everything attached finish, all at once and each within **two seconds**, then saves
+      again if that changed anything. It answers with what kept anything from finishing (a
+      `TimeoutException` for one that took too long) and does not throw for it. Two seconds:
+      a finisher is a few calls to the core, milliseconds each, and a phone gives an app
+      that is put away only a few seconds in all.
+    - **`close` throws exactly when the document was not closed.** If something attached
+      cannot finish, `close` saves what is in the document, leaves it open and throws
+      `Unfinished` with the causes; if the document cannot be saved, as before (A155). It
+      is never closed and then thrown about. An owner with no one to ask calls `letGo`, as
+      `endKeeping` does. This was chosen over closing regardless: text that could not be
+      entered is still on a screen, and closing under it would lose it without a word.
+    - **`openTheirs`** lets what is attached finish first, so that a step begun on this
+      document does not go on in the other program's (`Unfinished`, and nothing changed,
+      if it cannot). And it is refused (`Refused`) unless the state is `changedOnDisk`:
+      letting go of a document whose file is as it left it makes the bridge save it (A142),
+      which wrote this document over the file and then opened that. **What the bridge
+      lacks**: a call that gives a document up without saving, or better one that reads the
+      file again into the handle (which would also close the gap of A159). With it the
+      check could go. What is left: a file that goes back to exactly what this document
+      last read between the failed save and the choice would still be written; and a step
+      that a screen asks for after the choice was made lands, call by call, on whichever
+      document is open then, which `opens` tells it.
+    - **After the end every call fails the same way**, with a `BridgeError` of kind `Closed`
+      ("the document is no longer in use"): reads, changes, `save`, `keepMine`, `putAway`,
+      `openTheirs`, `close` and `letGo`, also one that was made before the end and whose
+      turn came after. Six of them used to return as if they had worked. `endKeeping`
+      (now in `keeper.dart`) is the one call that is safe on a keeper that may have ended.
+    - `readable` gives the copy's handle back also when closing the copy fails, and a
+      failure to make the folder for the copy is a `FileSystemException`, which the
+      stand-in screen no longer reports as the other program's file being unreadable.
+      `faultSentence` now says "Its file holds what was last saved, or more": after a
+      fault in a call that only reads or saves, the document is whole and letting go of it
+      saves it.
+162. **Closing the window waits for the document** (from the fourth review, G1; adds to A145
+    and A155). The app saved when it was put away and when its screen went, and on Linux
+    neither happens when the window is closed: the process ends. Typing, Return and closing
+    the window at once lost the text, four times of four. `Kept` in `app/lib/main.dart` now
+    answers the system's request to exit (`WidgetsBindingObserver.didRequestAppExit`):
+    - It puts the document away (A161: saved, what is typed entered, saved) and closes it
+      (`endKeeping`), and answers "exit" when that is done.
+    - **At most five seconds**, after which it answers "exit" all the same, so that a save
+      that hangs cannot make the app impossible to close; a line on the standard output
+      says that whether the document was saved is not known. Five seconds: a save of
+      100,000 cells takes about 0.2 s on a desktop and 0.65 s on the emulator, the
+      finishers have two seconds, and a window that does not close for longer looks hung.
+    - **If the document is then not in its file** (another program changed the file, the
+      save failed, a fault), or what was typed could not be entered, the exit is held back
+      **once**: the window stays, and the screen says what is wrong. Asked again while
+      nothing is better, the app lets go of the document (which never writes over another
+      program's work) and exits. After a save that worked the next refusal is the first
+      again.
+    - Which systems ask: Linux, seen (below); macOS, by Flutter's documentation; Windows,
+      the documentation of Flutter 3.47 names only macOS and Linux, and it was not tried.
+      Android and iOS do not ask: there the app is put away first (A145). An app that is
+      killed is not asked anywhere.
+    - Seen on the Linux debug build under Xvfb, with the reviewer's driver: a cell clicked,
+      a word typed, with and without Return, the window closed 0, 200, 300 and 500 ms
+      later: seven of seven runs exit with the word in the file. With the file changed by
+      another program in between, the first close leaves the window with "Not saved:
+      another program changed the file", the second exits, and the file is the other
+      program's.
+163. **Whatever is in the document's place is the document; what is put aside takes its
+    pictures and view states along, into a folder that is new** (from the fourth review,
+    G5, G6 and what it read; changes A156).
+    - The start looked for a *file* of the document's name. A folder there, or a link that
+      leads nowhere, was "no file", so the app tried to copy the example to that name, got
+      "already exists" and offered no way out. It now takes whatever has the name for the
+      document, opens it, and offers to put it aside when that fails.
+    - "Put that file aside" renamed the file and left its image folder
+      (`example.wombat.images`, `docs/FILE_FORMAT.md`) under the name of the new document,
+      and the name it gave came from the clock, which `rename` would have let replace an
+      earlier one. `putAside` now makes a new folder `put-aside-<date>-<random>` in the
+      document's folder with the system's call for a folder that did not exist
+      (`createTemp`), and moves into it, under their own names, the document, its image
+      folder and the folder of view states (`.wombat-view`, which is this one document's,
+      since the app keeps no other there). Each is moved as what it is: a link is moved,
+      not followed. Nothing is deleted or replaced, also for two calls in the same instant.
+      View states are named by the document's ID, which a file that cannot be read does not
+      give, which is why the whole folder goes.
+    - Putting aside is not offered when the file is merely open already (A156) or when it
+      was made by another start of the app between this one's look and its copy of the
+      example ("already exists"): that file is whole and someone's. "Try again" then opens
+      it. (Two running copies of the app on one document are still not kept apart: each
+      process has its own set of open files, A141. The second one to save is told that
+      another program changed the file.)
+    - `WombatApp` and `StartScreen` are given the screen to show on the keeper
+      (`screen`), so that what the app does at its start and end is tested without the
+      stand-in grid screen, on the least screen there can be (`test/probe_screen.dart`).
+164. **The application ID is `io.github.sblumenf.burrow`; the name people see is Wombat** (the
+    owner's decision). It replaces the template's `com.example.wombat_app` in the Android
+    namespace and application ID, the package of `MainActivity` and its folder, and
+    `APPLICATION_ID` of the Linux build, which is also what GTK knows the app by and what
+    names the folder of A165 on Linux. The Android label and the title of the Linux window
+    said `wombat_app` and say "Wombat". Not changed: the Dart package and the name of the
+    Linux executable (`wombat_app`), which nobody sees and every import and script uses;
+    signing (the release build is still signed with the debug key); `allowBackup`. iOS,
+    macOS and Windows have no project folder yet.
+165. **Documents are in the app's own data folder, on every system by one rule** (the owner's
+    decision; replaces A148 and the folder of A156). The folder is `documents` in what
+    `path_provider`'s `getApplicationSupportDirectory` gives (`documentFolder` in
+    `app/lib/main.dart`, with the asking passed in so that tests give their own):
+    - Android: `/data/user/0/io.github.sblumenf.burrow/files/documents` (the app's
+      `files` folder, by the plugin's code; not run here). Before, it was
+      the system's temporary folder, which on Android is the app's `code_cache`, and
+      Android empties that at every update of the app: seen on the emulator in CI, where
+      installing the package again removed the file.
+    - Linux: `$XDG_DATA_HOME/io.github.sblumenf.burrow/documents`, without that variable
+      `~/.local/share/io.github.sblumenf.burrow/documents` (seen: the real-app runs of A162
+      wrote there). The plugin follows the same XDG rule the app's own code did; the
+      folder is now named by the application ID and not `wombat`.
+    - iOS and macOS: `Library/Application Support` of the app; Windows: the app's folder
+      under the roaming application data. By the plugin's documentation; never run.
+    - Why "application support" and not "documents": on desktops the plugin's documents
+      folder is the user's `Documents`, which is not the app's own; application support is
+      private to the app on a phone, is not cleared by the system and stays over updates.
+      The price on a phone: the user cannot see the file from another app. Choosing,
+      making and sharing documents is still to be designed.
+    - **No second place.** The app's own rule fell back to the temporary folder when the
+      environment did not say (a Linux session without `HOME` got `/tmp/wombat`), and took
+      a relative `HOME` as it was. Now a path that is not from the root is refused, and
+      when the system cannot say, the start screen says so and offers to try again.
+    - Nothing is moved from where earlier builds kept the document: no installs exist.
+    - **The cost of the plugin.** `path_provider` 2.1.6 with its five platform packages,
+      and through them `ffi`, `xdg_directories`, `objective_c`, `hooks`, `code_assets` and
+      `record_use`: twelve packages in `pubspec.lock`. Its Android part is **held below
+      2.3.0** (`path_provider_android: ">=2.2.23 <2.3.0"`): 2.3.0 was rewritten on JNI and
+      brings three more packages and a native library (`libdartjni.so`) that is then also
+      compiled into the Linux and Windows builds, which need a JDK for it and use none of
+      it (seen: the Linux bundle gained the library). 2.2.23 talks to Android over a
+      channel, as the plugin always did. This has to be looked at again when the plugin
+      stops serving the older part. On Linux the plugin is Dart alone: nothing new is
+      compiled, and no generated file in the repository changed. The Android build with
+      the plugin was not run here (no SDK); CI's two Android jobs are what shows it.
+    - The app's tests give `WombatApp` a folder of their own; none writes where a user's
+      documents are. The measuring (`integration_test/measure_test.dart`) keeps its large
+      document in the same data folder on Android and iOS, so that a second run finds what
+      the first built, and in the temporary folder on a desktop, so that a developer's
+      measuring leaves nothing among the installed app's data. The bridge check
+      (`demo_screen.dart`) stays in the temporary folder: its folder lasts one visit of
+      the screen and is removed with it.
 
 ## B. Deliberate departures from TreeSheets
 

@@ -71,11 +71,13 @@ phone, so try it on purpose:**
   cell below and keep the keyboard.
 - Turn the phone off and on while typing.
 
-The document is kept in what Dart calls the system's temporary folder (decisions A148 and
-A156); on Android that should be the app's cache folder, which Android may clear when
-storage is short. Say in `milestones/UI1.md` where it really was. If the app ever starts
-with "The document could not be opened", it offers to put the file aside: say what led to
-it.
+The document is kept in the app's own data folder (decision A165):
+`/data/user/0/io.github.sblumenf.burrow/files/documents/example.wombat`, by the plugin's
+code; nobody has looked. (`adb shell run-as io.github.sblumenf.burrow ls -lR files` should
+show it for a debug build.) It should still be there after the app is installed again over
+itself; before A165 it was in the app's `code_cache` folder, which Android emptied then.
+Say in `milestones/UI1.md` where it really was. If the app ever starts with "The document
+could not be opened", it offers to put the file aside: say what led to it.
 
 ## 2. Let the tests press the buttons
 
@@ -126,4 +128,42 @@ adb install build/app/outputs/flutter-apk/app-release.apk
 ```
 
 The package is signed with Android's debug key, which is enough to install it on your own
-phone and nothing more. Its application ID is still `com.example.wombat_app`.
+phone and nothing more. Its application ID is `io.github.sblumenf.burrow` (decision A164)
+and its name on the phone is Wombat.
+
+## The emulator, as CI runs it
+
+CI runs the integration tests on an emulator; the same by hand, with the Android SDK and its
+command-line tools installed and KVM available (written from the CI job; not run on the
+machine these documents were written on, which has no SDK):
+
+```sh
+sdkmanager emulator platform-tools "system-images;android-34;default;x86_64"
+avdmanager create avd --name wombat --package "system-images;android-34;default;x86_64" --device pixel_6
+emulator -avd wombat          # CI adds: -no-window -gpu swiftshader_indirect -memory 4096 -cores 2
+rustup target add --toolchain stable x86_64-linux-android i686-linux-android
+cd wombat/app
+flutter test integration_test/app_test.dart -d emulator-5554
+flutter test integration_test/grid_test.dart -d emulator-5554
+flutter test integration_test/measure_test.dart -d emulator-5554
+```
+
+One file per call. Leave "Remove animations" and the developer options' animation scales
+alone: with the transition animation scale at 0 Flutter shortens its own animations to a
+twentieth, and a test that waits for the screen to stop drawing then reads it too early
+(the first CI run failed that way; the tests have since been changed to wait for what they
+expect).
+
+What it showed (CI run 43272689795, of the app before decisions A160 to A165): the library
+loads and the three test files pass on Android 14, x86-64. The app's temporary folder is
+`/data/user/0/<application id>/code_cache` (`/data/user/0` is a link to `/data/data`), and
+Android empties it when the app is installed again over itself, which is why the document
+is no longer kept there. What it does not show: anything of a real phone — the on-screen
+keyboard, the back gesture, the app being stopped out of sight, arm64, speed (the
+emulator's times are of an unoptimised build: open 2.0 s, save 0.65 s, one edit with a
+whole-document formula 0.14 s for 101,001 cells; peak memory about 550 MiB with the
+document built in the same process). `milestones/B1.md` has the whole report.
+
+The measuring keeps its large document in the app's data folder on a phone
+(`files/wombat-measure/`), so the second of two runs opens what the first built, if the app
+was not removed in between (`flutter test --no-uninstall` for the first).
