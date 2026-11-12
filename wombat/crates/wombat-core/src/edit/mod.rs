@@ -787,6 +787,45 @@ impl Editor {
         self.run(command, now, ids, true)
     }
 
+    /// Makes the text of `cell` this text by replacing only the part that differs
+    /// ([`crate::text::difference`]), so that the styles and links of the rest stay, where
+    /// [`Command::SetText`] and [`Command::EnterText`] drop them all. For an interface
+    /// that has the text of an editor and not the keys that made it.
+    ///
+    /// It is one [`Command::ReplaceText`] through [`Editor::apply`], and everything that
+    /// says holds: one unit of the undo history or part of the open group, the last-edit
+    /// time stamped with `now`, characters that cell text may not hold changed as in every
+    /// text command (before the two texts are compared), the new text in the style and
+    /// link of the first replaced character, the kind of the cell left alone (a formula
+    /// cell stays one and is worked out again; settling the kind is `EnterText`'s, which
+    /// after this finds the text there and keeps the styles). A text that the cell has
+    /// already is nothing: an empty report and no entry in the history. `ids` is not asked
+    /// for an ID.
+    ///
+    /// The difference is one range: after two changes far apart in one editing (a bold
+    /// word deleted, something typed elsewhere) it spans both, and what was typed takes
+    /// the style of the first character of the range.
+    pub fn retype(
+        &mut self,
+        cell: CellId,
+        text: &str,
+        now: Option<i64>,
+        ids: &mut dyn IdSource,
+    ) -> Result<Changes, Error> {
+        let old = self.doc.cell(cell).map_or("", |c| c.text.as_str());
+        // Nothing to replace is a command all the same, so that a cell that does not
+        // exist is refused and an unchanged text is the last thing that was done.
+        let (start, len, text) =
+            crate::text::difference(old, &crate::text::clean(text)).unwrap_or_default();
+        let command = Command::ReplaceText {
+            cell,
+            start,
+            len,
+            text,
+        };
+        self.apply(command, now, ids)
+    }
+
     fn run(
         &mut self,
         command: Command,
