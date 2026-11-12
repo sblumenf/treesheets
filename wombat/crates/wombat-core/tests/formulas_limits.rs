@@ -3,6 +3,10 @@
 //! variables that hold copies. Each test here was a way to make the process run out of
 //! memory or take many seconds. The times are printed (`cargo test --release --
 //! --nocapture`); the bounds asserted are generous.
+//!
+//! The peak of memory printed here is that of the whole test process so far, whichever
+//! test made it. The one test that asserts a bound on it is alone in
+//! `formulas_memory.rs` for that reason.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -14,27 +18,10 @@ mod formula_support;
 
 use std::time::{Duration, Instant};
 
-use formula_support::build;
-use proptest::prelude::*;
+use formula_support::{build, peak_mb, slow};
 use serde_json::{json, Value};
-use wombat_core::eval::{self, Calc};
+use wombat_core::eval;
 use wombat_core::{format, CellId, Command, Document, Editor, Error, SeededIds};
-
-/// The most memory this process has held at once, in megabytes (Linux only).
-fn peak_mb() -> Option<u64> {
-    let status = std::fs::read_to_string("/proc/self/status").ok()?;
-    let line = status.lines().find(|l| l.starts_with("VmHWM:"))?;
-    let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
-    Some(kb / 1024)
-}
-
-fn slow() -> u32 {
-    if cfg!(debug_assertions) {
-        10
-    } else {
-        1
-    }
-}
 
 fn top(doc: &Document) -> Vec<CellId> {
     doc.cell(doc.root())
@@ -221,99 +208,6 @@ fn the_most_work_a_change_can_cost_is_one_recalculation_within_the_limit() {
     assert!(other < ms(5), "{other:?}");
     assert!(inside < ms(1500), "{inside:?}");
     assert!(over < ms(2000), "{over:?}");
-}
-
-struct Rng(u64);
-
-impl Rng {
-    fn below(&mut self, n: usize) -> usize {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 7;
-        self.0 ^= self.0 << 17;
-        (self.0 % n.max(1) as u64) as usize
-    }
-}
-
-/// A formula made to grow: texts joined and substituted, the same names many times.
-fn greedy(r: &mut Rng, names: usize, depth: u32) -> String {
-    let name = |r: &mut Rng| format!("N{}", r.below(names));
-    if depth == 0 {
-        return match r.below(5) {
-            0 => "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'".to_string(),
-            1 => "'ab'".to_string(),
-            2 => "123456789".to_string(),
-            _ => name(r),
-        };
-    }
-    let sub = |r: &mut Rng| greedy(r, names, depth - 1);
-    match r.below(9) {
-        0 | 1 => {
-            let a = sub(r);
-            format!("{a}&{a}&{a}&{a}")
-        }
-        2 | 3 => format!("SUBSTITUTE({},'a',{})", sub(r), sub(r)),
-        4 => format!("SUBSTITUTE({},'',{})", sub(r), sub(r)),
-        5 => format!("UPPER({})&LOWER({})", sub(r), sub(r)),
-        6 => format!("LEN({})", sub(r)),
-        7 => format!("SUM({})+TREESUM({})", name(r), name(r)),
-        _ => format!("RIGHT({},1000000)&MID({},1,99999999)", sub(r), sub(r)),
-    }
-}
-
-/// A small document of tables N0, N1, ... that each hold formulas about the others.
-fn greedy_document(seed: u64) -> Value {
-    let mut r = Rng(seed | 1);
-    let names = 2 + r.below(6);
-    let mut tables = Vec::new();
-    for n in 0..names {
-        let rows = 1 + r.below(3);
-        let cells: Vec<Value> = (0..rows)
-            .map(|_| match r.below(4) {
-                0 => json!([
-                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                    0
-                ]),
-                1 => json!(["7", 0]),
-                _ => {
-                    let depth = 1 + r.below(8) as u32;
-                    json!([format!("={}", greedy(&mut r, names, depth)), 6])
-                }
-            })
-            .collect();
-        tables.push(json!([format!("N{n}"), 0, 1, rows, cells]));
-    }
-    json!(["", 0, 1, tables.len(), tables])
-}
-
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(200))]
-
-    /// Whatever formulas a small document has, working it out stays inside a fixed
-    /// envelope: every result within the longest text, all results together and all work
-    /// within what one recalculation may cost, a bounded time, and (on Linux, where the
-    /// peak of the process can be read) a bounded amount of memory.
-    #[test]
-    fn small_documents_cannot_cost_more_than_the_limits(seed in any::<u64>()) {
-        let mut ids = SeededIds::from_u64(1);
-        let spec = greedy_document(seed);
-        let doc = build(&spec, &mut ids);
-        prop_assume!(format::to_string(&doc).unwrap().len() < 300_000);
-        let start = Instant::now();
-        let calc = Calc::new(&doc);
-        let took = start.elapsed();
-        let results = calc.results();
-        let held: usize = results.values().map(|r| r.len()).sum();
-        prop_assert!(results.values().all(|r| r.len() <= eval::MAX_TEXT_BYTES));
-        prop_assert!(calc.stats().work <= eval::MAX_WORK + 1);
-        prop_assert!(held as u64 <= 16 * eval::MAX_WORK, "{held}");
-        prop_assert!(took < Duration::from_millis(1000 * u64::from(slow())), "{took:?}");
-        // The same again gives the same.
-        let again = Calc::new(&doc);
-        prop_assert_eq!(again.results(), results);
-        if let Some(peak) = peak_mb() {
-            prop_assert!(peak < 400, "{peak} MB");
-        }
-    }
 }
 
 #[test]
