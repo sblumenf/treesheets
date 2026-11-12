@@ -66,6 +66,12 @@ abstract class OpenDocument implements RustOpaqueInterface {
   /// Makes a new document with an empty root cell and saves it at `path`, where no file
   /// may be yet ([`ErrorKind::AlreadyExists`]) and no document may be open
   /// ([`ErrorKind::AlreadyOpen`]).
+  ///
+  /// Whether a file is there is looked at first, and then the document is written. A
+  /// file that another program makes at `path` between the two is replaced unseen, as
+  /// it is between the look and the write of [`OpenDocument::save`]: closing that gap
+  /// would take locking the file, which is not attempted. The same holds for the file
+  /// that [`OpenDocument::open_copy`] makes.
   static Future<OpenDocument> create({required String path}) =>
       RustLib.instance.api.crateApiDocumentOpenDocumentCreate(path: path);
 

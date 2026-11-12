@@ -162,6 +162,41 @@ fn a_link_that_leads_nowhere_is_an_error_saved_or_not() {
     assert!(std::fs::symlink_metadata(&link).unwrap().is_symlink());
 }
 
+/// The folder of the document has become a file, so there is no looking at the
+/// document's own: that is an error, not a file that is gone and may be written again.
+/// (Writing would fail there too, for the same reason; the answer is the same either
+/// way, and nothing is written.)
+#[test]
+fn a_file_that_cannot_be_looked_at_is_an_error_saved_or_not() {
+    let dir = folder("disk", "no-look");
+    let sub = dir.join("sub");
+    std::fs::create_dir(&sub).unwrap();
+    let path = sub.join("a.wombat");
+    let mut doc = OpenDocument::copy_with(&example(), &path, ids()).unwrap();
+    std::fs::remove_dir_all(&sub).unwrap();
+    std::fs::write(&sub, "a file now").unwrap();
+    let io = |result: Result<(), BridgeError>| {
+        let error = result.unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Io, "{}", error.message);
+        assert_eq!(error.path, Some(path.display().to_string()));
+    };
+    io(doc.save());
+    assert!(doc.is_saved().unwrap());
+    doc.apply(set_text(&doc, "ours")).unwrap();
+    io(doc.save());
+    io(doc.overwrite());
+    assert!(!doc.is_saved().unwrap());
+    // A close that cannot save leaves the document open.
+    io(doc.close());
+    assert!(!doc.is_saved().unwrap());
+    assert_eq!(std::fs::read(&sub).unwrap(), b"a file now");
+    // With the folder back the file is gone, and written.
+    std::fs::remove_file(&sub).unwrap();
+    std::fs::create_dir(&sub).unwrap();
+    doc.save().unwrap();
+    assert_eq!(text_in_file(&path), "ours");
+}
+
 #[test]
 fn a_new_document_and_a_copy_know_their_files() {
     let path = folder("disk", "create").join("new.wombat");

@@ -119,6 +119,49 @@ fn a_failed_copy_removes_only_what_it_made() {
     assert_eq!(names(&dir), all);
 }
 
+/// What a failed copy wrote into, it leaves: a folder that was there before stays though
+/// the copy leaves it empty, and a picture that was there under the name of one that the
+/// copy brings stays as a file. (Its content is the new picture's by then: the copy has
+/// no old one to put back, which `copy_document` says.)
+#[test]
+fn a_failed_copy_leaves_the_folders_and_files_that_were_there_before_it() {
+    let dir = folder("keeps_same");
+    let here = dir.join("here");
+    fs::create_dir(&here).unwrap();
+    let from = here.join("a.wombat");
+    let doc = sample(1, &["pic.png"]);
+    save_with_all(&doc, &from, &["pic.png"]);
+
+    // An image folder and a folder of view states, both empty.
+    let empty = dir.join("empty");
+    fs::create_dir(&empty).unwrap();
+    let to = empty.join("b.wombat");
+    fs::create_dir(storage::images_dir(&to)).unwrap();
+    fs::create_dir(empty.join(VIEW_DIR)).unwrap();
+    let blocker = block_saving(&to);
+    let result = storage::copy_document(&from, &to, &mut SeededIds::from_u64(2));
+    assert!(result.is_err(), "{result:?}");
+    let mut all = vec![VIEW_DIR.to_string(), blocker, "b.wombat.images".to_string()];
+    all.sort();
+    assert_eq!(names(&empty), all);
+    assert!(names(&storage::images_dir(&to)).is_empty());
+    assert!(names(&empty.join(VIEW_DIR)).is_empty());
+
+    // An image folder with a picture of the same name as the one that is copied.
+    let same = dir.join("same");
+    fs::create_dir(&same).unwrap();
+    let to = same.join("b.wombat");
+    fs::create_dir(storage::images_dir(&to)).unwrap();
+    let picture = storage::images_dir(&to).join("pic.png");
+    fs::write(&picture, b"an older picture").unwrap();
+    let blocker = block_saving(&to);
+    let result = storage::copy_document(&from, &to, &mut SeededIds::from_u64(2));
+    assert!(result.is_err(), "{result:?}");
+    assert_eq!(names(&same), [blocker, "b.wombat.images".to_string()]);
+    assert_eq!(names(&storage::images_dir(&to)), ["pic.png"]);
+    assert_eq!(fs::read(&picture).unwrap(), b"picture");
+}
+
 /// The second image cannot be copied (its name is as long as a name may be, so the name
 /// of the temporary file beside it is too long): the first one does not stay.
 #[cfg(unix)]
@@ -147,6 +190,27 @@ mod file_state {
     use std::io::{Seek, SeekFrom, Write};
     use std::time::{Duration, SystemTime};
     use wombat_core::storage::{FileCheck, FileState};
+
+    /// Only a path with nothing at it is a file that is gone, which a program may write
+    /// again. A path that cannot be looked at is an error: nothing is known about it.
+    #[cfg(unix)]
+    #[test]
+    fn a_path_that_cannot_be_looked_at_is_an_error_and_not_a_file_that_is_gone() {
+        let dir = folder("no_look");
+        let path = dir.join("a.wombat");
+        let (_, state) = saved(&path);
+        let io = |at: &Path| match state.check(at) {
+            Err(wombat_core::Error::Io { path, .. }) => assert_eq!(path, at),
+            other => panic!("{other:?}"),
+        };
+        // Below a file there is no place for anything.
+        io(&path.join("b.wombat"));
+        // A name longer than a name may be.
+        io(&dir.join("n".repeat(300)));
+        // In a folder that is not there, there is nothing: gone.
+        let nowhere = dir.join("none/a.wombat");
+        assert_eq!(state.check(&nowhere).unwrap(), FileCheck::Gone);
+    }
 
     /// Saves a document as `path` and returns it with the state of the file.
     fn saved(path: &Path) -> (Document, FileState) {
