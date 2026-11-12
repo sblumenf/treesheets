@@ -60,10 +60,15 @@ void main() {
   testWidgets('a step that ends after the screen is gone is not shown', (
     tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: DemoScreen()));
+    final before = folders();
+    final demo = Demo();
+    await tester.pumpWidget(MaterialApp(home: DemoScreen(demo: demo)));
     await tester.tap(find.byKey(const Key('open')));
     await tester.pumpWidget(const SizedBox());
     await settle(tester);
     expect(tester.takeException(), isNull);
+    // The step went on to open its document; that is closed and removed all the same.
+    expect(demo.isOpen, isFalse);
+    expect(folders().difference(before), isEmpty);
   });
 }

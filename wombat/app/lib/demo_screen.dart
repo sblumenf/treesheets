@@ -27,10 +27,16 @@ class _DemoScreenState extends State<DemoScreen> {
   /// with the screen: they are for looking at, not for keeping.
   Directory? _folder;
 
+  /// The step that runs, or the last one that did.
+  Future<void> _step = Future.value();
+
   /// Runs one step and shows its text, or the error it ended with. A press while a
   /// step runs does nothing: the steps build on each other's text on the screen.
-  Future<void> _run(Future<String> Function() step) async {
-    if (_busy) return;
+  void _run(Future<String> Function() step) {
+    if (!_busy) _step = _show(step);
+  }
+
+  Future<void> _show(Future<String> Function() step) async {
     setState(() => _busy = true);
     String text;
     try {
@@ -53,15 +59,18 @@ class _DemoScreenState extends State<DemoScreen> {
     return _demo.open(folder, example.buffer.asUint8List());
   }
 
-  /// Closes the document, and only then removes its folder.
+  /// Closes the document, and only then removes its folder; both after a step that is
+  /// still running, which may be about to make the one or the other.
   @override
   void dispose() {
-    final folder = _folder;
-    _demo
-        .close()
-        .catchError((Object _) {})
-        .whenComplete(() => folder?.delete(recursive: true))
-        .catchError((Object _) {});
+    _step.whenComplete(
+      // There is no one left to show an error of these two to.
+      () => _demo
+          .close()
+          .catchError((Object _) {})
+          .whenComplete(() => _folder?.delete(recursive: true))
+          .catchError((Object _) {}),
+    );
     super.dispose();
   }
 
