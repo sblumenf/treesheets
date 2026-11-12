@@ -73,12 +73,15 @@ struct Session {
 }
 
 impl Session {
+    /// What to tell of a change, which also notes that there is something to save. Only
+    /// a change to the document is: what formula cells show is worked out from the
+    /// document and is in no file, so a report that names nothing but cells that show
+    /// something else leaves the document as saved as it was.
     fn report(&mut self, changes: &wombat_core::Changes) -> Report {
-        let report = report_out(changes, self.editor.recalculated());
-        if report != Report::default() {
+        if !changes.is_empty() {
             self.saved = false;
         }
-        report
+        report_out(changes, self.editor.recalculated())
     }
 
     fn save(&mut self) -> Result<(), BridgeError> {
@@ -388,7 +391,9 @@ impl OpenDocument {
     /// Whether nothing was done to the document since it was read from or written to its
     /// file. This does not look at the file: that another program removed or changed it
     /// shows when saving. Undoing or redoing after a save makes the document unsaved, also
-    /// when the two together lead back to what was saved: any change clears the flag.
+    /// when the two together lead back to what was saved: any change to the document
+    /// clears the flag. What is no change to the document does not: a command that asks
+    /// for nothing new, and formula cells that show something else after `Run`.
     pub fn is_saved(&self) -> Result<bool, BridgeError> {
         Ok(self.session()?.saved)
     }
@@ -410,8 +415,11 @@ impl OpenDocument {
     /// - **A command that asks for nothing new succeeds and changes nothing** (setting a
     ///   colour that a cell already has, inserting empty text): the report is empty,
     ///   nothing is added to the undo history, and the document stays saved if it was.
-    ///   (`Run` can change what formula cells show without changing the document; those
-    ///   cells are then in `recalculated` of a report that is otherwise empty.)
+    /// - **Only a change to the document makes it unsaved**: a report with a cell or a
+    ///   tag in one of its first five lists. `Run` can change what formula cells show
+    ///   without changing the document; those cells are then in `recalculated` of a
+    ///   report that is otherwise empty, nothing is added to the undo history, and the
+    ///   document stays saved if it was.
     /// - **Positions and lengths in text are counted in Unicode code points**, not in the
     ///   UTF-16 units of a Dart string, and must not cut a user-perceived character (a
     ///   letter with its accents, a flag, an emoji made of several). One that does, or is

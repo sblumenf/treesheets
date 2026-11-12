@@ -13,7 +13,7 @@ use std::path::Path;
 
 use common::{example, folder, ids, set_text, text_in_file};
 use wombat_bridge::api::document::OpenDocument;
-use wombat_bridge::api::wire::{BridgeError, Command, ErrorKind, Report};
+use wombat_bridge::api::wire::{BridgeError, CellKind, Command, ErrorKind, Prop, Report};
 
 fn open_example(name: &str) -> (OpenDocument, std::path::PathBuf) {
     common::open_example("disk", name)
@@ -195,6 +195,55 @@ fn a_command_that_changes_nothing_leaves_the_document_saved() {
     assert!(doc.is_saved().unwrap());
     assert_eq!(doc.redo().unwrap(), None);
     assert!(doc.is_saved().unwrap());
+}
+
+/// Program > Run can change what formula cells show and nothing of the document: the
+/// report then names those cells and is not empty, but there is nothing to save.
+#[test]
+fn a_run_that_changes_no_cell_leaves_the_document_saved() {
+    let path = folder("disk", "run").join("a.wombat");
+    let mut doc = OpenDocument::create_with(&path, ids()).unwrap();
+    let root = doc.root().unwrap();
+    let grid = Command::CreateGrid {
+        cell: root.clone(),
+        xs: 3,
+        ys: 1,
+    };
+    doc.apply(grid).unwrap();
+    let cells = doc.grid(root).unwrap().cells;
+    let cell = |n: usize| cells[n].id.clone();
+    let text = |n, text: &str| Command::SetText {
+        cell: cell(n),
+        text: text.into(),
+    };
+    doc.apply(text(0, "5")).unwrap();
+    doc.apply(text(1, "x")).unwrap();
+    let assign = Command::SetProps {
+        cells: vec![cell(1)],
+        props: vec![Prop::Kind(CellKind::VarAssign)],
+    };
+    doc.apply(assign).unwrap();
+    let formula = Command::EnterText {
+        cell: cell(2),
+        text: "=x+1".into(),
+    };
+    doc.apply(formula).unwrap();
+    doc.save().unwrap();
+    let bytes = std::fs::read(&path).unwrap();
+
+    let report = doc.apply(Command::Run).unwrap();
+    let shown = Report {
+        recalculated: vec![cell(2)],
+        ..Report::default()
+    };
+    assert_eq!(report, shown);
+    assert!(doc.is_saved().unwrap());
+    // So the document closes whatever another program did to its file meanwhile.
+    change_by_someone_else(&path);
+    let theirs = std::fs::read(&path).unwrap();
+    assert_ne!(theirs, bytes);
+    doc.close().unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), theirs);
 }
 
 #[test]
