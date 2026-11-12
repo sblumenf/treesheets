@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../src/rust/api/document.dart';
+import '../session.dart';
 import '../src/rust/api/wire.dart';
 
 /// One step of the way from the root to the grid on the stage.
@@ -20,7 +20,7 @@ class Level {
 class Stage extends ChangeNotifier {
   Stage._(this._doc);
 
-  final OpenDocument _doc;
+  final Session _doc;
 
   /// The IDs of the cells from the root to the cell on the stage.
   final List<String> _path = [];
@@ -29,9 +29,9 @@ class Stage extends ChangeNotifier {
   Set<String> _touched = const {};
 
   /// Starts at the root of an open document.
-  static Future<Stage> open(OpenDocument doc) async {
+  static Future<Stage> open(Session doc) async {
     final stage = Stage._(doc);
-    stage._path.add(await doc.root());
+    stage._path.add(doc.root);
     stage._titles.add('');
     await stage._read();
     return stage;
@@ -56,7 +56,7 @@ class Stage extends ChangeNotifier {
   Future<void> _read() async {
     while (true) {
       try {
-        _grid = await _doc.grid(cell: _path.last);
+        _grid = await _doc.grid(_path.last);
         _titles[_titles.length - 1] = _grid.cell.text;
         return;
       } on BridgeError catch (error) {
@@ -104,9 +104,7 @@ class Stage extends ChangeNotifier {
   /// Typing into a cell has ended with this text: the core sets it, and makes the cell a
   /// formula cell if the text is a formula. Returns what changed.
   Future<Report> enterText(String cell, String text) async {
-    final report = await _doc.apply(
-      command: Command.enterText(cell: cell, text: text),
-    );
+    final report = await _doc.apply(Command.enterText(cell: cell, text: text));
     await _changed(report);
     return report;
   }

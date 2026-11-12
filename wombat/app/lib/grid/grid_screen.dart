@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../demo.dart';
+import '../session.dart';
 import '../src/rust/api/wire.dart';
 import 'stage.dart';
 

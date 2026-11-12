@@ -3,11 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'demo.dart';
 import 'demo_screen.dart';
 import 'grid/grid_screen.dart';
 import 'grid/stage.dart';
-import 'src/rust/api/document.dart';
+import 'session.dart';
 import 'src/rust/frb_generated.dart';
 
 /// The Wombat app as far as it goes: a simple grid screen on the example document, and
@@ -46,7 +45,7 @@ class _StartScreenState extends State<StartScreen> {
     final folder = await Directory.systemTemp.createTemp('wombat');
     final original = File('${folder.path}/example-original.wombat');
     await original.writeAsBytes(example.buffer.asUint8List(), flush: true);
-    final doc = await OpenDocument.openCopy(
+    final doc = await Session.openCopy(
       from: original.path,
       to: '${folder.path}/example.wombat',
     );

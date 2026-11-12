@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'src/rust/api/document.dart';
+import 'session.dart';
 import 'src/rust/api/wire.dart';
 
 /// How long one step took, each time it was done.
@@ -151,7 +151,12 @@ Future<Measurement> measure(
     await _build(large, across, down);
     m.build = watch.elapsed;
   }
-  // The edits are saved to a copy, so that the next run finds the same file.
+  // The edits are saved to a copy, so that the next run finds the same file. The copy is
+  // made by hand, which decision A28 forbids for documents: its cells have the IDs of
+  // the original. A copy by the core (`Session.openCopy`) would read the whole document
+  // into this process before the open that is measured, and the memory figures would
+  // be those of a process that had already held it. The copy exists only during the
+  // run, is never open together with the original, and is deleted at the end.
   final work = File('${folder.path}/work.wombat');
   if (work.existsSync()) work.deleteSync();
   large.copySync(work.path);
@@ -167,16 +172,16 @@ Future<Measurement> measure(
   });
   final opens = <Duration>[];
   var watch = Stopwatch()..start();
-  var doc = await OpenDocument.open(path: work.path);
+  var doc = await Session.open(work.path);
   opens.add(watch.elapsed);
   sampler.cancel();
   m.rssOpen = ProcessInfo.currentRss;
   m.sampledPeak = sampled > m.rssOpen ? sampled : m.rssOpen;
   if (resettable) m.peakSinceOpen = _peak();
   for (var i = 1; i < runs; i++) {
-    doc.dispose();
+    await doc.close();
     watch = Stopwatch()..start();
-    doc = await OpenDocument.open(path: work.path);
+    doc = await Session.open(work.path);
     opens.add(watch.elapsed);
   }
   m.timings.add(Timing('open', opens));
@@ -191,12 +196,12 @@ Future<Measurement> measure(
     return times;
   }
 
-  final root = await doc.root();
+  final root = doc.root;
   late GridInfo rootGrid;
   m.timings.add(
     Timing(
       'read the root grid (${across * down} cells)',
-      await timed((_) async => rootGrid = await doc.grid(cell: root)),
+      await timed((_) async => rootGrid = await doc.grid(root)),
     ),
   );
   if (rootGrid.cells.length != across * down) {
@@ -207,10 +212,10 @@ Future<Measurement> measure(
   m.timings.add(
     Timing(
       'read an inner grid (100 cells)',
-      await timed((_) async => inner = await doc.grid(cell: section)),
+      await timed((_) async => inner = await doc.grid(section)),
     ),
   );
-  final last = await doc.grid(cell: rootGrid.cells.last.id);
+  final last = await doc.grid(rootGrid.cells.last.id);
   final formula = last.cells.last;
   if (formula.kind != CellKind.formula || formula.failed) {
     throw StateError('the formula shows ${formula.result}');
@@ -233,7 +238,7 @@ Future<Measurement> measure(
     undos.clear();
     final edits = await timed((i) async {
       final report = await doc.apply(
-        command: Command.setText(cell: leaf, text: '${i + 1}'),
+        Command.setText(cell: leaf, text: '${i + 1}'),
       );
       recalculates = recalculates && report.recalculated.contains(formula.id);
       await undo();
@@ -245,7 +250,7 @@ Future<Measurement> measure(
     undos.clear();
     final inserts = await timed((_) async {
       final report = await doc.apply(
-        command: Command.insertRows(cell: root, at: down, count: 1),
+        Command.insertRows(cell: root, at: down, count: 1),
       );
       if (report.created.length != across) {
         throw StateError('inserting a row made ${report.created.length} cells');
@@ -260,15 +265,13 @@ Future<Measurement> measure(
   m.recalculates = recalculates;
   // The same without the formula, to tell the cost of working it out from the cost of
   // the command and the bridge: a document without formula cells pays for none.
-  await doc.apply(command: Command.clearCells(cells: [formula.id]));
+  await doc.apply(Command.clearCells(cells: [formula.id]));
   await editAndInsert(', no formula');
 
   // Saving, each time after an edit, or there is nothing to save.
   final saves = <Duration>[];
   for (var i = 0; i < runs; i++) {
-    await doc.apply(
-      command: Command.setText(cell: leaf, text: '${i + 1}'),
-    );
+    await doc.apply(Command.setText(cell: leaf, text: '${i + 1}'));
     final watch = Stopwatch()..start();
     await doc.save();
     saves.add(watch.elapsed);
@@ -277,7 +280,7 @@ Future<Measurement> measure(
 
   m.rssEnd = ProcessInfo.currentRss;
   m.maxRss = ProcessInfo.maxRss;
-  doc.dispose();
+  await doc.close();
   work.deleteSync();
   return m;
 }
@@ -311,17 +314,12 @@ Future<void> _build(File file, int across, int down) async {
       ],
     ],
   );
-  final doc = await OpenDocument.create(path: part.path);
-  final root = await doc.root();
-  await doc.apply(
-    command: Command.import_(cell: root, table: table, replace: false),
-  );
+  final doc = await Session.create(part.path);
+  final root = doc.root;
+  await doc.apply(Command.import_(cell: root, table: table, replace: false));
   // After the import: the formula finds the root by this text.
-  await doc.apply(
-    command: Command.setText(cell: root, text: 'Large'),
-  );
-  await doc.save();
-  doc.dispose();
+  await doc.apply(Command.setText(cell: root, text: 'Large'));
+  await doc.close();
   part.renameSync(file.path);
 }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'demo.dart';
+import 'session.dart';
 
 /// The screen of milestone B1: plain text and three buttons, to show that a document
 /// opens, reads, changes and undoes through the Rust core. Kept as a check of the bridge.

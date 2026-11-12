@@ -1540,6 +1540,35 @@ are where milestones 4, 5 and 6, built apart, meet).
     better than saving half a command over what was whole. Calls that only read, and
     saving, set no note: they do not change the document, and a save that panics has not
     replaced the file (the new file gets its name in one last step).
+144. **The app reaches a document through one Dart class that sends its calls in order**
+    (from the review; the Dart part of A127). `Session` (`app/lib/session.dart`) holds the
+    handle `OpenDocument` and is the only thing the app and its tests use. Each call
+    starts when the one made before it has ended, well or badly, whether or not the caller
+    waited: a chain of futures, on the Dart side because that is where the order of calls
+    is known. An error goes to the caller of its own call and the calls after it are
+    carried out all the same. The review's test (40 insertions into one cell without
+    waiting, 20 rounds) was wrong in 2 of 20 rounds on the bare handle when it was run
+    again here, and is right through the class. What else the class decides:
+    - `id`, `root` and `path` are read once when the document is opened and are plain
+      values from then on: they never change, and so nothing has to wait for them.
+    - `close()` saves, and on success disposes of the handle at once: nothing is left in
+      it to save then, so letting go costs the thread that draws nothing (A142). After
+      it every call throws a `BridgeError` of kind `Closed`, made on the Dart side, since
+      the handle is gone; a call made while the close was still under way comes after it
+      and is refused the same way.
+    - `discard()` lets go of the handle without a close, for when a save was refused
+      with `ChangedOnDisk` and the user chose the other program's file, and for after a
+      fault. It is not a way to throw edits away: the bridge's safety net still saves
+      what it may (A142).
+    - `isFatal`, `describeError` and `faultSentence` are there too: after a panic
+      (`PanicException`, then `Internal` on every call) the screen shows one fixed
+      sentence and never the text of the exception (A129).
+    - `codePoints(text, units)` turns a position in a Dart string, counted in UTF-16
+      units, into the code points the core counts (A11). Nothing sends a position yet.
+    - The class carries the comments a Dart developer needs, because the generator drops
+      those of the handle's type and of `Command` (A137).
+    `InTurn`, the few lines that do the ordering, is a class of its own because the grid
+    screen's logic uses the same thing for its own steps (A145).
 
 ## B. Deliberate departures from TreeSheets
 

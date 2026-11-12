@@ -5,7 +5,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wombat_app/demo.dart';
-import 'package:wombat_app/src/rust/api/document.dart';
+import 'package:wombat_app/session.dart';
 import 'package:wombat_app/src/rust/api/wire.dart';
 
 import 'support.dart';
@@ -46,19 +46,41 @@ void main() {
 
   test('the copy that is opened has IDs of its own', () async {
     final example = File('assets/example.wombat');
-    final original = await OpenDocument.open(path: example.path);
-    final copy = await OpenDocument.openCopy(
+    final original = await Session.open(example.path);
+    final copy = await Session.openCopy(
       from: example.path,
       to: '${folder.path}/copy.wombat',
     );
-    expect(await copy.id(), isNot(await original.id()));
-    expect(await copy.root(), isNot(await original.root()));
+    expect(copy.id, isNot(original.id));
+    // Every cell, not only the root: the same cells in the same places, none of them
+    // with an ID of the original.
+    Future<Map<String, String>> cells(Session doc) async {
+      final all = <String, String>{};
+      Future<void> walk(String cell) async {
+        final grid = await doc.grid(cell);
+        all[cell] = grid.cell.text;
+        for (final inner in grid.cells) {
+          await walk(inner.id);
+        }
+      }
+
+      await walk(doc.root);
+      return all;
+    }
+
+    final before = await cells(original);
+    final after = await cells(copy);
+    expect(before.length, 14);
+    expect(after.values.toList(), before.values.toList());
+    expect(after.keys.toSet().intersection(before.keys.toSet()), isEmpty);
+    await original.close();
+    await copy.close();
   });
 
   test('errors arrive as values with a kind', () async {
     final missing = '${folder.path}/none.wombat';
     try {
-      await OpenDocument.open(path: missing);
+      await Session.open(missing);
       fail('opened a file that is not there');
     } on BridgeError catch (error) {
       expect(error.kind, ErrorKind.io);
@@ -66,22 +88,22 @@ void main() {
       expect(describeError(error), startsWith('Error (io): '));
     }
 
-    final doc = await OpenDocument.create(path: '${folder.path}/new.wombat');
-    final root = await doc.root();
+    final doc = await Session.create('${folder.path}/new.wombat');
+    final root = doc.root;
     try {
-      await doc.apply(command: Command.removeGrid(cell: root));
+      await doc.apply(Command.removeGrid(cell: root));
       fail('removed the grid of the root');
     } on BridgeError catch (error) {
       expect(error.kind, ErrorKind.refused);
     }
     try {
-      await doc.grid(cell: 'no ID');
+      await doc.grid('no ID');
       fail('read a cell that has no ID');
     } on BridgeError catch (error) {
       expect(error.kind, ErrorKind.badRequest);
     }
     // The document is as it was: a root without a grid.
-    final view = await doc.grid(cell: root);
+    final view = await doc.grid(root);
     expect((view.xs, view.ys, view.cells.length), (0, 0, 0));
   });
 }

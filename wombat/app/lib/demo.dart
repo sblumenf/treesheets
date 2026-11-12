@@ -1,13 +1,13 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'src/rust/api/document.dart';
+import 'session.dart';
 import 'src/rust/api/wire.dart';
 
 /// What the three buttons of the bare app do, apart from the screen: each step returns
 /// the text to show. Kept apart so that a test can go through the same steps.
 class Demo {
-  OpenDocument? _doc;
+  Session? _doc;
   int _edits = 0;
 
   /// Whether a document is open.
@@ -20,25 +20,25 @@ class Demo {
     final original = File('${folder.path}/example-original.wombat');
     await original.writeAsBytes(example, flush: true);
     final stamp = DateTime.now().microsecondsSinceEpoch;
-    final doc = await OpenDocument.openCopy(
+    final doc = await Session.openCopy(
       from: original.path,
       to: '${folder.path}/example-$stamp.wombat',
     );
     _doc = doc;
     _edits = 0;
-    return 'Opened ${await doc.path()}\n'
-        'document ${await doc.id()}\n\n${await _show(doc)}';
+    return 'Opened ${doc.path}\n'
+        'document ${doc.id}\n\n${await _show(doc)}';
   }
 
   /// Sets the text of one cell (the first cost) and shows what the core reports.
   Future<String> change() async {
     final doc = _doc!;
-    final root = await doc.grid(cell: await doc.root());
-    final costs = await doc.grid(cell: root.cells[2].id);
+    final root = await doc.grid(doc.root);
+    final costs = await doc.grid(root.cells[2].id);
     _edits += 1;
     final text = '${30 + _edits}';
     final report = await doc.apply(
-      command: Command.setText(cell: costs.cells[0].id, text: text),
+      Command.setText(cell: costs.cells[0].id, text: text),
     );
     return 'Set the first cost to $text\n'
         '${describe(report)}\n\n${await _show(doc)}';
@@ -71,14 +71,14 @@ class Demo {
   }
 
   /// The root grid and the grids one level inside it, as indented text.
-  Future<String> _show(OpenDocument doc) async {
+  Future<String> _show(Session doc) async {
     final out = StringBuffer();
-    final root = await doc.grid(cell: await doc.root());
+    final root = await doc.grid(doc.root);
     out.writeln('${_cell(root.cell)}  (${root.xs} x ${root.ys})');
     for (final cell in root.cells) {
       out.writeln('  ${_cell(cell)}');
       if (!cell.hasGrid) continue;
-      final inside = await doc.grid(cell: cell.id);
+      final inside = await doc.grid(cell.id);
       for (final inner in inside.cells) {
         out.writeln('    ${_cell(inner)}');
       }
@@ -92,8 +92,3 @@ class Demo {
     return '"${cell.text}"$shown';
   }
 }
-
-/// An error from the core as text for the screen.
-String describeError(Object error) => error is BridgeError
-    ? 'Error (${error.kind.name}): ${error.message}'
-    : 'Error: $error';

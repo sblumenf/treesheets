@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wombat_app/grid/stage.dart';
-import 'package:wombat_app/src/rust/api/document.dart';
+import 'package:wombat_app/session.dart';
 import 'package:wombat_app/src/rust/api/wire.dart';
 
 import 'support.dart';
@@ -20,7 +20,7 @@ void main() {
 
   tearDownAll(() => folder.delete(recursive: true));
 
-  Future<(Stage, OpenDocument)> example() async {
+  Future<(Stage, Session)> example() async {
     final doc = await openExample(folder, 'stage-${count++}');
     return (await Stage.open(doc), doc);
   }
@@ -34,7 +34,7 @@ void main() {
     final (stage, doc) = await example();
     expect(stage.atRoot, isTrue);
     expect(trail(stage), ['Example']);
-    expect(stage.trail.single.id, await doc.root());
+    expect(stage.trail.single.id, doc.root);
     expect((stage.grid.xs, stage.grid.ys), (2, 3));
     expect(texts(stage), [
       'Shopping',
@@ -78,7 +78,7 @@ void main() {
     // A third level: a grid inside the first cost.
     await stage.dive(stage.grid.cells[2].id);
     final first = stage.grid.cells[0].id;
-    await doc.apply(command: Command.createGrid(cell: first, xs: 1, ys: 1));
+    await doc.apply(Command.createGrid(cell: first, xs: 1, ys: 1));
     await stage.jumpTo(0);
     await stage.dive(stage.grid.cells[2].id);
     expect(await stage.dive(first), isTrue);
@@ -157,13 +157,13 @@ void main() {
       final (stage, doc) = await example();
       // A grid inside "what to buy", made and then undone while it is on the stage.
       final cell = stage.grid.cells[1].id;
-      await doc.apply(command: Command.createGrid(cell: cell, xs: 1, ys: 2));
+      await doc.apply(Command.createGrid(cell: cell, xs: 1, ys: 2));
       await stage.jumpTo(0);
       await stage.dive(stage.grid.cells[2].id);
       await stage.up();
       expect(await stage.dive(cell), isTrue);
       final inner = stage.grid.cells[0].id;
-      await doc.apply(command: Command.createGrid(cell: inner, xs: 1, ys: 1));
+      await doc.apply(Command.createGrid(cell: inner, xs: 1, ys: 1));
       await stage.up();
       await stage.dive(cell);
       expect(await stage.dive(inner), isTrue);
@@ -201,16 +201,16 @@ void main() {
     await stage.save();
     expect(await doc.isSaved(), isTrue);
     // A file is open once: the document is let go of before the file is read again.
-    final path = await doc.path();
+    final path = doc.path;
     await expectLater(
-      OpenDocument.open(path: path),
+      Session.open(path),
       throwsA(
         isA<BridgeError>().having((e) => e.kind, 'kind', ErrorKind.alreadyOpen),
       ),
     );
-    doc.dispose();
-    final again = await OpenDocument.open(path: path);
-    final root = await again.grid(cell: await again.root());
+    await doc.close();
+    final again = await Session.open(path);
+    final root = await again.grid(again.root);
     expect(root.cells[1].text, 'saved text');
   });
 }

@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wombat_app/measure.dart';
-import 'package:wombat_app/src/rust/api/document.dart';
+import 'package:wombat_app/session.dart';
 
 import 'support.dart';
 
@@ -57,17 +57,17 @@ void main() {
     // The file is as it was built: the edits were undone or went to a copy.
     final file = File('${folder.path}/large-2x2.wombat');
     final before = file.readAsBytesSync();
-    final doc = await OpenDocument.open(path: file.path);
-    final root = await doc.grid(cell: await doc.root());
+    final doc = await Session.open(file.path);
+    final root = await doc.grid(doc.root);
     expect((root.cell.text, root.xs, root.ys), ('Large', 2, 2));
     expect(root.cells[1].text, 'Section 1');
-    final last = await doc.grid(cell: root.cells[3].id);
+    final last = await doc.grid(root.cells[3].id);
     expect(last.cells[98].text, 'Item 3.98 with some ordinary text in it');
     expect(
       (last.cells[99].text, last.cells[99].result),
       ('=TREESUM(Large)', '0'),
     );
-    doc.dispose();
+    await doc.close();
 
     final second = await measure(folder, across: 2, down: 2, runs: 2);
     expect(second.built, isFalse);
