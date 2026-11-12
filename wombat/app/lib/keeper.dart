@@ -349,6 +349,10 @@ class Keeper extends ChangeNotifier {
   /// ([Session.viewStage]; the root at first), read with `ask`. The keeper reads it
   /// again after every change to the document, by whomever. [StageReader.close] ends
   /// that.
+  ///
+  /// With [phoneAsk] the stage's grid is read whole, however long: never wrong, and
+  /// slow for a grid of a thousand cells that hold grids. A screen that moves a
+  /// window as it scrolls ([StageReader.see]) asks [phoneWindowAsk].
   Future<StageReader> read({StageAsk ask = phoneAsk}) => _use((doc) async {
     final reader = StageReader._(this, ask);
     await reader._start(doc);
@@ -1060,10 +1064,43 @@ class StageReader {
   /// (fewer `cols` or `rows` than the grid has): it then starts at column `x0` and
   /// row `y0`. The cells that come into the window are named as cells that look
   /// different, those that leave it as gone.
-  Future<void> window({int? x0, int? y0}) => _keeper._use((doc) async {
+  Future<void> window({int? x0, int? y0}) =>
+      _keeper._use((doc) => _moveTo(doc, x0: x0, y0: y0));
+
+  /// Makes sure that the rows from `first` to `last` of the stage's grid, counted
+  /// from 0, are among those that were read: what a screen calls with the rows it
+  /// shows, as often as it scrolls. Where the stage is given whole, or has those
+  /// rows already, it does nothing and asks no one; otherwise the window is moved
+  /// so that the rows are in its middle, and the listeners are told what came and
+  /// went.
+  Future<void> see(int first, int last) {
+    if (_sees(first, last) == null) return Future.value();
+    return _keeper._use((doc) async {
+      // As the stage is now: what was asked before may have moved it.
+      final y0 = _sees(first, last);
+      if (y0 != null) await _moveTo(doc, y0: y0);
+    });
+  }
+
+  /// Where the window has to start for the rows `first` to `last` to be in its
+  /// middle, or null if they are among the rows that were read.
+  int? _sees(int first, int last) {
+    final grid = _stage.grid;
+    if (grid == null || grid.rows == grid.ys) return null;
+    final top = first.clamp(0, grid.ys - 1);
+    final bottom = last.clamp(top, grid.ys - 1);
+    if (top >= grid.y0 && bottom < grid.y0 + grid.rows) return null;
+    final rows = _stage.ask.rows;
+    final most = grid.ys > rows ? grid.ys - rows : 0;
+    // With more rows to see than a window holds, from the first of them.
+    final spare = rows - (bottom - top + 1);
+    return (top - (spare > 0 ? spare ~/ 2 : 0)).clamp(0, most);
+  }
+
+  Future<void> _moveTo(Session doc, {int? x0, int? y0}) async {
     final ask = _windowAt(_stage.ask, x0: x0, y0: y0);
     _update(StageRead(_stage.cell, ask, await doc.stage(_stage.cell, ask)));
-  });
+  }
 
   /// Asks something else of the stage from here on (deeper, larger previews, another
   /// size of window), and reads it so.

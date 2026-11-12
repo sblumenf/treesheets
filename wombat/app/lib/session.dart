@@ -670,12 +670,44 @@ int units(String text, int codePoints) {
 /// values, of which the comment of [StageAsk] tells. The whole stage grid; one level
 /// of nested grids cell by cell where a grid has at most 24 cells; previews of 3 by 4
 /// texts cut at 40 code points; shapes of 12 by 20 cells; a cell's text cut at 2000
-/// code points. `stage_reader.dart` says when a screen asks for less.
+/// code points.
+///
+/// Measured from Dart on a desktop (profile build; `docs/milestones/B1.md` has the
+/// table): a stage of 240 cells with grids on six levels below it is read in 11 to
+/// 14 ms, of which the thread that draws is held 3 ms to decode the answer and 2 ms
+/// to compare it with the one before. One more level cell by cell (`fullDepth` 2)
+/// holds that thread 20 to 27 ms, more than a frame, so it is not the start. A
+/// stage of 1,000 cells that all hold grids takes 54 to 78 ms, 10 to 14 ms of it on
+/// the thread that draws: for a grid that large, [phoneWindowAsk].
 const phoneAsk = StageAsk(
   x0: 0,
   y0: 0,
   cols: 4294967295,
   rows: 4294967295,
+  fullDepth: 1,
+  fullCells: 24,
+  previewCols: 3,
+  previewRows: 4,
+  shapeCols: 12,
+  shapeRows: 20,
+  textCut: 2000,
+  previewCut: 40,
+);
+
+/// [phoneAsk] for a stage grid of any length: 40 rows of it at a time. A grid of at
+/// most 40 rows is given whole, as by [phoneAsk]; of a longer one this gives the
+/// rows the screen is at, and the screen says where it is as it scrolls
+/// (`StageReader.see` in `keeper.dart`). Measured as [phoneAsk] says: 40 rows of 10
+/// cells that all hold grids are read in 22 to 28 ms, 4 to 6 ms of it on the thread
+/// that draws, where the 100 rows of that grid whole take 54 to 78 ms and 10 to 14.
+///
+/// A screen that asks this must move the window, or the rows after the fortieth
+/// are never shown: that is why it is not what a reader asks unless told.
+const phoneWindowAsk = StageAsk(
+  x0: 0,
+  y0: 0,
+  cols: 4294967295,
+  rows: 40,
   fullDepth: 1,
   fullCells: 24,
   previewCols: 3,

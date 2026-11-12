@@ -411,6 +411,66 @@ void main() {
       expect(reader.stage.grid!.y0, 0);
     });
 
+    keeperTest('the rows a screen shows are read when they are not there', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      // A grid of one column and seven rows, read three rows at a time.
+      fake.cells['c']!.cells = ['e', 'f', 'g', 'h', 'i', 'j', 'k'];
+      for (final id in ['g', 'h', 'i', 'j', 'k']) {
+        fake.cells[id] = FakeCell(id);
+      }
+      final reader = await keeper.read(ask: rowsOf(3));
+      await reader.go('c');
+      List<String> rows() => [for (final cell in reader.stage.cells) cell.id];
+      expect(rows(), ['e', 'f', 'g']);
+      final seen = told(reader);
+      final before = fake.log.length;
+      // Rows that are there: nothing is asked of anyone.
+      await reader.see(0, 2);
+      await reader.see(1, 1);
+      await reader.see(-5, 0);
+      expect([fake.log.length, seen], [before, isEmpty]);
+      // One that is not: the window is put around it.
+      await reader.see(3, 3);
+      expect(rows(), ['g', 'h', 'i']);
+      expect(
+        [seen.single.looks, seen.single.gone],
+        [
+          {'h', 'i'},
+          {'e', 'f'},
+        ],
+      );
+      await reader.see(1, 2);
+      expect(rows(), ['f', 'g', 'h']);
+      await reader.see(4, 4);
+      expect(rows(), ['h', 'i', 'j']);
+      // Not past the end of the grid, nor before its start.
+      await reader.see(6, 99);
+      expect(rows(), ['i', 'j', 'k']);
+      await reader.see(99, 99);
+      expect(rows(), ['i', 'j', 'k']);
+      await reader.see(0, 0);
+      expect(rows(), ['e', 'f', 'g']);
+      // More rows than a window holds: from the first of them.
+      await reader.see(3, 6);
+      expect(rows(), ['h', 'i', 'j']);
+      // Asked twice at once, the second finds the window moved and reads nothing.
+      final calls = fake.log.length;
+      await Future.wait([reader.see(6, 6), reader.see(6, 6)]);
+      expect(fake.log.length, calls + 2);
+
+      // A stage that is given whole has every row, and one without a grid none.
+      final whole = await keeper.read();
+      final asked = fake.log.length;
+      await whole.see(0, 99);
+      await reader.go('root');
+      expect(reader.stage.whole, isTrue);
+      await reader.see(1, 1);
+      expect(fake.log.length, asked + 4);
+    });
+
     keeperTest('another request from here on', (tester, keeper, fake) async {
       final reader = await keeper.read();
       final seen = told(reader);

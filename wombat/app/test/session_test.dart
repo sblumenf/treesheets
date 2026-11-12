@@ -334,6 +334,25 @@ void main() {
       ),
     );
     expect(phoneAsk.rows, 4294967295);
+    // The request with a window differs in its rows alone.
+    expect(phoneWindowAsk.rows, 40);
+    expect(
+      StageAsk(
+        x0: phoneWindowAsk.x0,
+        y0: phoneWindowAsk.y0,
+        cols: phoneWindowAsk.cols,
+        rows: phoneAsk.rows,
+        fullDepth: phoneWindowAsk.fullDepth,
+        fullCells: phoneWindowAsk.fullCells,
+        previewCols: phoneWindowAsk.previewCols,
+        previewRows: phoneWindowAsk.previewRows,
+        shapeCols: phoneWindowAsk.shapeCols,
+        shapeRows: phoneWindowAsk.shapeRows,
+        textCut: phoneWindowAsk.textCut,
+        previewCut: phoneWindowAsk.previewCut,
+      ),
+      phoneAsk,
+    );
   });
 
   test('the stage and one cell of the example', () async {
