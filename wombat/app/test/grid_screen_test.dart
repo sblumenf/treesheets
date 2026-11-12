@@ -1213,6 +1213,51 @@ void main() {
       await stage.enterText('d', 'theirs');
     });
 
+    screenTest('text entered while more was typed, then the app away, then the '
+        'cross: what was held of the rest is taken back', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-0');
+      type(tester, 'first');
+      // The tick, and more typed while the core is at work on it.
+      final gate = holdFirst(fake, 'retype');
+      await press(tester, 'save');
+      type(tester, 'first and more');
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(
+        (fake.cells['a']!.text, editor(tester)),
+        ('first', 'first and more'),
+      );
+      // That editing is over; the rest is held by one of its own.
+      expect(stage.keeper.editing, isNull);
+      await awayAndBack(tester, AppLifecycleState.hidden);
+      expect(fake.cells['a']!.text, 'first and more');
+      expect(stage.keeper.editing!.held, isTrue);
+      await press(tester, 'cancel');
+      expect(key('editor'), findsNothing);
+      // Back to what was said yes to, and nothing is left open.
+      expect((fake.cells['a']!.text, stage.keeper.editing), ('first', null));
+      await press(tester, 'undo');
+      expect(fake.cells['a']!.text, 'one');
+    });
+
+    screenTest('the editor opens on the cell with one read of it', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-0');
+      type(tester, 'typed');
+      await press(tester, 'save');
+      // The editing that was opened for the editor is the one that is entered.
+      expect(fake.log.where((call) => call == 'cell').length, 1);
+      expect(fake.log.where((call) => call == 'beginGroup').length, 1);
+    });
+
     screenTest('a cross that cannot take the text back leaves the editor', (
       tester,
       stage,

@@ -10,21 +10,26 @@ import 'package:wombat_app/stage_read.dart';
 
 import 'support.dart';
 
-StageAsk asking({int rows = 4294967295, int y0 = 0, int fullDepth = 1}) =>
-    StageAsk(
-      x0: 0,
-      y0: y0,
-      cols: 4294967295,
-      rows: rows,
-      fullDepth: fullDepth,
-      fullCells: 24,
-      previewCols: 3,
-      previewRows: 4,
-      shapeCols: 12,
-      shapeRows: 20,
-      textCut: 2000,
-      previewCut: 40,
-    );
+StageAsk asking({
+  int rows = 4294967295,
+  int y0 = 0,
+  int fullDepth = 1,
+  int cols = 4294967295,
+  int x0 = 0,
+}) => StageAsk(
+  x0: x0,
+  y0: y0,
+  cols: cols,
+  rows: rows,
+  fullDepth: fullDepth,
+  fullCells: 24,
+  previewCols: 3,
+  previewRows: 4,
+  shapeCols: 12,
+  shapeRows: 20,
+  textCut: 2000,
+  previewCut: 40,
+);
 
 void main() {
   late Directory folder;
@@ -105,6 +110,13 @@ void main() {
     expect(window.at(window.grid!, 0, 2)!.text, 'Total');
     expect(window.at(window.grid!, 0, 1), isNull);
     expect(window.look(shopping.id), isNull);
+    // The same for a window of the second column.
+    final column = await read(doc.root, asking(x0: 1, cols: 1));
+    expect(column.whole, isFalse);
+    expect(column.at(column.grid!, 1, 0)!.text, 'what to buy');
+    expect(column.at(column.grid!, 1, 2)!.text, '=SUM(Costs)');
+    expect(column.at(column.grid!, 0, 0), isNull);
+    expect(column.at(column.grid!, 2, 0), isNull);
 
     // A cell without a grid is a stage with a trail and nothing else.
     final bare = await read(plain.id);
@@ -175,6 +187,7 @@ void main() {
       false,
       false,
     ]);
+    expect((change.isEmpty, change.touches(shopping)), (false, true));
   });
 
   test('a number that a formula reads: the formula cell too', () async {
@@ -265,7 +278,8 @@ void main() {
     await doc.apply(
       Command.setColumnWidth(cell: shopping, column: 0, width: 30),
     );
-    expect(named((await read(doc.root)).since(before)), [
+    final change = (await read(doc.root)).since(before);
+    expect(named(change), [
       none,
       none,
       {shopping},
@@ -273,6 +287,8 @@ void main() {
       false,
       false,
     ]);
+    expect((change.isEmpty, change.touches(shopping)), (false, true));
+    expect(change.touches(id(before, 'Costs')), isFalse);
   });
 
   test('the text of the stage cell or of one above it: the trail', () async {

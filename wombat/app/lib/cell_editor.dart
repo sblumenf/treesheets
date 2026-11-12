@@ -151,10 +151,7 @@ class FlutterCellEditor implements CellEditor {
   }
 
   @override
-  bool get composing {
-    final range = _text.value.composing;
-    return range.isValid && !range.isCollapsed;
-  }
+  bool get composing => !_text.value.composing.isCollapsed;
 
   @override
   bool get hasFocus => _focus.hasFocus;

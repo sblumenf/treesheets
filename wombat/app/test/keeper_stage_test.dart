@@ -220,9 +220,18 @@ void main() {
       expect(seen.single.isEmpty, isTrue);
       expect((keeper.ended, keeper.state), (null, KeeperState.unsaved));
 
+      // Another level is read anew, and the error with the old one is gone.
+      await reader.go('c');
+      expect((reader.readError, reader.stage.cell), (null, 'c'));
+      await reader.go('root');
+      expect(reader.stage.look('a')!.text, 'typed');
+      failFirst(fake, 'stage', broken);
+      await keeper.apply(typing('a', 'again'));
+      expect(reader.readError, broken);
+
       await reader.refresh();
       expect(reader.readError, isNull);
-      expect(reader.stage.look('a')!.text, 'typed');
+      expect(reader.stage.look('a')!.text, 'again');
       expect(seen.last.looks, {'a'});
       // A read that works after one that failed is told even if nothing differs.
       failFirst(fake, 'stage', broken);
@@ -252,6 +261,45 @@ void main() {
       expect(reader.readError, isNull);
       expect(seen.length, 3);
       expect(seen.last.isEmpty, isTrue);
+    });
+
+    keeperTest('a stage that cannot be read at the start is no reader', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      failFirst(fake, 'stage', broken);
+      await expectLater(keeper.read(), throwsA(broken));
+      // Nothing is left that would be read again.
+      await keeper.apply(typing('a', 'typed'));
+      expect(calls(fake, 'stage'), 1);
+      final reader = await keeper.read();
+      expect(reader.stage.look('a')!.text, 'typed');
+    });
+
+    keeperTest('a root without a grid is a stage like any other', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      fake.cells['root'] = FakeCell('Root');
+      final reader = await keeper.read();
+      expect((reader.stage.cell, reader.stage.grid), ('root', null));
+      // Read once: there is no level above the root to give way to.
+      expect((calls(fake, 'stage'), calls(fake, 'viewStage')), (1, 2));
+      final seen = told(reader);
+      await keeper.apply(typing('root', 'Renamed'));
+      // Read again once, and compared: the trail differs and nothing else.
+      expect(calls(fake, 'stage'), 2);
+      expect((seen.single.everything, seen.single.trail), (false, true));
+      expect(reader.stage.trail.single.shown.text, 'Renamed');
+      // It has no rows to show and no place to remember.
+      final before = fake.log.length;
+      await reader.see(0, 5);
+      expect(fake.log.length, before);
+      reader.at(x: 0, y: 0);
+      await keeper.save();
+      expect((calls(fake, 'viewRemember'), keeper.viewError), (0, null));
     });
 
     keeperTest('a fault while reading again ends the work', (
@@ -302,12 +350,12 @@ void main() {
         fake.levels['root'],
         const LevelInfo(cell: 'root', x: 1, y: 1, selected: 'd'),
       );
-      // One turn of the keeper: told, then read.
+      // One turn of the keeper: read, then told. What cannot be read is not gone to.
       expect(fake.log.sublist(fake.log.length - 4), [
-        'viewGo',
-        'viewGo.',
         'stage',
         'stage.',
+        'viewGo',
+        'viewGo.',
       ]);
 
       // Nothing was said of this level: it remembers nothing new.
@@ -339,6 +387,11 @@ void main() {
       await expectLater(reader.go('nowhere'), refusedAs(ErrorKind.notFound));
       expect([reader.stage.cell, seen, fake.zoom], ['root', isEmpty, 'root']);
       expect(fake.levels, isEmpty);
+      // Nor is a level gone to that cannot be read: the view state is as it was.
+      failFirst(fake, 'stage', broken);
+      await expectLater(reader.go('c'), throwsA(broken));
+      expect([reader.stage.cell, seen, fake.zoom], ['root', isEmpty, 'root']);
+      expect([fake.levels, calls(fake, 'viewGo')], [isEmpty, 1]);
       // What was said of this level is still to hand on.
       await reader.go('c');
       expect(fake.levels['root']!.x, 1);
@@ -375,8 +428,14 @@ void main() {
       keeper,
       fake,
     ) async {
-      final reader = await keeper.read(ask: rowsOf(1));
+      final reader = await keeper.read(ask: rowsOf(1, fullDepth: 0));
       expect(reader.stage.cells.map((cell) => cell.id), ['a', 'b']);
+      await reader.window(y0: 1);
+      // Everything else of the request stays as it was asked.
+      expect(reader.stage.ask, rowsOf(1, fullDepth: 0).at(y0: 1));
+      expect(reader.stage.look('e'), isNull);
+      await reader.ask(rowsOf(1));
+      expect(reader.stage.grid!.y0, 0);
       final seen = told(reader);
       await reader.window(y0: 1);
       expect(reader.stage.grid!.y0, 1);
@@ -409,6 +468,13 @@ void main() {
       await reader.go('root');
       expect(calls(fake, 'stage'), before + 4);
       expect(reader.stage.grid!.y0, 0);
+      // A window that is asked for further down is put back up for a place above.
+      await reader.ask(rowsOf(1).at(y0: 1));
+      expect(reader.stage.grid!.y0, 0);
+      reader.at(x: 0, y: 1);
+      await reader.go('c');
+      await reader.go('root');
+      expect(reader.stage.grid!.y0, 1);
     });
 
     keeperTest('the rows a screen shows are read when they are not there', (
@@ -449,13 +515,30 @@ void main() {
       // Not past the end of the grid, nor before its start.
       await reader.see(6, 99);
       expect(rows(), ['i', 'j', 'k']);
+      final there = fake.log.length;
       await reader.see(99, 99);
+      await reader.see(5, 99);
       expect(rows(), ['i', 'j', 'k']);
+      expect(fake.log.length, there);
       await reader.see(0, 0);
       expect(rows(), ['e', 'f', 'g']);
       // More rows than a window holds: from the first of them.
       await reader.see(3, 6);
       expect(rows(), ['h', 'i', 'j']);
+      await reader.see(0, 0);
+      await reader.see(2, 6);
+      expect(rows(), ['g', 'h', 'i']);
+      // Rows that are there are answered at once, whatever the keeper is at.
+      final gate = holdFirst(fake, 'apply');
+      final busy = keeper.apply(typing('a', 'typed'));
+      await tester.pump();
+      var answered = false;
+      reader.see(3, 3).then((_) => answered = true);
+      await tester.pump();
+      expect(answered, isTrue);
+      gate.complete();
+      await busy;
+      await reader.see(3, 4);
       // Asked twice at once, the second finds the window moved and reads nothing.
       final calls = fake.log.length;
       await Future.wait([reader.see(6, 6), reader.see(6, 6)]);
@@ -715,6 +798,55 @@ void main() {
       expect(states.length, 3);
     });
 
+    keeperTest('a place that cannot be handed on is its error, and no more', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      final reader = await keeper.read();
+      await reader.go('c');
+      reader.at(x: 0, y: 1, selected: 'f');
+      failFirst(fake, 'viewRemember', broken);
+      await keeper.apply(typing('e', 'typed'));
+      await keeper.save();
+      // The document is saved; the view state was not tried after that.
+      expect((keeper.state, fake.saves), (KeeperState.saved, 1));
+      expect((keeper.viewError, calls(fake, 'viewRemember')), (broken, 1));
+      expect((calls(fake, 'saveView'), fake.viewSaved), (0, false));
+    });
+
+    keeperTest('a fault in saving ends the work before the view state', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      final reader = await keeper.read();
+      await reader.go('c');
+      reader.at(x: 0, y: 1);
+      await keeper.apply(typing('e', 'typed'));
+      failFirst(fake, 'save', PanicException('in the save'));
+      await keeper.save().catchError((Object _) {});
+      expect(keeper.ended, faultSentence);
+      // Nothing more is asked of a document that is let go of.
+      expect((keeper.viewError, calls(fake, 'viewRemember')), (null, 0));
+    });
+
+    keeperTest('closing after a fault in the view state closes nothing', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      final reader = await keeper.read();
+      await reader.go('c');
+      failFirst(fake, 'saveView', PanicException('in the view state'));
+      await expectLater(keeper.close(), refusedAs(ErrorKind.closed));
+      expect((keeper.ended, keeper.saveError), (faultSentence, null));
+      expect(calls(fake, 'close'), 0);
+      // And no save is tried again by the clock for it.
+      await tester.pump(const Duration(minutes: 5));
+      expect(calls(fake, 'save'), 0);
+    });
+
     keeperTest('it is written also when the document cannot be', (
       tester,
       keeper,
@@ -779,8 +911,12 @@ void main() {
         final seen = told(reader);
         await keeper.apply(typing('e', 'mine'));
         fake.fileChanged = true;
+        fake.viewFails = true;
         await keeper.save();
         expect(seen.length, 1);
+        // What could not be written of where the screen was in this document is
+        // no concern of the next.
+        expect(kindOfError(keeper.viewError), ErrorKind.io);
         await keeper.openTheirs();
         // Theirs was last shown at the root, and has its own texts.
         expect(reader.stage.cell, 'root');
@@ -794,9 +930,49 @@ void main() {
         await keeper.apply(typing('a', 'edited'));
         expect(reader.stage.look('a')!.text, 'edited');
         expect(seen.last.looks, {'a'});
+        expect(keeper.viewError, isNull);
       },
       reopen: (_) async =>
           Session.over(theirs = FakeDocument()..cells['e']!.text = 'theirs'),
+    );
+
+    keeperTest(
+      'the other program\'s file cannot be read as a stage: said by the reader',
+      (tester, keeper, fake) async {
+        final reader = await keeper.read();
+        final seen = told(reader);
+        fake.fileChanged = true;
+        await keeper.save();
+        await keeper.openTheirs();
+        expect((keeper.ended, keeper.opens), (null, 2));
+        expect(reader.readError, broken);
+        expect(seen.single.isEmpty, isTrue);
+        await reader.refresh();
+        expect(reader.readError, isNull);
+        expect(reader.stage.look('e')!.text, 'theirs');
+      },
+      reopen: (_) async {
+        theirs = FakeDocument()..cells['e']!.text = 'theirs';
+        failFirst(theirs, 'stage', broken);
+        return Session.over(theirs);
+      },
+    );
+
+    keeperTest(
+      'a fault while the other program\'s file is read ends the work',
+      (tester, keeper, fake) async {
+        final reader = await keeper.read();
+        fake.fileChanged = true;
+        await keeper.save();
+        await keeper.openTheirs();
+        expect(keeper.ended, faultSentence);
+        expect(reader.readError, isNull);
+      },
+      reopen: (_) async {
+        theirs = FakeDocument();
+        failFirst(theirs, 'stage', PanicException('in the read'));
+        return Session.over(theirs);
+      },
     );
 
     test('on the real core, beside a document that cannot be saved', () async {
@@ -845,6 +1021,24 @@ void main() {
 }
 
 late FakeDocument theirs;
+
+extension on StageAsk {
+  /// The same request with its window starting at another row.
+  StageAsk at({required int y0}) => StageAsk(
+    x0: x0,
+    y0: y0,
+    cols: cols,
+    rows: rows,
+    fullDepth: fullDepth,
+    fullCells: fullCells,
+    previewCols: previewCols,
+    previewRows: previewRows,
+    shapeCols: shapeCols,
+    shapeRows: shapeRows,
+    textCut: textCut,
+    previewCut: previewCut,
+  );
+}
 
 ErrorKind? kindOfError(Object? error) =>
     error is BridgeError ? error.kind : null;

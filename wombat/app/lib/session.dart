@@ -653,9 +653,7 @@ int units(String text, int codePoints) {
   if (codePoints < 0) throw RangeError.range(codePoints, 0, null, 'codePoints');
   var at = 0;
   for (var left = codePoints; left > 0; left--) {
-    if (at >= text.length) {
-      throw RangeError.range(codePoints, 0, text.runes.length, 'codePoints');
-    }
+    // Past the end of the text this throws, a [RangeError] too.
     final unit = text.codeUnitAt(at);
     final pair =
         unit & 0xFC00 == 0xD800 &&

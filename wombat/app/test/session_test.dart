@@ -238,8 +238,10 @@ void main() {
       [for (var n = 0; n <= 6; n++) units(halves, n)],
       [0, 1, 2, 3, 4, 5, 6],
     );
-    // The halves the other way round are no pair.
+    // The halves the other way round are no pair, and neither are two first halves.
     expect(units('\u{DE00}\u{D83D}', 1), 1);
+    expect(units('\u{D83D}\u{D83D}x', 1), 1);
+    expect(units('\u{D83D}\u{D83D}x', 2), 2);
     // A high half at the very end.
     expect(units('a\u{D83D}', 2), 2);
     expect(units('', 0), 0);

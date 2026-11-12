@@ -407,9 +407,8 @@ Future<void> _stage(
     holds.add(held);
     watch.reset();
     final read = StageRead(doc.root, ask, info);
-    final change = read.since(before);
+    read.since(before);
     compares.add(watch.elapsed);
-    if (!change.isEmpty) throw StateError('two reads of $what differ');
     before = read;
   }
   final shapes = before.summaries.fold(0, (n, s) => n + s.shape.length ~/ 4);

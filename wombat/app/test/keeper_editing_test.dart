@@ -198,6 +198,40 @@ void main() {
       expect(await keeper.undo(), isNull);
     });
 
+    keeperTest('after the cross the clock is as if nothing had been', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      final editing = await keeper.edit('a');
+      await editing.hold('typed');
+      await editing.drop();
+      // The file is not even looked at for it.
+      await tester.pump(const Duration(minutes: 5));
+      expect(calls(fake, 'save'), 0);
+      // And the next change is saved a second later, like any first change.
+      await keeper.apply(typing('d', 'later'));
+      await tester.pump(const Duration(milliseconds: 999));
+      expect(fake.saves, 0);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect((fake.saves, keeper.state), (1, saved));
+    });
+
+    keeperTest('dropped while the app is put away: the file is put right too', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      final editing = await keeper.edit('a');
+      await editing.hold('typed');
+      await keeper.save();
+      expect(fake.saves, 1);
+      // Something attached takes the text back when it is asked to finish.
+      keeper.attach(finish: () => editing.drop());
+      expect(await keeper.putAway(), isEmpty);
+      expect((fake.saves, fake.saved, fake.cells['a']!.text), (2, true, 'one'));
+    });
+
     keeperTest('held and saved, then the cross: the file is put right', (
       tester,
       keeper,
@@ -449,6 +483,23 @@ void main() {
       },
     );
 
+    keeperTest('a fault in the first step of it ends the work, and nothing is '
+        'asked of the document after', (tester, keeper, fake) async {
+      final reader = await keeper.read();
+      final seen = <Object>[];
+      reader.addListener(seen.add);
+      final editing = await keeper.edit('a');
+      // The text is taken, and settling its kind meets the fault.
+      failFirst(fake, 'apply', PanicException('in the core'));
+      await expectLater(editing.enter('typed'), throwsA(isA<PanicException>()));
+      expect(keeper.ended, faultSentence);
+      expect((editing.open, editing.held), (false, false));
+      // No group is cancelled, and no stage read, in a document that may be half
+      // changed.
+      expect((calls(fake, 'cancelGroup'), calls(fake, 'stage')), (0, 1));
+      expect([reader.readError, seen], [null, isEmpty]);
+    });
+
     keeperTest('a fault ends the work', (tester, keeper, fake) async {
       final editing = await keeper.edit('a');
       await editing.hold('held');
@@ -617,6 +668,53 @@ void main() {
       expect(await keeper.cell(cell), styled);
       await keeper.redo();
       expect(await keeper.cell(cell), look);
+    });
+
+    test('a style on text that did not change, and a kind settled alone, are '
+        'changes like any other', () async {
+      final (keeper, doc, _) = await kept();
+      final cell = await cellOf(keeper, 'what to buy');
+      final other = await cellOf(keeper, 'Total');
+      // Text that is a formula in a cell that is none (set, not typed).
+      await keeper.apply(Command.setText(cell: other, text: '=1+2'));
+      expect((await keeper.cell(other)).kind, CellKind.data);
+      await keeper.save();
+      final reader = await keeper.read();
+      final seen = <Set<String>>[];
+      reader.addListener((change) => seen.add(change.looks));
+
+      final editing = await keeper.edit(cell);
+      final styled = await editing.style(
+        'what to buy',
+        (held) => Command.setRangeStyle(
+          cell: cell,
+          start: 0,
+          len: 4,
+          set_: bold,
+          clear: none,
+        ),
+      );
+      // The answer is the cell after the command, and the stage has it too.
+      expect(styled.runs.single.style.bold, isTrue);
+      expect(keeper.state, unsaved);
+      expect(reader.stage.look(cell)!.runs.single.len, 4);
+      expect(seen, [
+        {cell},
+      ]);
+      await editing.enter('what to buy');
+      await keeper.save();
+      expect(keeper.state, saved);
+
+      // Held with the text it has: only what the cell is changes.
+      final second = await keeper.edit(other);
+      final held = await second.hold('=1+2');
+      expect((held.kind, held.result), (CellKind.formula, '3'));
+      expect(keeper.state, unsaved);
+      expect(reader.stage.look(other)!.result, '3');
+      expect(seen.last, {other});
+      await second.drop();
+      expect((keeper.state, reader.stage.look(other)!.result), (saved, null));
+      expect(await doc.inGroup(), isFalse);
     });
 
     test('what is typed settles what the cell is, as typing does', () async {

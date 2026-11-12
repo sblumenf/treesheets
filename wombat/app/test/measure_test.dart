@@ -156,11 +156,13 @@ void main() {
   });
 
   test('how long a thread is held during a call', () async {
-    // Held for 30 ms by the call itself, as decoding an answer holds it.
+    // Held for 30 ms in the middle of the call, as decoding an answer holds it; the
+    // longest wait counts, not the last.
     final (answer, held) = await heldDuring(() async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
       final watch = Stopwatch()..start();
       while (watch.elapsedMilliseconds < 30) {}
+      await Future<void>.delayed(const Duration(milliseconds: 20));
       return 7;
     });
     expect(answer, 7);
@@ -170,11 +172,28 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 60)),
     );
     expect(free, lessThan(const Duration(milliseconds: 30)));
-    // A call that fails leaves no timer running, and fails.
-    await expectLater(
-      heldDuring<void>(() async => throw StateError('no')),
-      throwsStateError,
+    // A call that fails leaves no timer running, and fails; nor does one that ends
+    // well. Every timer that is made is counted.
+    var timers = 0;
+    Future<void> counted(Future<void> Function() call) => runZoned(
+      call,
+      zoneSpecification: ZoneSpecification(
+        createTimer: (self, parent, zone, duration, callback) {
+          timers++;
+          return parent.createTimer(zone, duration, callback);
+        },
+      ),
     );
+    await counted(
+      () => expectLater(
+        heldDuring<void>(() async => throw StateError('no')),
+        throwsStateError,
+      ),
+    );
+    await counted(() => heldDuring(() async => 1));
+    final made = timers;
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(timers, made);
   });
 
   test('median and worst of a timing', () {

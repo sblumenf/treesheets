@@ -612,7 +612,6 @@ class Keeper extends ChangeNotifier {
       _saved();
       _viewError = null;
       // The stages start again where the view state of the file says.
-      _stale = false;
       for (final reader in [..._readers]) {
         try {
           await reader._start(_doc);
@@ -711,7 +710,8 @@ const _nothing = Report(
 ///
 /// **An editing ends** with [enter] or [drop], and with its document: when the keeper
 /// closes it, lets go of it, opens the other program's file or meets a fault. After
-/// the end [open] is false and every call throws a [StateError]. A screen that goes
+/// the end [open] is false and every call throws: a [StateError], or once the keeper's
+/// work has ended the keeper's own [BridgeError] of kind [ErrorKind.closed]. A screen that goes
 /// away enters or drops its editing: one that is forgotten while it holds something
 /// keeps every other change out until the document is closed.
 class Editing {
@@ -740,7 +740,7 @@ class Editing {
   void _gone() {
     _open = false;
     _held = false;
-    if (identical(_keeper._editing, this)) _keeper._editing = null;
+    _keeper._editing = null;
   }
 
   void _refuseAfterItsEnd() {
@@ -823,9 +823,10 @@ class Editing {
   Future<Report> enter(String text) => _keeper._use((doc) async {
     _refuseAfterItsEnd();
     await _put(doc, text);
+    // What it names, each command of the group has reported already.
     final report = await doc.endGroup();
     _gone();
-    return _keeper._done(report);
+    return report;
   });
 
   /// The cross: the editing ends and nothing of it stays. If it held something, the
@@ -942,7 +943,7 @@ class StageReader {
     final read = StageRead(cell, _wanted, await doc.stage(cell, _wanted));
     final grid = read.grid;
     final level = read.level;
-    if (grid == null || level == null || read.whole) return read;
+    if (grid == null || level == null) return read;
     final inside =
         level.x >= grid.x0 &&
         level.x < grid.x0 + grid.cols &&
@@ -962,7 +963,6 @@ class StageReader {
     _stage = read;
     _error = null;
     _place = null;
-    _moved = false;
     _tell(StageChange.all);
   }
 
@@ -1045,8 +1045,11 @@ class StageReader {
   /// then says where the screen was when it last left the new level.
   ///
   /// A cell without a grid, other than the root, is refused ([ErrorKind.refused]),
-  /// and one that does not exist is [ErrorKind.notFound]: the stage stays as it was.
+  /// and one that does not exist is [ErrorKind.notFound]: the stage stays as it was,
+  /// and so does the view state. So it does when the cell cannot be read.
   Future<void> go(String cell) => _keeper._use((doc) async {
+    // Read first: what cannot be shown is not gone to.
+    final read = await _window(doc, cell);
     for (final left in [..._levels(), null]) {
       try {
         await doc.viewGo(cell, left: left);
@@ -1057,7 +1060,7 @@ class StageReader {
         if (error.kind != ErrorKind.notFound || !again) rethrow;
       }
     }
-    _show(await _look(doc, cell));
+    _show(read);
   });
 
   /// Moves the window of the stage's grid that is read, when the request has one
@@ -1086,7 +1089,7 @@ class StageReader {
   /// middle, or null if they are among the rows that were read.
   int? _sees(int first, int last) {
     final grid = _stage.grid;
-    if (grid == null || grid.rows == grid.ys) return null;
+    if (grid == null) return null;
     final top = first.clamp(0, grid.ys - 1);
     final bottom = last.clamp(top, grid.ys - 1);
     if (top >= grid.y0 && bottom < grid.y0 + grid.rows) return null;

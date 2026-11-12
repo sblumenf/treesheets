@@ -194,7 +194,6 @@ class StageChange {
 
   /// Whether nothing is to be drawn again.
   bool get isEmpty =>
-      !everything &&
       !trail &&
       looks.isEmpty &&
       summaries.isEmpty &&
