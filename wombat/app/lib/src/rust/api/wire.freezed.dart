@@ -439,9 +439,11 @@ class Command_InsertText extends Command {
 
 /// The cell.
  final  String cell;
-/// Where to insert.
+/// Where to insert: a position in code points, not inside a user-perceived
+/// character.
  final  PlatformInt64 at;
-/// What to insert.
+/// What to insert; control characters become spaces. Half of a
+/// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
  final  String text;
 
 /// Create a copy of Command
@@ -514,7 +516,8 @@ class Command_DeleteText extends Command {
 
 /// The cell.
  final  String cell;
-/// The first code point to delete.
+/// The first code point to delete. Positions count code points, and a range
+/// must not cut a user-perceived character.
  final  PlatformInt64 start;
 /// How many code points to delete.
  final  PlatformInt64 len;
@@ -589,11 +592,13 @@ class Command_ReplaceText extends Command {
 
 /// The cell.
  final  String cell;
-/// The first code point to replace.
+/// The first code point to replace. Positions count code points, and a range
+/// must not cut a user-perceived character.
  final  PlatformInt64 start;
 /// How many code points to replace.
  final  PlatformInt64 len;
-/// The new text.
+/// The new text; control characters become spaces. Half of a
+/// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
  final  String text;
 
 /// Create a copy of Command
@@ -667,7 +672,8 @@ class Command_SetText extends Command {
 
 /// The cell.
  final  String cell;
-/// The new text.
+/// The new text; control characters become spaces. Half of a
+/// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
  final  String text;
 
 /// Create a copy of Command
@@ -739,7 +745,8 @@ class Command_SetRangeStyle extends Command {
 
 /// The cell.
  final  String cell;
-/// The first code point.
+/// The first code point. Positions count code points, and a range
+/// must not cut a user-perceived character.
  final  PlatformInt64 start;
 /// How many code points.
  final  PlatformInt64 len;
@@ -820,7 +827,8 @@ class Command_SetRangeColor extends Command {
 
 /// The cell.
  final  String cell;
-/// The first code point.
+/// The first code point. Positions count code points, and a range
+/// must not cut a user-perceived character.
  final  PlatformInt64 start;
 /// How many code points.
  final  PlatformInt64 len;
@@ -898,11 +906,13 @@ class Command_SetLink extends Command {
 
 /// The cell.
  final  String cell;
-/// The first code point.
+/// The first code point. Positions count code points, and a range
+/// must not cut a user-perceived character.
  final  PlatformInt64 start;
 /// How many code points.
  final  PlatformInt64 len;
-/// Where the link goes.
+/// Where the link goes: an external target or a cell. For a cell of this
+/// document, the document's own ID is dropped from the target.
  final  LinkTarget? target;
 
 /// Create a copy of Command
@@ -2060,7 +2070,7 @@ class Command_MoveCell extends Command {
 
 /// The cell to move.
  final  String from;
-/// An empty cell whose place it takes.
+/// An empty cell (no text, image or grid) whose place it takes.
  final  String to;
 
 /// Create a copy of Command
@@ -2202,7 +2212,7 @@ class Command_SetTag extends Command {
   const Command_SetTag({required this.name, required this.cellColor, required this.textColor}): super._();
   
 
-/// The name.
+/// The name; not empty, no control characters.
  final  String name;
 /// The background colour of cells with the tag.
  final  Rgb cellColor;
@@ -2427,9 +2437,9 @@ class Command_Transpose extends Command {
   const Command_Transpose({required  List<String> cells}): _cells = cells,super._();
   
 
-/// The cells whose grids are transposed.
+/// The cells whose grids are transposed; those without a grid are passed over.
  final  List<String> _cells;
-/// The cells whose grids are transposed.
+/// The cells whose grids are transposed; those without a grid are passed over.
  List<String> get cells {
   if (_cells is EqualUnmodifiableListView) return _cells;
   // ignore: implicit_dynamic_type
@@ -2874,7 +2884,8 @@ class Command_SplitCell extends Command {
 
 /// The cell.
  final  String cell;
-/// Where to cut the text.
+/// Where to cut the text: a position in code points, not inside a user-perceived
+/// character.
  final  PlatformInt64 at;
 
 /// Create a copy of Command
@@ -3105,7 +3116,7 @@ class Command_AdjustRelSize extends Command {
   return EqualUnmodifiableListView(_cells);
 }
 
-/// What to add.
+/// What to add; TreeSheets adds 1 or -1.
  final  PlatformInt64 delta;
 /// Also the cells inside the listed ones.
  final  bool recursive;
@@ -3184,7 +3195,7 @@ class Command_AdjustColumnWidths extends Command {
  final  PlatformInt64 column;
 /// How many columns.
  final  PlatformInt64 count;
-/// What to add.
+/// What to add; TreeSheets adds 5 or -5.
  final  PlatformInt64 delta;
 /// Also every column of every grid inside the cells of those columns.
  final  bool recursive;
@@ -3293,7 +3304,8 @@ class Command_EnterText extends Command {
 
 /// The cell.
  final  String cell;
-/// The text typed.
+/// The text typed; control characters become spaces, and half of a surrogate
+/// pair on its own arrives as U+FFFD.
  final  String text;
 
 /// Create a copy of Command
@@ -3511,7 +3523,7 @@ class Command_AdoptCells extends Command {
   const Command_AdoptCells({required this.to, required this.clip}): super._();
   
 
-/// An empty cell whose place the top cell takes.
+/// An empty cell (no text, image or grid) whose place the top cell takes.
  final  String to;
 /// The cells that move in.
  final  ClipData clip;
@@ -3736,9 +3748,9 @@ class Command_RetargetLinks extends Command {
   return EqualUnmodifiableListView(_cells);
 }
 
-/// The ID of the document that the links to correct name.
+/// The document that the links to correct name.
  final  String? from;
-/// The ID of the document that they are to name.
+/// The document that they are to name.
  final  String? to;
 
 /// Create a copy of Command
@@ -3975,7 +3987,7 @@ class LinkTarget_External extends LinkTarget {
   const LinkTarget_External({required this.target}): super._();
   
 
-/// The URL or path.
+/// The URL or path; not empty.
  final  String target;
 
 /// Create a copy of LinkTarget
@@ -4045,7 +4057,8 @@ class LinkTarget_Cell extends LinkTarget {
   
 
 /// The ID of the document the cell is in, or `None` for the document that holds
-/// the link.
+/// the link. The ID of that document itself is read as `None`, so that a link to
+/// one cell has one form.
  final  String? doc;
 /// The ID of the cell.
  final  String cell;

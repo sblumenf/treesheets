@@ -1362,6 +1362,13 @@ are where milestones 4, 5 and 6, built apart, meet).
     is lost or guessed, and refusing one would take a reader written by hand for each of
     seven types. A test pins it. None of this touches what crosses between Dart and Rust:
     the generated code writes every field in order, without names.
+137. **Half a surrogate pair in a Dart string is documented, not refused** (from the review).
+    A Dart string may hold one, which is no character; Dart's encoder writes U+FFFD in its
+    place before Rust sees the string, so the bridge cannot tell it from a U+FFFD that was
+    meant. Refusing would need a check of every string on the Dart side. `api/wire.rs` says
+    so where a Dart developer reads it, and a Dart test pins it. And because the generator
+    does not carry the comment of an enum that holds data (`Command`, `Prop`, `LinkTarget`)
+    into Dart, the rules a Dart developer needs are stated on variants, fields and `Report`.
 
 ## B. Deliberate departures from TreeSheets
 

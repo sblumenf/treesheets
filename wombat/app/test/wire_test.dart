@@ -147,4 +147,44 @@ void main() {
     expect((await doc.apply(command: link(null))).changed, [cell]);
     expect((await doc.apply(command: link(null))).changed, isEmpty);
   });
+
+  // A Dart string can hold half of a surrogate pair, which is no character. Dart's
+  // UTF-8 encoder writes U+FFFD in its place, so that is what the core gets: nothing is
+  // refused and nothing says so. `wire.rs` documents it; this pins it.
+  test('half a surrogate pair arrives as U+FFFD', () async {
+    final doc = await twoRows('surrogate');
+    final cell = (await doc.grid(cell: await doc.root())).cells[0].id;
+    final half = String.fromCharCode(0xD800);
+    const replacement = '\u{FFFD}';
+
+    await doc.apply(
+      command: Command.setText(cell: cell, text: 'a${half}b'),
+    );
+    final text = (await doc.grid(cell: cell)).cell.text;
+    expect(text, 'a${replacement}b');
+    expect(text.runes.length, 3);
+    // A whole pair is one character and crosses as it is.
+    await doc.apply(
+      command: Command.setText(cell: cell, text: 'a\u{1F600}b'),
+    );
+    expect((await doc.grid(cell: cell)).cell.text, 'a\u{1F600}b');
+
+    // A note, the same; an ID with one in it is no ID.
+    await doc.apply(
+      command: Command.setProps(cells: [cell], props: [Prop.note(half)]),
+    );
+    await doc.save();
+    final saved = await File(await doc.path()).readAsString();
+    expect(saved, contains('"note": "$replacement"'));
+    expect(
+      await refusal(doc, Command.removeGrid(cell: '$cell$half')),
+      ErrorKind.badRequest,
+    );
+    // And a path: the file is made under the name with U+FFFD in it.
+    final named = await OpenDocument.create(
+      path: '${folder.path}/x$half.wombat',
+    );
+    expect(await named.path(), '${folder.path}/x$replacement.wombat');
+    expect(File('${folder.path}/x$replacement.wombat').existsSync(), true);
+  });
 }

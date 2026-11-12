@@ -143,60 +143,70 @@ class ClipData {
 sealed class Command with _$Command {
   const Command._();
 
-  /// Inserts text at a position.
+  /// Inserts text at a position. Stamps the last-edit time.
   const factory Command.insertText({
     /// The cell.
     required String cell,
 
-    /// Where to insert.
+    /// Where to insert: a position in code points, not inside a user-perceived
+    /// character.
     required PlatformInt64 at,
 
-    /// What to insert.
+    /// What to insert; control characters become spaces. Half of a
+    /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
     required String text,
   }) = Command_InsertText;
 
-  /// Deletes a range of text.
+  /// Deletes a range of text. Stamps the last-edit time.
   const factory Command.deleteText({
     /// The cell.
     required String cell,
 
-    /// The first code point to delete.
+    /// The first code point to delete. Positions count code points, and a range
+    /// must not cut a user-perceived character.
     required PlatformInt64 start,
 
     /// How many code points to delete.
     required PlatformInt64 len,
   }) = Command_DeleteText;
 
-  /// Replaces a range of text.
+  /// Replaces a range of text; the new text takes the style and link of the first
+  /// replaced character. Stamps the last-edit time.
   const factory Command.replaceText({
     /// The cell.
     required String cell,
 
-    /// The first code point to replace.
+    /// The first code point to replace. Positions count code points, and a range
+    /// must not cut a user-perceived character.
     required PlatformInt64 start,
 
     /// How many code points to replace.
     required PlatformInt64 len,
 
-    /// The new text.
+    /// The new text; control characters become spaces. Half of a
+    /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
     required String text,
   }) = Command_ReplaceText;
 
-  /// Replaces the whole text and drops all runs and links.
+  /// Replaces the whole text and, as TreeSheets does, drops all runs and links. Stamps the
+  /// last-edit time.
   const factory Command.setText({
     /// The cell.
     required String cell,
 
-    /// The new text.
+    /// The new text; control characters become spaces. Half of a
+    /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
     required String text,
   }) = Command_SetText;
 
-  /// Switches style bits on and off for a range of text.
+  /// Switches style bits on and off for a range of text: the bits of `set` on, then the
+  /// bits of `clear` off, the others as they are.
   const factory Command.setRangeStyle({
     /// The cell.
     required String cell,
 
-    /// The first code point.
+    /// The first code point. Positions count code points, and a range
+    /// must not cut a user-perceived character.
     required PlatformInt64 start,
 
     /// How many code points.
@@ -214,7 +224,8 @@ sealed class Command with _$Command {
     /// The cell.
     required String cell,
 
-    /// The first code point.
+    /// The first code point. Positions count code points, and a range
+    /// must not cut a user-perceived character.
     required PlatformInt64 start,
 
     /// How many code points.
@@ -224,22 +235,27 @@ sealed class Command with _$Command {
     Rgb? color,
   }) = Command_SetRangeColor;
 
-  /// Makes a range of text a link, or with `None` removes the links from it.
+  /// Makes a range of text a link to `target`, replacing any links it overlaps; `None`
+  /// removes the links from the range.
   const factory Command.setLink({
     /// The cell.
     required String cell,
 
-    /// The first code point.
+    /// The first code point. Positions count code points, and a range
+    /// must not cut a user-perceived character.
     required PlatformInt64 start,
 
     /// How many code points.
     required PlatformInt64 len,
 
-    /// Where the link goes.
+    /// Where the link goes: an external target or a cell. For a cell of this
+    /// document, the document's own ID is dropped from the target.
     LinkTarget? target,
   }) = Command_SetLink;
 
-  /// Sets properties of one or more cells, as one undo unit.
+  /// Sets properties of one or more cells, as one undo unit. If any of it cannot be done
+  /// (a grid property on a cell without a grid, say), nothing is. Of several values for
+  /// one property the last counts, and only what differs in the end is a change.
   const factory Command.setProps({
     /// The cells.
     required List<String> cells,
@@ -248,7 +264,8 @@ sealed class Command with _$Command {
     required List<Prop> props,
   }) = Command_SetProps;
 
-  /// Switches style bits on and off for whole cells.
+  /// Switches style bits on and off for whole cells: on the base style and, as TreeSheets
+  /// does, on every run. The bits of `set` on, then the bits of `clear` off.
   const factory Command.setStyle({
     /// The cells.
     required List<String> cells,
@@ -260,7 +277,8 @@ sealed class Command with _$Command {
     required Style clear,
   }) = Command_SetStyle;
 
-  /// Sets the width of one column of a cell's grid.
+  /// Sets the width of one column of a cell's grid (at least 5; smaller
+  /// values become that).
   const factory Command.setColumnWidth({
     /// The cell that has the grid.
     required String cell,
@@ -272,7 +290,9 @@ sealed class Command with _$Command {
     required PlatformInt64 width,
   }) = Command_SetColumnWidth;
 
-  /// Gives a cell that has no grid a grid of new empty cells.
+  /// Gives a cell that has no grid a grid of new empty cells. As in TreeSheets they take
+  /// the cell's colours, style, alignments, draw style and relative size, and the grid
+  /// takes the border colour and spacing of the grid the cell is in.
   const factory Command.createGrid({
     /// The cell.
     required String cell,
@@ -284,13 +304,15 @@ sealed class Command with _$Command {
     required PlatformInt64 ys,
   }) = Command_CreateGrid;
 
-  /// Removes the grid of a cell with everything in it.
+  /// Removes the grid of a cell with everything in it. Refused for the root cell.
   const factory Command.removeGrid({
     /// The cell.
     required String cell,
   }) = Command_RemoveGrid;
 
-  /// Inserts empty rows.
+  /// Inserts empty rows. As in TreeSheets each new cell takes the colours, style,
+  /// alignments, draw style and relative size of the cell above it (below it, for rows
+  /// inserted at the top).
   const factory Command.insertRows({
     /// The cell that has the grid.
     required String cell,
@@ -302,7 +324,8 @@ sealed class Command with _$Command {
     required PlatformInt64 count,
   }) = Command_InsertRows;
 
-  /// Inserts empty columns.
+  /// Inserts empty columns; like [`Command::InsertRows`], taking after the cell to the
+  /// left (to the right, for columns inserted at the left edge).
   const factory Command.insertColumns({
     /// The cell that has the grid.
     required String cell,
@@ -314,7 +337,8 @@ sealed class Command with _$Command {
     required PlatformInt64 count,
   }) = Command_InsertColumns;
 
-  /// Deletes rows with everything in them.
+  /// Deletes rows with everything in them. Deleting every row removes the grid, as in
+  /// TreeSheets; for the root cell that is refused.
   const factory Command.deleteRows({
     /// The cell that has the grid.
     required String cell,
@@ -326,7 +350,7 @@ sealed class Command with _$Command {
     required PlatformInt64 count,
   }) = Command_DeleteRows;
 
-  /// Deletes columns with everything in them.
+  /// Deletes columns; see [`Command::DeleteRows`].
   const factory Command.deleteColumns({
     /// The cell that has the grid.
     required String cell,
@@ -338,14 +362,18 @@ sealed class Command with _$Command {
     required PlatformInt64 count,
   }) = Command_DeleteColumns;
 
-  /// Empties cells: text, runs, links, image and grid go, the looks stay.
+  /// Empties cells, as TreeSheets' `Cell::Clear`: text, runs, links, image and grid go,
+  /// a formula cell becomes a data cell; colours, style, note and the rest stay. Refused
+  /// if the root cell is among them.
   const factory Command.clearCells({
     /// The cells.
     required List<String> cells,
   }) = Command_ClearCells;
 
-  /// What the Delete key does to a block of cells: empties them, and deletes the rows
-  /// or columns that this leaves empty.
+  /// What the Delete key does to a selection of cells in TreeSheets: empties them, and
+  /// if that leaves the selected rows (or columns) of the grid entirely empty, deletes
+  /// those rows (or columns); if that would be every one, removes the grid from its cell
+  /// (except for the root, whose grid stays, emptied).
   const factory Command.deleteCells({
     /// The cell that has the grid.
     required String cell,
@@ -393,7 +421,8 @@ sealed class Command with _$Command {
     required PlatformInt64 to,
   }) = Command_MoveColumns;
 
-  /// Makes two cells trade places, with everything in them.
+  /// Makes two cells trade places, with everything in them; they may be in different
+  /// grids, but neither may be inside the other.
   const factory Command.swapCells({
     /// One cell.
     required String a,
@@ -402,16 +431,21 @@ sealed class Command with _$Command {
     required String b,
   }) = Command_SwapCells;
 
-  /// Moves a cell to where an empty cell is.
+  /// Moves a cell, with its text, properties, grid and ID, to where the empty cell `to`
+  /// is (which may be in another grid). The empty cell takes its old place. Refused if
+  /// `to` is not empty or is inside `from`.
   const factory Command.moveCell({
     /// The cell to move.
     required String from,
 
-    /// An empty cell whose place it takes.
+    /// An empty cell (no text, image or grid) whose place it takes.
     required String to,
   }) = Command_MoveCell;
 
-  /// Makes `to` a copy of `from` with everything inside it.
+  /// The paste operation: makes `to` a copy of `from` with everything inside it. `to`
+  /// keeps its ID and place; what it held is lost; the cells of the copied grid get new
+  /// IDs, and links from inside the copy to cells inside `from` follow to the copies.
+  /// Refused onto the root cell.
   const factory Command.copyCell({
     /// The cell to copy.
     required String from,
@@ -420,9 +454,10 @@ sealed class Command with _$Command {
     required String to,
   }) = Command_CopyCell;
 
-  /// Adds a tag to the document, or changes its colours.
+  /// Adds a tag to the document, or changes its colours. A cell has a tag when its
+  /// text is the tag's name.
   const factory Command.setTag({
-    /// The name.
+    /// The name; not empty, no control characters.
     required String name,
 
     /// The background colour of cells with the tag.
@@ -438,7 +473,11 @@ sealed class Command with _$Command {
     required String name,
   }) = Command_RemoveTag;
 
-  /// Sorts whole rows of a grid by the text of their cells in one column.
+  /// TreeSheets' Sort: reorders whole rows of a grid by the text of their cells in one
+  /// column; rows equal there are ordered by the next columns in turn, wrapping round to
+  /// the first, and rows equal in all columns keep their order (also when descending).
+  /// Texts compare as text without regard to case: "10" comes before "9". Fewer than two
+  /// rows is not an error and changes nothing. Cells keep their IDs.
   const factory Command.sortRows({
     /// The cell that has the grid.
     required String cell,
@@ -456,31 +495,48 @@ sealed class Command with _$Command {
     required bool descending,
   }) = Command_SortRows;
 
-  /// Rows become columns in the grid of every listed cell that has one.
+  /// TreeSheets' Transpose: in the grid of every listed cell that has one, rows become
+  /// columns. Column widths stay with their position; new columns take the width of the
+  /// last old one. Cells keep their IDs.
   const factory Command.transpose({
-    /// The cells whose grids are transposed.
+    /// The cells whose grids are transposed; those without a grid are passed over.
     required List<String> cells,
   }) = Command_Transpose;
 
-  /// The cells with the text of `cell` move up one level and take their parents inside.
+  /// TreeSheets' Hierarchy Swap: every cell with the text of `cell` found below the grid
+  /// two levels above it moves up into that grid and takes copies of the cells it was
+  /// inside of with it, as a chain inside itself; cells with the same text merge into
+  /// one, and parents left empty disappear. Refused unless the cell has text, a cell two
+  /// levels up exists, and both the grid it is in and the grid it moves into have one
+  /// column or one row. The swapped cells keep their IDs; the copy of a parent takes the
+  /// parent's ID if the parent disappears, and is a new cell otherwise.
   const factory Command.hierarchySwap({
     /// The cell whose text is swapped upwards.
     required String cell,
   }) = Command_HierarchySwap;
 
-  /// Turns the grid of `cell`, a table, into a hierarchy.
+  /// TreeSheets' Hierarchify: turns the grid of `cell`, a table whose cells have no grids
+  /// themselves, into a hierarchy: rows that start with the same text are merged under
+  /// the first cell with that text, which gets a grid of the remaining columns, and so
+  /// on for those. All cells keep their IDs; the first cells of repeated rows are removed.
   const factory Command.hierarchify({
     /// The cell that has the table.
     required String cell,
   }) = Command_Hierarchify;
 
-  /// Turns the grid of `cell`, a hierarchy, into a table.
+  /// TreeSheets' Flatten: replaces the grid of `cell` by a table with one row per cell
+  /// inside it that has no grid, and one column per level: the cells it was inside of,
+  /// then the cell itself, then empty cells. Only text (with styles, links, size, image)
+  /// is carried over. Every cell keeps its ID where it first stands; repeats of a parent
+  /// on later rows and the empty cells are new.
   const factory Command.flatten({
     /// The cell whose grid is flattened.
     required String cell,
   }) = Command_Flatten;
 
-  /// Moves a block of cells into the grid of a new cell in its place.
+  /// TreeSheets' Wrap in new parent: a block of cells moves into the grid of a new empty
+  /// cell that takes the place of the block's first cell; rows and columns that this
+  /// leaves empty are deleted. The cells of the block keep their IDs.
   const factory Command.wrap({
     /// The cell that has the grid.
     required String cell,
@@ -498,7 +554,9 @@ sealed class Command with _$Command {
     required PlatformInt64 ys,
   }) = Command_Wrap;
 
-  /// Joins the texts of a block of cells into its first cell.
+  /// TreeSheets' Collapse Cells: the texts of a block of two or more cells, and of the
+  /// cells inside them, are appended to the block's first cell, each after a space; the
+  /// other cells are emptied, and rows or columns left empty are deleted.
   const factory Command.collapse({
     /// The cell that has the grid.
     required String cell,
@@ -516,40 +574,47 @@ sealed class Command with _$Command {
     required PlatformInt64 ys,
   }) = Command_Collapse;
 
-  /// Cuts the text of a cell into the two cells of a new grid inside it.
+  /// TreeSheets' Split cell at the cursor: the text before and after `at` become the two
+  /// cells of a new grid inside the cell, which is emptied. A grid the cell already has
+  /// is kept beside them. The cell keeps its ID; the two parts are new cells.
   const factory Command.splitCell({
     /// The cell.
     required String cell,
 
-    /// Where to cut the text.
+    /// Where to cut the text: a position in code points, not inside a user-perceived
+    /// character.
     required PlatformInt64 at,
   }) = Command_SplitCell;
 
-  /// The text of each listed cell that has text becomes a tag with the cell's colours.
+  /// TreeSheets' Add Cell Text as Tag: the text of each listed cell that has text
+  /// becomes a tag with the cell's colours.
   const factory Command.tagCells({
     /// The cells.
     required List<String> cells,
   }) = Command_TagCells;
 
-  /// Removes the tags named by the texts of the listed cells.
+  /// TreeSheets' Remove Cell Text from Tags: removes the tags named by the texts of the
+  /// listed cells; texts that are no tags are passed over.
   const factory Command.untagCells({
     /// The cells.
     required List<String> cells,
   }) = Command_UntagCells;
 
-  /// Adds `delta` to the relative size of the cells (negative makes the text bigger).
+  /// TreeSheets' Increase / Decrease text size: adds `delta` to the relative size of the
+  /// cells (negative makes the text bigger), keeping each between -32 and 8.
   const factory Command.adjustRelSize({
     /// The cells.
     required List<String> cells,
 
-    /// What to add.
+    /// What to add; TreeSheets adds 1 or -1.
     required PlatformInt64 delta,
 
     /// Also the cells inside the listed ones.
     required bool recursive,
   }) = Command_AdjustRelSize;
 
-  /// Adds `delta` to the widths of columns.
+  /// TreeSheets' Increase / Decrease column width: adds `delta` to the widths of columns,
+  /// none becoming smaller than 5.
   const factory Command.adjustColumnWidths({
     /// The cell that has the grid.
     required String cell,
@@ -560,33 +625,48 @@ sealed class Command with _$Command {
     /// How many columns.
     required PlatformInt64 count,
 
-    /// What to add.
+    /// What to add; TreeSheets adds 5 or -5.
     required PlatformInt64 delta,
 
     /// Also every column of every grid inside the cells of those columns.
     required bool recursive,
   }) = Command_AdjustColumnWidths;
 
-  /// Runs the program of the document and fills its view cells.
+  /// TreeSheets' Program > Run: works the program of the document out (its operation,
+  /// variable and view cells) and overwrites every view cell with the value that
+  /// reached it. A view cell keeps its ID; the cells of a grid it gets are new. The
+  /// variables the run assigned are kept for the formulas. Refused if the program nests
+  /// too deeply or takes too much work.
   const factory Command.run() = Command_Run;
 
-  /// Typing into a cell has ended with this text: sets it, and makes the cell a formula
-  /// cell if the text is a formula and a data cell if not.
+  /// Typing into a cell has ended with this text (also TreeSheets' formula bar): sets
+  /// the text like `SetText`, and a data or formula cell becomes a formula cell if the
+  /// text starts with `=` and has more than that, and a data cell if not. Cells of other
+  /// kinds keep their kind. A text that the cell has already (typed with the text
+  /// commands) keeps its styles and links, unless the cell is now a formula cell.
   const factory Command.enterText({
     /// The cell.
     required String cell,
 
-    /// The text typed.
+    /// The text typed; control characters become spaces, and half of a surrogate
+    /// pair on its own arrives as U+FFFD.
     required String text,
   }) = Command_EnterText;
 
-  /// Adds to-do checkboxes to cells, ticks them, or removes them.
+  /// TreeSheets' Toggle to-do checkbox: cells without a checkbox (U+2610 or U+2611 at
+  /// the start of the text) get an open one; if all have one they become ticked; if all
+  /// are ticked the checkboxes are removed. Stamps the last-edit time.
   const factory Command.toggleCheck({
     /// The cells.
     required List<String> cells,
   }) = Command_ToggleCheck;
 
-  /// Makes `to` a copy of the top cell of `clip`, which may come from another document.
+  /// The paste operation for cells that may come from another document: makes `to` a
+  /// copy of the top cell of `clip` with everything inside it, as [`Command::CopyCell`]
+  /// does within a document. `to` keeps its ID and place; the cells inside get new IDs.
+  /// Links in the copy keep pointing at what they pointed at: at the copies, for cells
+  /// that were copied with them, and otherwise at the original cells, naming the
+  /// document those are in when it is not this one. Refused onto the root cell.
   const factory Command.pasteCells({
     /// The cell that becomes the copy.
     required String to,
@@ -595,23 +675,34 @@ sealed class Command with _$Command {
     required ClipData clip,
   }) = Command_PasteCells;
 
-  /// The cells of `clip`, taken from another document, come into this one with the IDs
-  /// they have, in the place of the empty cell `to`.
+  /// One half of moving cells between documents: the cells of `clip`, which was taken
+  /// from another document, come into this one with the IDs they have, in the place of
+  /// the empty cell `to`, which is removed. Refused if `to` is not empty or is the root,
+  /// or if one of the IDs is in use in this document. Cells that left this document
+  /// before and are still in its history can come back (decision A84). The other half
+  /// is [`Command::ReleaseCell`] in the document they came from.
   const factory Command.adoptCells({
-    /// An empty cell whose place the top cell takes.
+    /// An empty cell (no text, image or grid) whose place the top cell takes.
     required String to,
 
     /// The cells that move in.
     required ClipData clip,
   }) = Command_AdoptCells;
 
-  /// `cell` and everything inside it leave this document.
+  /// The other half of moving cells between documents: `cell` and everything inside it
+  /// leave this document, and a new empty cell with the same looks takes the place.
+  /// Unlike [`Command::ClearCells`] the ID of `cell` goes with it. Refused for the root.
   const factory Command.releaseCell({
     /// The cell that leaves.
     required String cell,
   }) = Command_ReleaseCell;
 
-  /// The table becomes the grid of `cell`.
+  /// Import: the table becomes the grid of `cell`; the cell keeps its text. The cells are new, with new IDs, and look like the cells of a new grid of
+  /// `cell` would. Refused if the document would have too many cells or nest too deep.
+  ///
+  /// A grid that `cell` already has is replaced with everything in it. If any cell in it
+  /// has content (text, a note, an image or a grid), that is done only with `replace`,
+  /// and refused without. The cells that went are in [`Report::removed`].
   const factory Command.import_({
     /// The cell that gets the grid.
     required String cell,
@@ -623,15 +714,19 @@ sealed class Command with _$Command {
     required bool replace,
   }) = Command_Import;
 
-  /// Corrects links after cells went to another document.
+  /// Corrects links after cells went to another document: every link of this document
+  /// to one of `cells` that names the document `from` (`None`: no document, the cells
+  /// were its own) names `to` instead (`None`, or this document: no document). Nothing
+  /// else of a link changes: its range, its unknown fields and its neighbours stay
+  /// (decision A85). Reads every cell of the document.
   const factory Command.retargetLinks({
     /// The cells that the links point at.
     required List<String> cells,
 
-    /// The ID of the document that the links to correct name.
+    /// The document that the links to correct name.
     String? from,
 
-    /// The ID of the document that they are to name.
+    /// The document that they are to name.
     String? to,
   }) = Command_RetargetLinks;
 }
@@ -791,13 +886,16 @@ enum HorizAlign {
 
 /// A reference to an image file kept beside the document.
 class ImageRef {
-  /// The file name inside the document's image folder.
+  /// The file name inside the document's image folder: 1 to 255 of the characters
+  /// `A-Z a-z 0-9 . _ -`, not starting or ending with a dot, and not a device name of
+  /// Windows (`CON`, `NUL`, `COM1` and the like).
   final String file;
 
-  /// The display scale; 1.0 is the default. Must be a finite number.
+  /// The display scale; 1.0 is the default. A finite number above 0.
   final double scale;
 
   /// Fields the core does not recognise, as the text of a JSON object; empty for none.
+  /// Text that is no JSON object is refused, and so is a field that the core does know.
   final String extra;
 
   const ImageRef({
@@ -823,23 +921,25 @@ class ImageRef {
 sealed class LinkTarget with _$LinkTarget {
   const LinkTarget._();
 
-  /// A URL with a scheme, or else a file path.
+  /// A URL with a scheme, or else a file path, absolute or relative to the document.
   const factory LinkTarget.external_({
-    /// The URL or path.
+    /// The URL or path; not empty.
     required String target,
   }) = LinkTarget_External;
 
   /// A cell.
   const factory LinkTarget.cell({
     /// The ID of the document the cell is in, or `None` for the document that holds
-    /// the link.
+    /// the link. The ID of that document itself is read as `None`, so that a link to
+    /// one cell has one form.
     String? doc,
 
     /// The ID of the cell.
     required String cell,
   }) = LinkTarget_Cell;
 
-  /// A kind of target this core does not know.
+  /// A kind of target this core does not know. It can be read, in a link that a file
+  /// has; [`Command::SetLink`] refuses to make one.
   const factory LinkTarget.unknown() = LinkTarget_Unknown;
 }
 
@@ -847,10 +947,13 @@ sealed class LinkTarget with _$LinkTarget {
 sealed class Prop with _$Prop {
   const Prop._();
 
-  /// The background colour.
+  /// The background colour. Stamps the last-edit time, as TreeSheets does, if the
+  /// colour is different after the command.
   const factory Prop.cellColor(Rgb field0) = Prop_CellColor;
 
-  /// The colour of the text.
+  /// The colour of the text. As in TreeSheets this also removes the colours of the
+  /// cell's runs, so that the whole text has the new colour. Stamps the last-edit time
+  /// if any of that is different after the command.
   const factory Prop.textColor(Rgb field0) = Prop_TextColor;
 
   /// The text size relative to the default; positive is smaller. From -2147483648 to
@@ -866,7 +969,7 @@ sealed class Prop with _$Prop {
   /// What the cell is to the formula system.
   const factory Prop.kind(CellKind field0) = Prop_Kind;
 
-  /// The note.
+  /// The note: any text, line breaks included.
   const factory Prop.note(String field0) = Prop_Note;
 
   /// How the cell's grid is drawn.
@@ -875,27 +978,37 @@ sealed class Prop with _$Prop {
   /// The image shown in the cell, or `None` for no image.
   const factory Prop.image([ImageRef? field0]) = Prop_Image;
 
-  /// The display scale of the cell's image, a finite number.
+  /// The display scale of the cell's image, a finite number above 0; the cell must
+  /// have an image.
   const factory Prop.imageScale(double field0) = Prop_ImageScale;
 
-  /// When the text was last edited (milliseconds since 1970 UTC), or `None`.
+  /// When the text was last edited (milliseconds since 1970 UTC), or `None` for
+  /// unknown. Any 64-bit number is one.
   const factory Prop.lastEdit([PlatformInt64? field0]) = Prop_LastEdit;
 
-  /// The border colour of the cell's grid.
+  /// The border colour of the cell's grid; the cell must have one.
   const factory Prop.borderColor(Rgb field0) = Prop_BorderColor;
 
-  /// The outer spacing of the cell's grid, from 0 to 4294967295.
+  /// The outer spacing of the cell's grid, from 0 to 4294967295; the cell must have
+  /// one.
   const factory Prop.outerSpacing(PlatformInt64 field0) = Prop_OuterSpacing;
 
-  /// Whether the cell's grid is below its text instead of beside it.
+  /// Whether the cell's grid is below its text instead of beside it; the cell must
+  /// have a grid.
   const factory Prop.vertical(bool field0) = Prop_Vertical;
 }
 
 /// What a command, an undo or a redo changed: the core's change report, and with it the
 /// formula cells that show something else now. Everything not listed is exactly as it
-/// was. All are IDs of cells, but `tags`.
+/// was. All are IDs of cells, but `tags`. The first five lists are sorted and have no
+/// duplicates. A report with every list empty means that nothing changed: a command that
+/// asks for nothing new (setting a colour a cell already has, inserting empty text)
+/// succeeds with such a report and leaves nothing to undo.
 class Report {
-  /// Cells whose own content changed: text, runs, links, any property.
+  /// Cells that existed before and still exist, whose own content changed: text, runs,
+  /// links, any property, or a property of their grid (border, spacing, column widths;
+  /// so a cell whose grid gained, lost or reordered columns is here as well as in
+  /// `grids`, because its list of widths is different).
   final List<String> changed;
 
   /// Cells that did not exist before.
@@ -904,13 +1017,16 @@ class Report {
   /// Cells that no longer exist.
   final List<String> removed;
 
-  /// Cells whose grid appeared, disappeared, changed size or has other cells.
+  /// Cells that existed before and still exist, whose grid appeared, disappeared,
+  /// changed size or has a different list of cells. A cell that moved is found here
+  /// through the cell whose grid it left and the cell whose grid it entered.
   final List<String> grids;
 
   /// Names of document tags that were added, removed or changed.
   final List<String> tags;
 
-  /// Formula cells whose result changed, though they may not be changed themselves.
+  /// Formula cells whose result changed, in document order, though they may not be
+  /// changed themselves: an interface that redraws only what a report names needs them.
   final List<String> recalculated;
 
   const Report({
