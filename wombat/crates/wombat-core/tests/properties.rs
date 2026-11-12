@@ -14,6 +14,7 @@ use proptest::prelude::*;
 use serde_json::Value;
 
 use wombat_core::model::Extra;
+use wombat_core::view::Level;
 use wombat_core::{
     format, CellId, CellKind, Color, DocId, Document, DrawStyle, Id, ImageRef, Link, LinkTarget,
     Run, SeededIds, Selection, Style, Tag, TextAlign, VertAlign, ViewState,
@@ -782,9 +783,19 @@ proptest! {
         check_loaded(grid.to_string().as_bytes())?;
         let view = serde_json::json!({
             "format": "wombat-view", "version": 1, "doc": id1.to_string(),
-            "selection": value, "zoom": value, "folded": value,
+            "selection": value, "zoom": value, "folded": value, "levels": value,
         });
         let _ = ViewState::from_json(view.to_string().as_bytes());
+        // And inside what each level remembers.
+        let levels = serde_json::json!({
+            "format": "wombat-view", "version": 1, "doc": id1.to_string(),
+            "levels": [
+                {"cell": id2.to_string(), "x": value, "y": value, "selected": value, "zz": value},
+                {"cell": value},
+                value,
+            ],
+        });
+        let _ = ViewState::from_json(levels.to_string().as_bytes());
     }
 
     #[test]
@@ -834,6 +845,7 @@ proptest! {
         selection in proptest::option::of((id(), any::<u32>(), any::<u32>(),
             proptest::option::of((any::<u32>(), any::<u32>())), extra())),
         zoom in proptest::option::of(id()),
+        levels in vec((id(), any::<u32>(), any::<u32>(), proptest::option::of(id()), extra()), 0..6),
         unknown in extra(),
     ) {
         let mut view = ViewState::new(DocId(doc));
@@ -846,6 +858,19 @@ proptest! {
             extra,
         });
         view.zoom = zoom.map(CellId);
+        for (cell, x, y, selected, extra) in levels {
+            // No level twice: that is not written.
+            if view.level(CellId(cell)).is_none() {
+                view.levels.push(Level {
+                    cell: CellId(cell),
+                    // Small numbers too, so that the defaults that are left out come up.
+                    x: x % 3,
+                    y: if y.is_multiple_of(2) { y } else { 0 },
+                    selected: selected.map(CellId),
+                    extra,
+                });
+            }
+        }
         view.extra = unknown;
         let text = view.to_json().unwrap();
         let loaded = ViewState::from_json(text.as_bytes()).unwrap();
