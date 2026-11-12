@@ -1379,8 +1379,14 @@ are where milestones 4, 5 and 6, built apart, meet).
     and `convert.rs` turns each into the core's type with a checked conversion, refusing
     what does not fit as `BadRequest`. JSON follows the same rule, since it is the same types.
     Numbers that only go from Rust to Dart (`GridInfo.xs` and `ys`) stay as they are: a
-    narrower number always fits a wider one. In the generated Dart the type is written
-    `PlatformInt64`, which is `int` on every platform but the web (not a target, A121).
+    narrower number always fits a wider one. In Dart these numbers are plain `int`:
+    `app/flutter_rust_bridge.yaml` sets `type_64bit_int`. Without it the generator writes
+    `PlatformInt64`, a name that is `int` on phones and desktops and a big-number type on
+    the web, so that every signature shows a type that means nothing where the app runs.
+    With it, phones and desktops send exactly the same eight bytes as before (the generated
+    conversion is the identity there; the tests of numbers that do not fit still pass); on
+    the web, which is not a target (A121), numbers beyond 2 to the 53rd would lose
+    precision, where before they would have been exact.
 135. **A table to import crosses as one flat list** (from the evaluation after the review;
     changes A123). `TableData` was a table whose cells could hold tables. The generated
     decoder, the conversion and the freeing of such a value all call themselves once per

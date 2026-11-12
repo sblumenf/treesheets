@@ -150,7 +150,7 @@ sealed class Command with _$Command {
 
     /// Where to insert: a position in code points, not inside a user-perceived
     /// character.
-    required PlatformInt64 at,
+    required int at,
 
     /// What to insert; control characters become spaces. Half of a
     /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
@@ -164,10 +164,10 @@ sealed class Command with _$Command {
 
     /// The first code point to delete. Positions count code points, and a range
     /// must not cut a user-perceived character.
-    required PlatformInt64 start,
+    required int start,
 
     /// How many code points to delete.
-    required PlatformInt64 len,
+    required int len,
   }) = Command_DeleteText;
 
   /// Replaces a range of text; the new text takes the style and link of the first
@@ -178,10 +178,10 @@ sealed class Command with _$Command {
 
     /// The first code point to replace. Positions count code points, and a range
     /// must not cut a user-perceived character.
-    required PlatformInt64 start,
+    required int start,
 
     /// How many code points to replace.
-    required PlatformInt64 len,
+    required int len,
 
     /// The new text; control characters become spaces. Half of a
     /// surrogate pair on its own, which a Dart string can hold, arrives as U+FFFD.
@@ -207,10 +207,10 @@ sealed class Command with _$Command {
 
     /// The first code point. Positions count code points, and a range
     /// must not cut a user-perceived character.
-    required PlatformInt64 start,
+    required int start,
 
     /// How many code points.
-    required PlatformInt64 len,
+    required int len,
 
     /// The bits to switch on.
     required Style set_,
@@ -226,10 +226,10 @@ sealed class Command with _$Command {
 
     /// The first code point. Positions count code points, and a range
     /// must not cut a user-perceived character.
-    required PlatformInt64 start,
+    required int start,
 
     /// How many code points.
-    required PlatformInt64 len,
+    required int len,
 
     /// The colour.
     Rgb? color,
@@ -243,10 +243,10 @@ sealed class Command with _$Command {
 
     /// The first code point. Positions count code points, and a range
     /// must not cut a user-perceived character.
-    required PlatformInt64 start,
+    required int start,
 
     /// How many code points.
-    required PlatformInt64 len,
+    required int len,
 
     /// Where the link goes: an external target or a cell. For a cell of this
     /// document, the document's own ID is dropped from the target.
@@ -284,10 +284,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The column.
-    required PlatformInt64 column,
+    required int column,
 
     /// The width.
-    required PlatformInt64 width,
+    required int width,
   }) = Command_SetColumnWidth;
 
   /// Gives a cell that has no grid a grid of new empty cells. As in TreeSheets they take
@@ -298,10 +298,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The number of columns.
-    required PlatformInt64 xs,
+    required int xs,
 
     /// The number of rows.
-    required PlatformInt64 ys,
+    required int ys,
   }) = Command_CreateGrid;
 
   /// Removes the grid of a cell with everything in it. Refused for the root cell.
@@ -318,10 +318,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The row before which to insert; the number of rows appends.
-    required PlatformInt64 at,
+    required int at,
 
     /// How many rows.
-    required PlatformInt64 count,
+    required int count,
   }) = Command_InsertRows;
 
   /// Inserts empty columns; like [`Command::InsertRows`], taking after the cell to the
@@ -331,10 +331,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The column before which to insert; the number of columns appends.
-    required PlatformInt64 at,
+    required int at,
 
     /// How many columns.
-    required PlatformInt64 count,
+    required int count,
   }) = Command_InsertColumns;
 
   /// Deletes rows with everything in them. Deleting every row removes the grid, as in
@@ -344,10 +344,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first row.
-    required PlatformInt64 at,
+    required int at,
 
     /// How many rows.
-    required PlatformInt64 count,
+    required int count,
   }) = Command_DeleteRows;
 
   /// Deletes columns; see [`Command::DeleteRows`].
@@ -356,10 +356,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first column.
-    required PlatformInt64 at,
+    required int at,
 
     /// How many columns.
-    required PlatformInt64 count,
+    required int count,
   }) = Command_DeleteColumns;
 
   /// Empties cells, as TreeSheets' `Cell::Clear`: text, runs, links, image and grid go,
@@ -379,16 +379,16 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first selected column.
-    required PlatformInt64 x,
+    required int x,
 
     /// The first selected row.
-    required PlatformInt64 y,
+    required int y,
 
     /// The number of selected columns, at least 1.
-    required PlatformInt64 xs,
+    required int xs,
 
     /// The number of selected rows, at least 1.
-    required PlatformInt64 ys,
+    required int ys,
   }) = Command_DeleteCells;
 
   /// Moves rows within their grid.
@@ -397,13 +397,13 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first row to move.
-    required PlatformInt64 from,
+    required int from,
 
     /// How many rows.
-    required PlatformInt64 count,
+    required int count,
 
     /// The index the first moved row has afterwards.
-    required PlatformInt64 to,
+    required int to,
   }) = Command_MoveRows;
 
   /// Moves columns within their grid, with their widths.
@@ -412,13 +412,13 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first column to move.
-    required PlatformInt64 from,
+    required int from,
 
     /// How many columns.
-    required PlatformInt64 count,
+    required int count,
 
     /// The index the first moved column has afterwards.
-    required PlatformInt64 to,
+    required int to,
   }) = Command_MoveColumns;
 
   /// Makes two cells trade places, with everything in them; they may be in different
@@ -483,13 +483,13 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The column to sort by first.
-    required PlatformInt64 column,
+    required int column,
 
     /// The first row that takes part.
-    required PlatformInt64 row,
+    required int row,
 
     /// How many rows take part.
-    required PlatformInt64 count,
+    required int count,
 
     /// From high to low instead of from low to high.
     required bool descending,
@@ -542,16 +542,16 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first column of the block.
-    required PlatformInt64 x,
+    required int x,
 
     /// The first row of the block.
-    required PlatformInt64 y,
+    required int y,
 
     /// The number of columns, at least 1.
-    required PlatformInt64 xs,
+    required int xs,
 
     /// The number of rows, at least 1.
-    required PlatformInt64 ys,
+    required int ys,
   }) = Command_Wrap;
 
   /// TreeSheets' Collapse Cells: the texts of a block of two or more cells, and of the
@@ -562,16 +562,16 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first column of the block.
-    required PlatformInt64 x,
+    required int x,
 
     /// The first row of the block.
-    required PlatformInt64 y,
+    required int y,
 
     /// The number of columns.
-    required PlatformInt64 xs,
+    required int xs,
 
     /// The number of rows.
-    required PlatformInt64 ys,
+    required int ys,
   }) = Command_Collapse;
 
   /// TreeSheets' Split cell at the cursor: the text before and after `at` become the two
@@ -583,7 +583,7 @@ sealed class Command with _$Command {
 
     /// Where to cut the text: a position in code points, not inside a user-perceived
     /// character.
-    required PlatformInt64 at,
+    required int at,
   }) = Command_SplitCell;
 
   /// TreeSheets' Add Cell Text as Tag: the text of each listed cell that has text
@@ -607,7 +607,7 @@ sealed class Command with _$Command {
     required List<String> cells,
 
     /// What to add; TreeSheets adds 1 or -1.
-    required PlatformInt64 delta,
+    required int delta,
 
     /// Also the cells inside the listed ones.
     required bool recursive,
@@ -620,13 +620,13 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first column.
-    required PlatformInt64 column,
+    required int column,
 
     /// How many columns.
-    required PlatformInt64 count,
+    required int count,
 
     /// What to add; TreeSheets adds 5 or -5.
-    required PlatformInt64 delta,
+    required int delta,
 
     /// Also every column of every grid inside the cells of those columns.
     required bool recursive,
@@ -866,11 +866,11 @@ class GridInfo {
 /// The size of the grid inside one cell of a [`TableData`].
 class GridSize {
   /// The number of columns, at least 1.
-  final PlatformInt64 xs;
+  final int xs;
 
   /// The number of cells, whole rows of them and at least one. Cells of grids further
   /// inside are not counted.
-  final PlatformInt64 cells;
+  final int cells;
 
   const GridSize({required this.xs, required this.cells});
 
@@ -975,7 +975,7 @@ sealed class Prop with _$Prop {
 
   /// The text size relative to the default; positive is smaller. From -2147483648 to
   /// 2147483647.
-  const factory Prop.relSize(PlatformInt64 field0) = Prop_RelSize;
+  const factory Prop.relSize(int field0) = Prop_RelSize;
 
   /// Horizontal alignment.
   const factory Prop.textAlign(HorizAlign field0) = Prop_TextAlign;
@@ -1001,14 +1001,14 @@ sealed class Prop with _$Prop {
 
   /// When the text was last edited (milliseconds since 1970 UTC), or `None` for
   /// unknown. Any 64-bit number is one.
-  const factory Prop.lastEdit([PlatformInt64? field0]) = Prop_LastEdit;
+  const factory Prop.lastEdit([int? field0]) = Prop_LastEdit;
 
   /// The border colour of the cell's grid; the cell must have one.
   const factory Prop.borderColor(Rgb field0) = Prop_BorderColor;
 
   /// The outer spacing of the cell's grid, from 0 to 4294967295; the cell must have
   /// one.
-  const factory Prop.outerSpacing(PlatformInt64 field0) = Prop_OuterSpacing;
+  const factory Prop.outerSpacing(int field0) = Prop_OuterSpacing;
 
   /// Whether the cell's grid is below its text instead of beside it; the cell must
   /// have a grid.
@@ -1083,13 +1083,13 @@ class Report {
 /// A colour: red, green and blue, each from 0 to 255. Any other number is refused.
 class Rgb {
   /// Red.
-  final PlatformInt64 r;
+  final int r;
 
   /// Green.
-  final PlatformInt64 g;
+  final int g;
 
   /// Blue.
-  final PlatformInt64 b;
+  final int b;
 
   const Rgb({required this.r, required this.g, required this.b});
 
@@ -1165,7 +1165,7 @@ class Style {
 /// cells than follow is refused, and so is a table nested deeper than a document may be.
 class TableData {
   /// The number of columns of the outermost grid, from 1 to 4294967295.
-  final PlatformInt64 xs;
+  final int xs;
 
   /// The cells in the order described: the outermost grid has whole rows and at least
   /// one cell.
