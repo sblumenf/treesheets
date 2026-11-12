@@ -43,10 +43,9 @@ pub struct GridView {
 
 impl Editor {
     fn cell_view(&self, cell: &Cell) -> CellView {
-        let result = match cell.kind {
-            CellKind::Formula => self.calc.result(cell.id),
-            _ => None,
-        };
+        // The results are those of the formula cells and of no other cell, so the kind
+        // need not be asked here (a test holds that against random commands).
+        let result = self.calc.result(cell.id);
         CellView {
             id: cell.id,
             text: cell.text.clone(),

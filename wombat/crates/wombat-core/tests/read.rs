@@ -240,6 +240,10 @@ proptest! {
             prop_assert_eq!(view.cell.id, id);
             prop_assert_eq!(&view.cell.text, &cell.text);
             prop_assert_eq!(view.cell.has_grid, cell.grid().is_some());
+            prop_assert_eq!(view.cell.kind, cell.kind);
+            // Only a formula cell has a result, and every formula cell has one.
+            prop_assert_eq!(view.cell.result.is_some(), cell.kind == CellKind::Formula);
+            prop_assert_eq!(view.cell.result.as_deref().or(Some(&cell.text)), editor.shown(id));
             let cells: Vec<_> = view.cells.iter().map(|c| c.id).collect();
             match cell.grid() {
                 Some(grid) => {
