@@ -1,5 +1,6 @@
 //! Between the serialised form (`api/wire.rs`) and the types of the core. On the way in
-//! everything is checked: an ID must be in its canonical text, a number finite, unknown
+//! everything is checked: an ID must be in its canonical text, a whole number in the range
+//! the core takes, a scale finite, unknown
 //! fields a JSON object, and a clip or a table goes through the core's own constructors,
 //! which check what they are given. On the way out nothing can fail but a clip that the
 //! core would not write as a document.
@@ -86,6 +87,28 @@ fn texts<T: ToString>(ids: &[T]) -> Vec<String> {
     ids.iter().map(T::to_string).collect()
 }
 
+/// A whole number crosses in 64 bits, which is what the other side has, and is checked
+/// here against what the core takes. Were it carried in fewer, its high bits would be
+/// dropped on the way and row 4294967296 would arrive as row 0.
+fn out_of_range(number: i64, least: i64, most: i64) -> BridgeError {
+    BridgeError::bad_request(format!("the number {number} is not from {least} to {most}"))
+}
+
+/// A position, a count or a size.
+fn unsigned(number: i64) -> In<u32> {
+    u32::try_from(number).map_err(|_| out_of_range(number, 0, u32::MAX.into()))
+}
+
+/// A difference.
+fn signed(number: i64) -> In<i32> {
+    i32::try_from(number).map_err(|_| out_of_range(number, i32::MIN.into(), i32::MAX.into()))
+}
+
+/// One part of a colour.
+fn byte(number: i64) -> In<u8> {
+    u8::try_from(number).map_err(|_| out_of_range(number, 0, u8::MAX.into()))
+}
+
 fn finite(number: f64) -> In<f64> {
     if number.is_finite() {
         Ok(number)
@@ -96,18 +119,16 @@ fn finite(number: f64) -> In<f64> {
     }
 }
 
-impl From<Rgb> for core::Color {
-    fn from(c: Rgb) -> core::Color {
-        core::Color::rgb(c.r, c.g, c.b)
-    }
+fn color_in(c: Rgb) -> In<core::Color> {
+    Ok(core::Color::rgb(byte(c.r)?, byte(c.g)?, byte(c.b)?))
 }
 
 impl From<core::Color> for Rgb {
     fn from(c: core::Color) -> Rgb {
         Rgb {
-            r: c.r,
-            g: c.g,
-            b: c.b,
+            r: c.r.into(),
+            g: c.g.into(),
+            b: c.b.into(),
         }
     }
 }
@@ -220,9 +241,9 @@ fn target_out(target: &core::LinkTarget) -> LinkTarget {
 
 fn prop_in(prop: Prop) -> In<core::Prop> {
     Ok(match prop {
-        Prop::CellColor(c) => core::Prop::CellColor(c.into()),
-        Prop::TextColor(c) => core::Prop::TextColor(c.into()),
-        Prop::RelSize(n) => core::Prop::RelSize(n),
+        Prop::CellColor(c) => core::Prop::CellColor(color_in(c)?),
+        Prop::TextColor(c) => core::Prop::TextColor(color_in(c)?),
+        Prop::RelSize(n) => core::Prop::RelSize(signed(n)?),
         Prop::TextAlign(a) => core::Prop::TextAlign(a.into()),
         Prop::VertAlign(a) => core::Prop::VertAlign(a.into()),
         Prop::Kind(k) => core::Prop::Kind(k.into()),
@@ -231,8 +252,8 @@ fn prop_in(prop: Prop) -> In<core::Prop> {
         Prop::Image(image) => core::Prop::Image(image.map(image_in).transpose()?),
         Prop::ImageScale(scale) => core::Prop::ImageScale(finite(scale)?),
         Prop::LastEdit(time) => core::Prop::LastEdit(time),
-        Prop::BorderColor(c) => core::Prop::BorderColor(c.into()),
-        Prop::OuterSpacing(n) => core::Prop::OuterSpacing(n),
+        Prop::BorderColor(c) => core::Prop::BorderColor(color_in(c)?),
+        Prop::OuterSpacing(n) => core::Prop::OuterSpacing(unsigned(n)?),
         Prop::Vertical(on) => core::Prop::Vertical(on),
     })
 }
@@ -241,7 +262,7 @@ fn prop_out(prop: &core::Prop) -> In<Prop> {
     Ok(match prop {
         core::Prop::CellColor(c) => Prop::CellColor((*c).into()),
         core::Prop::TextColor(c) => Prop::TextColor((*c).into()),
-        core::Prop::RelSize(n) => Prop::RelSize(*n),
+        core::Prop::RelSize(n) => Prop::RelSize((*n).into()),
         core::Prop::TextAlign(a) => Prop::TextAlign((*a).into()),
         core::Prop::VertAlign(a) => Prop::VertAlign((*a).into()),
         core::Prop::Kind(k) => Prop::Kind((*k).into()),
@@ -251,7 +272,7 @@ fn prop_out(prop: &core::Prop) -> In<Prop> {
         core::Prop::ImageScale(scale) => Prop::ImageScale(finite(*scale)?),
         core::Prop::LastEdit(time) => Prop::LastEdit(*time),
         core::Prop::BorderColor(c) => Prop::BorderColor((*c).into()),
-        core::Prop::OuterSpacing(n) => Prop::OuterSpacing(*n),
+        core::Prop::OuterSpacing(n) => Prop::OuterSpacing((*n).into()),
         core::Prop::Vertical(on) => Prop::Vertical(*on),
     })
 }
@@ -284,7 +305,7 @@ fn table_in(table: TableData) -> In<Table> {
         }
         cells.push(cell);
     }
-    Ok(Table::new(table.xs, cells)?)
+    Ok(Table::new(unsigned(table.xs)?, cells)?)
 }
 
 fn table_out(table: &Table) -> TableData {
@@ -294,7 +315,7 @@ fn table_out(table: &Table) -> TableData {
         grid: entry.grid().map(table_out),
     };
     TableData {
-        xs: table.xs(),
+        xs: table.xs().into(),
         cells: table.cells().iter().map(entry).collect(),
     }
 }
@@ -305,13 +326,13 @@ pub fn command_in(command: Command) -> In<core::Command> {
     Ok(match command {
         Command::InsertText { cell, at, text } => C::InsertText {
             cell: cell_id(&cell)?,
-            at,
+            at: unsigned(at)?,
             text,
         },
         Command::DeleteText { cell, start, len } => C::DeleteText {
             cell: cell_id(&cell)?,
-            start,
-            len,
+            start: unsigned(start)?,
+            len: unsigned(len)?,
         },
         Command::ReplaceText {
             cell,
@@ -320,8 +341,8 @@ pub fn command_in(command: Command) -> In<core::Command> {
             text,
         } => C::ReplaceText {
             cell: cell_id(&cell)?,
-            start,
-            len,
+            start: unsigned(start)?,
+            len: unsigned(len)?,
             text,
         },
         Command::SetText { cell, text } => C::SetText {
@@ -336,8 +357,8 @@ pub fn command_in(command: Command) -> In<core::Command> {
             clear,
         } => C::SetRangeStyle {
             cell: cell_id(&cell)?,
-            start,
-            len,
+            start: unsigned(start)?,
+            len: unsigned(len)?,
             set: set.into(),
             clear: clear.into(),
         },
@@ -348,9 +369,9 @@ pub fn command_in(command: Command) -> In<core::Command> {
             color,
         } => C::SetRangeColor {
             cell: cell_id(&cell)?,
-            start,
-            len,
-            color: color.map(Into::into),
+            start: unsigned(start)?,
+            len: unsigned(len)?,
+            color: color.map(color_in).transpose()?,
         },
         Command::SetLink {
             cell,
@@ -359,8 +380,8 @@ pub fn command_in(command: Command) -> In<core::Command> {
             target,
         } => C::SetLink {
             cell: cell_id(&cell)?,
-            start,
-            len,
+            start: unsigned(start)?,
+            len: unsigned(len)?,
             target: target.map(target_in).transpose()?,
         },
         Command::SetProps { cells, props } => C::SetProps {
@@ -378,46 +399,46 @@ pub fn command_in(command: Command) -> In<core::Command> {
             width,
         } => C::SetColumnWidth {
             cell: cell_id(&cell)?,
-            column,
-            width,
+            column: unsigned(column)?,
+            width: unsigned(width)?,
         },
         Command::CreateGrid { cell, xs, ys } => C::CreateGrid {
             cell: cell_id(&cell)?,
-            xs,
-            ys,
+            xs: unsigned(xs)?,
+            ys: unsigned(ys)?,
         },
         Command::RemoveGrid { cell } => C::RemoveGrid {
             cell: cell_id(&cell)?,
         },
         Command::InsertRows { cell, at, count } => C::InsertRows {
             cell: cell_id(&cell)?,
-            at,
-            count,
+            at: unsigned(at)?,
+            count: unsigned(count)?,
         },
         Command::InsertColumns { cell, at, count } => C::InsertColumns {
             cell: cell_id(&cell)?,
-            at,
-            count,
+            at: unsigned(at)?,
+            count: unsigned(count)?,
         },
         Command::DeleteRows { cell, at, count } => C::DeleteRows {
             cell: cell_id(&cell)?,
-            at,
-            count,
+            at: unsigned(at)?,
+            count: unsigned(count)?,
         },
         Command::DeleteColumns { cell, at, count } => C::DeleteColumns {
             cell: cell_id(&cell)?,
-            at,
-            count,
+            at: unsigned(at)?,
+            count: unsigned(count)?,
         },
         Command::ClearCells { cells } => C::ClearCells {
             cells: cell_ids(&cells)?,
         },
         Command::DeleteCells { cell, x, y, xs, ys } => C::DeleteCells {
             cell: cell_id(&cell)?,
-            x,
-            y,
-            xs,
-            ys,
+            x: unsigned(x)?,
+            y: unsigned(y)?,
+            xs: unsigned(xs)?,
+            ys: unsigned(ys)?,
         },
         Command::MoveRows {
             cell,
@@ -426,9 +447,9 @@ pub fn command_in(command: Command) -> In<core::Command> {
             to,
         } => C::MoveRows {
             cell: cell_id(&cell)?,
-            from,
-            count,
-            to,
+            from: unsigned(from)?,
+            count: unsigned(count)?,
+            to: unsigned(to)?,
         },
         Command::MoveColumns {
             cell,
@@ -437,9 +458,9 @@ pub fn command_in(command: Command) -> In<core::Command> {
             to,
         } => C::MoveColumns {
             cell: cell_id(&cell)?,
-            from,
-            count,
-            to,
+            from: unsigned(from)?,
+            count: unsigned(count)?,
+            to: unsigned(to)?,
         },
         Command::SwapCells { a, b } => C::SwapCells {
             a: cell_id(&a)?,
@@ -459,8 +480,8 @@ pub fn command_in(command: Command) -> In<core::Command> {
             text_color,
         } => C::SetTag {
             name,
-            cell_color: cell_color.into(),
-            text_color: text_color.into(),
+            cell_color: color_in(cell_color)?,
+            text_color: color_in(text_color)?,
         },
         Command::RemoveTag { name } => C::RemoveTag { name },
         Command::SortRows {
@@ -471,9 +492,9 @@ pub fn command_in(command: Command) -> In<core::Command> {
             descending,
         } => C::SortRows {
             cell: cell_id(&cell)?,
-            column,
-            row,
-            count,
+            column: unsigned(column)?,
+            row: unsigned(row)?,
+            count: unsigned(count)?,
             descending,
         },
         Command::Transpose { cells } => C::Transpose {
@@ -490,21 +511,21 @@ pub fn command_in(command: Command) -> In<core::Command> {
         },
         Command::Wrap { cell, x, y, xs, ys } => C::Wrap {
             cell: cell_id(&cell)?,
-            x,
-            y,
-            xs,
-            ys,
+            x: unsigned(x)?,
+            y: unsigned(y)?,
+            xs: unsigned(xs)?,
+            ys: unsigned(ys)?,
         },
         Command::Collapse { cell, x, y, xs, ys } => C::Collapse {
             cell: cell_id(&cell)?,
-            x,
-            y,
-            xs,
-            ys,
+            x: unsigned(x)?,
+            y: unsigned(y)?,
+            xs: unsigned(xs)?,
+            ys: unsigned(ys)?,
         },
         Command::SplitCell { cell, at } => C::SplitCell {
             cell: cell_id(&cell)?,
-            at,
+            at: unsigned(at)?,
         },
         Command::TagCells { cells } => C::TagCells {
             cells: cell_ids(&cells)?,
@@ -518,7 +539,7 @@ pub fn command_in(command: Command) -> In<core::Command> {
             recursive,
         } => C::AdjustRelSize {
             cells: cell_ids(&cells)?,
-            delta,
+            delta: signed(delta)?,
             recursive,
         },
         Command::AdjustColumnWidths {
@@ -529,9 +550,9 @@ pub fn command_in(command: Command) -> In<core::Command> {
             recursive,
         } => C::AdjustColumnWidths {
             cell: cell_id(&cell)?,
-            column,
-            count,
-            delta,
+            column: unsigned(column)?,
+            count: unsigned(count)?,
+            delta: signed(delta)?,
             recursive,
         },
         Command::Run => C::Run,
@@ -577,13 +598,13 @@ pub fn command_out(command: &core::Command) -> In<Command> {
     Ok(match command {
         C::InsertText { cell, at, text } => Command::InsertText {
             cell: id(cell),
-            at: *at,
+            at: i64::from(*at),
             text: text.clone(),
         },
         C::DeleteText { cell, start, len } => Command::DeleteText {
             cell: id(cell),
-            start: *start,
-            len: *len,
+            start: i64::from(*start),
+            len: i64::from(*len),
         },
         C::ReplaceText {
             cell,
@@ -592,8 +613,8 @@ pub fn command_out(command: &core::Command) -> In<Command> {
             text,
         } => Command::ReplaceText {
             cell: id(cell),
-            start: *start,
-            len: *len,
+            start: i64::from(*start),
+            len: i64::from(*len),
             text: text.clone(),
         },
         C::SetText { cell, text } => Command::SetText {
@@ -608,8 +629,8 @@ pub fn command_out(command: &core::Command) -> In<Command> {
             clear,
         } => Command::SetRangeStyle {
             cell: id(cell),
-            start: *start,
-            len: *len,
+            start: i64::from(*start),
+            len: i64::from(*len),
             set: (*set).into(),
             clear: (*clear).into(),
         },
@@ -620,8 +641,8 @@ pub fn command_out(command: &core::Command) -> In<Command> {
             color,
         } => Command::SetRangeColor {
             cell: id(cell),
-            start: *start,
-            len: *len,
+            start: i64::from(*start),
+            len: i64::from(*len),
             color: color.map(Into::into),
         },
         C::SetLink {
@@ -631,8 +652,8 @@ pub fn command_out(command: &core::Command) -> In<Command> {
             target,
         } => Command::SetLink {
             cell: id(cell),
-            start: *start,
-            len: *len,
+            start: i64::from(*start),
+            len: i64::from(*len),
             target: target.as_ref().map(target_out),
         },
         C::SetProps { cells, props } => Command::SetProps {
@@ -650,44 +671,44 @@ pub fn command_out(command: &core::Command) -> In<Command> {
             width,
         } => Command::SetColumnWidth {
             cell: id(cell),
-            column: *column,
-            width: *width,
+            column: i64::from(*column),
+            width: i64::from(*width),
         },
         C::CreateGrid { cell, xs, ys } => Command::CreateGrid {
             cell: id(cell),
-            xs: *xs,
-            ys: *ys,
+            xs: i64::from(*xs),
+            ys: i64::from(*ys),
         },
         C::RemoveGrid { cell } => Command::RemoveGrid { cell: id(cell) },
         C::InsertRows { cell, at, count } => Command::InsertRows {
             cell: id(cell),
-            at: *at,
-            count: *count,
+            at: i64::from(*at),
+            count: i64::from(*count),
         },
         C::InsertColumns { cell, at, count } => Command::InsertColumns {
             cell: id(cell),
-            at: *at,
-            count: *count,
+            at: i64::from(*at),
+            count: i64::from(*count),
         },
         C::DeleteRows { cell, at, count } => Command::DeleteRows {
             cell: id(cell),
-            at: *at,
-            count: *count,
+            at: i64::from(*at),
+            count: i64::from(*count),
         },
         C::DeleteColumns { cell, at, count } => Command::DeleteColumns {
             cell: id(cell),
-            at: *at,
-            count: *count,
+            at: i64::from(*at),
+            count: i64::from(*count),
         },
         C::ClearCells { cells } => Command::ClearCells {
             cells: texts(cells),
         },
         C::DeleteCells { cell, x, y, xs, ys } => Command::DeleteCells {
             cell: id(cell),
-            x: *x,
-            y: *y,
-            xs: *xs,
-            ys: *ys,
+            x: i64::from(*x),
+            y: i64::from(*y),
+            xs: i64::from(*xs),
+            ys: i64::from(*ys),
         },
         C::MoveRows {
             cell,
@@ -696,9 +717,9 @@ pub fn command_out(command: &core::Command) -> In<Command> {
             to,
         } => Command::MoveRows {
             cell: id(cell),
-            from: *from,
-            count: *count,
-            to: *to,
+            from: i64::from(*from),
+            count: i64::from(*count),
+            to: i64::from(*to),
         },
         C::MoveColumns {
             cell,
@@ -707,9 +728,9 @@ pub fn command_out(command: &core::Command) -> In<Command> {
             to,
         } => Command::MoveColumns {
             cell: id(cell),
-            from: *from,
-            count: *count,
-            to: *to,
+            from: i64::from(*from),
+            count: i64::from(*count),
+            to: i64::from(*to),
         },
         C::SwapCells { a, b } => Command::SwapCells { a: id(a), b: id(b) },
         C::MoveCell { from, to } => Command::MoveCell {
@@ -738,9 +759,9 @@ pub fn command_out(command: &core::Command) -> In<Command> {
             descending,
         } => Command::SortRows {
             cell: id(cell),
-            column: *column,
-            row: *row,
-            count: *count,
+            column: i64::from(*column),
+            row: i64::from(*row),
+            count: i64::from(*count),
             descending: *descending,
         },
         C::Transpose { cells } => Command::Transpose {
@@ -751,21 +772,21 @@ pub fn command_out(command: &core::Command) -> In<Command> {
         C::Flatten { cell } => Command::Flatten { cell: id(cell) },
         C::Wrap { cell, x, y, xs, ys } => Command::Wrap {
             cell: id(cell),
-            x: *x,
-            y: *y,
-            xs: *xs,
-            ys: *ys,
+            x: i64::from(*x),
+            y: i64::from(*y),
+            xs: i64::from(*xs),
+            ys: i64::from(*ys),
         },
         C::Collapse { cell, x, y, xs, ys } => Command::Collapse {
             cell: id(cell),
-            x: *x,
-            y: *y,
-            xs: *xs,
-            ys: *ys,
+            x: i64::from(*x),
+            y: i64::from(*y),
+            xs: i64::from(*xs),
+            ys: i64::from(*ys),
         },
         C::SplitCell { cell, at } => Command::SplitCell {
             cell: id(cell),
-            at: *at,
+            at: i64::from(*at),
         },
         C::TagCells { cells } => Command::TagCells {
             cells: texts(cells),
@@ -779,7 +800,7 @@ pub fn command_out(command: &core::Command) -> In<Command> {
             recursive,
         } => Command::AdjustRelSize {
             cells: texts(cells),
-            delta: *delta,
+            delta: i64::from(*delta),
             recursive: *recursive,
         },
         C::AdjustColumnWidths {
@@ -790,9 +811,9 @@ pub fn command_out(command: &core::Command) -> In<Command> {
             recursive,
         } => Command::AdjustColumnWidths {
             cell: id(cell),
-            column: *column,
-            count: *count,
-            delta: *delta,
+            column: i64::from(*column),
+            count: i64::from(*count),
+            delta: i64::from(*delta),
             recursive: *recursive,
         },
         C::Run => Command::Run,

@@ -813,7 +813,7 @@ impl SseDecode for crate::api::wire::Command {
         match tag_ {
             0 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_at = <u32>::sse_decode(deserializer);
+                let mut var_at = <i64>::sse_decode(deserializer);
                 let mut var_text = <String>::sse_decode(deserializer);
                 return crate::api::wire::Command::InsertText {
                     cell: var_cell,
@@ -823,8 +823,8 @@ impl SseDecode for crate::api::wire::Command {
             }
             1 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_start = <u32>::sse_decode(deserializer);
-                let mut var_len = <u32>::sse_decode(deserializer);
+                let mut var_start = <i64>::sse_decode(deserializer);
+                let mut var_len = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::DeleteText {
                     cell: var_cell,
                     start: var_start,
@@ -833,8 +833,8 @@ impl SseDecode for crate::api::wire::Command {
             }
             2 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_start = <u32>::sse_decode(deserializer);
-                let mut var_len = <u32>::sse_decode(deserializer);
+                let mut var_start = <i64>::sse_decode(deserializer);
+                let mut var_len = <i64>::sse_decode(deserializer);
                 let mut var_text = <String>::sse_decode(deserializer);
                 return crate::api::wire::Command::ReplaceText {
                     cell: var_cell,
@@ -853,8 +853,8 @@ impl SseDecode for crate::api::wire::Command {
             }
             4 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_start = <u32>::sse_decode(deserializer);
-                let mut var_len = <u32>::sse_decode(deserializer);
+                let mut var_start = <i64>::sse_decode(deserializer);
+                let mut var_len = <i64>::sse_decode(deserializer);
                 let mut var_set_ = <crate::api::wire::Style>::sse_decode(deserializer);
                 let mut var_clear = <crate::api::wire::Style>::sse_decode(deserializer);
                 return crate::api::wire::Command::SetRangeStyle {
@@ -867,8 +867,8 @@ impl SseDecode for crate::api::wire::Command {
             }
             5 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_start = <u32>::sse_decode(deserializer);
-                let mut var_len = <u32>::sse_decode(deserializer);
+                let mut var_start = <i64>::sse_decode(deserializer);
+                let mut var_len = <i64>::sse_decode(deserializer);
                 let mut var_color = <Option<crate::api::wire::Rgb>>::sse_decode(deserializer);
                 return crate::api::wire::Command::SetRangeColor {
                     cell: var_cell,
@@ -879,8 +879,8 @@ impl SseDecode for crate::api::wire::Command {
             }
             6 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_start = <u32>::sse_decode(deserializer);
-                let mut var_len = <u32>::sse_decode(deserializer);
+                let mut var_start = <i64>::sse_decode(deserializer);
+                let mut var_len = <i64>::sse_decode(deserializer);
                 let mut var_target =
                     <Option<crate::api::wire::LinkTarget>>::sse_decode(deserializer);
                 return crate::api::wire::Command::SetLink {
@@ -910,8 +910,8 @@ impl SseDecode for crate::api::wire::Command {
             }
             9 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_column = <u32>::sse_decode(deserializer);
-                let mut var_width = <u32>::sse_decode(deserializer);
+                let mut var_column = <i64>::sse_decode(deserializer);
+                let mut var_width = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::SetColumnWidth {
                     cell: var_cell,
                     column: var_column,
@@ -920,8 +920,8 @@ impl SseDecode for crate::api::wire::Command {
             }
             10 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_xs = <u32>::sse_decode(deserializer);
-                let mut var_ys = <u32>::sse_decode(deserializer);
+                let mut var_xs = <i64>::sse_decode(deserializer);
+                let mut var_ys = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::CreateGrid {
                     cell: var_cell,
                     xs: var_xs,
@@ -934,8 +934,8 @@ impl SseDecode for crate::api::wire::Command {
             }
             12 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_at = <u32>::sse_decode(deserializer);
-                let mut var_count = <u32>::sse_decode(deserializer);
+                let mut var_at = <i64>::sse_decode(deserializer);
+                let mut var_count = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::InsertRows {
                     cell: var_cell,
                     at: var_at,
@@ -944,8 +944,8 @@ impl SseDecode for crate::api::wire::Command {
             }
             13 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_at = <u32>::sse_decode(deserializer);
-                let mut var_count = <u32>::sse_decode(deserializer);
+                let mut var_at = <i64>::sse_decode(deserializer);
+                let mut var_count = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::InsertColumns {
                     cell: var_cell,
                     at: var_at,
@@ -954,8 +954,8 @@ impl SseDecode for crate::api::wire::Command {
             }
             14 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_at = <u32>::sse_decode(deserializer);
-                let mut var_count = <u32>::sse_decode(deserializer);
+                let mut var_at = <i64>::sse_decode(deserializer);
+                let mut var_count = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::DeleteRows {
                     cell: var_cell,
                     at: var_at,
@@ -964,8 +964,8 @@ impl SseDecode for crate::api::wire::Command {
             }
             15 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_at = <u32>::sse_decode(deserializer);
-                let mut var_count = <u32>::sse_decode(deserializer);
+                let mut var_at = <i64>::sse_decode(deserializer);
+                let mut var_count = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::DeleteColumns {
                     cell: var_cell,
                     at: var_at,
@@ -978,10 +978,10 @@ impl SseDecode for crate::api::wire::Command {
             }
             17 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_x = <u32>::sse_decode(deserializer);
-                let mut var_y = <u32>::sse_decode(deserializer);
-                let mut var_xs = <u32>::sse_decode(deserializer);
-                let mut var_ys = <u32>::sse_decode(deserializer);
+                let mut var_x = <i64>::sse_decode(deserializer);
+                let mut var_y = <i64>::sse_decode(deserializer);
+                let mut var_xs = <i64>::sse_decode(deserializer);
+                let mut var_ys = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::DeleteCells {
                     cell: var_cell,
                     x: var_x,
@@ -992,9 +992,9 @@ impl SseDecode for crate::api::wire::Command {
             }
             18 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_from = <u32>::sse_decode(deserializer);
-                let mut var_count = <u32>::sse_decode(deserializer);
-                let mut var_to = <u32>::sse_decode(deserializer);
+                let mut var_from = <i64>::sse_decode(deserializer);
+                let mut var_count = <i64>::sse_decode(deserializer);
+                let mut var_to = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::MoveRows {
                     cell: var_cell,
                     from: var_from,
@@ -1004,9 +1004,9 @@ impl SseDecode for crate::api::wire::Command {
             }
             19 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_from = <u32>::sse_decode(deserializer);
-                let mut var_count = <u32>::sse_decode(deserializer);
-                let mut var_to = <u32>::sse_decode(deserializer);
+                let mut var_from = <i64>::sse_decode(deserializer);
+                let mut var_count = <i64>::sse_decode(deserializer);
+                let mut var_to = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::MoveColumns {
                     cell: var_cell,
                     from: var_from,
@@ -1051,9 +1051,9 @@ impl SseDecode for crate::api::wire::Command {
             }
             25 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_column = <u32>::sse_decode(deserializer);
-                let mut var_row = <u32>::sse_decode(deserializer);
-                let mut var_count = <u32>::sse_decode(deserializer);
+                let mut var_column = <i64>::sse_decode(deserializer);
+                let mut var_row = <i64>::sse_decode(deserializer);
+                let mut var_count = <i64>::sse_decode(deserializer);
                 let mut var_descending = <bool>::sse_decode(deserializer);
                 return crate::api::wire::Command::SortRows {
                     cell: var_cell,
@@ -1081,10 +1081,10 @@ impl SseDecode for crate::api::wire::Command {
             }
             30 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_x = <u32>::sse_decode(deserializer);
-                let mut var_y = <u32>::sse_decode(deserializer);
-                let mut var_xs = <u32>::sse_decode(deserializer);
-                let mut var_ys = <u32>::sse_decode(deserializer);
+                let mut var_x = <i64>::sse_decode(deserializer);
+                let mut var_y = <i64>::sse_decode(deserializer);
+                let mut var_xs = <i64>::sse_decode(deserializer);
+                let mut var_ys = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::Wrap {
                     cell: var_cell,
                     x: var_x,
@@ -1095,10 +1095,10 @@ impl SseDecode for crate::api::wire::Command {
             }
             31 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_x = <u32>::sse_decode(deserializer);
-                let mut var_y = <u32>::sse_decode(deserializer);
-                let mut var_xs = <u32>::sse_decode(deserializer);
-                let mut var_ys = <u32>::sse_decode(deserializer);
+                let mut var_x = <i64>::sse_decode(deserializer);
+                let mut var_y = <i64>::sse_decode(deserializer);
+                let mut var_xs = <i64>::sse_decode(deserializer);
+                let mut var_ys = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::Collapse {
                     cell: var_cell,
                     x: var_x,
@@ -1109,7 +1109,7 @@ impl SseDecode for crate::api::wire::Command {
             }
             32 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_at = <u32>::sse_decode(deserializer);
+                let mut var_at = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Command::SplitCell {
                     cell: var_cell,
                     at: var_at,
@@ -1125,7 +1125,7 @@ impl SseDecode for crate::api::wire::Command {
             }
             35 => {
                 let mut var_cells = <Vec<String>>::sse_decode(deserializer);
-                let mut var_delta = <i32>::sse_decode(deserializer);
+                let mut var_delta = <i64>::sse_decode(deserializer);
                 let mut var_recursive = <bool>::sse_decode(deserializer);
                 return crate::api::wire::Command::AdjustRelSize {
                     cells: var_cells,
@@ -1135,9 +1135,9 @@ impl SseDecode for crate::api::wire::Command {
             }
             36 => {
                 let mut var_cell = <String>::sse_decode(deserializer);
-                let mut var_column = <u32>::sse_decode(deserializer);
-                let mut var_count = <u32>::sse_decode(deserializer);
-                let mut var_delta = <i32>::sse_decode(deserializer);
+                let mut var_column = <i64>::sse_decode(deserializer);
+                let mut var_count = <i64>::sse_decode(deserializer);
+                let mut var_delta = <i64>::sse_decode(deserializer);
                 let mut var_recursive = <bool>::sse_decode(deserializer);
                 return crate::api::wire::Command::AdjustColumnWidths {
                     cell: var_cell,
@@ -1500,7 +1500,7 @@ impl SseDecode for crate::api::wire::Prop {
                 return crate::api::wire::Prop::TextColor(var_field0);
             }
             2 => {
-                let mut var_field0 = <i32>::sse_decode(deserializer);
+                let mut var_field0 = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Prop::RelSize(var_field0);
             }
             3 => {
@@ -1540,7 +1540,7 @@ impl SseDecode for crate::api::wire::Prop {
                 return crate::api::wire::Prop::BorderColor(var_field0);
             }
             12 => {
-                let mut var_field0 = <u32>::sse_decode(deserializer);
+                let mut var_field0 = <i64>::sse_decode(deserializer);
                 return crate::api::wire::Prop::OuterSpacing(var_field0);
             }
             13 => {
@@ -1577,9 +1577,9 @@ impl SseDecode for crate::api::wire::Report {
 impl SseDecode for crate::api::wire::Rgb {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_r = <u8>::sse_decode(deserializer);
-        let mut var_g = <u8>::sse_decode(deserializer);
-        let mut var_b = <u8>::sse_decode(deserializer);
+        let mut var_r = <i64>::sse_decode(deserializer);
+        let mut var_g = <i64>::sse_decode(deserializer);
+        let mut var_b = <i64>::sse_decode(deserializer);
         return crate::api::wire::Rgb {
             r: var_r,
             g: var_g,
@@ -1609,7 +1609,7 @@ impl SseDecode for crate::api::wire::Style {
 impl SseDecode for crate::api::wire::TableData {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_xs = <u32>::sse_decode(deserializer);
+        let mut var_xs = <i64>::sse_decode(deserializer);
         let mut var_cells = <Vec<crate::api::wire::EntryData>>::sse_decode(deserializer);
         return crate::api::wire::TableData {
             xs: var_xs,
@@ -2541,14 +2541,14 @@ impl SseEncode for crate::api::wire::Command {
             crate::api::wire::Command::InsertText { cell, at, text } => {
                 <i32>::sse_encode(0, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(at, serializer);
+                <i64>::sse_encode(at, serializer);
                 <String>::sse_encode(text, serializer);
             }
             crate::api::wire::Command::DeleteText { cell, start, len } => {
                 <i32>::sse_encode(1, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(start, serializer);
-                <u32>::sse_encode(len, serializer);
+                <i64>::sse_encode(start, serializer);
+                <i64>::sse_encode(len, serializer);
             }
             crate::api::wire::Command::ReplaceText {
                 cell,
@@ -2558,8 +2558,8 @@ impl SseEncode for crate::api::wire::Command {
             } => {
                 <i32>::sse_encode(2, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(start, serializer);
-                <u32>::sse_encode(len, serializer);
+                <i64>::sse_encode(start, serializer);
+                <i64>::sse_encode(len, serializer);
                 <String>::sse_encode(text, serializer);
             }
             crate::api::wire::Command::SetText { cell, text } => {
@@ -2576,8 +2576,8 @@ impl SseEncode for crate::api::wire::Command {
             } => {
                 <i32>::sse_encode(4, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(start, serializer);
-                <u32>::sse_encode(len, serializer);
+                <i64>::sse_encode(start, serializer);
+                <i64>::sse_encode(len, serializer);
                 <crate::api::wire::Style>::sse_encode(set, serializer);
                 <crate::api::wire::Style>::sse_encode(clear, serializer);
             }
@@ -2589,8 +2589,8 @@ impl SseEncode for crate::api::wire::Command {
             } => {
                 <i32>::sse_encode(5, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(start, serializer);
-                <u32>::sse_encode(len, serializer);
+                <i64>::sse_encode(start, serializer);
+                <i64>::sse_encode(len, serializer);
                 <Option<crate::api::wire::Rgb>>::sse_encode(color, serializer);
             }
             crate::api::wire::Command::SetLink {
@@ -2601,8 +2601,8 @@ impl SseEncode for crate::api::wire::Command {
             } => {
                 <i32>::sse_encode(6, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(start, serializer);
-                <u32>::sse_encode(len, serializer);
+                <i64>::sse_encode(start, serializer);
+                <i64>::sse_encode(len, serializer);
                 <Option<crate::api::wire::LinkTarget>>::sse_encode(target, serializer);
             }
             crate::api::wire::Command::SetProps { cells, props } => {
@@ -2623,14 +2623,14 @@ impl SseEncode for crate::api::wire::Command {
             } => {
                 <i32>::sse_encode(9, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(column, serializer);
-                <u32>::sse_encode(width, serializer);
+                <i64>::sse_encode(column, serializer);
+                <i64>::sse_encode(width, serializer);
             }
             crate::api::wire::Command::CreateGrid { cell, xs, ys } => {
                 <i32>::sse_encode(10, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(xs, serializer);
-                <u32>::sse_encode(ys, serializer);
+                <i64>::sse_encode(xs, serializer);
+                <i64>::sse_encode(ys, serializer);
             }
             crate::api::wire::Command::RemoveGrid { cell } => {
                 <i32>::sse_encode(11, serializer);
@@ -2639,26 +2639,26 @@ impl SseEncode for crate::api::wire::Command {
             crate::api::wire::Command::InsertRows { cell, at, count } => {
                 <i32>::sse_encode(12, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(at, serializer);
-                <u32>::sse_encode(count, serializer);
+                <i64>::sse_encode(at, serializer);
+                <i64>::sse_encode(count, serializer);
             }
             crate::api::wire::Command::InsertColumns { cell, at, count } => {
                 <i32>::sse_encode(13, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(at, serializer);
-                <u32>::sse_encode(count, serializer);
+                <i64>::sse_encode(at, serializer);
+                <i64>::sse_encode(count, serializer);
             }
             crate::api::wire::Command::DeleteRows { cell, at, count } => {
                 <i32>::sse_encode(14, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(at, serializer);
-                <u32>::sse_encode(count, serializer);
+                <i64>::sse_encode(at, serializer);
+                <i64>::sse_encode(count, serializer);
             }
             crate::api::wire::Command::DeleteColumns { cell, at, count } => {
                 <i32>::sse_encode(15, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(at, serializer);
-                <u32>::sse_encode(count, serializer);
+                <i64>::sse_encode(at, serializer);
+                <i64>::sse_encode(count, serializer);
             }
             crate::api::wire::Command::ClearCells { cells } => {
                 <i32>::sse_encode(16, serializer);
@@ -2667,10 +2667,10 @@ impl SseEncode for crate::api::wire::Command {
             crate::api::wire::Command::DeleteCells { cell, x, y, xs, ys } => {
                 <i32>::sse_encode(17, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(x, serializer);
-                <u32>::sse_encode(y, serializer);
-                <u32>::sse_encode(xs, serializer);
-                <u32>::sse_encode(ys, serializer);
+                <i64>::sse_encode(x, serializer);
+                <i64>::sse_encode(y, serializer);
+                <i64>::sse_encode(xs, serializer);
+                <i64>::sse_encode(ys, serializer);
             }
             crate::api::wire::Command::MoveRows {
                 cell,
@@ -2680,9 +2680,9 @@ impl SseEncode for crate::api::wire::Command {
             } => {
                 <i32>::sse_encode(18, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(from, serializer);
-                <u32>::sse_encode(count, serializer);
-                <u32>::sse_encode(to, serializer);
+                <i64>::sse_encode(from, serializer);
+                <i64>::sse_encode(count, serializer);
+                <i64>::sse_encode(to, serializer);
             }
             crate::api::wire::Command::MoveColumns {
                 cell,
@@ -2692,9 +2692,9 @@ impl SseEncode for crate::api::wire::Command {
             } => {
                 <i32>::sse_encode(19, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(from, serializer);
-                <u32>::sse_encode(count, serializer);
-                <u32>::sse_encode(to, serializer);
+                <i64>::sse_encode(from, serializer);
+                <i64>::sse_encode(count, serializer);
+                <i64>::sse_encode(to, serializer);
             }
             crate::api::wire::Command::SwapCells { a, b } => {
                 <i32>::sse_encode(20, serializer);
@@ -2734,9 +2734,9 @@ impl SseEncode for crate::api::wire::Command {
             } => {
                 <i32>::sse_encode(25, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(column, serializer);
-                <u32>::sse_encode(row, serializer);
-                <u32>::sse_encode(count, serializer);
+                <i64>::sse_encode(column, serializer);
+                <i64>::sse_encode(row, serializer);
+                <i64>::sse_encode(count, serializer);
                 <bool>::sse_encode(descending, serializer);
             }
             crate::api::wire::Command::Transpose { cells } => {
@@ -2758,23 +2758,23 @@ impl SseEncode for crate::api::wire::Command {
             crate::api::wire::Command::Wrap { cell, x, y, xs, ys } => {
                 <i32>::sse_encode(30, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(x, serializer);
-                <u32>::sse_encode(y, serializer);
-                <u32>::sse_encode(xs, serializer);
-                <u32>::sse_encode(ys, serializer);
+                <i64>::sse_encode(x, serializer);
+                <i64>::sse_encode(y, serializer);
+                <i64>::sse_encode(xs, serializer);
+                <i64>::sse_encode(ys, serializer);
             }
             crate::api::wire::Command::Collapse { cell, x, y, xs, ys } => {
                 <i32>::sse_encode(31, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(x, serializer);
-                <u32>::sse_encode(y, serializer);
-                <u32>::sse_encode(xs, serializer);
-                <u32>::sse_encode(ys, serializer);
+                <i64>::sse_encode(x, serializer);
+                <i64>::sse_encode(y, serializer);
+                <i64>::sse_encode(xs, serializer);
+                <i64>::sse_encode(ys, serializer);
             }
             crate::api::wire::Command::SplitCell { cell, at } => {
                 <i32>::sse_encode(32, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(at, serializer);
+                <i64>::sse_encode(at, serializer);
             }
             crate::api::wire::Command::TagCells { cells } => {
                 <i32>::sse_encode(33, serializer);
@@ -2791,7 +2791,7 @@ impl SseEncode for crate::api::wire::Command {
             } => {
                 <i32>::sse_encode(35, serializer);
                 <Vec<String>>::sse_encode(cells, serializer);
-                <i32>::sse_encode(delta, serializer);
+                <i64>::sse_encode(delta, serializer);
                 <bool>::sse_encode(recursive, serializer);
             }
             crate::api::wire::Command::AdjustColumnWidths {
@@ -2803,9 +2803,9 @@ impl SseEncode for crate::api::wire::Command {
             } => {
                 <i32>::sse_encode(36, serializer);
                 <String>::sse_encode(cell, serializer);
-                <u32>::sse_encode(column, serializer);
-                <u32>::sse_encode(count, serializer);
-                <i32>::sse_encode(delta, serializer);
+                <i64>::sse_encode(column, serializer);
+                <i64>::sse_encode(count, serializer);
+                <i64>::sse_encode(delta, serializer);
                 <bool>::sse_encode(recursive, serializer);
             }
             crate::api::wire::Command::Run => {
@@ -3123,7 +3123,7 @@ impl SseEncode for crate::api::wire::Prop {
             }
             crate::api::wire::Prop::RelSize(field0) => {
                 <i32>::sse_encode(2, serializer);
-                <i32>::sse_encode(field0, serializer);
+                <i64>::sse_encode(field0, serializer);
             }
             crate::api::wire::Prop::TextAlign(field0) => {
                 <i32>::sse_encode(3, serializer);
@@ -3163,7 +3163,7 @@ impl SseEncode for crate::api::wire::Prop {
             }
             crate::api::wire::Prop::OuterSpacing(field0) => {
                 <i32>::sse_encode(12, serializer);
-                <u32>::sse_encode(field0, serializer);
+                <i64>::sse_encode(field0, serializer);
             }
             crate::api::wire::Prop::Vertical(field0) => {
                 <i32>::sse_encode(13, serializer);
@@ -3191,9 +3191,9 @@ impl SseEncode for crate::api::wire::Report {
 impl SseEncode for crate::api::wire::Rgb {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <u8>::sse_encode(self.r, serializer);
-        <u8>::sse_encode(self.g, serializer);
-        <u8>::sse_encode(self.b, serializer);
+        <i64>::sse_encode(self.r, serializer);
+        <i64>::sse_encode(self.g, serializer);
+        <i64>::sse_encode(self.b, serializer);
     }
 }
 
@@ -3211,7 +3211,7 @@ impl SseEncode for crate::api::wire::Style {
 impl SseEncode for crate::api::wire::TableData {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <u32>::sse_encode(self.xs, serializer);
+        <i64>::sse_encode(self.xs, serializer);
         <Vec<crate::api::wire::EntryData>>::sse_encode(self.cells, serializer);
     }
 }

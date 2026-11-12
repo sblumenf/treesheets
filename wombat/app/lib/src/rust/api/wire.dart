@@ -149,7 +149,7 @@ sealed class Command with _$Command {
     required String cell,
 
     /// Where to insert.
-    required int at,
+    required PlatformInt64 at,
 
     /// What to insert.
     required String text,
@@ -161,10 +161,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first code point to delete.
-    required int start,
+    required PlatformInt64 start,
 
     /// How many code points to delete.
-    required int len,
+    required PlatformInt64 len,
   }) = Command_DeleteText;
 
   /// Replaces a range of text.
@@ -173,10 +173,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first code point to replace.
-    required int start,
+    required PlatformInt64 start,
 
     /// How many code points to replace.
-    required int len,
+    required PlatformInt64 len,
 
     /// The new text.
     required String text,
@@ -197,10 +197,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first code point.
-    required int start,
+    required PlatformInt64 start,
 
     /// How many code points.
-    required int len,
+    required PlatformInt64 len,
 
     /// The bits to switch on.
     required Style set_,
@@ -215,10 +215,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first code point.
-    required int start,
+    required PlatformInt64 start,
 
     /// How many code points.
-    required int len,
+    required PlatformInt64 len,
 
     /// The colour.
     Rgb? color,
@@ -230,10 +230,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first code point.
-    required int start,
+    required PlatformInt64 start,
 
     /// How many code points.
-    required int len,
+    required PlatformInt64 len,
 
     /// Where the link goes.
     LinkTarget? target,
@@ -266,10 +266,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The column.
-    required int column,
+    required PlatformInt64 column,
 
     /// The width.
-    required int width,
+    required PlatformInt64 width,
   }) = Command_SetColumnWidth;
 
   /// Gives a cell that has no grid a grid of new empty cells.
@@ -278,10 +278,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The number of columns.
-    required int xs,
+    required PlatformInt64 xs,
 
     /// The number of rows.
-    required int ys,
+    required PlatformInt64 ys,
   }) = Command_CreateGrid;
 
   /// Removes the grid of a cell with everything in it.
@@ -296,10 +296,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The row before which to insert; the number of rows appends.
-    required int at,
+    required PlatformInt64 at,
 
     /// How many rows.
-    required int count,
+    required PlatformInt64 count,
   }) = Command_InsertRows;
 
   /// Inserts empty columns.
@@ -308,10 +308,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The column before which to insert; the number of columns appends.
-    required int at,
+    required PlatformInt64 at,
 
     /// How many columns.
-    required int count,
+    required PlatformInt64 count,
   }) = Command_InsertColumns;
 
   /// Deletes rows with everything in them.
@@ -320,10 +320,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first row.
-    required int at,
+    required PlatformInt64 at,
 
     /// How many rows.
-    required int count,
+    required PlatformInt64 count,
   }) = Command_DeleteRows;
 
   /// Deletes columns with everything in them.
@@ -332,10 +332,10 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first column.
-    required int at,
+    required PlatformInt64 at,
 
     /// How many columns.
-    required int count,
+    required PlatformInt64 count,
   }) = Command_DeleteColumns;
 
   /// Empties cells: text, runs, links, image and grid go, the looks stay.
@@ -351,16 +351,16 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first selected column.
-    required int x,
+    required PlatformInt64 x,
 
     /// The first selected row.
-    required int y,
+    required PlatformInt64 y,
 
     /// The number of selected columns, at least 1.
-    required int xs,
+    required PlatformInt64 xs,
 
     /// The number of selected rows, at least 1.
-    required int ys,
+    required PlatformInt64 ys,
   }) = Command_DeleteCells;
 
   /// Moves rows within their grid.
@@ -369,13 +369,13 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first row to move.
-    required int from,
+    required PlatformInt64 from,
 
     /// How many rows.
-    required int count,
+    required PlatformInt64 count,
 
     /// The index the first moved row has afterwards.
-    required int to,
+    required PlatformInt64 to,
   }) = Command_MoveRows;
 
   /// Moves columns within their grid, with their widths.
@@ -384,13 +384,13 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first column to move.
-    required int from,
+    required PlatformInt64 from,
 
     /// How many columns.
-    required int count,
+    required PlatformInt64 count,
 
     /// The index the first moved column has afterwards.
-    required int to,
+    required PlatformInt64 to,
   }) = Command_MoveColumns;
 
   /// Makes two cells trade places, with everything in them.
@@ -444,13 +444,13 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The column to sort by first.
-    required int column,
+    required PlatformInt64 column,
 
     /// The first row that takes part.
-    required int row,
+    required PlatformInt64 row,
 
     /// How many rows take part.
-    required int count,
+    required PlatformInt64 count,
 
     /// From high to low instead of from low to high.
     required bool descending,
@@ -486,16 +486,16 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first column of the block.
-    required int x,
+    required PlatformInt64 x,
 
     /// The first row of the block.
-    required int y,
+    required PlatformInt64 y,
 
     /// The number of columns, at least 1.
-    required int xs,
+    required PlatformInt64 xs,
 
     /// The number of rows, at least 1.
-    required int ys,
+    required PlatformInt64 ys,
   }) = Command_Wrap;
 
   /// Joins the texts of a block of cells into its first cell.
@@ -504,16 +504,16 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first column of the block.
-    required int x,
+    required PlatformInt64 x,
 
     /// The first row of the block.
-    required int y,
+    required PlatformInt64 y,
 
     /// The number of columns.
-    required int xs,
+    required PlatformInt64 xs,
 
     /// The number of rows.
-    required int ys,
+    required PlatformInt64 ys,
   }) = Command_Collapse;
 
   /// Cuts the text of a cell into the two cells of a new grid inside it.
@@ -522,7 +522,7 @@ sealed class Command with _$Command {
     required String cell,
 
     /// Where to cut the text.
-    required int at,
+    required PlatformInt64 at,
   }) = Command_SplitCell;
 
   /// The text of each listed cell that has text becomes a tag with the cell's colours.
@@ -543,7 +543,7 @@ sealed class Command with _$Command {
     required List<String> cells,
 
     /// What to add.
-    required int delta,
+    required PlatformInt64 delta,
 
     /// Also the cells inside the listed ones.
     required bool recursive,
@@ -555,13 +555,13 @@ sealed class Command with _$Command {
     required String cell,
 
     /// The first column.
-    required int column,
+    required PlatformInt64 column,
 
     /// How many columns.
-    required int count,
+    required PlatformInt64 count,
 
     /// What to add.
-    required int delta,
+    required PlatformInt64 delta,
 
     /// Also every column of every grid inside the cells of those columns.
     required bool recursive,
@@ -829,8 +829,9 @@ sealed class Prop with _$Prop {
   /// The colour of the text.
   const factory Prop.textColor(Rgb field0) = Prop_TextColor;
 
-  /// The text size relative to the default; positive is smaller.
-  const factory Prop.relSize(int field0) = Prop_RelSize;
+  /// The text size relative to the default; positive is smaller. From -2147483648 to
+  /// 2147483647.
+  const factory Prop.relSize(PlatformInt64 field0) = Prop_RelSize;
 
   /// Horizontal alignment.
   const factory Prop.textAlign(HorizAlign field0) = Prop_TextAlign;
@@ -859,8 +860,8 @@ sealed class Prop with _$Prop {
   /// The border colour of the cell's grid.
   const factory Prop.borderColor(Rgb field0) = Prop_BorderColor;
 
-  /// The outer spacing of the cell's grid.
-  const factory Prop.outerSpacing(int field0) = Prop_OuterSpacing;
+  /// The outer spacing of the cell's grid, from 0 to 4294967295.
+  const factory Prop.outerSpacing(PlatformInt64 field0) = Prop_OuterSpacing;
 
   /// Whether the cell's grid is below its text instead of beside it.
   const factory Prop.vertical(bool field0) = Prop_Vertical;
@@ -922,16 +923,16 @@ class Report {
           recalculated == other.recalculated;
 }
 
-/// A colour: red, green and blue.
+/// A colour: red, green and blue, each from 0 to 255. Any other number is refused.
 class Rgb {
   /// Red.
-  final int r;
+  final PlatformInt64 r;
 
   /// Green.
-  final int g;
+  final PlatformInt64 g;
 
   /// Blue.
-  final int b;
+  final PlatformInt64 b;
 
   const Rgb({required this.r, required this.g, required this.b});
 
@@ -998,8 +999,8 @@ class Style {
 
 /// A grid of texts to import.
 class TableData {
-  /// The number of columns.
-  final int xs;
+  /// The number of columns, from 1 to 4294967295.
+  final PlatformInt64 xs;
 
   /// The cells row by row: whole rows, at least one cell.
   final List<EntryData> cells;

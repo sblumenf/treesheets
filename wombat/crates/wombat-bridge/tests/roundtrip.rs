@@ -610,6 +610,146 @@ fn what_cannot_be_a_command_is_refused_as_a_value() {
     invalid(command_in(table(1, 0)));
 }
 
+/// Dart's whole numbers have 64 bits and cross as they are (decision A134). What does not
+/// fit the core's number is refused; it is not cut to fit, which made row 2^32 row 0.
+#[test]
+fn numbers_out_of_range_are_refused() {
+    let cell = || "00000000-0000-0000-0000-000000000001".to_string();
+    let rows = |at, count| {
+        command_in(wire::Command::InsertRows {
+            cell: cell(),
+            at,
+            count,
+        })
+    };
+    let (two_32, two_31) = (1i64 << 32, 1i64 << 31);
+    let rgb = |r, g, b| wire::Rgb { r, g, b };
+    let props = |prop| {
+        command_in(wire::Command::SetProps {
+            cells: vec![cell()],
+            props: vec![prop],
+        })
+    };
+    let size = |delta| {
+        command_in(wire::Command::AdjustRelSize {
+            cells: vec![cell()],
+            delta,
+            recursive: false,
+        })
+    };
+    let widths = |delta| {
+        command_in(wire::Command::AdjustColumnWidths {
+            cell: cell(),
+            column: 0,
+            count: 1,
+            delta,
+            recursive: false,
+        })
+    };
+    let table = |xs| {
+        command_in(wire::Command::Import {
+            cell: cell(),
+            table: wire::TableData {
+                xs,
+                cells: vec![wire::EntryData {
+                    text: "x".into(),
+                    formula: false,
+                    grid: None,
+                }],
+            },
+            replace: false,
+        })
+    };
+
+    // Positions, counts and sizes: 0 to 2^32 - 1.
+    rows(0, two_32 - 1).unwrap();
+    rows(two_32 - 1, 0).unwrap();
+    let message = bad_request(rows(two_32, 1));
+    assert!(message.contains("4294967296"), "{message}");
+    bad_request(rows(0, two_32 + 1));
+    bad_request(rows(-1, 1));
+    bad_request(rows(0, -1));
+    bad_request(rows(i64::MAX, 1));
+    bad_request(rows(i64::MIN, 1));
+    props(wire::Prop::OuterSpacing(two_32 - 1)).unwrap();
+    bad_request(props(wire::Prop::OuterSpacing(two_32)));
+    bad_request(props(wire::Prop::OuterSpacing(-1)));
+    table(1).unwrap();
+    bad_request(table(two_32 + 1));
+    bad_request(table(-1));
+
+    // Differences and the relative size: -2^31 to 2^31 - 1.
+    for delta in [-two_31, -1, 0, two_31 - 1] {
+        size(delta).unwrap();
+        widths(delta).unwrap();
+        props(wire::Prop::RelSize(delta)).unwrap();
+    }
+    for delta in [two_31, -two_31 - 1, two_32 + 3, i64::MAX, i64::MIN] {
+        bad_request(size(delta));
+        bad_request(widths(delta));
+        bad_request(props(wire::Prop::RelSize(delta)));
+    }
+
+    // The parts of a colour: 0 to 255, each of the three.
+    props(wire::Prop::CellColor(rgb(0, 255, 0))).unwrap();
+    for part in [256, -1, two_32] {
+        for color in [rgb(part, 0, 0), rgb(0, part, 0), rgb(0, 0, part)] {
+            bad_request(props(wire::Prop::CellColor(color)));
+            bad_request(props(wire::Prop::TextColor(color)));
+            bad_request(props(wire::Prop::BorderColor(color)));
+            bad_request(command_in(wire::Command::SetRangeColor {
+                cell: cell(),
+                start: 0,
+                len: 1,
+                color: Some(color),
+            }));
+            for (cell_color, text_color) in [(color, rgb(0, 0, 0)), (rgb(0, 0, 0), color)] {
+                bad_request(command_in(wire::Command::SetTag {
+                    name: "t".into(),
+                    cell_color,
+                    text_color,
+                }));
+            }
+        }
+    }
+
+    // The time of the last edit is a 64-bit number in the core too: all of it is one.
+    props(wire::Prop::LastEdit(Some(i64::MIN))).unwrap();
+    // As JSON the same holds, and a number that 64 bits do not hold is no command.
+    let json = |at: &str| {
+        let text = format!(r#"{{"SplitCell": {{"cell": "{}", "at": {at}}}}}"#, cell());
+        command_from_json(&text)
+    };
+    json("4294967295").unwrap();
+    bad_request(json("4294967296"));
+    bad_request(json("-1"));
+    bad_request(json("18446744073709551616"));
+    bad_request(json("1.5"));
+}
+
+/// Puts `number` in the place of whole number `which` of a command as JSON, counting
+/// from 0 in the order of the text; says whether there was one. The time of the last
+/// edit is left out: it has no range to be out of.
+fn replace_number(value: &mut Value, which: &mut usize, number: i64) -> bool {
+    match value {
+        Value::Number(n) if n.is_i64() || n.is_u64() => {
+            if *which == 0 {
+                *value = Value::from(number);
+                return true;
+            }
+            *which -= 1;
+            false
+        }
+        Value::Array(items) => items
+            .iter_mut()
+            .any(|item| replace_number(item, which, number)),
+        Value::Object(map) => map
+            .iter_mut()
+            .any(|(key, item)| key != "LastEdit" && replace_number(item, which, number)),
+        _ => false,
+    }
+}
+
 #[test]
 fn a_clip_that_was_tampered_with_is_refused() {
     let mut ids = SeededIds::from_u64(3);
@@ -697,6 +837,20 @@ proptest! {
         prop_assert_eq!(&serde_json::from_str::<wire::Command>(&text).unwrap(), &carried);
         let text = command_to_json(&command).unwrap();
         prop_assert_eq!(&command_from_json(&text).unwrap(), &command);
+    }
+
+    /// Every whole number of every command is checked: with any one of them out of every
+    /// range, the command is refused.
+    #[test]
+    fn every_number_of_a_command_is_checked(command in command(), which in 0..12usize, high: bool) {
+        let number = if high { 1i64 << 32 } else { -(1i64 << 31) - 1 };
+        let mut value = serde_json::to_value(command_out(&command).unwrap()).unwrap();
+        if replace_number(&mut value, &mut which.clone(), number) {
+            let carried: wire::Command = serde_json::from_value(value).unwrap();
+            let error = command_in(carried).unwrap_err();
+            prop_assert_eq!(error.kind, ErrorKind::BadRequest);
+            prop_assert!(error.message.contains(&number.to_string()));
+        }
     }
 
     #[test]

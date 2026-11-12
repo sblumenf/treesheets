@@ -795,20 +795,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 0:
         return Command_InsertText(
           cell: dco_decode_String(raw[1]),
-          at: dco_decode_u_32(raw[2]),
+          at: dco_decode_i_64(raw[2]),
           text: dco_decode_String(raw[3]),
         );
       case 1:
         return Command_DeleteText(
           cell: dco_decode_String(raw[1]),
-          start: dco_decode_u_32(raw[2]),
-          len: dco_decode_u_32(raw[3]),
+          start: dco_decode_i_64(raw[2]),
+          len: dco_decode_i_64(raw[3]),
         );
       case 2:
         return Command_ReplaceText(
           cell: dco_decode_String(raw[1]),
-          start: dco_decode_u_32(raw[2]),
-          len: dco_decode_u_32(raw[3]),
+          start: dco_decode_i_64(raw[2]),
+          len: dco_decode_i_64(raw[3]),
           text: dco_decode_String(raw[4]),
         );
       case 3:
@@ -819,23 +819,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 4:
         return Command_SetRangeStyle(
           cell: dco_decode_String(raw[1]),
-          start: dco_decode_u_32(raw[2]),
-          len: dco_decode_u_32(raw[3]),
+          start: dco_decode_i_64(raw[2]),
+          len: dco_decode_i_64(raw[3]),
           set_: dco_decode_box_autoadd_style(raw[4]),
           clear: dco_decode_box_autoadd_style(raw[5]),
         );
       case 5:
         return Command_SetRangeColor(
           cell: dco_decode_String(raw[1]),
-          start: dco_decode_u_32(raw[2]),
-          len: dco_decode_u_32(raw[3]),
+          start: dco_decode_i_64(raw[2]),
+          len: dco_decode_i_64(raw[3]),
           color: dco_decode_opt_box_autoadd_rgb(raw[4]),
         );
       case 6:
         return Command_SetLink(
           cell: dco_decode_String(raw[1]),
-          start: dco_decode_u_32(raw[2]),
-          len: dco_decode_u_32(raw[3]),
+          start: dco_decode_i_64(raw[2]),
+          len: dco_decode_i_64(raw[3]),
           target: dco_decode_opt_box_autoadd_link_target(raw[4]),
         );
       case 7:
@@ -852,64 +852,64 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 9:
         return Command_SetColumnWidth(
           cell: dco_decode_String(raw[1]),
-          column: dco_decode_u_32(raw[2]),
-          width: dco_decode_u_32(raw[3]),
+          column: dco_decode_i_64(raw[2]),
+          width: dco_decode_i_64(raw[3]),
         );
       case 10:
         return Command_CreateGrid(
           cell: dco_decode_String(raw[1]),
-          xs: dco_decode_u_32(raw[2]),
-          ys: dco_decode_u_32(raw[3]),
+          xs: dco_decode_i_64(raw[2]),
+          ys: dco_decode_i_64(raw[3]),
         );
       case 11:
         return Command_RemoveGrid(cell: dco_decode_String(raw[1]));
       case 12:
         return Command_InsertRows(
           cell: dco_decode_String(raw[1]),
-          at: dco_decode_u_32(raw[2]),
-          count: dco_decode_u_32(raw[3]),
+          at: dco_decode_i_64(raw[2]),
+          count: dco_decode_i_64(raw[3]),
         );
       case 13:
         return Command_InsertColumns(
           cell: dco_decode_String(raw[1]),
-          at: dco_decode_u_32(raw[2]),
-          count: dco_decode_u_32(raw[3]),
+          at: dco_decode_i_64(raw[2]),
+          count: dco_decode_i_64(raw[3]),
         );
       case 14:
         return Command_DeleteRows(
           cell: dco_decode_String(raw[1]),
-          at: dco_decode_u_32(raw[2]),
-          count: dco_decode_u_32(raw[3]),
+          at: dco_decode_i_64(raw[2]),
+          count: dco_decode_i_64(raw[3]),
         );
       case 15:
         return Command_DeleteColumns(
           cell: dco_decode_String(raw[1]),
-          at: dco_decode_u_32(raw[2]),
-          count: dco_decode_u_32(raw[3]),
+          at: dco_decode_i_64(raw[2]),
+          count: dco_decode_i_64(raw[3]),
         );
       case 16:
         return Command_ClearCells(cells: dco_decode_list_String(raw[1]));
       case 17:
         return Command_DeleteCells(
           cell: dco_decode_String(raw[1]),
-          x: dco_decode_u_32(raw[2]),
-          y: dco_decode_u_32(raw[3]),
-          xs: dco_decode_u_32(raw[4]),
-          ys: dco_decode_u_32(raw[5]),
+          x: dco_decode_i_64(raw[2]),
+          y: dco_decode_i_64(raw[3]),
+          xs: dco_decode_i_64(raw[4]),
+          ys: dco_decode_i_64(raw[5]),
         );
       case 18:
         return Command_MoveRows(
           cell: dco_decode_String(raw[1]),
-          from: dco_decode_u_32(raw[2]),
-          count: dco_decode_u_32(raw[3]),
-          to: dco_decode_u_32(raw[4]),
+          from: dco_decode_i_64(raw[2]),
+          count: dco_decode_i_64(raw[3]),
+          to: dco_decode_i_64(raw[4]),
         );
       case 19:
         return Command_MoveColumns(
           cell: dco_decode_String(raw[1]),
-          from: dco_decode_u_32(raw[2]),
-          count: dco_decode_u_32(raw[3]),
-          to: dco_decode_u_32(raw[4]),
+          from: dco_decode_i_64(raw[2]),
+          count: dco_decode_i_64(raw[3]),
+          to: dco_decode_i_64(raw[4]),
         );
       case 20:
         return Command_SwapCells(
@@ -937,9 +937,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 25:
         return Command_SortRows(
           cell: dco_decode_String(raw[1]),
-          column: dco_decode_u_32(raw[2]),
-          row: dco_decode_u_32(raw[3]),
-          count: dco_decode_u_32(raw[4]),
+          column: dco_decode_i_64(raw[2]),
+          row: dco_decode_i_64(raw[3]),
+          count: dco_decode_i_64(raw[4]),
           descending: dco_decode_bool(raw[5]),
         );
       case 26:
@@ -953,23 +953,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 30:
         return Command_Wrap(
           cell: dco_decode_String(raw[1]),
-          x: dco_decode_u_32(raw[2]),
-          y: dco_decode_u_32(raw[3]),
-          xs: dco_decode_u_32(raw[4]),
-          ys: dco_decode_u_32(raw[5]),
+          x: dco_decode_i_64(raw[2]),
+          y: dco_decode_i_64(raw[3]),
+          xs: dco_decode_i_64(raw[4]),
+          ys: dco_decode_i_64(raw[5]),
         );
       case 31:
         return Command_Collapse(
           cell: dco_decode_String(raw[1]),
-          x: dco_decode_u_32(raw[2]),
-          y: dco_decode_u_32(raw[3]),
-          xs: dco_decode_u_32(raw[4]),
-          ys: dco_decode_u_32(raw[5]),
+          x: dco_decode_i_64(raw[2]),
+          y: dco_decode_i_64(raw[3]),
+          xs: dco_decode_i_64(raw[4]),
+          ys: dco_decode_i_64(raw[5]),
         );
       case 32:
         return Command_SplitCell(
           cell: dco_decode_String(raw[1]),
-          at: dco_decode_u_32(raw[2]),
+          at: dco_decode_i_64(raw[2]),
         );
       case 33:
         return Command_TagCells(cells: dco_decode_list_String(raw[1]));
@@ -978,15 +978,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 35:
         return Command_AdjustRelSize(
           cells: dco_decode_list_String(raw[1]),
-          delta: dco_decode_i_32(raw[2]),
+          delta: dco_decode_i_64(raw[2]),
           recursive: dco_decode_bool(raw[3]),
         );
       case 36:
         return Command_AdjustColumnWidths(
           cell: dco_decode_String(raw[1]),
-          column: dco_decode_u_32(raw[2]),
-          count: dco_decode_u_32(raw[3]),
-          delta: dco_decode_i_32(raw[4]),
+          column: dco_decode_i_64(raw[2]),
+          count: dco_decode_i_64(raw[3]),
+          delta: dco_decode_i_64(raw[4]),
           recursive: dco_decode_bool(raw[5]),
         );
       case 37:
@@ -1202,7 +1202,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 1:
         return Prop_TextColor(dco_decode_box_autoadd_rgb(raw[1]));
       case 2:
-        return Prop_RelSize(dco_decode_i_32(raw[1]));
+        return Prop_RelSize(dco_decode_i_64(raw[1]));
       case 3:
         return Prop_TextAlign(dco_decode_horiz_align(raw[1]));
       case 4:
@@ -1222,7 +1222,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 11:
         return Prop_BorderColor(dco_decode_box_autoadd_rgb(raw[1]));
       case 12:
-        return Prop_OuterSpacing(dco_decode_u_32(raw[1]));
+        return Prop_OuterSpacing(dco_decode_i_64(raw[1]));
       case 13:
         return Prop_Vertical(dco_decode_bool(raw[1]));
       default:
@@ -1253,9 +1253,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 3)
       throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
     return Rgb(
-      r: dco_decode_u_8(arr[0]),
-      g: dco_decode_u_8(arr[1]),
-      b: dco_decode_u_8(arr[2]),
+      r: dco_decode_i_64(arr[0]),
+      g: dco_decode_i_64(arr[1]),
+      b: dco_decode_i_64(arr[2]),
     );
   }
 
@@ -1281,7 +1281,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 2)
       throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
     return TableData(
-      xs: dco_decode_u_32(arr[0]),
+      xs: dco_decode_i_64(arr[0]),
       cells: dco_decode_list_entry_data(arr[1]),
     );
   }
@@ -1482,13 +1482,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     switch (tag_) {
       case 0:
         var var_cell = sse_decode_String(deserializer);
-        var var_at = sse_decode_u_32(deserializer);
+        var var_at = sse_decode_i_64(deserializer);
         var var_text = sse_decode_String(deserializer);
         return Command_InsertText(cell: var_cell, at: var_at, text: var_text);
       case 1:
         var var_cell = sse_decode_String(deserializer);
-        var var_start = sse_decode_u_32(deserializer);
-        var var_len = sse_decode_u_32(deserializer);
+        var var_start = sse_decode_i_64(deserializer);
+        var var_len = sse_decode_i_64(deserializer);
         return Command_DeleteText(
           cell: var_cell,
           start: var_start,
@@ -1496,8 +1496,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 2:
         var var_cell = sse_decode_String(deserializer);
-        var var_start = sse_decode_u_32(deserializer);
-        var var_len = sse_decode_u_32(deserializer);
+        var var_start = sse_decode_i_64(deserializer);
+        var var_len = sse_decode_i_64(deserializer);
         var var_text = sse_decode_String(deserializer);
         return Command_ReplaceText(
           cell: var_cell,
@@ -1511,8 +1511,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return Command_SetText(cell: var_cell, text: var_text);
       case 4:
         var var_cell = sse_decode_String(deserializer);
-        var var_start = sse_decode_u_32(deserializer);
-        var var_len = sse_decode_u_32(deserializer);
+        var var_start = sse_decode_i_64(deserializer);
+        var var_len = sse_decode_i_64(deserializer);
         var var_set_ = sse_decode_box_autoadd_style(deserializer);
         var var_clear = sse_decode_box_autoadd_style(deserializer);
         return Command_SetRangeStyle(
@@ -1524,8 +1524,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 5:
         var var_cell = sse_decode_String(deserializer);
-        var var_start = sse_decode_u_32(deserializer);
-        var var_len = sse_decode_u_32(deserializer);
+        var var_start = sse_decode_i_64(deserializer);
+        var var_len = sse_decode_i_64(deserializer);
         var var_color = sse_decode_opt_box_autoadd_rgb(deserializer);
         return Command_SetRangeColor(
           cell: var_cell,
@@ -1535,8 +1535,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 6:
         var var_cell = sse_decode_String(deserializer);
-        var var_start = sse_decode_u_32(deserializer);
-        var var_len = sse_decode_u_32(deserializer);
+        var var_start = sse_decode_i_64(deserializer);
+        var var_len = sse_decode_i_64(deserializer);
         var var_target = sse_decode_opt_box_autoadd_link_target(deserializer);
         return Command_SetLink(
           cell: var_cell,
@@ -1559,8 +1559,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 9:
         var var_cell = sse_decode_String(deserializer);
-        var var_column = sse_decode_u_32(deserializer);
-        var var_width = sse_decode_u_32(deserializer);
+        var var_column = sse_decode_i_64(deserializer);
+        var var_width = sse_decode_i_64(deserializer);
         return Command_SetColumnWidth(
           cell: var_cell,
           column: var_column,
@@ -1568,21 +1568,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 10:
         var var_cell = sse_decode_String(deserializer);
-        var var_xs = sse_decode_u_32(deserializer);
-        var var_ys = sse_decode_u_32(deserializer);
+        var var_xs = sse_decode_i_64(deserializer);
+        var var_ys = sse_decode_i_64(deserializer);
         return Command_CreateGrid(cell: var_cell, xs: var_xs, ys: var_ys);
       case 11:
         var var_cell = sse_decode_String(deserializer);
         return Command_RemoveGrid(cell: var_cell);
       case 12:
         var var_cell = sse_decode_String(deserializer);
-        var var_at = sse_decode_u_32(deserializer);
-        var var_count = sse_decode_u_32(deserializer);
+        var var_at = sse_decode_i_64(deserializer);
+        var var_count = sse_decode_i_64(deserializer);
         return Command_InsertRows(cell: var_cell, at: var_at, count: var_count);
       case 13:
         var var_cell = sse_decode_String(deserializer);
-        var var_at = sse_decode_u_32(deserializer);
-        var var_count = sse_decode_u_32(deserializer);
+        var var_at = sse_decode_i_64(deserializer);
+        var var_count = sse_decode_i_64(deserializer);
         return Command_InsertColumns(
           cell: var_cell,
           at: var_at,
@@ -1590,13 +1590,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 14:
         var var_cell = sse_decode_String(deserializer);
-        var var_at = sse_decode_u_32(deserializer);
-        var var_count = sse_decode_u_32(deserializer);
+        var var_at = sse_decode_i_64(deserializer);
+        var var_count = sse_decode_i_64(deserializer);
         return Command_DeleteRows(cell: var_cell, at: var_at, count: var_count);
       case 15:
         var var_cell = sse_decode_String(deserializer);
-        var var_at = sse_decode_u_32(deserializer);
-        var var_count = sse_decode_u_32(deserializer);
+        var var_at = sse_decode_i_64(deserializer);
+        var var_count = sse_decode_i_64(deserializer);
         return Command_DeleteColumns(
           cell: var_cell,
           at: var_at,
@@ -1607,10 +1607,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return Command_ClearCells(cells: var_cells);
       case 17:
         var var_cell = sse_decode_String(deserializer);
-        var var_x = sse_decode_u_32(deserializer);
-        var var_y = sse_decode_u_32(deserializer);
-        var var_xs = sse_decode_u_32(deserializer);
-        var var_ys = sse_decode_u_32(deserializer);
+        var var_x = sse_decode_i_64(deserializer);
+        var var_y = sse_decode_i_64(deserializer);
+        var var_xs = sse_decode_i_64(deserializer);
+        var var_ys = sse_decode_i_64(deserializer);
         return Command_DeleteCells(
           cell: var_cell,
           x: var_x,
@@ -1620,9 +1620,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 18:
         var var_cell = sse_decode_String(deserializer);
-        var var_from = sse_decode_u_32(deserializer);
-        var var_count = sse_decode_u_32(deserializer);
-        var var_to = sse_decode_u_32(deserializer);
+        var var_from = sse_decode_i_64(deserializer);
+        var var_count = sse_decode_i_64(deserializer);
+        var var_to = sse_decode_i_64(deserializer);
         return Command_MoveRows(
           cell: var_cell,
           from: var_from,
@@ -1631,9 +1631,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 19:
         var var_cell = sse_decode_String(deserializer);
-        var var_from = sse_decode_u_32(deserializer);
-        var var_count = sse_decode_u_32(deserializer);
-        var var_to = sse_decode_u_32(deserializer);
+        var var_from = sse_decode_i_64(deserializer);
+        var var_count = sse_decode_i_64(deserializer);
+        var var_to = sse_decode_i_64(deserializer);
         return Command_MoveColumns(
           cell: var_cell,
           from: var_from,
@@ -1666,9 +1666,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return Command_RemoveTag(name: var_name);
       case 25:
         var var_cell = sse_decode_String(deserializer);
-        var var_column = sse_decode_u_32(deserializer);
-        var var_row = sse_decode_u_32(deserializer);
-        var var_count = sse_decode_u_32(deserializer);
+        var var_column = sse_decode_i_64(deserializer);
+        var var_row = sse_decode_i_64(deserializer);
+        var var_count = sse_decode_i_64(deserializer);
         var var_descending = sse_decode_bool(deserializer);
         return Command_SortRows(
           cell: var_cell,
@@ -1691,10 +1691,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return Command_Flatten(cell: var_cell);
       case 30:
         var var_cell = sse_decode_String(deserializer);
-        var var_x = sse_decode_u_32(deserializer);
-        var var_y = sse_decode_u_32(deserializer);
-        var var_xs = sse_decode_u_32(deserializer);
-        var var_ys = sse_decode_u_32(deserializer);
+        var var_x = sse_decode_i_64(deserializer);
+        var var_y = sse_decode_i_64(deserializer);
+        var var_xs = sse_decode_i_64(deserializer);
+        var var_ys = sse_decode_i_64(deserializer);
         return Command_Wrap(
           cell: var_cell,
           x: var_x,
@@ -1704,10 +1704,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 31:
         var var_cell = sse_decode_String(deserializer);
-        var var_x = sse_decode_u_32(deserializer);
-        var var_y = sse_decode_u_32(deserializer);
-        var var_xs = sse_decode_u_32(deserializer);
-        var var_ys = sse_decode_u_32(deserializer);
+        var var_x = sse_decode_i_64(deserializer);
+        var var_y = sse_decode_i_64(deserializer);
+        var var_xs = sse_decode_i_64(deserializer);
+        var var_ys = sse_decode_i_64(deserializer);
         return Command_Collapse(
           cell: var_cell,
           x: var_x,
@@ -1717,7 +1717,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 32:
         var var_cell = sse_decode_String(deserializer);
-        var var_at = sse_decode_u_32(deserializer);
+        var var_at = sse_decode_i_64(deserializer);
         return Command_SplitCell(cell: var_cell, at: var_at);
       case 33:
         var var_cells = sse_decode_list_String(deserializer);
@@ -1727,7 +1727,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return Command_UntagCells(cells: var_cells);
       case 35:
         var var_cells = sse_decode_list_String(deserializer);
-        var var_delta = sse_decode_i_32(deserializer);
+        var var_delta = sse_decode_i_64(deserializer);
         var var_recursive = sse_decode_bool(deserializer);
         return Command_AdjustRelSize(
           cells: var_cells,
@@ -1736,9 +1736,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 36:
         var var_cell = sse_decode_String(deserializer);
-        var var_column = sse_decode_u_32(deserializer);
-        var var_count = sse_decode_u_32(deserializer);
-        var var_delta = sse_decode_i_32(deserializer);
+        var var_column = sse_decode_i_64(deserializer);
+        var var_count = sse_decode_i_64(deserializer);
+        var var_delta = sse_decode_i_64(deserializer);
         var var_recursive = sse_decode_bool(deserializer);
         return Command_AdjustColumnWidths(
           cell: var_cell,
@@ -2026,7 +2026,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_field0 = sse_decode_box_autoadd_rgb(deserializer);
         return Prop_TextColor(var_field0);
       case 2:
-        var var_field0 = sse_decode_i_32(deserializer);
+        var var_field0 = sse_decode_i_64(deserializer);
         return Prop_RelSize(var_field0);
       case 3:
         var var_field0 = sse_decode_horiz_align(deserializer);
@@ -2056,7 +2056,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_field0 = sse_decode_box_autoadd_rgb(deserializer);
         return Prop_BorderColor(var_field0);
       case 12:
-        var var_field0 = sse_decode_u_32(deserializer);
+        var var_field0 = sse_decode_i_64(deserializer);
         return Prop_OuterSpacing(var_field0);
       case 13:
         var var_field0 = sse_decode_bool(deserializer);
@@ -2088,9 +2088,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   Rgb sse_decode_rgb(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_r = sse_decode_u_8(deserializer);
-    var var_g = sse_decode_u_8(deserializer);
-    var var_b = sse_decode_u_8(deserializer);
+    var var_r = sse_decode_i_64(deserializer);
+    var var_g = sse_decode_i_64(deserializer);
+    var var_b = sse_decode_i_64(deserializer);
     return Rgb(r: var_r, g: var_g, b: var_b);
   }
 
@@ -2114,7 +2114,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   TableData sse_decode_table_data(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_xs = sse_decode_u_32(deserializer);
+    var var_xs = sse_decode_i_64(deserializer);
     var var_cells = sse_decode_list_entry_data(deserializer);
     return TableData(xs: var_xs, cells: var_cells);
   }
@@ -2321,7 +2321,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case Command_InsertText(cell: final cell, at: final at, text: final text):
         sse_encode_i_32(0, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(at, serializer);
+        sse_encode_i_64(at, serializer);
         sse_encode_String(text, serializer);
       case Command_DeleteText(
         cell: final cell,
@@ -2330,8 +2330,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(1, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(start, serializer);
-        sse_encode_u_32(len, serializer);
+        sse_encode_i_64(start, serializer);
+        sse_encode_i_64(len, serializer);
       case Command_ReplaceText(
         cell: final cell,
         start: final start,
@@ -2340,8 +2340,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(2, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(start, serializer);
-        sse_encode_u_32(len, serializer);
+        sse_encode_i_64(start, serializer);
+        sse_encode_i_64(len, serializer);
         sse_encode_String(text, serializer);
       case Command_SetText(cell: final cell, text: final text):
         sse_encode_i_32(3, serializer);
@@ -2356,8 +2356,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(4, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(start, serializer);
-        sse_encode_u_32(len, serializer);
+        sse_encode_i_64(start, serializer);
+        sse_encode_i_64(len, serializer);
         sse_encode_box_autoadd_style(set_, serializer);
         sse_encode_box_autoadd_style(clear, serializer);
       case Command_SetRangeColor(
@@ -2368,8 +2368,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(5, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(start, serializer);
-        sse_encode_u_32(len, serializer);
+        sse_encode_i_64(start, serializer);
+        sse_encode_i_64(len, serializer);
         sse_encode_opt_box_autoadd_rgb(color, serializer);
       case Command_SetLink(
         cell: final cell,
@@ -2379,8 +2379,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(6, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(start, serializer);
-        sse_encode_u_32(len, serializer);
+        sse_encode_i_64(start, serializer);
+        sse_encode_i_64(len, serializer);
         sse_encode_opt_box_autoadd_link_target(target, serializer);
       case Command_SetProps(cells: final cells, props: final props):
         sse_encode_i_32(7, serializer);
@@ -2402,13 +2402,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(9, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(column, serializer);
-        sse_encode_u_32(width, serializer);
+        sse_encode_i_64(column, serializer);
+        sse_encode_i_64(width, serializer);
       case Command_CreateGrid(cell: final cell, xs: final xs, ys: final ys):
         sse_encode_i_32(10, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(xs, serializer);
-        sse_encode_u_32(ys, serializer);
+        sse_encode_i_64(xs, serializer);
+        sse_encode_i_64(ys, serializer);
       case Command_RemoveGrid(cell: final cell):
         sse_encode_i_32(11, serializer);
         sse_encode_String(cell, serializer);
@@ -2419,8 +2419,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(12, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(at, serializer);
-        sse_encode_u_32(count, serializer);
+        sse_encode_i_64(at, serializer);
+        sse_encode_i_64(count, serializer);
       case Command_InsertColumns(
         cell: final cell,
         at: final at,
@@ -2428,8 +2428,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(13, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(at, serializer);
-        sse_encode_u_32(count, serializer);
+        sse_encode_i_64(at, serializer);
+        sse_encode_i_64(count, serializer);
       case Command_DeleteRows(
         cell: final cell,
         at: final at,
@@ -2437,8 +2437,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(14, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(at, serializer);
-        sse_encode_u_32(count, serializer);
+        sse_encode_i_64(at, serializer);
+        sse_encode_i_64(count, serializer);
       case Command_DeleteColumns(
         cell: final cell,
         at: final at,
@@ -2446,8 +2446,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(15, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(at, serializer);
-        sse_encode_u_32(count, serializer);
+        sse_encode_i_64(at, serializer);
+        sse_encode_i_64(count, serializer);
       case Command_ClearCells(cells: final cells):
         sse_encode_i_32(16, serializer);
         sse_encode_list_String(cells, serializer);
@@ -2460,10 +2460,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(17, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(x, serializer);
-        sse_encode_u_32(y, serializer);
-        sse_encode_u_32(xs, serializer);
-        sse_encode_u_32(ys, serializer);
+        sse_encode_i_64(x, serializer);
+        sse_encode_i_64(y, serializer);
+        sse_encode_i_64(xs, serializer);
+        sse_encode_i_64(ys, serializer);
       case Command_MoveRows(
         cell: final cell,
         from: final from,
@@ -2472,9 +2472,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(18, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(from, serializer);
-        sse_encode_u_32(count, serializer);
-        sse_encode_u_32(to, serializer);
+        sse_encode_i_64(from, serializer);
+        sse_encode_i_64(count, serializer);
+        sse_encode_i_64(to, serializer);
       case Command_MoveColumns(
         cell: final cell,
         from: final from,
@@ -2483,9 +2483,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(19, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(from, serializer);
-        sse_encode_u_32(count, serializer);
-        sse_encode_u_32(to, serializer);
+        sse_encode_i_64(from, serializer);
+        sse_encode_i_64(count, serializer);
+        sse_encode_i_64(to, serializer);
       case Command_SwapCells(a: final a, b: final b):
         sse_encode_i_32(20, serializer);
         sse_encode_String(a, serializer);
@@ -2519,9 +2519,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(25, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(column, serializer);
-        sse_encode_u_32(row, serializer);
-        sse_encode_u_32(count, serializer);
+        sse_encode_i_64(column, serializer);
+        sse_encode_i_64(row, serializer);
+        sse_encode_i_64(count, serializer);
         sse_encode_bool(descending, serializer);
       case Command_Transpose(cells: final cells):
         sse_encode_i_32(26, serializer);
@@ -2544,10 +2544,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(30, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(x, serializer);
-        sse_encode_u_32(y, serializer);
-        sse_encode_u_32(xs, serializer);
-        sse_encode_u_32(ys, serializer);
+        sse_encode_i_64(x, serializer);
+        sse_encode_i_64(y, serializer);
+        sse_encode_i_64(xs, serializer);
+        sse_encode_i_64(ys, serializer);
       case Command_Collapse(
         cell: final cell,
         x: final x,
@@ -2557,14 +2557,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(31, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(x, serializer);
-        sse_encode_u_32(y, serializer);
-        sse_encode_u_32(xs, serializer);
-        sse_encode_u_32(ys, serializer);
+        sse_encode_i_64(x, serializer);
+        sse_encode_i_64(y, serializer);
+        sse_encode_i_64(xs, serializer);
+        sse_encode_i_64(ys, serializer);
       case Command_SplitCell(cell: final cell, at: final at):
         sse_encode_i_32(32, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(at, serializer);
+        sse_encode_i_64(at, serializer);
       case Command_TagCells(cells: final cells):
         sse_encode_i_32(33, serializer);
         sse_encode_list_String(cells, serializer);
@@ -2578,7 +2578,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(35, serializer);
         sse_encode_list_String(cells, serializer);
-        sse_encode_i_32(delta, serializer);
+        sse_encode_i_64(delta, serializer);
         sse_encode_bool(recursive, serializer);
       case Command_AdjustColumnWidths(
         cell: final cell,
@@ -2589,9 +2589,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ):
         sse_encode_i_32(36, serializer);
         sse_encode_String(cell, serializer);
-        sse_encode_u_32(column, serializer);
-        sse_encode_u_32(count, serializer);
-        sse_encode_i_32(delta, serializer);
+        sse_encode_i_64(column, serializer);
+        sse_encode_i_64(count, serializer);
+        sse_encode_i_64(delta, serializer);
         sse_encode_bool(recursive, serializer);
       case Command_Run():
         sse_encode_i_32(37, serializer);
@@ -2860,7 +2860,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_box_autoadd_rgb(field0, serializer);
       case Prop_RelSize(field0: final field0):
         sse_encode_i_32(2, serializer);
-        sse_encode_i_32(field0, serializer);
+        sse_encode_i_64(field0, serializer);
       case Prop_TextAlign(field0: final field0):
         sse_encode_i_32(3, serializer);
         sse_encode_horiz_align(field0, serializer);
@@ -2890,7 +2890,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_box_autoadd_rgb(field0, serializer);
       case Prop_OuterSpacing(field0: final field0):
         sse_encode_i_32(12, serializer);
-        sse_encode_u_32(field0, serializer);
+        sse_encode_i_64(field0, serializer);
       case Prop_Vertical(field0: final field0):
         sse_encode_i_32(13, serializer);
         sse_encode_bool(field0, serializer);
@@ -2911,9 +2911,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_rgb(Rgb self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_u_8(self.r, serializer);
-    sse_encode_u_8(self.g, serializer);
-    sse_encode_u_8(self.b, serializer);
+    sse_encode_i_64(self.r, serializer);
+    sse_encode_i_64(self.g, serializer);
+    sse_encode_i_64(self.b, serializer);
   }
 
   @protected
@@ -2929,7 +2929,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_table_data(TableData self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_u_32(self.xs, serializer);
+    sse_encode_i_64(self.xs, serializer);
     sse_encode_list_entry_data(self.cells, serializer);
   }
 

@@ -1327,6 +1327,16 @@ are where milestones 4, 5 and 6, built apart, meet).
     a number out of range or not finite, unknown fields that are no JSON object, JSON text
     that is no command. `Invalid` is only what the core means by it, which includes the
     document that carries a clip and a table to import, since the core checks those.
+134. **Whole numbers that Dart sends cross in 64 bits and are checked on arrival** (from the
+    review; adds to A123). A Dart `int` has 64 bits. The mirror types had the core's widths
+    (`u32`, `i32`, `u8`), and the generated Dart wrote only that many bits, so row 4294967296
+    arrived as row 0 and a relative size of 4294967299 as 3, with no error. Every whole number
+    in `Command` and what it holds (`Prop`, `Rgb`, `TableData`) is now `i64` in `api/wire.rs`,
+    and `convert.rs` turns each into the core's type with a checked conversion, refusing
+    what does not fit as `BadRequest`. JSON follows the same rule, since it is the same types.
+    Numbers that only go from Rust to Dart (`GridInfo.xs` and `ys`) stay as they are: a
+    narrower number always fits a wider one. In the generated Dart the type is written
+    `PlatformInt64`, which is `int` on every platform but the web (not a target, A121).
 
 ## B. Deliberate departures from TreeSheets
 

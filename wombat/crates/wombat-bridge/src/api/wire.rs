@@ -8,18 +8,22 @@
 //!
 //! One command of the core is one variant here with the same name and fields; see the
 //! core for what each does.
+//!
+//! Whole numbers that Dart sends are 64 bits wide here, as they are in Dart, though the
+//! core takes fewer: a narrower number would lose its high bits on the way without
+//! anyone being told (decision A134). `convert.rs` refuses what is out of range.
 
 use serde::{Deserialize, Serialize};
 
-/// A colour: red, green and blue.
+/// A colour: red, green and blue, each from 0 to 255. Any other number is refused.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct Rgb {
     /// Red.
-    pub r: u8,
+    pub r: i64,
     /// Green.
-    pub g: u8,
+    pub g: i64,
     /// Blue.
-    pub b: u8,
+    pub b: i64,
 }
 
 /// Text style switches.
@@ -131,8 +135,9 @@ pub enum Prop {
     CellColor(Rgb),
     /// The colour of the text.
     TextColor(Rgb),
-    /// The text size relative to the default; positive is smaller.
-    RelSize(i32),
+    /// The text size relative to the default; positive is smaller. From -2147483648 to
+    /// 2147483647.
+    RelSize(i64),
     /// Horizontal alignment.
     TextAlign(HorizAlign),
     /// Vertical alignment.
@@ -151,8 +156,8 @@ pub enum Prop {
     LastEdit(Option<i64>),
     /// The border colour of the cell's grid.
     BorderColor(Rgb),
-    /// The outer spacing of the cell's grid.
-    OuterSpacing(u32),
+    /// The outer spacing of the cell's grid, from 0 to 4294967295.
+    OuterSpacing(i64),
     /// Whether the cell's grid is below its text instead of beside it.
     Vertical(bool),
 }
@@ -185,14 +190,18 @@ pub struct EntryData {
 /// A grid of texts to import.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct TableData {
-    /// The number of columns.
-    pub xs: u32,
+    /// The number of columns, from 1 to 4294967295.
+    pub xs: i64,
     /// The cells row by row: whole rows, at least one cell.
     pub cells: Vec<EntryData>,
 }
 
 /// A change to a document: [`wombat_core::Command`] with IDs as text. Positions and
 /// lengths in text are in Unicode code points; rows and columns are counted from 0.
+///
+/// Every whole number is a position, a count or a size from 0 to 4294967295, but for
+/// each `delta`, which is from -2147483648 to 2147483647. A number outside its range is
+/// refused with [`ErrorKind::BadRequest`]; it is never cut to fit.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Command {
     /// Inserts text at a position.
@@ -200,7 +209,7 @@ pub enum Command {
         /// The cell.
         cell: String,
         /// Where to insert.
-        at: u32,
+        at: i64,
         /// What to insert.
         text: String,
     },
@@ -209,18 +218,18 @@ pub enum Command {
         /// The cell.
         cell: String,
         /// The first code point to delete.
-        start: u32,
+        start: i64,
         /// How many code points to delete.
-        len: u32,
+        len: i64,
     },
     /// Replaces a range of text.
     ReplaceText {
         /// The cell.
         cell: String,
         /// The first code point to replace.
-        start: u32,
+        start: i64,
         /// How many code points to replace.
-        len: u32,
+        len: i64,
         /// The new text.
         text: String,
     },
@@ -236,9 +245,9 @@ pub enum Command {
         /// The cell.
         cell: String,
         /// The first code point.
-        start: u32,
+        start: i64,
         /// How many code points.
-        len: u32,
+        len: i64,
         /// The bits to switch on.
         set: Style,
         /// The bits to switch off.
@@ -249,9 +258,9 @@ pub enum Command {
         /// The cell.
         cell: String,
         /// The first code point.
-        start: u32,
+        start: i64,
         /// How many code points.
-        len: u32,
+        len: i64,
         /// The colour.
         color: Option<Rgb>,
     },
@@ -260,9 +269,9 @@ pub enum Command {
         /// The cell.
         cell: String,
         /// The first code point.
-        start: u32,
+        start: i64,
         /// How many code points.
-        len: u32,
+        len: i64,
         /// Where the link goes.
         target: Option<LinkTarget>,
     },
@@ -287,18 +296,18 @@ pub enum Command {
         /// The cell that has the grid.
         cell: String,
         /// The column.
-        column: u32,
+        column: i64,
         /// The width.
-        width: u32,
+        width: i64,
     },
     /// Gives a cell that has no grid a grid of new empty cells.
     CreateGrid {
         /// The cell.
         cell: String,
         /// The number of columns.
-        xs: u32,
+        xs: i64,
         /// The number of rows.
-        ys: u32,
+        ys: i64,
     },
     /// Removes the grid of a cell with everything in it.
     RemoveGrid {
@@ -310,36 +319,36 @@ pub enum Command {
         /// The cell that has the grid.
         cell: String,
         /// The row before which to insert; the number of rows appends.
-        at: u32,
+        at: i64,
         /// How many rows.
-        count: u32,
+        count: i64,
     },
     /// Inserts empty columns.
     InsertColumns {
         /// The cell that has the grid.
         cell: String,
         /// The column before which to insert; the number of columns appends.
-        at: u32,
+        at: i64,
         /// How many columns.
-        count: u32,
+        count: i64,
     },
     /// Deletes rows with everything in them.
     DeleteRows {
         /// The cell that has the grid.
         cell: String,
         /// The first row.
-        at: u32,
+        at: i64,
         /// How many rows.
-        count: u32,
+        count: i64,
     },
     /// Deletes columns with everything in them.
     DeleteColumns {
         /// The cell that has the grid.
         cell: String,
         /// The first column.
-        at: u32,
+        at: i64,
         /// How many columns.
-        count: u32,
+        count: i64,
     },
     /// Empties cells: text, runs, links, image and grid go, the looks stay.
     ClearCells {
@@ -352,35 +361,35 @@ pub enum Command {
         /// The cell that has the grid.
         cell: String,
         /// The first selected column.
-        x: u32,
+        x: i64,
         /// The first selected row.
-        y: u32,
+        y: i64,
         /// The number of selected columns, at least 1.
-        xs: u32,
+        xs: i64,
         /// The number of selected rows, at least 1.
-        ys: u32,
+        ys: i64,
     },
     /// Moves rows within their grid.
     MoveRows {
         /// The cell that has the grid.
         cell: String,
         /// The first row to move.
-        from: u32,
+        from: i64,
         /// How many rows.
-        count: u32,
+        count: i64,
         /// The index the first moved row has afterwards.
-        to: u32,
+        to: i64,
     },
     /// Moves columns within their grid, with their widths.
     MoveColumns {
         /// The cell that has the grid.
         cell: String,
         /// The first column to move.
-        from: u32,
+        from: i64,
         /// How many columns.
-        count: u32,
+        count: i64,
         /// The index the first moved column has afterwards.
-        to: u32,
+        to: i64,
     },
     /// Makes two cells trade places, with everything in them.
     SwapCells {
@@ -422,11 +431,11 @@ pub enum Command {
         /// The cell that has the grid.
         cell: String,
         /// The column to sort by first.
-        column: u32,
+        column: i64,
         /// The first row that takes part.
-        row: u32,
+        row: i64,
         /// How many rows take part.
-        count: u32,
+        count: i64,
         /// From high to low instead of from low to high.
         descending: bool,
     },
@@ -455,33 +464,33 @@ pub enum Command {
         /// The cell that has the grid.
         cell: String,
         /// The first column of the block.
-        x: u32,
+        x: i64,
         /// The first row of the block.
-        y: u32,
+        y: i64,
         /// The number of columns, at least 1.
-        xs: u32,
+        xs: i64,
         /// The number of rows, at least 1.
-        ys: u32,
+        ys: i64,
     },
     /// Joins the texts of a block of cells into its first cell.
     Collapse {
         /// The cell that has the grid.
         cell: String,
         /// The first column of the block.
-        x: u32,
+        x: i64,
         /// The first row of the block.
-        y: u32,
+        y: i64,
         /// The number of columns.
-        xs: u32,
+        xs: i64,
         /// The number of rows.
-        ys: u32,
+        ys: i64,
     },
     /// Cuts the text of a cell into the two cells of a new grid inside it.
     SplitCell {
         /// The cell.
         cell: String,
         /// Where to cut the text.
-        at: u32,
+        at: i64,
     },
     /// The text of each listed cell that has text becomes a tag with the cell's colours.
     TagCells {
@@ -498,7 +507,7 @@ pub enum Command {
         /// The cells.
         cells: Vec<String>,
         /// What to add.
-        delta: i32,
+        delta: i64,
         /// Also the cells inside the listed ones.
         recursive: bool,
     },
@@ -507,11 +516,11 @@ pub enum Command {
         /// The cell that has the grid.
         cell: String,
         /// The first column.
-        column: u32,
+        column: i64,
         /// How many columns.
-        count: u32,
+        count: i64,
         /// What to add.
-        delta: i32,
+        delta: i64,
         /// Also every column of every grid inside the cells of those columns.
         recursive: bool,
     },

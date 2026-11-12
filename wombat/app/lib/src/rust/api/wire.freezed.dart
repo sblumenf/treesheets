@@ -249,7 +249,7 @@ return retargetLinks(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String cell,  int at,  String text)?  insertText,TResult Function( String cell,  int start,  int len)?  deleteText,TResult Function( String cell,  int start,  int len,  String text)?  replaceText,TResult Function( String cell,  String text)?  setText,TResult Function( String cell,  int start,  int len,  Style set_,  Style clear)?  setRangeStyle,TResult Function( String cell,  int start,  int len,  Rgb? color)?  setRangeColor,TResult Function( String cell,  int start,  int len,  LinkTarget? target)?  setLink,TResult Function( List<String> cells,  List<Prop> props)?  setProps,TResult Function( List<String> cells,  Style set_,  Style clear)?  setStyle,TResult Function( String cell,  int column,  int width)?  setColumnWidth,TResult Function( String cell,  int xs,  int ys)?  createGrid,TResult Function( String cell)?  removeGrid,TResult Function( String cell,  int at,  int count)?  insertRows,TResult Function( String cell,  int at,  int count)?  insertColumns,TResult Function( String cell,  int at,  int count)?  deleteRows,TResult Function( String cell,  int at,  int count)?  deleteColumns,TResult Function( List<String> cells)?  clearCells,TResult Function( String cell,  int x,  int y,  int xs,  int ys)?  deleteCells,TResult Function( String cell,  int from,  int count,  int to)?  moveRows,TResult Function( String cell,  int from,  int count,  int to)?  moveColumns,TResult Function( String a,  String b)?  swapCells,TResult Function( String from,  String to)?  moveCell,TResult Function( String from,  String to)?  copyCell,TResult Function( String name,  Rgb cellColor,  Rgb textColor)?  setTag,TResult Function( String name)?  removeTag,TResult Function( String cell,  int column,  int row,  int count,  bool descending)?  sortRows,TResult Function( List<String> cells)?  transpose,TResult Function( String cell)?  hierarchySwap,TResult Function( String cell)?  hierarchify,TResult Function( String cell)?  flatten,TResult Function( String cell,  int x,  int y,  int xs,  int ys)?  wrap,TResult Function( String cell,  int x,  int y,  int xs,  int ys)?  collapse,TResult Function( String cell,  int at)?  splitCell,TResult Function( List<String> cells)?  tagCells,TResult Function( List<String> cells)?  untagCells,TResult Function( List<String> cells,  int delta,  bool recursive)?  adjustRelSize,TResult Function( String cell,  int column,  int count,  int delta,  bool recursive)?  adjustColumnWidths,TResult Function()?  run,TResult Function( String cell,  String text)?  enterText,TResult Function( List<String> cells)?  toggleCheck,TResult Function( String to,  ClipData clip)?  pasteCells,TResult Function( String to,  ClipData clip)?  adoptCells,TResult Function( String cell)?  releaseCell,TResult Function( String cell,  TableData table,  bool replace)?  import_,TResult Function( List<String> cells,  String? from,  String? to)?  retargetLinks,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String cell,  PlatformInt64 at,  String text)?  insertText,TResult Function( String cell,  PlatformInt64 start,  PlatformInt64 len)?  deleteText,TResult Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  String text)?  replaceText,TResult Function( String cell,  String text)?  setText,TResult Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  Style set_,  Style clear)?  setRangeStyle,TResult Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  Rgb? color)?  setRangeColor,TResult Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  LinkTarget? target)?  setLink,TResult Function( List<String> cells,  List<Prop> props)?  setProps,TResult Function( List<String> cells,  Style set_,  Style clear)?  setStyle,TResult Function( String cell,  PlatformInt64 column,  PlatformInt64 width)?  setColumnWidth,TResult Function( String cell,  PlatformInt64 xs,  PlatformInt64 ys)?  createGrid,TResult Function( String cell)?  removeGrid,TResult Function( String cell,  PlatformInt64 at,  PlatformInt64 count)?  insertRows,TResult Function( String cell,  PlatformInt64 at,  PlatformInt64 count)?  insertColumns,TResult Function( String cell,  PlatformInt64 at,  PlatformInt64 count)?  deleteRows,TResult Function( String cell,  PlatformInt64 at,  PlatformInt64 count)?  deleteColumns,TResult Function( List<String> cells)?  clearCells,TResult Function( String cell,  PlatformInt64 x,  PlatformInt64 y,  PlatformInt64 xs,  PlatformInt64 ys)?  deleteCells,TResult Function( String cell,  PlatformInt64 from,  PlatformInt64 count,  PlatformInt64 to)?  moveRows,TResult Function( String cell,  PlatformInt64 from,  PlatformInt64 count,  PlatformInt64 to)?  moveColumns,TResult Function( String a,  String b)?  swapCells,TResult Function( String from,  String to)?  moveCell,TResult Function( String from,  String to)?  copyCell,TResult Function( String name,  Rgb cellColor,  Rgb textColor)?  setTag,TResult Function( String name)?  removeTag,TResult Function( String cell,  PlatformInt64 column,  PlatformInt64 row,  PlatformInt64 count,  bool descending)?  sortRows,TResult Function( List<String> cells)?  transpose,TResult Function( String cell)?  hierarchySwap,TResult Function( String cell)?  hierarchify,TResult Function( String cell)?  flatten,TResult Function( String cell,  PlatformInt64 x,  PlatformInt64 y,  PlatformInt64 xs,  PlatformInt64 ys)?  wrap,TResult Function( String cell,  PlatformInt64 x,  PlatformInt64 y,  PlatformInt64 xs,  PlatformInt64 ys)?  collapse,TResult Function( String cell,  PlatformInt64 at)?  splitCell,TResult Function( List<String> cells)?  tagCells,TResult Function( List<String> cells)?  untagCells,TResult Function( List<String> cells,  PlatformInt64 delta,  bool recursive)?  adjustRelSize,TResult Function( String cell,  PlatformInt64 column,  PlatformInt64 count,  PlatformInt64 delta,  bool recursive)?  adjustColumnWidths,TResult Function()?  run,TResult Function( String cell,  String text)?  enterText,TResult Function( List<String> cells)?  toggleCheck,TResult Function( String to,  ClipData clip)?  pasteCells,TResult Function( String to,  ClipData clip)?  adoptCells,TResult Function( String cell)?  releaseCell,TResult Function( String cell,  TableData table,  bool replace)?  import_,TResult Function( List<String> cells,  String? from,  String? to)?  retargetLinks,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case Command_InsertText() when insertText != null:
 return insertText(_that.cell,_that.at,_that.text);case Command_DeleteText() when deleteText != null:
@@ -314,7 +314,7 @@ return retargetLinks(_that.cells,_that.from,_that.to);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String cell,  int at,  String text)  insertText,required TResult Function( String cell,  int start,  int len)  deleteText,required TResult Function( String cell,  int start,  int len,  String text)  replaceText,required TResult Function( String cell,  String text)  setText,required TResult Function( String cell,  int start,  int len,  Style set_,  Style clear)  setRangeStyle,required TResult Function( String cell,  int start,  int len,  Rgb? color)  setRangeColor,required TResult Function( String cell,  int start,  int len,  LinkTarget? target)  setLink,required TResult Function( List<String> cells,  List<Prop> props)  setProps,required TResult Function( List<String> cells,  Style set_,  Style clear)  setStyle,required TResult Function( String cell,  int column,  int width)  setColumnWidth,required TResult Function( String cell,  int xs,  int ys)  createGrid,required TResult Function( String cell)  removeGrid,required TResult Function( String cell,  int at,  int count)  insertRows,required TResult Function( String cell,  int at,  int count)  insertColumns,required TResult Function( String cell,  int at,  int count)  deleteRows,required TResult Function( String cell,  int at,  int count)  deleteColumns,required TResult Function( List<String> cells)  clearCells,required TResult Function( String cell,  int x,  int y,  int xs,  int ys)  deleteCells,required TResult Function( String cell,  int from,  int count,  int to)  moveRows,required TResult Function( String cell,  int from,  int count,  int to)  moveColumns,required TResult Function( String a,  String b)  swapCells,required TResult Function( String from,  String to)  moveCell,required TResult Function( String from,  String to)  copyCell,required TResult Function( String name,  Rgb cellColor,  Rgb textColor)  setTag,required TResult Function( String name)  removeTag,required TResult Function( String cell,  int column,  int row,  int count,  bool descending)  sortRows,required TResult Function( List<String> cells)  transpose,required TResult Function( String cell)  hierarchySwap,required TResult Function( String cell)  hierarchify,required TResult Function( String cell)  flatten,required TResult Function( String cell,  int x,  int y,  int xs,  int ys)  wrap,required TResult Function( String cell,  int x,  int y,  int xs,  int ys)  collapse,required TResult Function( String cell,  int at)  splitCell,required TResult Function( List<String> cells)  tagCells,required TResult Function( List<String> cells)  untagCells,required TResult Function( List<String> cells,  int delta,  bool recursive)  adjustRelSize,required TResult Function( String cell,  int column,  int count,  int delta,  bool recursive)  adjustColumnWidths,required TResult Function()  run,required TResult Function( String cell,  String text)  enterText,required TResult Function( List<String> cells)  toggleCheck,required TResult Function( String to,  ClipData clip)  pasteCells,required TResult Function( String to,  ClipData clip)  adoptCells,required TResult Function( String cell)  releaseCell,required TResult Function( String cell,  TableData table,  bool replace)  import_,required TResult Function( List<String> cells,  String? from,  String? to)  retargetLinks,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String cell,  PlatformInt64 at,  String text)  insertText,required TResult Function( String cell,  PlatformInt64 start,  PlatformInt64 len)  deleteText,required TResult Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  String text)  replaceText,required TResult Function( String cell,  String text)  setText,required TResult Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  Style set_,  Style clear)  setRangeStyle,required TResult Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  Rgb? color)  setRangeColor,required TResult Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  LinkTarget? target)  setLink,required TResult Function( List<String> cells,  List<Prop> props)  setProps,required TResult Function( List<String> cells,  Style set_,  Style clear)  setStyle,required TResult Function( String cell,  PlatformInt64 column,  PlatformInt64 width)  setColumnWidth,required TResult Function( String cell,  PlatformInt64 xs,  PlatformInt64 ys)  createGrid,required TResult Function( String cell)  removeGrid,required TResult Function( String cell,  PlatformInt64 at,  PlatformInt64 count)  insertRows,required TResult Function( String cell,  PlatformInt64 at,  PlatformInt64 count)  insertColumns,required TResult Function( String cell,  PlatformInt64 at,  PlatformInt64 count)  deleteRows,required TResult Function( String cell,  PlatformInt64 at,  PlatformInt64 count)  deleteColumns,required TResult Function( List<String> cells)  clearCells,required TResult Function( String cell,  PlatformInt64 x,  PlatformInt64 y,  PlatformInt64 xs,  PlatformInt64 ys)  deleteCells,required TResult Function( String cell,  PlatformInt64 from,  PlatformInt64 count,  PlatformInt64 to)  moveRows,required TResult Function( String cell,  PlatformInt64 from,  PlatformInt64 count,  PlatformInt64 to)  moveColumns,required TResult Function( String a,  String b)  swapCells,required TResult Function( String from,  String to)  moveCell,required TResult Function( String from,  String to)  copyCell,required TResult Function( String name,  Rgb cellColor,  Rgb textColor)  setTag,required TResult Function( String name)  removeTag,required TResult Function( String cell,  PlatformInt64 column,  PlatformInt64 row,  PlatformInt64 count,  bool descending)  sortRows,required TResult Function( List<String> cells)  transpose,required TResult Function( String cell)  hierarchySwap,required TResult Function( String cell)  hierarchify,required TResult Function( String cell)  flatten,required TResult Function( String cell,  PlatformInt64 x,  PlatformInt64 y,  PlatformInt64 xs,  PlatformInt64 ys)  wrap,required TResult Function( String cell,  PlatformInt64 x,  PlatformInt64 y,  PlatformInt64 xs,  PlatformInt64 ys)  collapse,required TResult Function( String cell,  PlatformInt64 at)  splitCell,required TResult Function( List<String> cells)  tagCells,required TResult Function( List<String> cells)  untagCells,required TResult Function( List<String> cells,  PlatformInt64 delta,  bool recursive)  adjustRelSize,required TResult Function( String cell,  PlatformInt64 column,  PlatformInt64 count,  PlatformInt64 delta,  bool recursive)  adjustColumnWidths,required TResult Function()  run,required TResult Function( String cell,  String text)  enterText,required TResult Function( List<String> cells)  toggleCheck,required TResult Function( String to,  ClipData clip)  pasteCells,required TResult Function( String to,  ClipData clip)  adoptCells,required TResult Function( String cell)  releaseCell,required TResult Function( String cell,  TableData table,  bool replace)  import_,required TResult Function( List<String> cells,  String? from,  String? to)  retargetLinks,}) {final _that = this;
 switch (_that) {
 case Command_InsertText():
 return insertText(_that.cell,_that.at,_that.text);case Command_DeleteText():
@@ -375,7 +375,7 @@ return retargetLinks(_that.cells,_that.from,_that.to);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String cell,  int at,  String text)?  insertText,TResult? Function( String cell,  int start,  int len)?  deleteText,TResult? Function( String cell,  int start,  int len,  String text)?  replaceText,TResult? Function( String cell,  String text)?  setText,TResult? Function( String cell,  int start,  int len,  Style set_,  Style clear)?  setRangeStyle,TResult? Function( String cell,  int start,  int len,  Rgb? color)?  setRangeColor,TResult? Function( String cell,  int start,  int len,  LinkTarget? target)?  setLink,TResult? Function( List<String> cells,  List<Prop> props)?  setProps,TResult? Function( List<String> cells,  Style set_,  Style clear)?  setStyle,TResult? Function( String cell,  int column,  int width)?  setColumnWidth,TResult? Function( String cell,  int xs,  int ys)?  createGrid,TResult? Function( String cell)?  removeGrid,TResult? Function( String cell,  int at,  int count)?  insertRows,TResult? Function( String cell,  int at,  int count)?  insertColumns,TResult? Function( String cell,  int at,  int count)?  deleteRows,TResult? Function( String cell,  int at,  int count)?  deleteColumns,TResult? Function( List<String> cells)?  clearCells,TResult? Function( String cell,  int x,  int y,  int xs,  int ys)?  deleteCells,TResult? Function( String cell,  int from,  int count,  int to)?  moveRows,TResult? Function( String cell,  int from,  int count,  int to)?  moveColumns,TResult? Function( String a,  String b)?  swapCells,TResult? Function( String from,  String to)?  moveCell,TResult? Function( String from,  String to)?  copyCell,TResult? Function( String name,  Rgb cellColor,  Rgb textColor)?  setTag,TResult? Function( String name)?  removeTag,TResult? Function( String cell,  int column,  int row,  int count,  bool descending)?  sortRows,TResult? Function( List<String> cells)?  transpose,TResult? Function( String cell)?  hierarchySwap,TResult? Function( String cell)?  hierarchify,TResult? Function( String cell)?  flatten,TResult? Function( String cell,  int x,  int y,  int xs,  int ys)?  wrap,TResult? Function( String cell,  int x,  int y,  int xs,  int ys)?  collapse,TResult? Function( String cell,  int at)?  splitCell,TResult? Function( List<String> cells)?  tagCells,TResult? Function( List<String> cells)?  untagCells,TResult? Function( List<String> cells,  int delta,  bool recursive)?  adjustRelSize,TResult? Function( String cell,  int column,  int count,  int delta,  bool recursive)?  adjustColumnWidths,TResult? Function()?  run,TResult? Function( String cell,  String text)?  enterText,TResult? Function( List<String> cells)?  toggleCheck,TResult? Function( String to,  ClipData clip)?  pasteCells,TResult? Function( String to,  ClipData clip)?  adoptCells,TResult? Function( String cell)?  releaseCell,TResult? Function( String cell,  TableData table,  bool replace)?  import_,TResult? Function( List<String> cells,  String? from,  String? to)?  retargetLinks,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String cell,  PlatformInt64 at,  String text)?  insertText,TResult? Function( String cell,  PlatformInt64 start,  PlatformInt64 len)?  deleteText,TResult? Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  String text)?  replaceText,TResult? Function( String cell,  String text)?  setText,TResult? Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  Style set_,  Style clear)?  setRangeStyle,TResult? Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  Rgb? color)?  setRangeColor,TResult? Function( String cell,  PlatformInt64 start,  PlatformInt64 len,  LinkTarget? target)?  setLink,TResult? Function( List<String> cells,  List<Prop> props)?  setProps,TResult? Function( List<String> cells,  Style set_,  Style clear)?  setStyle,TResult? Function( String cell,  PlatformInt64 column,  PlatformInt64 width)?  setColumnWidth,TResult? Function( String cell,  PlatformInt64 xs,  PlatformInt64 ys)?  createGrid,TResult? Function( String cell)?  removeGrid,TResult? Function( String cell,  PlatformInt64 at,  PlatformInt64 count)?  insertRows,TResult? Function( String cell,  PlatformInt64 at,  PlatformInt64 count)?  insertColumns,TResult? Function( String cell,  PlatformInt64 at,  PlatformInt64 count)?  deleteRows,TResult? Function( String cell,  PlatformInt64 at,  PlatformInt64 count)?  deleteColumns,TResult? Function( List<String> cells)?  clearCells,TResult? Function( String cell,  PlatformInt64 x,  PlatformInt64 y,  PlatformInt64 xs,  PlatformInt64 ys)?  deleteCells,TResult? Function( String cell,  PlatformInt64 from,  PlatformInt64 count,  PlatformInt64 to)?  moveRows,TResult? Function( String cell,  PlatformInt64 from,  PlatformInt64 count,  PlatformInt64 to)?  moveColumns,TResult? Function( String a,  String b)?  swapCells,TResult? Function( String from,  String to)?  moveCell,TResult? Function( String from,  String to)?  copyCell,TResult? Function( String name,  Rgb cellColor,  Rgb textColor)?  setTag,TResult? Function( String name)?  removeTag,TResult? Function( String cell,  PlatformInt64 column,  PlatformInt64 row,  PlatformInt64 count,  bool descending)?  sortRows,TResult? Function( List<String> cells)?  transpose,TResult? Function( String cell)?  hierarchySwap,TResult? Function( String cell)?  hierarchify,TResult? Function( String cell)?  flatten,TResult? Function( String cell,  PlatformInt64 x,  PlatformInt64 y,  PlatformInt64 xs,  PlatformInt64 ys)?  wrap,TResult? Function( String cell,  PlatformInt64 x,  PlatformInt64 y,  PlatformInt64 xs,  PlatformInt64 ys)?  collapse,TResult? Function( String cell,  PlatformInt64 at)?  splitCell,TResult? Function( List<String> cells)?  tagCells,TResult? Function( List<String> cells)?  untagCells,TResult? Function( List<String> cells,  PlatformInt64 delta,  bool recursive)?  adjustRelSize,TResult? Function( String cell,  PlatformInt64 column,  PlatformInt64 count,  PlatformInt64 delta,  bool recursive)?  adjustColumnWidths,TResult? Function()?  run,TResult? Function( String cell,  String text)?  enterText,TResult? Function( List<String> cells)?  toggleCheck,TResult? Function( String to,  ClipData clip)?  pasteCells,TResult? Function( String to,  ClipData clip)?  adoptCells,TResult? Function( String cell)?  releaseCell,TResult? Function( String cell,  TableData table,  bool replace)?  import_,TResult? Function( List<String> cells,  String? from,  String? to)?  retargetLinks,}) {final _that = this;
 switch (_that) {
 case Command_InsertText() when insertText != null:
 return insertText(_that.cell,_that.at,_that.text);case Command_DeleteText() when deleteText != null:
@@ -440,7 +440,7 @@ class Command_InsertText extends Command {
 /// The cell.
  final  String cell;
 /// Where to insert.
- final  int at;
+ final  PlatformInt64 at;
 /// What to insert.
  final  String text;
 
@@ -476,7 +476,7 @@ abstract mixin class $Command_InsertTextCopyWith<$Res> implements $CommandCopyWi
   factory $Command_InsertTextCopyWith(Command_InsertText value, $Res Function(Command_InsertText) _then) = _$Command_InsertTextCopyWithImpl;
 @useResult
 $Res call({
- String cell, int at, String text
+ String cell, PlatformInt64 at, String text
 });
 
 
@@ -497,7 +497,7 @@ class _$Command_InsertTextCopyWithImpl<$Res>
   return _then(Command_InsertText(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,at: null == at ? _self.at : at // ignore: cast_nullable_to_non_nullable
-as int,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -515,9 +515,9 @@ class Command_DeleteText extends Command {
 /// The cell.
  final  String cell;
 /// The first code point to delete.
- final  int start;
+ final  PlatformInt64 start;
 /// How many code points to delete.
- final  int len;
+ final  PlatformInt64 len;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -551,7 +551,7 @@ abstract mixin class $Command_DeleteTextCopyWith<$Res> implements $CommandCopyWi
   factory $Command_DeleteTextCopyWith(Command_DeleteText value, $Res Function(Command_DeleteText) _then) = _$Command_DeleteTextCopyWithImpl;
 @useResult
 $Res call({
- String cell, int start, int len
+ String cell, PlatformInt64 start, PlatformInt64 len
 });
 
 
@@ -572,8 +572,8 @@ class _$Command_DeleteTextCopyWithImpl<$Res>
   return _then(Command_DeleteText(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,start: null == start ? _self.start : start // ignore: cast_nullable_to_non_nullable
-as int,len: null == len ? _self.len : len // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,len: null == len ? _self.len : len // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -590,9 +590,9 @@ class Command_ReplaceText extends Command {
 /// The cell.
  final  String cell;
 /// The first code point to replace.
- final  int start;
+ final  PlatformInt64 start;
 /// How many code points to replace.
- final  int len;
+ final  PlatformInt64 len;
 /// The new text.
  final  String text;
 
@@ -628,7 +628,7 @@ abstract mixin class $Command_ReplaceTextCopyWith<$Res> implements $CommandCopyW
   factory $Command_ReplaceTextCopyWith(Command_ReplaceText value, $Res Function(Command_ReplaceText) _then) = _$Command_ReplaceTextCopyWithImpl;
 @useResult
 $Res call({
- String cell, int start, int len, String text
+ String cell, PlatformInt64 start, PlatformInt64 len, String text
 });
 
 
@@ -649,8 +649,8 @@ class _$Command_ReplaceTextCopyWithImpl<$Res>
   return _then(Command_ReplaceText(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,start: null == start ? _self.start : start // ignore: cast_nullable_to_non_nullable
-as int,len: null == len ? _self.len : len // ignore: cast_nullable_to_non_nullable
-as int,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,len: null == len ? _self.len : len // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -740,9 +740,9 @@ class Command_SetRangeStyle extends Command {
 /// The cell.
  final  String cell;
 /// The first code point.
- final  int start;
+ final  PlatformInt64 start;
 /// How many code points.
- final  int len;
+ final  PlatformInt64 len;
 /// The bits to switch on.
  final  Style set_;
 /// The bits to switch off.
@@ -780,7 +780,7 @@ abstract mixin class $Command_SetRangeStyleCopyWith<$Res> implements $CommandCop
   factory $Command_SetRangeStyleCopyWith(Command_SetRangeStyle value, $Res Function(Command_SetRangeStyle) _then) = _$Command_SetRangeStyleCopyWithImpl;
 @useResult
 $Res call({
- String cell, int start, int len, Style set_, Style clear
+ String cell, PlatformInt64 start, PlatformInt64 len, Style set_, Style clear
 });
 
 
@@ -801,8 +801,8 @@ class _$Command_SetRangeStyleCopyWithImpl<$Res>
   return _then(Command_SetRangeStyle(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,start: null == start ? _self.start : start // ignore: cast_nullable_to_non_nullable
-as int,len: null == len ? _self.len : len // ignore: cast_nullable_to_non_nullable
-as int,set_: null == set_ ? _self.set_ : set_ // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,len: null == len ? _self.len : len // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,set_: null == set_ ? _self.set_ : set_ // ignore: cast_nullable_to_non_nullable
 as Style,clear: null == clear ? _self.clear : clear // ignore: cast_nullable_to_non_nullable
 as Style,
   ));
@@ -821,9 +821,9 @@ class Command_SetRangeColor extends Command {
 /// The cell.
  final  String cell;
 /// The first code point.
- final  int start;
+ final  PlatformInt64 start;
 /// How many code points.
- final  int len;
+ final  PlatformInt64 len;
 /// The colour.
  final  Rgb? color;
 
@@ -859,7 +859,7 @@ abstract mixin class $Command_SetRangeColorCopyWith<$Res> implements $CommandCop
   factory $Command_SetRangeColorCopyWith(Command_SetRangeColor value, $Res Function(Command_SetRangeColor) _then) = _$Command_SetRangeColorCopyWithImpl;
 @useResult
 $Res call({
- String cell, int start, int len, Rgb? color
+ String cell, PlatformInt64 start, PlatformInt64 len, Rgb? color
 });
 
 
@@ -880,8 +880,8 @@ class _$Command_SetRangeColorCopyWithImpl<$Res>
   return _then(Command_SetRangeColor(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,start: null == start ? _self.start : start // ignore: cast_nullable_to_non_nullable
-as int,len: null == len ? _self.len : len // ignore: cast_nullable_to_non_nullable
-as int,color: freezed == color ? _self.color : color // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,len: null == len ? _self.len : len // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,color: freezed == color ? _self.color : color // ignore: cast_nullable_to_non_nullable
 as Rgb?,
   ));
 }
@@ -899,9 +899,9 @@ class Command_SetLink extends Command {
 /// The cell.
  final  String cell;
 /// The first code point.
- final  int start;
+ final  PlatformInt64 start;
 /// How many code points.
- final  int len;
+ final  PlatformInt64 len;
 /// Where the link goes.
  final  LinkTarget? target;
 
@@ -937,7 +937,7 @@ abstract mixin class $Command_SetLinkCopyWith<$Res> implements $CommandCopyWith<
   factory $Command_SetLinkCopyWith(Command_SetLink value, $Res Function(Command_SetLink) _then) = _$Command_SetLinkCopyWithImpl;
 @useResult
 $Res call({
- String cell, int start, int len, LinkTarget? target
+ String cell, PlatformInt64 start, PlatformInt64 len, LinkTarget? target
 });
 
 
@@ -958,8 +958,8 @@ class _$Command_SetLinkCopyWithImpl<$Res>
   return _then(Command_SetLink(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,start: null == start ? _self.start : start // ignore: cast_nullable_to_non_nullable
-as int,len: null == len ? _self.len : len // ignore: cast_nullable_to_non_nullable
-as int,target: freezed == target ? _self.target : target // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,len: null == len ? _self.len : len // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,target: freezed == target ? _self.target : target // ignore: cast_nullable_to_non_nullable
 as LinkTarget?,
   ));
 }
@@ -1157,9 +1157,9 @@ class Command_SetColumnWidth extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The column.
- final  int column;
+ final  PlatformInt64 column;
 /// The width.
- final  int width;
+ final  PlatformInt64 width;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -1193,7 +1193,7 @@ abstract mixin class $Command_SetColumnWidthCopyWith<$Res> implements $CommandCo
   factory $Command_SetColumnWidthCopyWith(Command_SetColumnWidth value, $Res Function(Command_SetColumnWidth) _then) = _$Command_SetColumnWidthCopyWithImpl;
 @useResult
 $Res call({
- String cell, int column, int width
+ String cell, PlatformInt64 column, PlatformInt64 width
 });
 
 
@@ -1214,8 +1214,8 @@ class _$Command_SetColumnWidthCopyWithImpl<$Res>
   return _then(Command_SetColumnWidth(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,column: null == column ? _self.column : column // ignore: cast_nullable_to_non_nullable
-as int,width: null == width ? _self.width : width // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,width: null == width ? _self.width : width // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -1232,9 +1232,9 @@ class Command_CreateGrid extends Command {
 /// The cell.
  final  String cell;
 /// The number of columns.
- final  int xs;
+ final  PlatformInt64 xs;
 /// The number of rows.
- final  int ys;
+ final  PlatformInt64 ys;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -1268,7 +1268,7 @@ abstract mixin class $Command_CreateGridCopyWith<$Res> implements $CommandCopyWi
   factory $Command_CreateGridCopyWith(Command_CreateGrid value, $Res Function(Command_CreateGrid) _then) = _$Command_CreateGridCopyWithImpl;
 @useResult
 $Res call({
- String cell, int xs, int ys
+ String cell, PlatformInt64 xs, PlatformInt64 ys
 });
 
 
@@ -1289,8 +1289,8 @@ class _$Command_CreateGridCopyWithImpl<$Res>
   return _then(Command_CreateGrid(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,xs: null == xs ? _self.xs : xs // ignore: cast_nullable_to_non_nullable
-as int,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -1376,9 +1376,9 @@ class Command_InsertRows extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The row before which to insert; the number of rows appends.
- final  int at;
+ final  PlatformInt64 at;
 /// How many rows.
- final  int count;
+ final  PlatformInt64 count;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -1412,7 +1412,7 @@ abstract mixin class $Command_InsertRowsCopyWith<$Res> implements $CommandCopyWi
   factory $Command_InsertRowsCopyWith(Command_InsertRows value, $Res Function(Command_InsertRows) _then) = _$Command_InsertRowsCopyWithImpl;
 @useResult
 $Res call({
- String cell, int at, int count
+ String cell, PlatformInt64 at, PlatformInt64 count
 });
 
 
@@ -1433,8 +1433,8 @@ class _$Command_InsertRowsCopyWithImpl<$Res>
   return _then(Command_InsertRows(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,at: null == at ? _self.at : at // ignore: cast_nullable_to_non_nullable
-as int,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -1451,9 +1451,9 @@ class Command_InsertColumns extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The column before which to insert; the number of columns appends.
- final  int at;
+ final  PlatformInt64 at;
 /// How many columns.
- final  int count;
+ final  PlatformInt64 count;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -1487,7 +1487,7 @@ abstract mixin class $Command_InsertColumnsCopyWith<$Res> implements $CommandCop
   factory $Command_InsertColumnsCopyWith(Command_InsertColumns value, $Res Function(Command_InsertColumns) _then) = _$Command_InsertColumnsCopyWithImpl;
 @useResult
 $Res call({
- String cell, int at, int count
+ String cell, PlatformInt64 at, PlatformInt64 count
 });
 
 
@@ -1508,8 +1508,8 @@ class _$Command_InsertColumnsCopyWithImpl<$Res>
   return _then(Command_InsertColumns(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,at: null == at ? _self.at : at // ignore: cast_nullable_to_non_nullable
-as int,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -1526,9 +1526,9 @@ class Command_DeleteRows extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The first row.
- final  int at;
+ final  PlatformInt64 at;
 /// How many rows.
- final  int count;
+ final  PlatformInt64 count;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -1562,7 +1562,7 @@ abstract mixin class $Command_DeleteRowsCopyWith<$Res> implements $CommandCopyWi
   factory $Command_DeleteRowsCopyWith(Command_DeleteRows value, $Res Function(Command_DeleteRows) _then) = _$Command_DeleteRowsCopyWithImpl;
 @useResult
 $Res call({
- String cell, int at, int count
+ String cell, PlatformInt64 at, PlatformInt64 count
 });
 
 
@@ -1583,8 +1583,8 @@ class _$Command_DeleteRowsCopyWithImpl<$Res>
   return _then(Command_DeleteRows(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,at: null == at ? _self.at : at // ignore: cast_nullable_to_non_nullable
-as int,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -1601,9 +1601,9 @@ class Command_DeleteColumns extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The first column.
- final  int at;
+ final  PlatformInt64 at;
 /// How many columns.
- final  int count;
+ final  PlatformInt64 count;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -1637,7 +1637,7 @@ abstract mixin class $Command_DeleteColumnsCopyWith<$Res> implements $CommandCop
   factory $Command_DeleteColumnsCopyWith(Command_DeleteColumns value, $Res Function(Command_DeleteColumns) _then) = _$Command_DeleteColumnsCopyWithImpl;
 @useResult
 $Res call({
- String cell, int at, int count
+ String cell, PlatformInt64 at, PlatformInt64 count
 });
 
 
@@ -1658,8 +1658,8 @@ class _$Command_DeleteColumnsCopyWithImpl<$Res>
   return _then(Command_DeleteColumns(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,at: null == at ? _self.at : at // ignore: cast_nullable_to_non_nullable
-as int,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -1752,13 +1752,13 @@ class Command_DeleteCells extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The first selected column.
- final  int x;
+ final  PlatformInt64 x;
 /// The first selected row.
- final  int y;
+ final  PlatformInt64 y;
 /// The number of selected columns, at least 1.
- final  int xs;
+ final  PlatformInt64 xs;
 /// The number of selected rows, at least 1.
- final  int ys;
+ final  PlatformInt64 ys;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -1792,7 +1792,7 @@ abstract mixin class $Command_DeleteCellsCopyWith<$Res> implements $CommandCopyW
   factory $Command_DeleteCellsCopyWith(Command_DeleteCells value, $Res Function(Command_DeleteCells) _then) = _$Command_DeleteCellsCopyWithImpl;
 @useResult
 $Res call({
- String cell, int x, int y, int xs, int ys
+ String cell, PlatformInt64 x, PlatformInt64 y, PlatformInt64 xs, PlatformInt64 ys
 });
 
 
@@ -1813,10 +1813,10 @@ class _$Command_DeleteCellsCopyWithImpl<$Res>
   return _then(Command_DeleteCells(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,x: null == x ? _self.x : x // ignore: cast_nullable_to_non_nullable
-as int,y: null == y ? _self.y : y // ignore: cast_nullable_to_non_nullable
-as int,xs: null == xs ? _self.xs : xs // ignore: cast_nullable_to_non_nullable
-as int,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,y: null == y ? _self.y : y // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,xs: null == xs ? _self.xs : xs // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -1833,11 +1833,11 @@ class Command_MoveRows extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The first row to move.
- final  int from;
+ final  PlatformInt64 from;
 /// How many rows.
- final  int count;
+ final  PlatformInt64 count;
 /// The index the first moved row has afterwards.
- final  int to;
+ final  PlatformInt64 to;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -1871,7 +1871,7 @@ abstract mixin class $Command_MoveRowsCopyWith<$Res> implements $CommandCopyWith
   factory $Command_MoveRowsCopyWith(Command_MoveRows value, $Res Function(Command_MoveRows) _then) = _$Command_MoveRowsCopyWithImpl;
 @useResult
 $Res call({
- String cell, int from, int count, int to
+ String cell, PlatformInt64 from, PlatformInt64 count, PlatformInt64 to
 });
 
 
@@ -1892,9 +1892,9 @@ class _$Command_MoveRowsCopyWithImpl<$Res>
   return _then(Command_MoveRows(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,from: null == from ? _self.from : from // ignore: cast_nullable_to_non_nullable
-as int,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
-as int,to: null == to ? _self.to : to // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,to: null == to ? _self.to : to // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -1911,11 +1911,11 @@ class Command_MoveColumns extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The first column to move.
- final  int from;
+ final  PlatformInt64 from;
 /// How many columns.
- final  int count;
+ final  PlatformInt64 count;
 /// The index the first moved column has afterwards.
- final  int to;
+ final  PlatformInt64 to;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -1949,7 +1949,7 @@ abstract mixin class $Command_MoveColumnsCopyWith<$Res> implements $CommandCopyW
   factory $Command_MoveColumnsCopyWith(Command_MoveColumns value, $Res Function(Command_MoveColumns) _then) = _$Command_MoveColumnsCopyWithImpl;
 @useResult
 $Res call({
- String cell, int from, int count, int to
+ String cell, PlatformInt64 from, PlatformInt64 count, PlatformInt64 to
 });
 
 
@@ -1970,9 +1970,9 @@ class _$Command_MoveColumnsCopyWithImpl<$Res>
   return _then(Command_MoveColumns(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,from: null == from ? _self.from : from // ignore: cast_nullable_to_non_nullable
-as int,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
-as int,to: null == to ? _self.to : to // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,to: null == to ? _self.to : to // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -2349,11 +2349,11 @@ class Command_SortRows extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The column to sort by first.
- final  int column;
+ final  PlatformInt64 column;
 /// The first row that takes part.
- final  int row;
+ final  PlatformInt64 row;
 /// How many rows take part.
- final  int count;
+ final  PlatformInt64 count;
 /// From high to low instead of from low to high.
  final  bool descending;
 
@@ -2389,7 +2389,7 @@ abstract mixin class $Command_SortRowsCopyWith<$Res> implements $CommandCopyWith
   factory $Command_SortRowsCopyWith(Command_SortRows value, $Res Function(Command_SortRows) _then) = _$Command_SortRowsCopyWithImpl;
 @useResult
 $Res call({
- String cell, int column, int row, int count, bool descending
+ String cell, PlatformInt64 column, PlatformInt64 row, PlatformInt64 count, bool descending
 });
 
 
@@ -2410,9 +2410,9 @@ class _$Command_SortRowsCopyWithImpl<$Res>
   return _then(Command_SortRows(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,column: null == column ? _self.column : column // ignore: cast_nullable_to_non_nullable
-as int,row: null == row ? _self.row : row // ignore: cast_nullable_to_non_nullable
-as int,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
-as int,descending: null == descending ? _self.descending : descending // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,row: null == row ? _self.row : row // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,descending: null == descending ? _self.descending : descending // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -2713,13 +2713,13 @@ class Command_Wrap extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The first column of the block.
- final  int x;
+ final  PlatformInt64 x;
 /// The first row of the block.
- final  int y;
+ final  PlatformInt64 y;
 /// The number of columns, at least 1.
- final  int xs;
+ final  PlatformInt64 xs;
 /// The number of rows, at least 1.
- final  int ys;
+ final  PlatformInt64 ys;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -2753,7 +2753,7 @@ abstract mixin class $Command_WrapCopyWith<$Res> implements $CommandCopyWith<$Re
   factory $Command_WrapCopyWith(Command_Wrap value, $Res Function(Command_Wrap) _then) = _$Command_WrapCopyWithImpl;
 @useResult
 $Res call({
- String cell, int x, int y, int xs, int ys
+ String cell, PlatformInt64 x, PlatformInt64 y, PlatformInt64 xs, PlatformInt64 ys
 });
 
 
@@ -2774,10 +2774,10 @@ class _$Command_WrapCopyWithImpl<$Res>
   return _then(Command_Wrap(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,x: null == x ? _self.x : x // ignore: cast_nullable_to_non_nullable
-as int,y: null == y ? _self.y : y // ignore: cast_nullable_to_non_nullable
-as int,xs: null == xs ? _self.xs : xs // ignore: cast_nullable_to_non_nullable
-as int,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,y: null == y ? _self.y : y // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,xs: null == xs ? _self.xs : xs // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -2794,13 +2794,13 @@ class Command_Collapse extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The first column of the block.
- final  int x;
+ final  PlatformInt64 x;
 /// The first row of the block.
- final  int y;
+ final  PlatformInt64 y;
 /// The number of columns.
- final  int xs;
+ final  PlatformInt64 xs;
 /// The number of rows.
- final  int ys;
+ final  PlatformInt64 ys;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -2834,7 +2834,7 @@ abstract mixin class $Command_CollapseCopyWith<$Res> implements $CommandCopyWith
   factory $Command_CollapseCopyWith(Command_Collapse value, $Res Function(Command_Collapse) _then) = _$Command_CollapseCopyWithImpl;
 @useResult
 $Res call({
- String cell, int x, int y, int xs, int ys
+ String cell, PlatformInt64 x, PlatformInt64 y, PlatformInt64 xs, PlatformInt64 ys
 });
 
 
@@ -2855,10 +2855,10 @@ class _$Command_CollapseCopyWithImpl<$Res>
   return _then(Command_Collapse(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,x: null == x ? _self.x : x // ignore: cast_nullable_to_non_nullable
-as int,y: null == y ? _self.y : y // ignore: cast_nullable_to_non_nullable
-as int,xs: null == xs ? _self.xs : xs // ignore: cast_nullable_to_non_nullable
-as int,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,y: null == y ? _self.y : y // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,xs: null == xs ? _self.xs : xs // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 
@@ -2875,7 +2875,7 @@ class Command_SplitCell extends Command {
 /// The cell.
  final  String cell;
 /// Where to cut the text.
- final  int at;
+ final  PlatformInt64 at;
 
 /// Create a copy of Command
 /// with the given fields replaced by the non-null parameter values.
@@ -2909,7 +2909,7 @@ abstract mixin class $Command_SplitCellCopyWith<$Res> implements $CommandCopyWit
   factory $Command_SplitCellCopyWith(Command_SplitCell value, $Res Function(Command_SplitCell) _then) = _$Command_SplitCellCopyWithImpl;
 @useResult
 $Res call({
- String cell, int at
+ String cell, PlatformInt64 at
 });
 
 
@@ -2930,7 +2930,7 @@ class _$Command_SplitCellCopyWithImpl<$Res>
   return _then(Command_SplitCell(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,at: null == at ? _self.at : at // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,
   ));
 }
 
@@ -3106,7 +3106,7 @@ class Command_AdjustRelSize extends Command {
 }
 
 /// What to add.
- final  int delta;
+ final  PlatformInt64 delta;
 /// Also the cells inside the listed ones.
  final  bool recursive;
 
@@ -3142,7 +3142,7 @@ abstract mixin class $Command_AdjustRelSizeCopyWith<$Res> implements $CommandCop
   factory $Command_AdjustRelSizeCopyWith(Command_AdjustRelSize value, $Res Function(Command_AdjustRelSize) _then) = _$Command_AdjustRelSizeCopyWithImpl;
 @useResult
 $Res call({
- List<String> cells, int delta, bool recursive
+ List<String> cells, PlatformInt64 delta, bool recursive
 });
 
 
@@ -3163,7 +3163,7 @@ class _$Command_AdjustRelSizeCopyWithImpl<$Res>
   return _then(Command_AdjustRelSize(
 cells: null == cells ? _self._cells : cells // ignore: cast_nullable_to_non_nullable
 as List<String>,delta: null == delta ? _self.delta : delta // ignore: cast_nullable_to_non_nullable
-as int,recursive: null == recursive ? _self.recursive : recursive // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,recursive: null == recursive ? _self.recursive : recursive // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -3181,11 +3181,11 @@ class Command_AdjustColumnWidths extends Command {
 /// The cell that has the grid.
  final  String cell;
 /// The first column.
- final  int column;
+ final  PlatformInt64 column;
 /// How many columns.
- final  int count;
+ final  PlatformInt64 count;
 /// What to add.
- final  int delta;
+ final  PlatformInt64 delta;
 /// Also every column of every grid inside the cells of those columns.
  final  bool recursive;
 
@@ -3221,7 +3221,7 @@ abstract mixin class $Command_AdjustColumnWidthsCopyWith<$Res> implements $Comma
   factory $Command_AdjustColumnWidthsCopyWith(Command_AdjustColumnWidths value, $Res Function(Command_AdjustColumnWidths) _then) = _$Command_AdjustColumnWidthsCopyWithImpl;
 @useResult
 $Res call({
- String cell, int column, int count, int delta, bool recursive
+ String cell, PlatformInt64 column, PlatformInt64 count, PlatformInt64 delta, bool recursive
 });
 
 
@@ -3242,9 +3242,9 @@ class _$Command_AdjustColumnWidthsCopyWithImpl<$Res>
   return _then(Command_AdjustColumnWidths(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,column: null == column ? _self.column : column // ignore: cast_nullable_to_non_nullable
-as int,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
-as int,delta: null == delta ? _self.delta : delta // ignore: cast_nullable_to_non_nullable
-as int,recursive: null == recursive ? _self.recursive : recursive // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,delta: null == delta ? _self.delta : delta // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,recursive: null == recursive ? _self.recursive : recursive // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -4291,7 +4291,7 @@ return vertical(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Rgb field0)?  cellColor,TResult Function( Rgb field0)?  textColor,TResult Function( int field0)?  relSize,TResult Function( HorizAlign field0)?  textAlign,TResult Function( VertAlign field0)?  vertAlign,TResult Function( CellKind field0)?  kind,TResult Function( String field0)?  note,TResult Function( DrawStyle field0)?  drawStyle,TResult Function( ImageRef? field0)?  image,TResult Function( double field0)?  imageScale,TResult Function( PlatformInt64? field0)?  lastEdit,TResult Function( Rgb field0)?  borderColor,TResult Function( int field0)?  outerSpacing,TResult Function( bool field0)?  vertical,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Rgb field0)?  cellColor,TResult Function( Rgb field0)?  textColor,TResult Function( PlatformInt64 field0)?  relSize,TResult Function( HorizAlign field0)?  textAlign,TResult Function( VertAlign field0)?  vertAlign,TResult Function( CellKind field0)?  kind,TResult Function( String field0)?  note,TResult Function( DrawStyle field0)?  drawStyle,TResult Function( ImageRef? field0)?  image,TResult Function( double field0)?  imageScale,TResult Function( PlatformInt64? field0)?  lastEdit,TResult Function( Rgb field0)?  borderColor,TResult Function( PlatformInt64 field0)?  outerSpacing,TResult Function( bool field0)?  vertical,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case Prop_CellColor() when cellColor != null:
 return cellColor(_that.field0);case Prop_TextColor() when textColor != null:
@@ -4325,7 +4325,7 @@ return vertical(_that.field0);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Rgb field0)  cellColor,required TResult Function( Rgb field0)  textColor,required TResult Function( int field0)  relSize,required TResult Function( HorizAlign field0)  textAlign,required TResult Function( VertAlign field0)  vertAlign,required TResult Function( CellKind field0)  kind,required TResult Function( String field0)  note,required TResult Function( DrawStyle field0)  drawStyle,required TResult Function( ImageRef? field0)  image,required TResult Function( double field0)  imageScale,required TResult Function( PlatformInt64? field0)  lastEdit,required TResult Function( Rgb field0)  borderColor,required TResult Function( int field0)  outerSpacing,required TResult Function( bool field0)  vertical,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Rgb field0)  cellColor,required TResult Function( Rgb field0)  textColor,required TResult Function( PlatformInt64 field0)  relSize,required TResult Function( HorizAlign field0)  textAlign,required TResult Function( VertAlign field0)  vertAlign,required TResult Function( CellKind field0)  kind,required TResult Function( String field0)  note,required TResult Function( DrawStyle field0)  drawStyle,required TResult Function( ImageRef? field0)  image,required TResult Function( double field0)  imageScale,required TResult Function( PlatformInt64? field0)  lastEdit,required TResult Function( Rgb field0)  borderColor,required TResult Function( PlatformInt64 field0)  outerSpacing,required TResult Function( bool field0)  vertical,}) {final _that = this;
 switch (_that) {
 case Prop_CellColor():
 return cellColor(_that.field0);case Prop_TextColor():
@@ -4355,7 +4355,7 @@ return vertical(_that.field0);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Rgb field0)?  cellColor,TResult? Function( Rgb field0)?  textColor,TResult? Function( int field0)?  relSize,TResult? Function( HorizAlign field0)?  textAlign,TResult? Function( VertAlign field0)?  vertAlign,TResult? Function( CellKind field0)?  kind,TResult? Function( String field0)?  note,TResult? Function( DrawStyle field0)?  drawStyle,TResult? Function( ImageRef? field0)?  image,TResult? Function( double field0)?  imageScale,TResult? Function( PlatformInt64? field0)?  lastEdit,TResult? Function( Rgb field0)?  borderColor,TResult? Function( int field0)?  outerSpacing,TResult? Function( bool field0)?  vertical,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Rgb field0)?  cellColor,TResult? Function( Rgb field0)?  textColor,TResult? Function( PlatformInt64 field0)?  relSize,TResult? Function( HorizAlign field0)?  textAlign,TResult? Function( VertAlign field0)?  vertAlign,TResult? Function( CellKind field0)?  kind,TResult? Function( String field0)?  note,TResult? Function( DrawStyle field0)?  drawStyle,TResult? Function( ImageRef? field0)?  image,TResult? Function( double field0)?  imageScale,TResult? Function( PlatformInt64? field0)?  lastEdit,TResult? Function( Rgb field0)?  borderColor,TResult? Function( PlatformInt64 field0)?  outerSpacing,TResult? Function( bool field0)?  vertical,}) {final _that = this;
 switch (_that) {
 case Prop_CellColor() when cellColor != null:
 return cellColor(_that.field0);case Prop_TextColor() when textColor != null:
@@ -4522,7 +4522,7 @@ class Prop_RelSize extends Prop {
   const Prop_RelSize(this.field0): super._();
   
 
-@override final  int field0;
+@override final  PlatformInt64 field0;
 
 /// Create a copy of Prop
 /// with the given fields replaced by the non-null parameter values.
@@ -4556,7 +4556,7 @@ abstract mixin class $Prop_RelSizeCopyWith<$Res> implements $PropCopyWith<$Res> 
   factory $Prop_RelSizeCopyWith(Prop_RelSize value, $Res Function(Prop_RelSize) _then) = _$Prop_RelSizeCopyWithImpl;
 @useResult
 $Res call({
- int field0
+ PlatformInt64 field0
 });
 
 
@@ -4576,7 +4576,7 @@ class _$Prop_RelSizeCopyWithImpl<$Res>
 @pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
   return _then(Prop_RelSize(
 null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,
   ));
 }
 
@@ -5202,7 +5202,7 @@ class Prop_OuterSpacing extends Prop {
   const Prop_OuterSpacing(this.field0): super._();
   
 
-@override final  int field0;
+@override final  PlatformInt64 field0;
 
 /// Create a copy of Prop
 /// with the given fields replaced by the non-null parameter values.
@@ -5236,7 +5236,7 @@ abstract mixin class $Prop_OuterSpacingCopyWith<$Res> implements $PropCopyWith<$
   factory $Prop_OuterSpacingCopyWith(Prop_OuterSpacing value, $Res Function(Prop_OuterSpacing) _then) = _$Prop_OuterSpacingCopyWithImpl;
 @useResult
 $Res call({
- int field0
+ PlatformInt64 field0
 });
 
 
@@ -5256,7 +5256,7 @@ class _$Prop_OuterSpacingCopyWithImpl<$Res>
 @pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
   return _then(Prop_OuterSpacing(
 null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as int,
+as PlatformInt64,
   ));
 }
 
