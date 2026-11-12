@@ -367,6 +367,98 @@ pub(crate) fn links_set(links: &mut Vec<Link>, from: u32, to: u32, target: Optio
     *links = out;
 }
 
+/// The last place at or before the byte offset `at` (which must be between two code
+/// points) where `text` may be cut.
+fn floor_byte(text: &str, at: usize) -> usize {
+    if boundary_at_byte(text, at) {
+        return at;
+    }
+    GraphemeCursor::new(at, text.len(), true)
+        .prev_boundary(text, 0)
+        .ok()
+        .flatten()
+        .unwrap_or(0)
+}
+
+/// The smallest edit that turns `old` into `new`: replace `len` code points at `start`
+/// by the returned text (what [`crate::edit::Command::ReplaceText`] takes). `None` if the
+/// two are equal.
+///
+/// Neither end of the replaced range cuts a user-perceived character of `old`, and neither
+/// end of the returned text cuts one of `new`; call a replacement that keeps to that
+/// *allowed*. "Smallest" then means exactly this: no allowed replacement starts later, and
+/// of the allowed replacements that start there none replaces fewer code points (nor,
+/// which is the same, puts fewer in). So the text before `start` is the longest that the
+/// two have in common and that may be cut off in both, and after it the same holds for
+/// the text behind the replaced range. Where the same character repeats, the start is kept
+/// long before the end is: from "aa" to "aaa" the third "a" is the new one.
+///
+/// It is not always the allowed replacement of the fewest code points: where the common
+/// start and the common end overlap (texts that repeat themselves), a shorter common
+/// start could leave room for a longer common end that fits the characters better.
+///
+/// Line breaks need no care of their own: a line feed is a user-perceived character by
+/// itself (and a carriage return with a line feed is one together). The time taken is in
+/// proportion to the two texts.
+pub fn difference(old: &str, new: &str) -> Option<(u32, u32, String)> {
+    if old == new {
+        return None;
+    }
+    let count = |text: &str| u32::try_from(text.chars().count()).unwrap_or(u32::MAX);
+    let same = |(a, b): &(char, char)| a == b;
+    let mut start: usize = old
+        .chars()
+        .zip(new.chars())
+        .take_while(same)
+        .map(|(c, _)| c.len_utf8())
+        .sum();
+    // Whether a text may be cut at a place depends on what follows there, and that is
+    // where the two differ: go back until both may be cut at the same place.
+    loop {
+        let back = floor_byte(new, floor_byte(old, start));
+        if back == start {
+            break;
+        }
+        start = back;
+    }
+    let (old_rest, new_rest) = (old.get(start..)?, new.get(start..)?);
+    let common: usize = old_rest
+        .chars()
+        .rev()
+        .zip(new_rest.chars().rev())
+        .take_while(same)
+        .map(|(c, _)| c.len_utf8())
+        .sum();
+    // From `start` on, walk both texts from one allowed cut to the next, each a step
+    // behind the other, until both stand as far from their ends, inside what they have in
+    // common there. (Looking backwards from the end instead would have to find its place
+    // among the characters anew at every step.)
+    let mut cuts = [
+        (old, GraphemeCursor::new(start, old.len(), true)),
+        (new, GraphemeCursor::new(start, new.len(), true)),
+    ];
+    let mut tails = [old_rest.len(), new_rest.len()];
+    let tail = loop {
+        let [a, b] = tails;
+        if a == b && a <= common {
+            break a;
+        }
+        let n = usize::from(a < b);
+        let (Some((text, cursor)), Some(tail)) = (cuts.get_mut(n), tails.get_mut(n)) else {
+            break 0;
+        };
+        let next = cursor.next_boundary(text, 0).ok().flatten();
+        // Nearer to the end every time, so that this ends whatever the cursor says.
+        *tail = next
+            .map(|at| text.len().saturating_sub(at))
+            .filter(|left| *left < *tail)
+            .unwrap_or(0);
+    };
+    let replaced = old_rest.get(..old_rest.len().checked_sub(tail)?)?;
+    let put = new_rest.get(..new_rest.len().checked_sub(tail)?)?;
+    Some((count(old.get(..start)?), count(replaced), put.to_string()))
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
