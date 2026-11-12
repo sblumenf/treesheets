@@ -1,5 +1,6 @@
 // The plain-text check of the bridge on a real device (or desktop): presses its three
-// buttons and reads the screen. Run with: flutter test integration_test -d linux   (or -d <an Android device>)
+// buttons and reads the screen.
+// Run with: flutter test integration_test/app_test.dart -d linux   (or -d <a device>)
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';

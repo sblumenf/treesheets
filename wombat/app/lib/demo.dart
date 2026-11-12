@@ -5,7 +5,8 @@ import 'session.dart';
 import 'src/rust/api/wire.dart';
 
 /// What the three buttons of the bare app do, apart from the screen: each step returns
-/// the text to show. Kept apart so that a test can go through the same steps.
+/// the text to show. Kept apart so that a test can go through the same steps. [close]
+/// ends it.
 class Demo {
   Session? _doc;
   int _edits = 0;
@@ -17,6 +18,8 @@ class Demo {
   /// have the same file, so the core makes a copy of it with IDs of its own in `folder`
   /// (decision A28), and that copy is what is opened.
   Future<String> open(Directory folder, Uint8List example) async {
+    // The copy from the press before is done with: saved, and its file left there.
+    await close();
     final original = File('${folder.path}/example-original.wombat');
     await original.writeAsBytes(example, flush: true);
     final stamp = DateTime.now().microsecondsSinceEpoch;
@@ -28,6 +31,13 @@ class Demo {
     _edits = 0;
     return 'Opened ${doc.path}\n'
         'document ${doc.id}\n\n${await _show(doc)}';
+  }
+
+  /// Saves and closes the document that is open, if one is.
+  Future<void> close() async {
+    final doc = _doc;
+    _doc = null;
+    await doc?.close();
   }
 
   /// Sets the text of one cell (the first cost) and shows what the core reports.

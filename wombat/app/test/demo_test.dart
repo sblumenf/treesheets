@@ -42,7 +42,40 @@ void main() {
     expect(undone, contains('"=SUM(Costs)" = "10"'));
 
     expect(await demo.undo(), startsWith('Nothing to undo'));
+    await demo.close();
+    expect(demo.isOpen, isFalse);
   });
+
+  test(
+    'closing, and opening again, save the document and let go of it',
+    () async {
+      final demo = Demo();
+      final example = await File('assets/example.wombat').readAsBytes();
+      String path(String opened) =>
+          opened.split('\n').first.substring('Opened '.length);
+      Future<String> firstCost(String file) async {
+        // Refused while the check still has the file open.
+        final doc = await Session.open(file);
+        final root = await doc.grid(doc.root);
+        final costs = await doc.grid(root.cells[2].id);
+        await doc.close();
+        return costs.cells[0].text;
+      }
+
+      final first = path(await demo.open(folder, example));
+      await demo.change();
+      final second = path(await demo.open(folder, example));
+      expect(second, isNot(first));
+      expect(await firstCost(first), '31');
+
+      await demo.change();
+      await demo.change();
+      await demo.close();
+      expect(await firstCost(second), '32');
+      // Nothing is open: closing again is nothing.
+      await demo.close();
+    },
+  );
 
   test('the copy that is opened has IDs of its own', () async {
     final example = File('assets/example.wombat');

@@ -20,8 +20,14 @@ class _DemoScreenState extends State<DemoScreen> {
   String _text = 'Press Open.';
   bool _busy = false;
 
-  /// Runs one step and shows its text, or the error it ended with.
+  /// A folder for the copies this screen makes, made at the first Open and removed
+  /// with the screen: they are for looking at, not for keeping.
+  Directory? _folder;
+
+  /// Runs one step and shows its text, or the error it ended with. A press while a
+  /// step runs does nothing: the steps build on each other's text on the screen.
   Future<void> _run(Future<String> Function() step) async {
+    if (_busy) return;
     setState(() => _busy = true);
     String text;
     try {
@@ -29,6 +35,7 @@ class _DemoScreenState extends State<DemoScreen> {
     } catch (error) {
       text = describeError(error);
     }
+    if (!mounted) return;
     setState(() {
       _text = text;
       _busy = false;
@@ -37,10 +44,22 @@ class _DemoScreenState extends State<DemoScreen> {
 
   Future<String> _open() async {
     final example = await rootBundle.load('assets/example.wombat');
-    // A folder the app may write to on every platform; where documents really go is for
-    // the real interface to decide.
-    final folder = await Directory.systemTemp.createTemp('wombat');
+    final folder = _folder ??= await Directory.systemTemp.createTemp(
+      'wombat-check',
+    );
     return _demo.open(folder, example.buffer.asUint8List());
+  }
+
+  /// Closes the document, and only then removes its folder.
+  @override
+  void dispose() {
+    final folder = _folder;
+    _demo
+        .close()
+        .catchError((Object _) {})
+        .whenComplete(() => folder?.delete(recursive: true))
+        .catchError((Object _) {});
+    super.dispose();
   }
 
   @override
