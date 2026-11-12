@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wombat_app/demo.dart';
 import 'package:wombat_app/demo_screen.dart';
 
 import 'support.dart';
@@ -32,7 +33,8 @@ void main() {
 
   testWidgets('two presses in one frame are one step', (tester) async {
     final before = folders();
-    await tester.pumpWidget(const MaterialApp(home: DemoScreen()));
+    final demo = Demo();
+    await tester.pumpWidget(MaterialApp(home: DemoScreen(demo: demo)));
     await tester.tap(find.byKey(const Key('open')));
     await settle(tester);
     expect(output(tester), contains('"=SUM(Costs)" = "10"'));
@@ -48,8 +50,10 @@ void main() {
 
     // Taking the screen away closes its document and removes the folder of its copies.
     expect(folders().difference(before).length, 1);
+    expect(demo.isOpen, isTrue);
     await tester.pumpWidget(const SizedBox());
     await settle(tester);
+    expect(demo.isOpen, isFalse);
     expect(folders().difference(before), isEmpty);
   });
 

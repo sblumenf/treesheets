@@ -9,14 +9,17 @@ import 'session.dart';
 /// The screen of milestone B1: plain text and three buttons, to show that a document
 /// opens, reads, changes and undoes through the Rust core. Kept as a check of the bridge.
 class DemoScreen extends StatefulWidget {
-  const DemoScreen({super.key});
+  const DemoScreen({super.key, this.demo});
+
+  /// The steps behind the buttons; a test gives its own, to see what became of them.
+  final Demo? demo;
 
   @override
   State<DemoScreen> createState() => _DemoScreenState();
 }
 
 class _DemoScreenState extends State<DemoScreen> {
-  final _demo = Demo();
+  late final _demo = widget.demo ?? Demo();
   String _text = 'Press Open.';
   bool _busy = false;
 
