@@ -21,7 +21,14 @@ void main() {
   tearDownAll(() => folder.delete(recursive: true));
 
   test('measures a small document, and again with the file it left', () async {
-    final first = await measure(folder, across: 2, down: 2, runs: 3);
+    const small = [(3, 2), (2, 1), (1, 1)];
+    final first = await measure(
+      folder,
+      across: 2,
+      down: 2,
+      runs: 3,
+      nested: small,
+    );
     expect(first.cells, 405);
     expect(first.built, isTrue);
     expect(first.build, isNotNull);
@@ -31,6 +38,12 @@ void main() {
       'open',
       'read the root grid (4 cells)',
       'read an inner grid (100 cells)',
+      'stage of the root, whole (4 cells, 400 shape cells)',
+      '  of which the Dart thread was held',
+      '  and comparing it with the read before',
+      'stage of the root, 40 rows (4 cells, 400 shape cells)',
+      '  of which the Dart thread was held',
+      '  and comparing it with the read before',
       'set the text of one cell',
       'undo that',
       'insert a row in the root grid',
@@ -40,6 +53,16 @@ void main() {
       'insert a row in the root grid, no formula',
       'undo that',
       'save',
+      // The nested one: the root holds 3 by 2. Its first cell holds 3 by 2 again
+      // (the first of a level is as large as the root), in which the first holds
+      // 3 by 2 and the fourth 1 by 1; its fourth holds 2 by 1, whose first holds
+      // 1 by 1. With the root: 1 + 6 + 6 + 6 + 1 + 2 + 1.
+      'nested, 23 cells: stage of the root (14 cells, 16 shape cells)',
+      '  of which the Dart thread was held',
+      '  and comparing it with the read before',
+      'nested: the same, two levels cell by cell (22 cells, 16 shape cells)',
+      '  of which the Dart thread was held',
+      '  and comparing it with the read before',
     ]);
     for (final timing in first.timings) {
       expect(timing.runs.length, 3);
@@ -71,7 +94,13 @@ void main() {
     );
     await doc.close();
 
-    final second = await measure(folder, across: 2, down: 2, runs: 2);
+    final second = await measure(
+      folder,
+      across: 2,
+      down: 2,
+      runs: 2,
+      nested: small,
+    );
     expect(second.built, isFalse);
     expect(second.build, isNull);
     expect(second.fileBytes, first.fileBytes);
@@ -102,6 +131,50 @@ void main() {
     );
     expect(timers.length, 1);
     expect(timers.single.isActive, isFalse);
+  });
+
+  test('the nested document of the measurement is the core\'s', () {
+    final table = nestedTable(sixLevels);
+    // With the root, the 68,749 cells of the bridge's own test.
+    expect(table.cells.length + 1, 68749);
+    expect(table.xs, 12);
+    // The first cell holds 12 by 20, as does its own first cell.
+    expect(table.cells[0].grid, const GridSize(xs: 12, cells: 240));
+    expect(table.cells[1].grid, const GridSize(xs: 12, cells: 240));
+    expect(table.cells[1].text, 'Level 1 cell 0.0 text');
+    // The innermost level has no grids.
+    expect(
+      table.cells
+          .where((c) => c.text.startsWith('Level 5'))
+          .every((c) => c.grid == null),
+      isTrue,
+    );
+    expect(windowOf(40, y0: 3).rows, 40);
+    expect(windowOf(40, y0: 3).y0, 3);
+    expect(windowOf(7, fullDepth: 2).fullDepth, 2);
+    expect(windowOf(4294967295), phoneAsk);
+  });
+
+  test('how long a thread is held during a call', () async {
+    // Held for 30 ms by the call itself, as decoding an answer holds it.
+    final (answer, held) = await heldDuring(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      final watch = Stopwatch()..start();
+      while (watch.elapsedMilliseconds < 30) {}
+      return 7;
+    });
+    expect(answer, 7);
+    expect(held, greaterThanOrEqualTo(const Duration(milliseconds: 30)));
+    // Not held at all: the call waits, and the thread is free meanwhile.
+    final (_, free) = await heldDuring(
+      () => Future<void>.delayed(const Duration(milliseconds: 60)),
+    );
+    expect(free, lessThan(const Duration(milliseconds: 30)));
+    // A call that fails leaves no timer running, and fails.
+    await expectLater(
+      heldDuring<void>(() async => throw StateError('no')),
+      throwsStateError,
+    );
   });
 
   test('median and worst of a timing', () {

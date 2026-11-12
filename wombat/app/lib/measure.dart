@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'session.dart';
 import 'src/rust/api/wire.dart';
+import 'stage_read.dart';
 
 /// How long one step took, each time it was done.
 class Timing {
@@ -98,7 +99,7 @@ class Measurement {
     out.writeln('times in ms: median, worst, runs');
     for (final t in timings) {
       out.writeln(
-        '  ${t.what.padRight(44)} ${ms(t.median).padLeft(10)} '
+        '  ${t.what.padRight(60)} ${ms(t.median).padLeft(10)} '
         '${ms(t.worst).padLeft(10)} ${t.runs.length.toString().padLeft(3)}',
       );
     }
@@ -136,11 +137,19 @@ int cellCount(int across, int down) => 1 + across * down * 101;
 /// It is built through the bridge, saved in `folder` and let go of; a file that an
 /// earlier run left there is used as it is, so that a second run measures a process
 /// that never built anything. Every step is done `runs` times.
+///
+/// The read a screen draws from ([Session.stage]) is timed on that document's root,
+/// whole and as a window of 40 rows, and on the root of a second document that is
+/// nested as deep as the interface is specified for: `nested` gives the size of the
+/// grids on each level, as [nestedTable] says. For each: the whole call, how long
+/// of it the Dart thread was held (the answer is decoded on the thread that draws),
+/// and what comparing the answer with the one before costs ([StageRead.since]).
 Future<Measurement> measure(
   Directory folder, {
   int across = 10,
   int down = 100,
   int runs = 5,
+  List<(int, int)> nested = sixLevels,
 }) async {
   final m = Measurement._();
   m.cells = cellCount(across, down);
@@ -220,6 +229,14 @@ Future<Measurement> measure(
       await timed((_) async => inner = await doc.grid(section)),
     ),
   );
+  await _stage(m, doc, 'stage of the root, whole', phoneAsk, runs);
+  await _stage(
+    m,
+    doc,
+    'stage of the root, 40 rows',
+    windowOf(40, y0: down ~/ 3),
+    runs,
+  );
   final last = await doc.grid(rootGrid.cells.last.id);
   final formula = last.cells.last;
   if (formula.kind != CellKind.formula || formula.failed) {
@@ -287,17 +304,159 @@ Future<Measurement> measure(
   m.maxRss = ProcessInfo.maxRss;
   await doc.close();
   work.deleteSync();
+
+  // The nested document, after the memory was noted: it is a second document in
+  // the same process. Opened from its file, as an app has it.
+  final deep = File(
+    '${folder.path}/nested-${nested.map((s) => '${s.$1}x${s.$2}').join('-')}.wombat',
+  );
+  if (!deep.existsSync()) {
+    await _write(deep, nestedTable(nested), 'Nested');
+  }
+  final levels = await Session.open(deep.path);
+  final count = nestedTable(nested).cells.length + 1;
+  await _stage(
+    m,
+    levels,
+    'nested, $count cells: stage of the root',
+    phoneAsk,
+    runs,
+  );
+  await _stage(
+    m,
+    levels,
+    'nested: the same, two levels cell by cell',
+    windowOf(4294967295, fullDepth: 2),
+    runs,
+  );
+  await levels.close();
   return m;
+}
+
+/// The sizes of the nested document that is measured by default, the six-level
+/// document of the core's and the bridge's own measurements (68,749 cells).
+const sixLevels = [(12, 20), (4, 5), (3, 4), (2, 3), (2, 2), (1, 2)];
+
+/// [phoneAsk] with a window of `rows` rows from row `y0`, or with more levels given
+/// cell by cell.
+StageAsk windowOf(int rows, {int y0 = 0, int fullDepth = 1}) => StageAsk(
+  x0: phoneAsk.x0,
+  y0: y0,
+  cols: phoneAsk.cols,
+  rows: rows,
+  fullDepth: fullDepth,
+  fullCells: phoneAsk.fullCells,
+  previewCols: phoneAsk.previewCols,
+  previewRows: phoneAsk.previewRows,
+  shapeCols: phoneAsk.shapeCols,
+  shapeRows: phoneAsk.shapeRows,
+  textCut: phoneAsk.textCut,
+  previewCut: phoneAsk.previewCut,
+);
+
+/// A document nested `sizes.length` levels deep, as a table to import: the grid of
+/// the root, and on each level the grid of the first cell of the level before, has
+/// the columns and rows of `sizes.first`; every other grid on level `n` has those of
+/// `sizes[n]`. In every grid each third cell, from the first on, holds a grid of the
+/// next level.
+TableData nestedTable(List<(int, int)> sizes) {
+  final cells = <EntryData>[];
+  void grid(int depth, bool first) {
+    final (xs, ys) = first ? sizes.first : sizes[depth];
+    for (var n = 0; n < xs * ys; n++) {
+      final inner = n % 3 == 0 && depth + 1 < sizes.length;
+      final within = first && n == 0
+          ? sizes.first
+          : sizes[inner ? depth + 1 : 0];
+      cells.add(
+        EntryData(
+          text: 'Level $depth cell ${n % xs}.${n ~/ xs} text',
+          formula: false,
+          grid: inner
+              ? GridSize(xs: within.$1, cells: within.$1 * within.$2)
+              : null,
+        ),
+      );
+      if (inner) grid(depth + 1, first && n == 0);
+    }
+  }
+
+  grid(0, true);
+  return TableData(xs: sizes.first.$1, cells: cells);
+}
+
+/// Times one read of the stage of the root of `doc`, `runs` times: the whole call,
+/// how long of it the Dart thread was held, and the comparison of each answer with
+/// the one before. Nothing changes between the reads, which is the comparison that
+/// has most to do: no cell differs, so every cell is compared to its end.
+Future<void> _stage(
+  Measurement m,
+  Session doc,
+  String what,
+  StageAsk ask,
+  int runs,
+) async {
+  var before = StageRead(doc.root, ask, await doc.stage(doc.root, ask));
+  final calls = <Duration>[];
+  final holds = <Duration>[];
+  final compares = <Duration>[];
+  for (var i = 0; i < runs; i++) {
+    final watch = Stopwatch()..start();
+    final (info, held) = await heldDuring(() => doc.stage(doc.root, ask));
+    calls.add(watch.elapsed);
+    holds.add(held);
+    watch.reset();
+    final read = StageRead(doc.root, ask, info);
+    final change = read.since(before);
+    compares.add(watch.elapsed);
+    if (!change.isEmpty) throw StateError('two reads of $what differ');
+    before = read;
+  }
+  final shapes = before.summaries.fold(0, (n, s) => n + s.shape.length ~/ 4);
+  m.timings
+    ..add(
+      Timing(
+        '$what (${before.cells.length} cells, $shapes shape cells)',
+        calls,
+      ),
+    )
+    ..add(Timing('  of which the Dart thread was held', holds))
+    ..add(Timing('  and comparing it with the read before', compares));
+}
+
+/// Runs `call` and says, with its answer, the longest time the thread it was called
+/// on did nothing else while the call was under way. The core works on a thread of
+/// its own; what holds this one is the decoding of the answer, which is what a
+/// screen pays for a read in frames. Found by a timer that runs again as soon as it
+/// has run: the longest wait between two of its turns.
+Future<(T, Duration)> heldDuring<T>(Future<T> Function() call) async {
+  final watch = Stopwatch()..start();
+  var last = Duration.zero;
+  var longest = Duration.zero;
+  var under = true;
+  void turn() {
+    final now = watch.elapsed;
+    if (now - last > longest) longest = now - last;
+    last = now;
+    if (under) Timer.run(turn);
+  }
+
+  Timer.run(turn);
+  final T answer;
+  try {
+    answer = await call();
+  } finally {
+    under = false;
+  }
+  // This runs in the turn in which the answer came, right after it was decoded.
+  turn();
+  return (answer, longest);
 }
 
 /// Builds the document with one import command: one call across the bridge, and the
 /// core makes all the cells in one step. A hundred thousand commands would measure the
 /// bridge a hundred thousand times before the measuring starts, and fill the history.
-Future<void> _build(File file, int across, int down) async {
-  // Under another name until it is whole, so that a run that was stopped half-way does
-  // not leave a file that the next run takes for the document.
-  final part = File('${file.path}.part');
-  if (part.existsSync()) part.deleteSync();
+Future<void> _build(File file, int across, int down) {
   final sections = across * down;
   // A table is one flat list: each section is followed by the cells of its grid.
   final table = TableData(
@@ -319,11 +478,22 @@ Future<void> _build(File file, int across, int down) async {
       ],
     ],
   );
+  // The formula finds the root by this text.
+  return _write(file, table, 'Large');
+}
+
+/// Makes the document whose root has the text `name` and `table` as its grid, and
+/// saves it at `file`.
+Future<void> _write(File file, TableData table, String name) async {
+  // Under another name until it is whole, so that a run that was stopped half-way does
+  // not leave a file that the next run takes for the document.
+  final part = File('${file.path}.part');
+  if (part.existsSync()) part.deleteSync();
   final doc = await Session.create(part.path);
   final root = doc.root;
   await doc.apply(Command.import_(cell: root, table: table, replace: false));
-  // After the import: the formula finds the root by this text.
-  await doc.apply(Command.setText(cell: root, text: 'Large'));
+  // After the import: a formula finds the root by this text.
+  await doc.apply(Command.setText(cell: root, text: name));
   await doc.close();
   part.renameSync(file.path);
 }
