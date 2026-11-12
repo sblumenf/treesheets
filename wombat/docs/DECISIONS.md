@@ -1426,6 +1426,27 @@ are where milestones 4, 5 and 6, built apart, meet).
     and redo included, not a comparison: undo and then redo after a save lead back to what
     was saved and the document is still called unsaved; saving then writes the same bytes
     again. A command that changes nothing (an empty report) leaves it as it is.
+141. **A file is open in one document at a time** (from the review). Two `OpenDocument`s on
+    one file each saved over the other's work without a word. The bridge keeps a set of the
+    files that documents of this process have open (`open_files.rs`); `open`, `create` and
+    `open_copy` (for the file it makes) first claim the file and are refused with
+    `AlreadyOpen`, with the path as it was asked for, when a document has it. The claim is
+    part of the document and is given up when the document is closed or dropped, and with
+    it when opening fails half-way, so a file is never held by a document that does not
+    exist. Checking and claiming are one step under one lock, so of two opens at the same
+    moment one is refused. What is copied from may be open: a copy only reads it.
+    A file is known by the name of the file that a save would replace, however the path is
+    spelt: where symbolic links lead, without `.` and `..`, from the root
+    (`fs::canonicalize`). A file that is not there yet (`create`, the target of a copy, a
+    file removed while it was open) is known by that name of its folder and its own name.
+    A path through a link that leads nowhere names nothing; nothing is opened or made
+    through such a link anyway. Not seen to be the same file: a second hard link to it, and,
+    for a file that is not there yet, a name that differs only in a way the file system
+    ignores (case on macOS and Windows). The set is the bridge's one piece of state shared
+    by the whole process; it is not in the core, which has none. It knows nothing of other
+    processes: what another program does to the file is seen at saving (A140). A lock that
+    a panicking thread left poisoned is used all the same, since no step on the set can
+    leave it half done.
 
 ## B. Deliberate departures from TreeSheets
 

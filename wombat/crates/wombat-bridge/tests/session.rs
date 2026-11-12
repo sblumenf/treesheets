@@ -110,8 +110,11 @@ fn the_sequence_of_the_bare_app() {
     assert_eq!(doc.redo().unwrap(), None);
     doc.save().unwrap();
     assert!(doc.is_saved());
+    // A file is open once (decision A141), so the document is let go of first.
+    let id = doc.id();
+    drop(doc);
     let again = OpenDocument::open_with(&path, ids()).unwrap();
-    assert_eq!(again.id(), doc.id());
+    assert_eq!(again.id(), id);
     assert_eq!(again.grid(root).unwrap(), after);
 }
 
@@ -127,8 +130,11 @@ fn a_copy_has_ids_of_its_own() {
     );
     assert_eq!(texts(&a), texts(&b));
     assert!(a.cells.iter().zip(&b.cells).all(|(a, b)| a.id != b.id));
-    // A second copy does not go over the first.
+    // A second copy does not go over the first: not while it is open, and not after.
     let path = copy.path();
+    let again = OpenDocument::copy_with(&example(), Path::new(&path), ids());
+    assert_eq!(again.err().unwrap().kind, ErrorKind::AlreadyOpen);
+    drop(copy);
     let again = OpenDocument::copy_with(&example(), Path::new(&path), ids());
     assert_eq!(again.err().unwrap().kind, ErrorKind::AlreadyExists);
 }
@@ -157,8 +163,10 @@ fn a_new_document_is_saved_at_once_and_has_a_root_without_a_grid() {
     created.sort();
     assert_eq!(created, report.created);
     doc.save().unwrap();
+    drop(doc);
     let again = OpenDocument::open_with(&path, ids()).unwrap();
     assert_eq!(again.grid(root).unwrap(), view);
+    drop(again);
 
     // Not over a file that is there.
     let error = OpenDocument::create_with(&path, ids()).err().unwrap();
@@ -254,8 +262,10 @@ fn the_public_entry_points_seed_ids_from_the_system() {
     let b = OpenDocument::create(text(&dir.join("b.wombat"))).unwrap();
     assert_ne!(a.id(), b.id());
     let copy = OpenDocument::open_copy(text(&example()), text(&dir.join("c.wombat"))).unwrap();
-    let again = OpenDocument::open(copy.path()).unwrap();
-    assert_eq!(copy.id(), again.id());
+    let (id, path) = (copy.id(), copy.path());
+    drop(copy);
+    let again = OpenDocument::open(path).unwrap();
+    assert_eq!(id, again.id());
 }
 
 /// Commands that were recorded as JSON play back to the same document.

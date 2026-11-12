@@ -200,7 +200,16 @@ void main() {
     expect(await doc.isSaved(), isFalse);
     await stage.save();
     expect(await doc.isSaved(), isTrue);
-    final again = await OpenDocument.open(path: await doc.path());
+    // A file is open once: the document is let go of before the file is read again.
+    final path = await doc.path();
+    await expectLater(
+      OpenDocument.open(path: path),
+      throwsA(
+        isA<BridgeError>().having((e) => e.kind, 'kind', ErrorKind.alreadyOpen),
+      ),
+    );
+    doc.dispose();
+    final again = await OpenDocument.open(path: path);
     final root = await again.grid(cell: await again.root());
     expect(root.cells[1].text, 'saved text');
   });

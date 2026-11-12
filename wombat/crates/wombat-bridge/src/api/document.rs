@@ -9,6 +9,7 @@ use wombat_core::{Document, Editor, SeededIds};
 
 use super::wire::{BridgeError, Command, ErrorKind, GridInfo, Report};
 use crate::convert::{cell_id, command_in, grid_out, report_out};
+use crate::open_files::Claim;
 
 /// Where the time that edits stamp on cells comes from.
 enum Clock {
@@ -56,6 +57,8 @@ pub struct OpenDocument {
     /// What the file looked like when it was read or last written, to tell at the next
     /// save whether another program changed it since.
     file: FileState,
+    /// Keeps the file from being opened a second time; gives it up when dropped.
+    _claim: Claim,
 }
 
 impl OpenDocument {
@@ -63,6 +66,7 @@ impl OpenDocument {
         (doc, file): (Document, FileState),
         path: &Path,
         ids: SeededIds,
+        claim: Claim,
     ) -> Result<OpenDocument, BridgeError> {
         Ok(OpenDocument {
             editor: Editor::new(doc)?,
@@ -71,6 +75,7 @@ impl OpenDocument {
             clock: Clock::System,
             saved: true,
             file,
+            _claim: claim,
         })
     }
 
@@ -96,19 +101,23 @@ impl OpenDocument {
     /// [`OpenDocument::open`] with the IDs for new cells given, for tests.
     #[frb(ignore)]
     pub fn open_with(path: &Path, ids: SeededIds) -> Result<OpenDocument, BridgeError> {
-        OpenDocument::with(storage::load_document_with_state(path)?, path, ids)
+        // The file is claimed before it is touched and the claim is dropped with whatever
+        // fails, here and in the two below: a file is never held by a document that is not.
+        let claim = Claim::take(path)?;
+        OpenDocument::with(storage::load_document_with_state(path)?, path, ids, claim)
     }
 
     /// [`OpenDocument::create`] with the IDs given, for tests.
     #[frb(ignore)]
     pub fn create_with(path: &Path, mut ids: SeededIds) -> Result<OpenDocument, BridgeError> {
+        let claim = Claim::take(path)?;
         // Also true for a link that leads nowhere, which `exists` would not see.
         if std::fs::symlink_metadata(path).is_ok() {
             return Err(wombat_core::Error::AlreadyExists(path.to_path_buf()).into());
         }
         let doc = Document::new(&mut ids);
         let file = storage::save_document_with_state(&doc, path)?;
-        OpenDocument::with((doc, file), path, ids)
+        OpenDocument::with((doc, file), path, ids, claim)
     }
 
     /// [`OpenDocument::open_copy`] with the IDs given, for tests.
@@ -118,8 +127,9 @@ impl OpenDocument {
         to: &Path,
         mut ids: SeededIds,
     ) -> Result<OpenDocument, BridgeError> {
+        let claim = Claim::take(to)?;
         let copy = storage::copy_document_with_state(from, to, &mut ids)?;
-        OpenDocument::with(copy, to, ids)
+        OpenDocument::with(copy, to, ids, claim)
     }
 
     /// Makes edits stamp this time on cells instead of the time of the device's clock

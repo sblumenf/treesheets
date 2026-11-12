@@ -1303,6 +1303,7 @@ impl SseDecode for crate::api::wire::ErrorKind {
             9 => crate::api::wire::ErrorKind::AlreadyExists,
             10 => crate::api::wire::ErrorKind::HalfSaved,
             11 => crate::api::wire::ErrorKind::ChangedOnDisk,
+            12 => crate::api::wire::ErrorKind::AlreadyOpen,
             _ => unreachable!("Invalid variant for ErrorKind: {}", inner),
         };
     }
@@ -2274,6 +2275,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::wire::ErrorKind {
             Self::AlreadyExists => 9.into_dart(),
             Self::HalfSaved => 10.into_dart(),
             Self::ChangedOnDisk => 11.into_dart(),
+            Self::AlreadyOpen => 12.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -2986,6 +2988,7 @@ impl SseEncode for crate::api::wire::ErrorKind {
                 crate::api::wire::ErrorKind::AlreadyExists => 9,
                 crate::api::wire::ErrorKind::HalfSaved => 10,
                 crate::api::wire::ErrorKind::ChangedOnDisk => 11,
+                crate::api::wire::ErrorKind::AlreadyOpen => 12,
                 _ => {
                     unimplemented!("");
                 }

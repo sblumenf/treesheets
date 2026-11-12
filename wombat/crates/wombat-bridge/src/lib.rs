@@ -8,6 +8,7 @@
 //!   [`api::wire`] has the serialised form of commands, change reports and errors.
 //! - [`convert`]: between that form and the types of the core.
 //! - [`record`]: the same form as JSON text, to record commands and play them back.
+//! - `open_files`: the files that are open in this process, so that none is open twice.
 //!
 //! Errors cross as values ([`api::wire::BridgeError`]). Nothing here panics on what comes
 //! over the bridge; should the core ever panic, `flutter_rust_bridge` catches it at the
@@ -19,6 +20,7 @@
 
 pub mod api;
 pub mod convert;
+mod open_files;
 pub mod record;
 
 #[allow(unsafe_code, clippy::unwrap_used)]
