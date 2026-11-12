@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import 'session.dart';
 import 'src/rust/api/wire.dart';
+import 'stage_read.dart';
 
 /// How a kept document stands with its file ([Keeper.state]).
 enum KeeperState {
@@ -75,6 +76,20 @@ class Attachment {
 /// **What works on the document attaches itself** ([attach]) for as long as it does,
 /// to be told what changes here and to be asked to finish what it has begun.
 ///
+/// **What a screen draws from is read here** ([read]): a [StageReader] holds the
+/// stage as last read, is read again by the keeper after every change, whoever made
+/// it, and says what differs.
+///
+/// **A cell's text is edited through an [Editing]** ([edit]): nothing is sent while
+/// the user types, one editing is one step of the undo history, and dropping it
+/// leaves the document and both histories exactly as they were. While an editing
+/// holds something in the document, every other change is refused ([apply]).
+///
+/// **Where the screen is belongs to this device** (the view state): the level shown,
+/// what each level remembers, what is folded. The keeper writes it to its own file
+/// with every save of the document, and a failure to do so is never a failed save
+/// ([viewError]).
+///
 /// **After a fault in the program** the document is let go of and [ended] says so,
 /// and nothing more is saved. **After the end**, by a fault, [close] or [letGo], every
 /// call fails the same way, with a [BridgeError] of kind [ErrorKind.closed]: also one
@@ -124,6 +139,16 @@ class Keeper extends ChangeNotifier {
   bool _writing = false;
   final _attached = <Attachment>[];
 
+  /// The stages that are read again after every change.
+  final _readers = <StageReader>[];
+
+  /// Whether something was done since the readers last read.
+  bool _stale = false;
+
+  /// The editing that is open, if one is.
+  Editing? _editing;
+  Object? _viewError;
+
   /// What the listeners were told of last.
   late Object _told;
 
@@ -147,6 +172,14 @@ class Keeper extends ChangeNotifier {
   /// there was a fault in the program ([faultSentence]), or the file could not be
   /// opened again. Null while the work goes on.
   String? get ended => _ended;
+
+  /// What the last try to write the view state ended with, if it failed: where the
+  /// screen is may not be in its file. It says nothing about the document, is never
+  /// part of [state], and listeners are not told of it. Null when the last try worked.
+  Object? get viewError => _viewError;
+
+  /// The editing that is open ([edit]), or null.
+  Editing? get editing => _editing;
 
   /// How the document stands with its file. Leaving is safe when it is
   /// [KeeperState.saved]; what is wrong outranks what is under way, so a save that is
@@ -187,14 +220,33 @@ class Keeper extends ChangeNotifier {
   }
 
   /// One piece of the keeper's work, in its turn; refused once the work is ended.
+  /// Whatever it did to the document, well or badly, the stages are read again
+  /// before it answers: who asked finds them as the document is then.
   Future<T> _piece<T>(Future<T> Function() work) => _turns.run(() async {
     _refuseAfterTheEnd();
     try {
       return await work();
     } finally {
+      await _reread();
       _tell();
     }
   });
+
+  /// Reads the stages again if something was done since they were read. It never
+  /// throws: that a stage could not be read is the reader's to say, and the piece
+  /// that made the change has its own answer to give.
+  Future<void> _reread() async {
+    if (!_stale || _ended != null) return;
+    _stale = false;
+    for (final reader in [..._readers]) {
+      try {
+        await reader._again(_doc);
+      } catch (error) {
+        if (isFatal(error)) return _end(faultSentence);
+        reader._failed(error);
+      }
+    }
+  }
 
   /// One call to the document. A fault in the program ends the work.
   Future<T> _use<T>(Future<T> Function(Session doc) call) => _piece(() async {
@@ -208,6 +260,7 @@ class Keeper extends ChangeNotifier {
 
   Future<void> _end(String why) async {
     _ended = why;
+    _editing?._gone();
     _saveTimer?.cancel();
     // Nothing is saved from a document after a fault, and nothing over a file that
     // another program changed; the file is free to be opened again.
@@ -227,14 +280,16 @@ class Keeper extends ChangeNotifier {
   /// last save starts the clock; later ones do not put it back, so that steady typing
   /// cannot keep the file old for ever.
   T _done<T extends Report?>(T report) {
-    if (report == null ||
+    if (report == null) return report;
+    final same =
         report.changed.isEmpty &&
-            report.created.isEmpty &&
-            report.removed.isEmpty &&
-            report.grids.isEmpty &&
-            report.tags.isEmpty) {
-      return report;
-    }
+        report.created.isEmpty &&
+        report.removed.isEmpty &&
+        report.grids.isEmpty &&
+        report.tags.isEmpty;
+    // What a formula cell shows is on the screen, though in no file.
+    if (!same || report.recalculated.isNotEmpty) _stale = true;
+    if (same) return report;
     _unsaved = true;
     _changes++;
     if (_saveTimer == null) _saveIn(_saveAfter);
@@ -244,39 +299,157 @@ class Keeper extends ChangeNotifier {
   /// A cell and the cells of its grid ([Session.grid]).
   Future<GridInfo> grid(String cell) => _use((doc) => doc.grid(cell));
 
+  /// One read of a stage ([Session.stage]) that nobody keeps up to date: for a look
+  /// at something beside the screen's own stage, such as the larger preview of a
+  /// cell's grid. The screen's own stage is a [StageReader] ([read]).
+  Future<StageInfo> stage(String cell, StageAsk ask) =>
+      _use((doc) => doc.stage(cell, ask));
+
+  /// One cell whole, nothing cut ([Session.cell]).
+  Future<CellLook> cell(String cell) => _use((doc) => doc.cell(cell));
+
+  /// An editing holds a group, which every command from anywhere would join, and in
+  /// which the core refuses undo and redo. So whoever asks, other than the editing
+  /// itself, has not ended the editing first: a mistake in the app, said loudly.
+  void _refuseBesideAnEditing(String what) {
+    if (_editing?.held ?? false) {
+      throw StateError(
+        'The text of a cell is being edited and part of that is in the '
+        'document, so nothing else can $what now. Enter or drop the editing '
+        'first (Editing.enter, Editing.drop).',
+      );
+    }
+  }
+
   /// Carries out a command ([Session.apply]), and saves it a while later.
-  Future<Report> apply(Command command) =>
-      _use((doc) async => _done(await doc.apply(command)));
+  ///
+  /// Refused with a [StateError], and nothing done, while an [Editing] holds
+  /// something in the document ([Editing.held]); so are [undo] and [redo]. A screen
+  /// enters or drops its editing before it does anything else.
+  Future<Report> apply(Command command) => _use((doc) async {
+    _refuseBesideAnEditing('change the document');
+    return _done(await doc.apply(command));
+  });
 
-  /// Undoes the latest command ([Session.undo]), and saves that a while later.
-  Future<Report?> undo() =>
-      _use((doc) async => _done<Report?>(await doc.undo()));
+  /// Undoes the latest step ([Session.undo]): a command, or a whole editing. Saves
+  /// that a while later. Refused while an editing holds something ([apply]).
+  Future<Report?> undo() => _use((doc) async {
+    _refuseBesideAnEditing('undo');
+    return _done<Report?>(await doc.undo());
+  });
 
-  /// Redoes the command undone last ([Session.redo]), and saves that a while later.
-  Future<Report?> redo() =>
-      _use((doc) async => _done<Report?>(await doc.redo()));
+  /// Redoes the step undone last ([Session.redo]), and saves that a while later.
+  /// Refused while an editing holds something ([apply]).
+  Future<Report?> redo() => _use((doc) async {
+    _refuseBesideAnEditing('redo');
+    return _done<Report?>(await doc.redo());
+  });
+
+  /// Starts to keep a stage for a screen: the level that this device showed last
+  /// ([Session.viewStage]; the root at first), read with `ask`. The keeper reads it
+  /// again after every change to the document, by whomever. [StageReader.close] ends
+  /// that.
+  Future<StageReader> read({StageAsk ask = phoneAsk}) => _use((doc) async {
+    final reader = StageReader._(this, ask);
+    await reader._start(doc);
+    _readers.add(reader);
+    return reader;
+  });
+
+  /// Opens an editing of the text of `cell` and reads the cell whole for it
+  /// ([Editing.start]): what the editor opens on is what the cell holds when the
+  /// turn of this call comes, not what a screen showed when it was tapped. Nothing
+  /// is changed, and no group is opened, until the editing is asked to put
+  /// something into the document.
+  ///
+  /// One editing is open at a time. An editing that was open and holds nothing in
+  /// the document is over from here on (nothing of it was ever sent). While one
+  /// holds something this is refused with a [StateError]: enter or drop that first.
+  /// A cell that does not exist is [ErrorKind.notFound].
+  Future<Editing> edit(String cell) => _use((doc) async {
+    _refuseBesideAnEditing('be edited');
+    final editing = Editing._(this, await doc.cell(cell));
+    _editing?._gone();
+    return _editing = editing;
+  });
+
+  /// Folds (hides) or unfolds the grid of `cell` on this device
+  /// ([Session.setFolded]) and answers whether that changed anything. The stages are
+  /// read again: the cell's `folded` is what differs. It is no change to the
+  /// document and cannot be undone.
+  Future<bool> setFolded(String cell, {required bool folded}) =>
+      _use((doc) async {
+        final changed = await doc.setFolded(cell, folded: folded);
+        if (changed) _stale = true;
+        return changed;
+      });
+
+  /// Whether the view state is as its file has it ([Session.isViewSaved]). A
+  /// position that a [StageReader] was told of ([StageReader.at]) and that was not
+  /// handed on yet does not count.
+  Future<bool> isViewSaved() => _use((doc) => doc.isViewSaved());
+
+  /// Hands on where every stage is ([StageReader.at]), if that moved, and writes the
+  /// view state to its file if it changed. Whatever goes wrong here but a fault is
+  /// kept in [viewError] and is nobody else's concern: nothing is lost but where the
+  /// screen was.
+  Future<void> _keepView() async {
+    try {
+      for (final reader in [..._readers]) {
+        await reader._remember(_doc);
+      }
+      await _doc.saveView();
+      _viewError = null;
+    } catch (error) {
+      if (isFatal(error)) return _end(faultSentence);
+      _viewError = error;
+    }
+  }
+
+  /// After an editing was dropped, the core says whether anything is left to save: a
+  /// cancelled editing leaves a saved document saved, unless its file was written
+  /// meanwhile and holds what was taken back.
+  Future<void> _afterDrop(Session doc) async {
+    _stale = true;
+    if (await doc.isSaved()) {
+      _unsaved = false;
+      // A save that is being tried again finds nothing to write, and ends well.
+      if (_saveError == null) {
+        _saveTimer?.cancel();
+        _saveTimer = null;
+      }
+    } else {
+      _unsaved = true;
+      _changes++;
+      if (_saveTimer == null) _saveIn(_saveAfter);
+    }
+  }
 
   /// One try to make the file hold the document, in its turn. How it ended is in
   /// [state] and [saveError].
-  Future<void> _write(Future<void> Function(Session doc) how) =>
-      _piece(() async {
-        _saveTimer?.cancel();
-        _saveTimer = null;
-        _writing = true;
-        _tell();
-        try {
-          await how(_doc);
-          _saved();
-        } catch (error) {
-          if (isFatal(error)) {
-            await _end(faultSentence);
-          } else {
-            _failed(error);
-          }
-        } finally {
-          _writing = false;
+  Future<void> _write(Future<void> Function(Session doc) how) => _piece(
+    () async {
+      _saveTimer?.cancel();
+      _saveTimer = null;
+      _writing = true;
+      _tell();
+      try {
+        await how(_doc);
+        _saved();
+      } catch (error) {
+        if (isFatal(error)) {
+          await _end(faultSentence);
+        } else {
+          _failed(error);
         }
-      });
+      } finally {
+        _writing = false;
+      }
+      // After the document, and whether or not that could be written: where the
+      // screen is can neither hold up nor fail a save.
+      if (_ended == null) await _keepView();
+    },
+  );
 
   void _saved() {
     _saveError = null;
@@ -298,6 +471,10 @@ class Keeper extends ChangeNotifier {
   /// written when nothing was done since the last save, and never over what another
   /// program put there. A save that fails does not throw: see [state] and
   /// [saveError].
+  ///
+  /// What an open [Editing] holds in the document is written with the rest, and the
+  /// editing stays as it is. The view state is written after the document, if it
+  /// changed ([viewError]).
   Future<void> save() => _write((doc) => doc.save());
 
   /// Writes the document over what another program saved, after [state] said
@@ -363,6 +540,11 @@ class Keeper extends ChangeNotifier {
   /// is in the document goes into its file first; then what is being typed on the
   /// screens goes into the document, and that into the file.
   ///
+  /// A screen with an editor open holds its text in the document then
+  /// ([Editing.hold]): the file has what was typed, and the editing stays open, to be
+  /// entered or dropped when the app comes back. Where each stage is goes into the
+  /// view state and its file with the first save.
+  ///
   /// Answers with what kept anything attached from finishing, which is nothing when
   /// all is well. It does not throw for that, nor for a save that fails ([state]).
   Future<List<Object>> putAway() async {
@@ -377,7 +559,10 @@ class Keeper extends ChangeNotifier {
   /// [state] said [KeeperState.changedOnDisk] and the user chose the file. What was
   /// done here since the last save is lost; that is the choice. What is attached
   /// finishes first, so that nothing it has begun on this document goes on in the
-  /// other.
+  /// other. An [Editing] that is open is over ([Editing.open]), with what it held:
+  /// its screen closes the editor without entering. Every [StageReader] starts again
+  /// at the level the view state names for the document that was opened, and says
+  /// so ([StageChange.everything]).
   ///
   /// Whether the file can be read is found out first, while this document is still
   /// open. If it cannot, if something attached cannot finish ([Unfinished]), or if
@@ -405,6 +590,8 @@ class Keeper extends ChangeNotifier {
       _saveTimer?.cancel();
       _saveTimer = null;
       await _doc.discard();
+      // What was being edited was of the document that is gone, group and all.
+      _editing?._gone();
       try {
         _doc = await _reopen(path);
       } catch (error) {
@@ -419,6 +606,17 @@ class Keeper extends ChangeNotifier {
       }
       _opens++;
       _saved();
+      _viewError = null;
+      // The stages start again where the view state of the file says.
+      _stale = false;
+      for (final reader in [..._readers]) {
+        try {
+          await reader._start(_doc);
+        } catch (error) {
+          if (isFatal(error)) return _end(faultSentence);
+          reader._failed(error);
+        }
+      }
     });
   }
 
@@ -430,6 +628,11 @@ class Keeper extends ChangeNotifier {
   /// no screen left to ask calls [letGo]. That is when something attached could not
   /// finish ([Unfinished]; what is in the document is saved all the same), and when
   /// the document cannot be saved (the error is also in [saveError]).
+  ///
+  /// An [Editing] that is still open then is neither entered nor dropped by the
+  /// keeper: what it holds in the document is saved as it is, and the editing ends
+  /// with the document. After a close that failed it is as open as before. Where
+  /// each stage is goes into the view state, which is written with the document.
   Future<void> close() async {
     _refuseAfterTheEnd();
     final failed = await _finish();
@@ -440,6 +643,10 @@ class Keeper extends ChangeNotifier {
     await _piece(() async {
       _saveTimer?.cancel();
       _saveTimer = null;
+      // Before the document, since nothing can be asked of it after: but what goes
+      // wrong with it does not keep the document from closing.
+      await _keepView();
+      _refuseAfterTheEnd();
       try {
         await _doc.close();
       } catch (error) {
@@ -451,6 +658,7 @@ class Keeper extends ChangeNotifier {
         rethrow;
       }
       _saved();
+      _editing?._gone();
       _ended = 'The document was closed.';
     });
   }
@@ -462,6 +670,427 @@ class Keeper extends ChangeNotifier {
   /// thread.
   Future<void> letGo() => _piece(() => _end('The document was closed.'));
 }
+
+/// A report in which nothing changed.
+const _nothing = Report(
+  changed: [],
+  created: [],
+  removed: [],
+  grids: [],
+  tags: [],
+  recalculated: [],
+);
+
+/// One editing of the text of one cell ([Keeper.edit]): from the editor opening on
+/// the cell to the tick or the cross.
+///
+/// **Nothing is sent while the user types.** The text is the editor's until one of
+/// the four calls here hands it over; each is one turn of the keeper, so nothing of
+/// anyone else comes between its steps.
+///
+/// **One editing is one step of the undo history, or none.** The first call that
+/// puts something into the document opens a group there ([Session.beginGroup]), and
+/// the editing [held]s something from then on. [enter] ends the group: everything
+/// the editing did, styles included, is one step. [drop] cancels it: the document,
+/// the undo history and the redo history are exactly as when the editing was
+/// opened, and a document that was saved then is saved again, unless its file was
+/// written meanwhile.
+///
+/// **While the editing holds something, the keeper refuses every other change**
+/// ([Keeper.apply], [Keeper.undo], [Keeper.redo], [Keeper.edit]) with a
+/// [StateError]. Saving goes on: what is held is written with the rest
+/// ([Keeper.save], [Keeper.putAway]).
+///
+/// **The text in the cell can differ from the text that was sent** (CR LF becomes
+/// one line break, other control characters become spaces): [hold] and [style]
+/// answer with the cell as the document has it, and positions are counted in that.
+///
+/// **An editing ends** with [enter] or [drop], and with its document: when the keeper
+/// closes it, lets go of it, opens the other program's file or meets a fault. After
+/// the end [open] is false and every call throws a [StateError]. A screen that goes
+/// away enters or drops its editing: one that is forgotten while it holds something
+/// keeps every other change out until the document is closed.
+class Editing {
+  Editing._(this._keeper, this.start);
+
+  final Keeper _keeper;
+
+  /// The cell as the document had it when the editing was opened, with its whole
+  /// text: what the editor opens on.
+  final CellLook start;
+  bool _open = true;
+  bool _held = false;
+
+  /// The ID of the cell that is edited.
+  String get cell => start.id;
+
+  /// Whether the editing goes on: it was neither entered nor dropped, and its
+  /// document is still the keeper's.
+  bool get open => _open;
+
+  /// Whether something of this editing is in the document, in a group that is open:
+  /// [hold] or [style] put it there and neither [enter] nor [drop] has ended it.
+  bool get held => _held;
+
+  /// The editing is over, by its own end or with its document.
+  void _gone() {
+    _open = false;
+    _held = false;
+    if (identical(_keeper._editing, this)) _keeper._editing = null;
+  }
+
+  void _refuseAfterItsEnd() {
+    if (!_open) {
+      throw StateError(
+        'This editing is over: it was entered or dropped, another was opened '
+        'in its place, or its document is no longer open.',
+      );
+    }
+  }
+
+  /// Puts `text` into the cell as part of the editing's group, opening the group if
+  /// this is the first thing. Only what differs is replaced, so the styles and links
+  /// of the rest stay ([Session.retype]); then the kind of the cell is settled as
+  /// typing settles it (`Command.enterText`: text that starts with `=` is a formula).
+  ///
+  /// If the core refuses the text and this call opened the group, the group is
+  /// cancelled: the document is exactly as before the call and the editing holds
+  /// nothing. If the group was open before, it stays open, with what the core took
+  /// before it refused.
+  Future<void> _put(Session doc, String text) async {
+    final opened = !_held;
+    if (opened) {
+      await doc.beginGroup();
+      _held = true;
+    }
+    try {
+      _keeper._done(await doc.retype(cell, text));
+      _keeper._done(await doc.apply(Command.enterText(cell: cell, text: text)));
+    } catch (error) {
+      if (opened && !isFatal(error)) {
+        await doc.cancelGroup();
+        _held = false;
+        await _keeper._afterDrop(doc);
+      }
+      rethrow;
+    }
+  }
+
+  /// Puts the editor's `text` into the document without ending the editing: for when
+  /// the app is put away (the text is then in the file with the next save) and
+  /// before something is done to the text where it is (a style, a link). Answers
+  /// with the cell as the document has it now; its text is the one to count
+  /// positions in, and can differ from `text`.
+  ///
+  /// The cross still takes it all back ([drop]). A text that the core refuses
+  /// throws its [BridgeError], and the editing is as it was: open, the editor's
+  /// text untouched, holding what it held.
+  Future<CellLook> hold(String text) => _keeper._use((doc) async {
+    _refuseAfterItsEnd();
+    await _put(doc, text);
+    return doc.cell(cell);
+  });
+
+  /// Holds the editor's `text` ([hold]) and then carries out a command on it as
+  /// part of the same editing: bold, italic, a link, a colour on a range. `command`
+  /// is given the cell as the document has it after the hold, and builds the
+  /// command from that: count its positions in that text ([codePoints]). Answers
+  /// with the cell after the command.
+  ///
+  /// If the core refuses the command, its error is thrown; the text stays held.
+  Future<CellLook> style(
+    String text,
+    Command Function(CellLook held) command,
+  ) => _keeper._use((doc) async {
+    _refuseAfterItsEnd();
+    await _put(doc, text);
+    _keeper._done(await doc.apply(command(await doc.cell(cell))));
+    return doc.cell(cell);
+  });
+
+  /// The tick: the cell's text becomes `text`, and the editing ends as one step of
+  /// the undo history, with everything it did before. Answers with what the editing
+  /// changed as a whole ([Session.endGroup]); a text the cell had already, with
+  /// nothing else done, changes nothing and leaves nothing to undo.
+  ///
+  /// If the core refuses the text, its [BridgeError] is thrown and the editing
+  /// stays open with what it held before, so that the editor can stay open with
+  /// what was typed.
+  Future<Report> enter(String text) => _keeper._use((doc) async {
+    _refuseAfterItsEnd();
+    await _put(doc, text);
+    final report = await doc.endGroup();
+    _gone();
+    return _keeper._done(report);
+  });
+
+  /// The cross: the editing ends and nothing of it stays. If it held something, the
+  /// document, the undo history and the redo history are exactly as when it was
+  /// opened, and the answer says what taking it back changed
+  /// ([Session.cancelGroup]). If it held nothing, nothing was ever sent, and the
+  /// answer is empty.
+  Future<Report> drop() => _keeper._use((doc) async {
+    _refuseAfterItsEnd();
+    if (!_held) {
+      _gone();
+      return _nothing;
+    }
+    final report = await doc.cancelGroup();
+    _gone();
+    await _keeper._afterDrop(doc);
+    return report;
+  });
+}
+
+/// The stage as a screen draws it, kept up to date by the [Keeper] ([Keeper.read]).
+///
+/// **It is read again after every change to the document**, in the turn of the call
+/// that made the change and before that call answers: whoever awaited
+/// `keeper.apply(...)` finds [stage] as the document is then. The same holds for
+/// undo, redo, the calls of an [Editing] and folding, and for changes that another
+/// screen made. Each time, the new answer is compared with the one before, and the
+/// listeners are told what differs ([StageChange]): only that is drawn again.
+///
+/// **It goes where the document's levels go.** [go] makes another cell the stage and
+/// tells the view state, with where this level was ([at]). If the stage cell is
+/// removed or loses its grid (an undo can do that), the stage becomes the nearest
+/// level above it that is left, and the listeners are told that everything differs.
+/// The same after the keeper opened the other program's file.
+///
+/// **Reading does not call for every scroll.** A screen tells the reader where it is
+/// with [at], which costs nothing; the keeper hands that on when the level is left,
+/// with every save, and when the app is put away or closed.
+class StageReader {
+  StageReader._(this._keeper, this._wanted);
+
+  final Keeper _keeper;
+
+  /// What the screen asked for, before a window was moved.
+  StageAsk _wanted;
+  late StageRead _stage;
+  StageChange _change = StageChange.all;
+  Object? _error;
+  final _listeners = <void Function(StageChange change)>[];
+
+  /// Where the screen said it is on this level, and whether the view state was told.
+  ({int x, int y, String? selected})? _place;
+  bool _moved = false;
+
+  /// What was read last.
+  StageRead get stage => _stage;
+
+  /// What differed when [stage] was read, from the read before it: the same that the
+  /// listeners were told.
+  StageChange get change => _change;
+
+  /// Why the stage could not be read again after a change, if it could not: [stage]
+  /// is then older than the document. [refresh] tries again. Null after a read that
+  /// worked.
+  Object? get readError => _error;
+
+  /// Calls `listener` after every read that found something different, with what
+  /// differs, and when [readError] changes (with [StageChange.none] if nothing else
+  /// did). It is called apart from the call that made the change, so it may ask the
+  /// keeper at once.
+  void addListener(void Function(StageChange change) listener) =>
+      _listeners.add(listener);
+
+  /// Ends what [addListener] began.
+  void removeListener(void Function(StageChange change) listener) =>
+      _listeners.remove(listener);
+
+  /// The keeper stops reading this stage. The last read stays in [stage].
+  void close() => _keeper._readers.remove(this);
+
+  void _tell(StageChange change) {
+    _change = change;
+    InTurn.apart(() {
+      for (final listener in [..._listeners]) {
+        listener(change);
+      }
+    });
+  }
+
+  void _failed(Object error) {
+    _error = error;
+    _tell(StageChange.none);
+  }
+
+  /// Reads `cell` as the stage. A cell that is gone, or has lost its grid, gives way
+  /// to the level the view state names, which is the nearest above it that is left.
+  Future<StageRead> _look(Session doc, String cell) async {
+    StageRead? read;
+    try {
+      read = await _window(doc, cell);
+      if (read.grid != null) return read;
+    } on BridgeError catch (error) {
+      if (error.kind != ErrorKind.notFound) rethrow;
+    }
+    final shown = await doc.viewStage();
+    // Only the root is shown without a grid.
+    if (read != null && shown == cell) return read;
+    return _window(doc, shown);
+  }
+
+  /// One read as the screen asked. A level that remembers a place outside the
+  /// window that was asked for is read with the window there.
+  Future<StageRead> _window(Session doc, String cell) async {
+    final read = StageRead(cell, _wanted, await doc.stage(cell, _wanted));
+    final grid = read.grid;
+    final level = read.level;
+    if (grid == null || level == null || read.whole) return read;
+    final inside =
+        level.x >= grid.x0 &&
+        level.x < grid.x0 + grid.cols &&
+        level.y >= grid.y0 &&
+        level.y < grid.y0 + grid.rows;
+    if (inside) return read;
+    final ask = _windowAt(_wanted, x0: level.x, y0: level.y);
+    return StageRead(cell, ask, await doc.stage(cell, ask));
+  }
+
+  /// At the level the view state names, with nothing to compare with.
+  Future<void> _start(Session doc) async =>
+      _show(await _look(doc, await doc.viewStage()));
+
+  /// Another stage than before.
+  void _show(StageRead read) {
+    _stage = read;
+    _error = null;
+    _place = null;
+    _moved = false;
+    _tell(StageChange.all);
+  }
+
+  /// The same stage as before, read again or otherwise.
+  void _update(StageRead read) {
+    final failed = _error != null;
+    final change = read.since(_stage);
+    _stage = read;
+    _error = null;
+    if (failed || !change.isEmpty) _tell(change);
+  }
+
+  /// After a change to the document: the same stage read again, with the window
+  /// where it was.
+  Future<void> _again(Session doc) async {
+    final before = _stage;
+    StageRead? read;
+    try {
+      final info = await doc.stage(before.cell, before.ask);
+      if (info.grids.isNotEmpty || before.grid == null) {
+        read = StageRead(before.cell, before.ask, info);
+      }
+    } on BridgeError catch (error) {
+      if (error.kind != ErrorKind.notFound) rethrow;
+    }
+    // The stage is gone, or its grid is: up to the nearest level that is left.
+    if (read == null) return _show(await _look(doc, before.cell));
+    _update(read);
+  }
+
+  /// Hands the place on this level to the view state, if the screen moved since.
+  /// That the level cannot remember anything (the root of a document without a
+  /// grid), or is gone, is no error; a selected cell that is gone is left out.
+  Future<void> _remember(Session doc) async {
+    if (!_moved) return;
+    _moved = false;
+    for (final level in _levels()) {
+      try {
+        return await doc.viewRemember(level);
+      } on BridgeError catch (error) {
+        if (error.kind == ErrorKind.refused) return;
+        if (error.kind != ErrorKind.notFound) rethrow;
+      }
+    }
+  }
+
+  /// What this level is to remember: as the screen said, and without the selected
+  /// cell for when that is gone. Nothing if the screen never said.
+  List<LevelInfo> _levels() {
+    final place = _place;
+    if (place == null || _stage.grid == null) return const [];
+    return [
+      if (place.selected != null)
+        LevelInfo(
+          cell: _stage.cell,
+          x: place.x,
+          y: place.y,
+          selected: place.selected,
+        ),
+      LevelInfo(cell: _stage.cell, x: place.x, y: place.y),
+    ];
+  }
+
+  /// Tells where the screen is on this level: the column `x` and the row `y` of the
+  /// stage's grid at the top left of what is seen, counted from 0, and the cell that
+  /// is selected, if one is. It costs nothing and calls nothing: say it as often as
+  /// the screen scrolls. The keeper hands it to the view state when the level is
+  /// left ([go]), with every save, and when the app is put away or closed; a later
+  /// read of this level gives it back in `stage.level`.
+  void at({required int x, required int y, String? selected}) {
+    final place = (x: x, y: y, selected: selected);
+    if (place == _place) return;
+    _place = place;
+    _moved = true;
+  }
+
+  /// Makes `cell` the stage: a dive into a cell of the stage, a step up, a jump along
+  /// the trail. The level that is left remembers where the screen said it was ([at]),
+  /// the view state is told which level is shown, and the stage is read. `stage.level`
+  /// then says where the screen was when it last left the new level.
+  ///
+  /// A cell without a grid, other than the root, is refused ([ErrorKind.refused]),
+  /// and one that does not exist is [ErrorKind.notFound]: the stage stays as it was.
+  Future<void> go(String cell) => _keeper._use((doc) async {
+    for (final left in [..._levels(), null]) {
+      try {
+        await doc.viewGo(cell, left: left);
+        break;
+      } on BridgeError catch (error) {
+        // The selected cell is gone: the level is left without it.
+        final again = left?.selected != null;
+        if (error.kind != ErrorKind.notFound || !again) rethrow;
+      }
+    }
+    _show(await _look(doc, cell));
+  });
+
+  /// Moves the window of the stage's grid that is read, when the request has one
+  /// (fewer `cols` or `rows` than the grid has): it then starts at column `x0` and
+  /// row `y0`. The cells that come into the window are named as cells that look
+  /// different, those that leave it as gone.
+  Future<void> window({int? x0, int? y0}) => _keeper._use((doc) async {
+    final ask = _windowAt(_stage.ask, x0: x0, y0: y0);
+    _update(StageRead(_stage.cell, ask, await doc.stage(_stage.cell, ask)));
+  });
+
+  /// Asks something else of the stage from here on (deeper, larger previews, another
+  /// size of window), and reads it so.
+  Future<void> ask(StageAsk ask) => _keeper._use((doc) async {
+    _wanted = ask;
+    _update(await _window(doc, _stage.cell));
+  });
+
+  /// Reads the stage again now: after [readError].
+  Future<void> refresh() => _keeper._use(_again);
+}
+
+/// `ask` with its window starting elsewhere.
+StageAsk _windowAt(StageAsk ask, {int? x0, int? y0}) => StageAsk(
+  x0: x0 ?? ask.x0,
+  y0: y0 ?? ask.y0,
+  cols: ask.cols,
+  rows: ask.rows,
+  fullDepth: ask.fullDepth,
+  fullCells: ask.fullCells,
+  previewCols: ask.previewCols,
+  previewRows: ask.previewRows,
+  shapeCols: ask.shapeCols,
+  shapeRows: ask.shapeRows,
+  textCut: ask.textCut,
+  previewCut: ask.previewCut,
+);
 
 /// Finds out whether the document in the file at `path` can be read, also while a
 /// session has that file open: the core reads it into a copy in a folder of its own,

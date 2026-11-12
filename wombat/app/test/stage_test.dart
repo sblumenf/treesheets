@@ -235,20 +235,29 @@ void main() {
     expect(trail(stage), ['Renamed', 'three']);
   });
 
-  group('text entered in place of the command before it', () {
-    test('is one step of the undo history', () async {
+  group('text held for an editing that goes on', () {
+    test('and then entered is one step of the undo history', () async {
       final (stage, doc) = await example();
       final cell = stage.grid.cells[1].id;
-      final total = stage.grid.cells[5].id;
-      await stage.enterText(cell, 'half');
+      final editing = await stage.holdText(cell, 'half');
+      expect(texts(stage)[1], 'half');
+      expect(stage.touched, {cell});
+      expect((editing.cell, editing.held), (cell, true));
+      // The same editing goes on when it is given again.
+      expect(
+        identical(
+          await stage.holdText(cell, 'half a', editing: editing),
+          editing,
+        ),
+        isTrue,
+      );
       final report = await stage.enterText(
         cell,
         '=SUM(Costs)',
-        insteadOfLast: true,
+        editing: editing,
       );
       expect(report.changed, [cell]);
       expect(texts(stage)[1], '10');
-      // What either of the two commands touched.
       expect(stage.touched, {cell});
       expect(await stage.undo(), isTrue);
       expect(texts(stage)[1], 'what to buy');
@@ -257,57 +266,86 @@ void main() {
       expect(stage.grid.cells[1].text, '=SUM(Costs)');
       expect(stage.touched, {cell});
       expect(await doc.isSaved(), isFalse);
-      expect(total, isNot(cell));
     });
 
-    test('the text the cell had before leaves no step at all', () async {
-      final (stage, _) = await example();
-      final cell = stage.grid.cells[1].id;
-      await stage.enterText(cell, 'half');
-      final report = await stage.enterText(
-        cell,
-        'what to buy',
-        insteadOfLast: true,
+    test(
+      'and then dropped leaves no step at all, and what could be redone',
+      () async {
+        final (stage, doc) = await example();
+        final cell = stage.grid.cells[1].id;
+        final other = stage.grid.cells[4].id;
+        await stage.enterText(other, 'before');
+        await stage.undo();
+        await stage.keeper.save();
+        final editing = await stage.holdText(cell, 'half');
+        expect(texts(stage)[1], 'half');
+        await stage.drop(editing);
+        expect(texts(stage)[1], 'what to buy');
+        expect(stage.touched, {cell});
+        expect(editing.open, isFalse);
+        expect(await doc.isSaved(), isTrue);
+        expect(await stage.undo(), isFalse);
+        expect(await stage.redo(), isTrue);
+        expect(texts(stage)[4], 'before');
+        // Dropped again, or with nothing held, it does nothing.
+        final reads = stage.touched;
+        await stage.drop(editing);
+        expect(identical(stage.touched, reads), isTrue);
+      },
+    );
+
+    test('an editing that holds nothing is dropped without a word', () async {
+      final (stage, fake) = await standIn();
+      final editing = (await stage.edit('a'))!;
+      fake.log.clear();
+      await stage.drop(editing);
+      expect(fake.log, isEmpty);
+      expect(editing.open, isFalse);
+    });
+
+    test('a text that the core refuses leaves what was held', () async {
+      final (stage, fake) = await standIn();
+      final editing = await stage.holdText('a', 'half');
+      failFirst(fake, 'retype', broken);
+      await expectLater(
+        stage.enterText('a', 'whole', editing: editing),
+        throwsA(broken),
       );
-      expect(report.changed, isEmpty);
-      // The cell was touched all the same: by the undo.
-      expect(stage.touched, {cell});
-      expect(texts(stage)[1], 'what to buy');
+      expect(fake.cells['a']!.text, 'half');
+      expect((editing.open, editing.held), (true, true));
+      // The cross still takes it all back.
+      await stage.drop(editing);
+      expect(fake.cells['a']!.text, 'one');
       expect(await stage.undo(), isFalse);
     });
 
-    test('a text that the core refuses leaves the command before it', () async {
+    test('held text that changes nothing reads nothing', () async {
       final (stage, fake) = await standIn();
-      await stage.enterText('a', 'half');
-      failFirst(fake, 'apply', broken);
-      await expectLater(
-        stage.enterText('a', 'whole', insteadOfLast: true),
-        throwsA(broken),
-      );
-      expect(fake.log.sublist(fake.log.length - 6), [
-        'undo',
-        'undo.',
-        'apply',
-        'apply.',
-        'redo',
-        'redo.',
-      ]);
-      expect(fake.cells['a']!.text, 'half');
-      expect(await stage.undo(), isTrue);
-      expect(fake.cells['a']!.text, 'one');
+      int reads() => fake.log.where((call) => call == 'grid').length;
+      final before = reads();
+      final editing = await stage.holdText('a', 'one');
+      expect([reads(), stage.touched], [before, isEmpty]);
+      await stage.holdText('a', 'half', editing: editing);
+      expect(reads(), before + 1);
+      await stage.holdText('a', 'half', editing: editing);
+      expect(reads(), before + 1);
+      await stage.drop(editing);
     });
 
-    test('with nothing before it, it is entered as it is', () async {
+    test('an editing that is over gives way to a new one', () async {
       final (stage, fake) = await standIn();
-      failFirst(fake, 'apply', broken);
-      await expectLater(
-        stage.enterText('a', 'whole', insteadOfLast: true),
-        throwsA(broken),
-      );
-      // Nothing was undone, so nothing is redone.
-      expect(fake.log.contains('redo'), isFalse);
-      await stage.enterText('a', 'whole', insteadOfLast: true);
-      expect(fake.cells['a']!.text, 'whole');
+      final first = (await stage.edit('a'))!;
+      await stage.enterText('a', 'first', editing: first);
+      expect(first.open, isFalse);
+      // More was typed since: entered with an editing of its own.
+      await stage.enterText('a', 'second', editing: first);
+      expect(fake.cells['a']!.text, 'second');
+      final held = await stage.holdText('a', 'third', editing: first);
+      expect((identical(held, first), held.held), (false, true));
+      await stage.drop(held);
+      expect(fake.cells['a']!.text, 'second');
+      expect(await stage.undo(), isTrue);
+      expect(fake.cells['a']!.text, 'first');
     });
   });
 
@@ -434,27 +472,42 @@ void main() {
       final save = stage.save();
       final keep = stage.keepMine();
       await pumpEventQueue();
-      expect(fake.log, ['grid', 'grid.', 'apply']);
+      expect(fake.log.sublist(fake.log.length - 3), [
+        'retype',
+        'retype.',
+        'apply',
+      ]);
       gate.complete();
       await Future.wait([edit, save, keep]);
       expect(fake.log.where((call) => !call.endsWith('.')), [
         'grid',
+        'cell',
+        'beginGroup',
+        'retype',
         'apply',
+        'endGroup',
         'grid',
         'save',
+        'saveView',
         'overwrite',
+        'saveView',
       ]);
     });
 
-    test('a cell is read after what was asked before it', () async {
+    test('an editing opens after what was asked before it', () async {
       final (stage, _) = await example();
       final cell = stage.grid.cells[1].id;
       await stage.enterText(cell, 'typed');
       final undo = stage.undo();
-      final asked = stage.cell(cell);
-      expect((await asked)!.text, 'what to buy');
+      final asked = stage.edit(cell);
+      expect((await asked)!.start.text, 'what to buy');
       await undo;
-      expect(await stage.cell('00000000-0000-4000-8000-000000000000'), isNull);
+      // A cell that is not on the stage is not opened, and the editing that is
+      // open stays.
+      expect(await stage.edit('00000000-0000-4000-8000-000000000000'), isNull);
+      final inner = (await stage.keeper.grid(stage.grid.cells[0].id)).cells;
+      expect(await stage.edit(inner.first.id), isNull);
+      expect(stage.keeper.editing!.cell, cell);
     });
   });
 
@@ -824,7 +877,11 @@ void main() {
         final calls = fake.log.length;
         await expectLater(stage.undo(), refusedAs(ErrorKind.closed));
         await expectLater(stage.dive('c'), refusedAs(ErrorKind.closed));
-        await expectLater(stage.cell('a'), refusedAs(ErrorKind.closed));
+        await expectLater(stage.edit('a'), refusedAs(ErrorKind.closed));
+        await expectLater(
+          stage.holdText('a', 'x'),
+          refusedAs(ErrorKind.closed),
+        );
         // Every call after the end fails the same way (see the keeper's tests).
         await expectLater(stage.save(), refusedAs(ErrorKind.closed));
         await expectLater(stage.keepMine(), refusedAs(ErrorKind.closed));

@@ -58,10 +58,10 @@ class _GridScreenState extends State<GridScreen> {
   /// The cell whose text is being edited.
   String? _editing;
 
-  /// What the document holds of this editing that the user has not said yes to: the
-  /// text that was entered because the app was put away, if that changed the cell.
-  /// The cross takes it back, and the next entering takes its place (decision A157).
-  String? _left;
+  /// The editing of that cell, as the keeper has it. It is over when its text was
+  /// entered while more was typed, or its document was let go of; the next entering
+  /// opens another.
+  Editing? _edit;
 
   /// What the keeper asks through to enter what is being typed.
   late Attachment _attachment;
@@ -109,13 +109,13 @@ class _GridScreenState extends State<GridScreen> {
     stage.removeListener(_redraw);
     _attachment.detach();
     final cell = _editing;
-    if (cell != null && _editor.text != _left) {
+    if (cell != null) {
       stage
-          .enterText(cell, _editor.text, insteadOfLast: _left != null)
+          .enterText(cell, _editor.text, editing: _edit)
           .then<void>((_) {}, onError: (Object _) {});
     }
     _editing = null;
-    _left = null;
+    _edit = null;
   }
 
   void _redraw() => setState(() {});
@@ -149,50 +149,59 @@ class _GridScreenState extends State<GridScreen> {
 
   /// Opens the editor on a cell, or moves it there. Like [_close] it does nothing on
   /// a screen that went while the action was at work.
-  void _show(CellInfo cell) {
+  void _show(Editing editing) {
     if (!mounted) return;
     setState(() {
-      _editing = cell.id;
-      // A new editing: nothing of it is in the document yet.
-      _left = null;
+      _editing = editing.cell;
+      _edit = editing;
       // The cursor goes to the end of the text when the field gets the focus.
-      _editor.text = cell.text;
+      _editor.text = editing.start.text;
     });
     _focus.requestFocus();
   }
 
   void _close() {
     if (!mounted) return;
-    setState(() => _editing = null);
+    setState(() {
+      _editing = null;
+      _edit = null;
+    });
   }
 
-  /// Sends what is in the editor to the core, unless the document has it already. The
-  /// editor stays as it is: if the core refuses, with what was typed, and if more was
-  /// typed while the core worked, with that, which closing or moving the editor would
-  /// throw away.
+  /// Opens the editor on a cell of the stage as the cell is when the turn of this
+  /// comes: an undo before the tap may have changed its text, or taken it away.
+  /// Asked of the stage and not read from what it shows, so that it also comes
+  /// after steps that did not come from this screen.
+  /// Says whether it did.
+  Future<bool> _open(String id) async {
+    Editing? editing;
+    await _ask(() async => editing = await _stage.edit(id));
+    if (editing != null) _show(editing!);
+    return editing != null;
+  }
+
+  /// Sends what is in the editor to the core. The editor stays as it is: if the core
+  /// refuses, with what was typed, and if more was typed while the core worked, with
+  /// that, which closing or moving the editor would throw away.
   ///
   /// `away` says that the app is being put away and the user has not said yes to the
-  /// text: it is remembered in [_left]. The keeper asks for that, in the turn of the
-  /// screen's actions, and saves when it is done; the editor stays as it is for when
-  /// the app comes back.
+  /// text: the editing holds it in the document and goes on, so that the cross can
+  /// still take it back. The keeper asks for that, in the turn of the screen's
+  /// actions, and saves when it is done; the editor stays as it is for when the app
+  /// comes back.
   Future<_Entered> _enter({bool away = false}) async {
     final cell = _editing;
     if (cell == null) return _Entered.yes;
     final text = _editor.text;
-    var changed = false;
-    if (text != _left) {
-      final entered = await _ask(() async {
-        final report = await _stage.enterText(
-          cell,
-          text,
-          insteadOfLast: _left != null,
-        );
-        changed = report.changed.isNotEmpty;
-        return true;
-      });
-      if (!entered) return _Entered.refused;
-    }
-    _left = away && (changed || text == _left) ? text : null;
+    final entered = await _ask(() async {
+      if (away) {
+        _edit = await _stage.holdText(cell, text, editing: _edit);
+      } else {
+        await _stage.enterText(cell, text, editing: _edit);
+      }
+      return true;
+    });
+    if (!entered) return _Entered.refused;
     return _editor.text == text ? _Entered.yes : _Entered.typedOn;
   }
 
@@ -206,13 +215,7 @@ class _GridScreenState extends State<GridScreen> {
     } else if (dive) {
       await _ask(() => _stage.dive(id));
     } else {
-      // The cell as it is now: an undo before this tap may have changed its text.
-      // Asked of the stage and not read from what it shows, so that it also comes
-      // after steps that did not come from this screen; with this screen alone
-      // the two are the same.
-      CellInfo? cell;
-      await _ask(() async => cell = await _stage.cell(id));
-      if (cell != null) _show(cell!);
+      await _open(id);
     }
   });
 
@@ -225,19 +228,20 @@ class _GridScreenState extends State<GridScreen> {
     final grid = _stage.grid;
     final at = grid.cells.indexWhere((c) => c.id == cell);
     final next = at + grid.xs;
-    if (below && at >= 0 && next < grid.cells.length) {
-      _show(grid.cells[next]);
-    } else {
-      _close();
-    }
+    final moved =
+        below &&
+        at >= 0 &&
+        next < grid.cells.length &&
+        await _open(grid.cells[next].id);
+    if (!moved) _close();
   });
 
   /// The cross: "not this". The cell is as it was before the editor opened, also when
-  /// the text went into the document meanwhile because the app was put away.
+  /// the text went into the document meanwhile because the app was put away, and so
+  /// is everything that could be undone or redone.
   void _cancel() => _do(() async {
-    if (_left != null && !await _ask(() async => await _stage.undo() || true)) {
-      return;
-    }
+    final editing = _edit;
+    if (editing != null && !await _ask(() => _stage.drop(editing))) return;
     _close();
   });
 

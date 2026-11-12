@@ -1004,13 +1004,19 @@ void main() {
             await lifecycle(tester, step);
           }
           expect(fake.cells['a']!.text, 'half a sentence');
-          // Entered once and written once, however many steps the way has; the
-          // saves after it find nothing to write.
-          expect(fake.log.where((call) => call == 'apply').length, 1);
+          // One editing and written once, however many steps the way has: the
+          // text is held again at each, which changes nothing, and the saves
+          // after it find nothing to write.
+          expect(fake.log.where((call) => call == 'beginGroup').length, 1);
           expect(fake.saves, 1);
           expect(fake.saved, isTrue);
-          expect(fake.log.sublist(fake.log.length - 2), ['save', 'save.']);
-          expect(fake.log, containsAllInOrder(['apply.', 'save']));
+          expect(
+            fake.log,
+            containsAllInOrder(['beginGroup', 'retype.', 'apply.', 'save']),
+          );
+          // Held, not entered: the editing goes on, for the tick or the cross.
+          expect(fake.log.contains('endGroup'), isFalse);
+          expect(stage.keeper.editing!.held, isTrue);
           // The editor is still there for when the app comes back.
           expect(editor(tester), 'half a sentence');
 
@@ -1033,22 +1039,37 @@ void main() {
     screenTest(
       'the cross after the app was out of sight still means "not this"',
       (tester, stage, fake) async {
+        // Something that can be redone, and nothing that can be undone.
+        await stage.enterText('d', 'undone');
+        await stage.undo();
+        await stage.keeper.save();
         await press(tester, 'cell-0');
         type(tester, 'not this');
         await lifecycle(tester, AppLifecycleState.inactive);
         await lifecycle(tester, AppLifecycleState.hidden);
-        expect((fake.cells['a']!.text, fake.saves), ('not this', 1));
+        expect((fake.cells['a']!.text, fake.saves), ('not this', 2));
+        expect(shown(tester, 0), 'not this');
         await lifecycle(tester, AppLifecycleState.inactive);
         await lifecycle(tester, AppLifecycleState.resumed);
         await press(tester, 'cancel');
         expect(key('editor'), findsNothing);
         expect(fake.cells['a']!.text, 'one');
         expect(shown(tester, 0), 'one');
-        // Nothing of it is left to undo, and the file follows a second later.
+        expect(stage.keeper.editing, isNull);
+        // The file follows a second later.
+        await tester.pump(const Duration(seconds: 1));
+        expect((fake.saves, fake.saved), (3, true));
+        // Nothing of it is left to undo, and Redo does not bring it back: what
+        // could be redone before the editing still can.
         await press(tester, 'undo');
         expect(message(tester), 'Nothing to undo');
-        await tester.pump(const Duration(seconds: 1));
-        expect((fake.saves, fake.saved), (2, true));
+        await press(tester, 'redo');
+        expect(
+          (fake.cells['a']!.text, fake.cells['d']!.text),
+          ('one', 'undone'),
+        );
+        await press(tester, 'redo');
+        expect(message(tester), 'Nothing to redo');
       },
     );
 
@@ -1081,15 +1102,23 @@ void main() {
       await press(tester, 'cell-0');
       type(tester, 'whole');
       await awayAndBack(tester, AppLifecycleState.hidden);
-      final calls = fake.log.length;
+      final saves = fake.saves;
       await press(tester, 'save');
-      // The document has it: nothing is sent, and it is said yes to.
-      expect(fake.log.length, calls);
+      // The document has it: it is said yes to, and that is the end of the
+      // editing. Nothing changed, so nothing is written again.
+      expect(fake.log.sublist(fake.log.length - 2), ['grid', 'grid.']);
+      expect(fake.log, containsAllInOrder(['save.', 'endGroup.']));
       expect(key('editor'), findsNothing);
+      expect(stage.keeper.editing, isNull);
+      await tester.pump(const Duration(minutes: 1));
+      expect(fake.saves, saves);
       // So a cross on the next editing of the cell takes nothing back.
       await press(tester, 'cell-0');
       await press(tester, 'cancel');
       expect(fake.cells['a']!.text, 'whole');
+      // And the whole of it is one step.
+      await press(tester, 'undo');
+      expect(fake.cells['a']!.text, 'one');
     });
 
     screenTest('away with the text the cell has: nothing to take back', (
@@ -1144,22 +1173,24 @@ void main() {
       expect(editor(tester), 'three');
       await press(tester, 'cancel');
       expect(fake.cells['a']!.text, 'half');
-      expect(fake.log.contains('undo'), isFalse);
+      expect(fake.log.contains('cancelGroup'), isFalse);
       // And after a cross that did take something back, neither has the next.
       await press(tester, 'cell-1');
       type(tester, 'not this');
       await awayAndBack(tester, AppLifecycleState.hidden);
+      expect(fake.cells['b']!.text, 'not this');
       await press(tester, 'cancel');
       await press(tester, 'cell-1');
       await press(tester, 'cancel');
-      expect(fake.log.where((call) => call == 'undo').length, 1);
+      expect(fake.log.where((call) => call == 'cancelGroup').length, 1);
+      expect(fake.log.contains('undo'), isFalse);
       expect(
-        (fake.cells['a']!.text, fake.cells['d']!.text),
-        ('half', 'before'),
+        (fake.cells['a']!.text, fake.cells['b']!.text, fake.cells['d']!.text),
+        ('half', '=X', 'before'),
       );
     });
 
-    screenTest('a cross with nothing left to take back closes the editor', (
+    screenTest('what is held is nobody else\'s to take back or to add to', (
       tester,
       stage,
       fake,
@@ -1167,12 +1198,19 @@ void main() {
       await press(tester, 'cell-0');
       type(tester, 'not this');
       await awayAndBack(tester, AppLifecycleState.hidden);
-      // Taken back already, behind the screen, as a second screen could.
-      await stage.undo();
+      // Behind the screen, as a second screen could: refused, and loudly.
+      await expectLater(stage.undo(), throwsStateError);
+      await expectLater(stage.enterText('d', 'theirs'), throwsStateError);
+      expect(
+        (fake.cells['a']!.text, fake.cells['d']!.text),
+        ('not this', 'four'),
+      );
       await press(tester, 'cancel');
       expect(key('editor'), findsNothing);
       expect(message(tester), isNull);
       expect(fake.cells['a']!.text, 'one');
+      // And free again after the cross.
+      await stage.enterText('d', 'theirs');
     });
 
     screenTest('a cross that cannot take the text back leaves the editor', (
@@ -1183,10 +1221,11 @@ void main() {
       await press(tester, 'cell-0');
       type(tester, 'not this');
       await awayAndBack(tester, AppLifecycleState.hidden);
-      failFirst(fake, 'undo', broken);
+      failFirst(fake, 'cancelGroup', broken);
       await press(tester, 'cancel');
       expect(message(tester), 'Error (io): the disk is gone');
       expect(editor(tester), 'not this');
+      expect(stage.keeper.editing!.held, isTrue);
       await press(tester, 'cancel');
       expect(key('editor'), findsNothing);
       expect(fake.cells['a']!.text, 'one');
@@ -1232,10 +1271,17 @@ void main() {
       type(tester, 'the same');
       await awayAndBack(tester, AppLifecycleState.hidden);
       await tester.pumpWidget(const SizedBox());
-      final calls = fake.log.length;
-      // Its text was in the document already: nothing more is sent for it.
+      // Its text was in the document already; going, it ends the editing, so that
+      // no group stays open behind it.
       await tester.pump();
-      expect(fake.log.length, calls);
+      expect(fake.log.sublist(fake.log.length - 4), [
+        'endGroup',
+        'endGroup.',
+        'grid',
+        'grid.',
+      ]);
+      expect(stage.keeper.editing, isNull);
+      final calls = fake.log.length;
       // What watched the app's lifecycle for it went with it.
       await awayAndBack(tester, AppLifecycleState.paused);
       expect(fake.log.length, calls);
@@ -1243,7 +1289,9 @@ void main() {
       await stage.dive('c');
       await stage.keeper.putAway();
       expect(tester.takeException(), isNull);
-      expect(fake.log.where((call) => call == 'apply').length, 1);
+      // Held once and entered once, each of which settles what the cell is.
+      expect(fake.log.where((call) => call == 'apply').length, 2);
+      expect(fake.log.where((call) => call == 'retype').length, 2);
     });
 
     screenTest('there is no Save to forget', (tester, stage, fake) async {

@@ -198,14 +198,13 @@ class Stage extends ChangeNotifier {
   /// Goes up one level. Returns false at the root.
   Future<bool> up() => _step(() => _jump(_path.length - 2));
 
-  /// The cell of the stage's grid with this ID as it is when every step asked before
-  /// is done, or null if it is not there then. For opening an editor on what the cell
-  /// holds now, not on what the screen showed when it was tapped.
-  Future<CellInfo?> cell(String id) => _step(() async {
-    for (final cell in _grid.cells) {
-      if (cell.id == id) return cell;
-    }
-    return null;
+  /// Opens an editing of the cell of the stage's grid with this ID ([Keeper.edit]),
+  /// when every step asked before is done; null, and nothing opened, if the cell is
+  /// not on the stage then. The editing has the cell as it is now
+  /// ([Editing.start]), not as the screen showed it when it was tapped.
+  Future<Editing?> edit(String id) => _step(() async {
+    if (!_grid.cells.any((cell) => cell.id == id)) return null;
+    return keeper.edit(id);
   });
 
   /// Reads the stage again, after [readError].
@@ -216,13 +215,18 @@ class Stage extends ChangeNotifier {
 
   /// After changes that the core made. If the stage cannot be read again, the changes
   /// are no less made: that goes to [readError] and not to the caller.
-  Future<void> _changed(List<Report> reports) async {
-    final changed = {for (final report in reports) ...report.changed};
-    _touched = {
-      ...changed,
+  Future<void> _changed(List<Report> reports) => _reread(
+    {for (final report in reports) ...report.changed},
+    {
       for (final report in reports) ...report.created,
       for (final report in reports) ...report.recalculated,
-    };
+    },
+  );
+
+  /// Reads again after `changed` cells got other content and `more` were made or
+  /// show something else.
+  Future<void> _reread(Set<String> changed, Set<String> more) async {
+    _touched = {...changed, ...more};
     try {
       await _read();
       // The levels above the stage are read only when they changed: reading one copies
@@ -239,33 +243,48 @@ class Stage extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Typing into a cell has ended with this text: the core sets it, and makes the cell a
-  /// formula cell if the text is a formula. Returns what changed; a text the cell
-  /// already has changes nothing.
+  /// The editing to put a text into `cell` with: the one given, if it still goes
+  /// on, or a new one. (One that was entered while more was typed is over, and so
+  /// is one whose document the keeper let go of.)
+  Future<Editing> _editing(String cell, Editing? editing) async =>
+      editing != null && editing.open ? editing : keeper.edit(cell);
+
+  /// Typing into a cell has ended with this text ([Editing.enter]): the core sets it,
+  /// keeping the styles of what did not change, and makes the cell a formula cell if
+  /// the text is a formula. With everything `editing` did before, it is one step of
+  /// the undo history. Returns what changed; a text the cell already has changes
+  /// nothing.
   ///
-  /// With `insteadOfLast` the latest command is undone first, so that the two are one
-  /// step of the undo history: for an editor whose text went into the document when the
-  /// app was put away, and is now entered for good (decision A157). The caller knows
-  /// that the latest command is that one. If the core refuses the text, the undone
-  /// command is redone and the document is as before.
-  Future<Report> enterText(
-    String cell,
-    String text, {
-    bool insteadOfLast = false,
-  }) => _step(() async {
-    final undone = insteadOfLast ? await keeper.undo() : null;
-    final Report report;
-    try {
-      report = await keeper.apply(Command.enterText(cell: cell, text: text));
-    } catch (_) {
-      if (undone != null) await keeper.redo();
-      rethrow;
-    }
-    await _changed([?undone, report]);
-    return report;
+  /// Without an `editing` that still goes on, one is opened for it. If the core
+  /// refuses the text, the error is thrown and the editing is as it was.
+  Future<Report> enterText(String cell, String text, {Editing? editing}) =>
+      _step(() async {
+        final report = await (await _editing(cell, editing)).enter(text);
+        await _changed([report]);
+        return report;
+      });
+
+  /// The text of an editor goes into the document without the user having said yes
+  /// to it ([Editing.hold]): the app is put away. Returns the editing that holds it,
+  /// which the tick ends ([enterText]) and the cross takes back ([drop]).
+  Future<Editing> holdText(String cell, String text, {Editing? editing}) =>
+      _step(() async {
+        final held = await _editing(cell, editing);
+        final before = _grid.cells.where((c) => c.id == cell).firstOrNull?.text;
+        final look = await held.hold(text);
+        if (look.text != before) await _reread({cell}, const {});
+        return held;
+      });
+
+  /// The cross ([Editing.drop]): nothing of the editing stays in the document.
+  Future<void> drop(Editing editing) => _step(() async {
+    if (!editing.open) return;
+    final report = await editing.drop();
+    if (report.changed.isNotEmpty) await _changed([report]);
   });
 
-  /// Undoes the last command. Returns false if there is nothing to undo.
+  /// Undoes the last step: a command, or a whole editing. Returns false if there is
+  /// nothing to undo.
   Future<bool> undo() => _step(() async {
     final report = await keeper.undo();
     if (report == null) return false;
@@ -273,7 +292,7 @@ class Stage extends ChangeNotifier {
     return true;
   });
 
-  /// Redoes the command undone last. Returns false if there is nothing to redo.
+  /// Redoes the step undone last. Returns false if there is nothing to redo.
   Future<bool> redo() => _step(() async {
     final report = await keeper.redo();
     if (report == null) return false;
