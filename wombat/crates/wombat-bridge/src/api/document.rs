@@ -48,6 +48,7 @@ fn os_ids() -> Result<SeededIds, BridgeError> {
 /// can drop it, the file's claim and the memory with it, while Dart still holds the handle.
 struct Session {
     editor: Editor,
+    /// The file, by its path from the root as fixed when the document was opened.
     path: PathBuf,
     ids: SeededIds,
     clock: Clock,
@@ -198,7 +199,6 @@ pub struct OpenDocument {
 impl OpenDocument {
     fn with(
         (doc, file): (Document, FileState),
-        path: &Path,
         ids: SeededIds,
         claim: Claim,
     ) -> Result<OpenDocument, BridgeError> {
@@ -209,7 +209,7 @@ impl OpenDocument {
         Ok(OpenDocument {
             session: Some(Session {
                 editor,
-                path: path.to_path_buf(),
+                path: claim.path().to_path_buf(),
                 ids,
                 clock: Clock::System,
                 saved: true,
@@ -287,8 +287,10 @@ impl OpenDocument {
     pub fn open_with(path: &Path, ids: SeededIds) -> Result<OpenDocument, BridgeError> {
         // The file is claimed before it is touched and the claim is dropped with whatever
         // fails, here and in the two below: a file is never held by a document that is not.
+        // The claim also fixes the path from the root, which is the file from here on.
         let claim = Claim::take(path)?;
-        OpenDocument::with(storage::load_document_with_state(path)?, path, ids, claim)
+        let read = storage::load_document_with_state(claim.path())?;
+        OpenDocument::with(read, ids, claim)
     }
 
     /// [`OpenDocument::create`] with the IDs given, for tests.
@@ -296,12 +298,12 @@ impl OpenDocument {
     pub fn create_with(path: &Path, mut ids: SeededIds) -> Result<OpenDocument, BridgeError> {
         let claim = Claim::take(path)?;
         // Also true for a link that leads nowhere, which `exists` would not see.
-        if std::fs::symlink_metadata(path).is_ok() {
+        if std::fs::symlink_metadata(claim.path()).is_ok() {
             return Err(wombat_core::Error::AlreadyExists(path.to_path_buf()).into());
         }
         let doc = Document::new(&mut ids);
-        let file = storage::save_document_with_state(&doc, path)?;
-        OpenDocument::with((doc, file), path, ids, claim)
+        let file = storage::save_document_with_state(&doc, claim.path())?;
+        OpenDocument::with((doc, file), ids, claim)
     }
 
     /// [`OpenDocument::open_copy`] with the IDs given, for tests.
@@ -312,8 +314,8 @@ impl OpenDocument {
         mut ids: SeededIds,
     ) -> Result<OpenDocument, BridgeError> {
         let claim = Claim::take(to)?;
-        let copy = storage::copy_document_with_state(from, to, &mut ids)?;
-        OpenDocument::with(copy, to, ids, claim)
+        let copy = storage::copy_document_with_state(from, claim.path(), &mut ids)?;
+        OpenDocument::with(copy, ids, claim)
     }
 
     /// Makes edits stamp this time on cells instead of the time of the device's clock
@@ -375,7 +377,10 @@ impl OpenDocument {
         Ok(self.session()?.editor.document().root().to_string())
     }
 
-    /// The file the document is saved to, as it was given when the document was opened.
+    /// The file the document is saved to: the path it was opened with, from the root. A
+    /// path that did not start at the root was taken from the working folder of the
+    /// program as it was when the document was opened, and is not worked out again: the
+    /// document stays with its file when the working folder changes.
     pub fn path(&self) -> Result<String, BridgeError> {
         Ok(self.session()?.path.display().to_string())
     }

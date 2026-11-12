@@ -138,6 +138,55 @@ fn another_spelling_of_the_path_is_the_same_file() {
     OpenDocument::open_with(&real, ids()).unwrap();
 }
 
+/// A document that was opened through a link is the file the link leads to and the
+/// file of that name: it saves to the name, so nothing else may be made or opened there
+/// when the link is gone or leads elsewhere.
+#[cfg(unix)]
+#[test]
+fn a_document_opened_through_a_link_holds_both_names() {
+    use std::os::unix::fs::symlink;
+    let (doc, target) = open_example("link-names");
+    drop(doc);
+    let dir = target.parent().unwrap();
+    let (link, second) = (dir.join("link.wombat"), dir.join("second.wombat"));
+    symlink(&target, &link).unwrap();
+    symlink(&target, &second).unwrap();
+    let mut doc = OpenDocument::open_with(&link, ids()).unwrap();
+    assert_eq!(doc.path().unwrap(), link.display().to_string());
+    already_open(OpenDocument::open_with(&second, ids()), &second);
+    already_open(OpenDocument::open_with(&target, ids()), &target);
+
+    // The link is removed: its name is still this document's.
+    doc.apply(set_text(&doc, "ours")).unwrap();
+    std::fs::remove_file(&link).unwrap();
+    already_open(OpenDocument::create_with(&link, ids()), &link);
+    already_open(OpenDocument::copy_with(&example(), &link, ids()), &link);
+    assert!(std::fs::symlink_metadata(&link).is_err());
+    // The file is gone as far as the document can tell, so saving writes it.
+    doc.save().unwrap();
+    assert_eq!(text_in_file(&link), "ours");
+    assert_eq!(text_in_file(&target), "what to buy");
+    drop(doc);
+
+    // The link is made to lead to another file: opening it would give a second document
+    // that saves to the same name.
+    std::fs::remove_file(&link).unwrap();
+    symlink(&target, &link).unwrap();
+    let doc = OpenDocument::open_with(&link, ids()).unwrap();
+    let other = dir.join("other.wombat");
+    drop(OpenDocument::copy_with(&example(), &other, SeededIds::from_u64(12)).unwrap());
+    std::fs::remove_file(&link).unwrap();
+    symlink(&other, &link).unwrap();
+    already_open(OpenDocument::open_with(&link, ids()), &link);
+    already_open(OpenDocument::open_with(&target, ids()), &target);
+    // Every name is free again with the document.
+    drop(doc);
+    drop(OpenDocument::open_with(&target, ids()).unwrap());
+    drop(OpenDocument::open_with(&link, ids()).unwrap());
+    std::fs::remove_file(&link).unwrap();
+    drop(OpenDocument::create_with(&link, ids()).unwrap());
+}
+
 /// Two files of the same name in different folders are different files.
 #[test]
 fn another_file_of_the_same_name_is_not_refused() {
@@ -156,6 +205,16 @@ fn a_file_that_could_not_be_opened_is_not_held() {
         assert_eq!(error.kind, ErrorKind::Io);
     }
     drop(OpenDocument::create_with(&path, ids()).unwrap());
+    // No path at all, which has no place from the root either.
+    for _ in 0..2 {
+        let error = OpenDocument::open(String::new()).err().unwrap();
+        assert_eq!(
+            (error.kind, error.path),
+            (ErrorKind::Io, Some(String::new()))
+        );
+        let error = OpenDocument::create(String::new()).err().unwrap();
+        assert_eq!(error.kind, ErrorKind::Io);
+    }
     // Not a document: then put one there.
     let bad = dir.join("bad.wombat");
     std::fs::write(&bad, "not json").unwrap();

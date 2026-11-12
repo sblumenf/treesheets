@@ -20,53 +20,87 @@ fn open() -> MutexGuard<'static, BTreeSet<PathBuf>> {
     OPEN.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// The name under which the file that a save to `path` replaces is known, however `path`
-/// is spelt: where links lead, without `.` and `..`, from the root.
+/// The names under which the file of a document opened at `asked`, a path from the root,
+/// is known, however that path is spelt. There are up to three, because a document is
+/// two things that can come apart while it is open: the file it read, and the name it
+/// saves to.
 ///
-/// A file that is not there yet has no such name; it is known by that of its folder and
-/// its own, which is what it gets once it is there. If the folder is not there either, the
-/// path from the root as it is spelt has to do: nothing can be opened or made there.
+/// - The real name of the file that a save replaces: where links lead, without `.` and
+///   `..`. A second open through another link to the same file, or of the file itself,
+///   meets this one.
+/// - The name in its real folder, without following a link that the name itself is. A
+///   file that is not there yet has only this one, which is what it gets once it is
+///   there; and it stays the document's when the link it was opened through is removed
+///   or made to lead elsewhere, since the document goes on saving to that name.
+/// - The path as it was asked for, which is what there is when the folder is not there
+///   either, and what stays when a link on the way to the folder changes.
 ///
 /// Two names that the file system itself takes for one are not seen to be the same: a
 /// second hard link to a file, and a name that differs only by case, or by the way an
 /// accented letter is written, on file systems that ignore that, for a file that is not
 /// there yet.
-fn key(path: &Path) -> PathBuf {
-    if let Ok(real) = std::fs::canonicalize(path) {
-        return real;
-    }
-    let spelt = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
-    match (spelt.parent().map(std::fs::canonicalize), spelt.file_name()) {
-        (Some(Ok(folder)), Some(name)) => folder.join(name),
-        _ => spelt,
-    }
+fn names(asked: &Path) -> BTreeSet<PathBuf> {
+    let real = std::fs::canonicalize(asked).ok();
+    let in_folder = match (asked.parent().map(std::fs::canonicalize), asked.file_name()) {
+        (Some(Ok(folder)), Some(name)) => Some(folder.join(name)),
+        _ => None,
+    };
+    let asked = Some(asked.to_path_buf());
+    [real, in_folder, asked].into_iter().flatten().collect()
 }
 
 /// The right of one open document to its file. Dropping it gives the file up.
 #[derive(Debug)]
-pub(crate) struct Claim(PathBuf);
+pub(crate) struct Claim {
+    path: PathBuf,
+    names: BTreeSet<PathBuf>,
+}
 
 impl Claim {
     /// Claims the file at `path` for a document about to be opened or made there, or
-    /// refuses because a document has it open. Checking and claiming are one step under
-    /// the lock, so of two threads that ask at once one is refused.
+    /// refuses because a document has it open: one that holds any of the names that this
+    /// one would hold. Checking and claiming are one step under the lock, so of two
+    /// threads that ask at once one is refused.
+    ///
+    /// A path that does not start at the root is taken from the working folder as it is
+    /// now, once: see [`Claim::path`].
     pub(crate) fn take(path: &Path) -> Result<Claim, BridgeError> {
-        let key = key(path);
-        if open().insert(key.clone()) {
-            Ok(Claim(key))
+        let shown = Some(path.display().to_string());
+        let fixed = std::path::absolute(path).map_err(|error| BridgeError {
+            kind: ErrorKind::Io,
+            message: format!("{}: {error}", path.display()),
+            path: shown.clone(),
+        })?;
+        let names = names(&fixed);
+        let mut open = open();
+        if names.is_disjoint(&open) {
+            open.extend(names.iter().cloned());
+            Ok(Claim { path: fixed, names })
         } else {
             Err(BridgeError {
                 kind: ErrorKind::AlreadyOpen,
                 message: format!("{}: the document is open already", path.display()),
-                path: Some(path.display().to_string()),
+                path: shown,
             })
         }
+    }
+
+    /// The file as the document knows it from now on: the path that was asked for, from
+    /// the root. It is fixed here so that the document reads, saves and answers for one
+    /// file whatever the working folder of the program becomes later; a path that was
+    /// worked out anew at every save would lead to another file after such a change,
+    /// while the claim still held the first. Links are not followed for it: saving
+    /// through a link goes where the link leads at that time, as the storage layer has
+    /// it.
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
     }
 }
 
 impl Drop for Claim {
     fn drop(&mut self) {
-        open().remove(&self.0);
+        // No other claim holds any of these: it would have been refused.
+        open().retain(|name| !self.names.contains(name));
     }
 }
 
@@ -81,12 +115,24 @@ mod tests {
     fn a_bare_name_that_is_not_there_is_in_the_current_folder() {
         let here = std::env::current_dir().unwrap().canonicalize().unwrap();
         let name = "no-such-file-of-open-files.wombat";
-        assert_eq!(key(Path::new(name)), here.join(name));
-        assert_eq!(key(&Path::new(".").join(name)), here.join(name));
-        assert_eq!(key(&here.join("no-such-folder/..").join(name)), {
-            // Nothing can be made in a folder that is not there; the spelling is kept.
-            here.join("no-such-folder/..").join(name)
-        });
+        let fixed = |path: &Path| names(&std::path::absolute(path).unwrap());
+        assert!(fixed(Path::new(name)).contains(&here.join(name)));
+        assert!(fixed(&Path::new(".").join(name)).contains(&here.join(name)));
+        // Nothing can be made in a folder that is not there; the spelling is kept.
+        let nowhere = here.join("no-such-folder/..").join(name);
+        assert_eq!(fixed(&nowhere), BTreeSet::from([nowhere]));
+    }
+
+    /// A claim gives up every name it holds, and no other.
+    #[test]
+    fn a_claim_gives_up_what_it_held() {
+        let (one, two) = (Path::new("/nowhere/one"), Path::new("/nowhere/two"));
+        let (first, second) = (Claim::take(one).unwrap(), Claim::take(two).unwrap());
+        drop(first);
+        assert_eq!(Claim::take(two).unwrap_err().kind, ErrorKind::AlreadyOpen);
+        drop(Claim::take(one).unwrap());
+        drop(second);
+        drop(Claim::take(two).unwrap());
     }
 
     /// A thread that dies holding the lock leaves it poisoned; claims are still taken,
