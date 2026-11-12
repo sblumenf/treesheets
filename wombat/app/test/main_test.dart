@@ -560,9 +560,8 @@ void main() {
         Keeper keeper,
         FakeDocument fake,
       )
-      body, {
-      Duration exitWithin = const Duration(seconds: 5),
-    }) {
+      body,
+    ) {
       testWidgets(name, (tester) async {
         addTearDown(
           () => tester.binding.handleAppLifecycleStateChanged(
@@ -573,11 +572,7 @@ void main() {
         final keeper = Keeper(await Session.over(fake));
         await tester.pumpWidget(
           MaterialApp(
-            home: Kept(
-              keeper: keeper,
-              exitWithin: exitWithin,
-              child: ProbeScreen(keeper),
-            ),
+            home: Kept(keeper: keeper, child: ProbeScreen(keeper)),
           ),
         );
         await tester.pump();
@@ -676,21 +671,24 @@ void main() {
       expect(fake.log.length, before);
     });
 
-    keptTest('the work ends while the app is being put away: nothing thrown', (
-      tester,
-      keeper,
-      fake,
-    ) async {
-      await keeper.apply(const Command.enterText(cell: 'd', text: 'entered'));
-      final gate = holdFirst(fake, 'save');
-      await lifecycle(tester, AppLifecycleState.inactive);
-      await lifecycle(tester, AppLifecycleState.hidden);
-      final gone = keeper.letGo();
-      gate.complete();
-      await gone;
-      await tester.pump();
-      expect(keeper.ended, isNotNull);
-    });
+    keptTest(
+      'the work ends before the turn of what was asked: nothing thrown',
+      (tester, keeper, fake) async {
+        // The document is being let go of, behind a call that is still at work, when
+        // the app is put away.
+        final gate = holdFirst(fake, 'grid');
+        final read = keeper.grid('a');
+        final gone = keeper.letGo();
+        await lifecycle(tester, AppLifecycleState.inactive);
+        await lifecycle(tester, AppLifecycleState.hidden);
+        gate.complete();
+        await read;
+        await gone;
+        await tester.pump();
+        expect(keeper.ended, 'The document was closed.');
+        expect(calls(fake, 'save'), 0);
+      },
+    );
 
     keptTest('the exit waits for the document, which is closed', (
       tester,
@@ -725,12 +723,13 @@ void main() {
       unawaited(
         tester.binding.handleRequestAppExit().then((said) => answer = said),
       );
-      await tester.pump(const Duration(milliseconds: 2999));
+      // Five seconds, and not one more.
+      await tester.pump(const Duration(milliseconds: 4999));
       expect(answer, isNull);
       await tester.pump(const Duration(milliseconds: 1));
       expect(answer, AppExitResponse.exit);
       gate.complete();
-    }, exitWithin: const Duration(seconds: 3));
+    });
 
     keptTest('what cannot be entered holds the exit back, once', (
       tester,
@@ -787,7 +786,21 @@ void main() {
       await tester.pump();
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       expect((fakes.first.saves, fakes.last.saves), (0, 1));
-      for (final keeper in keepers) {
+      // An exit held back for one document is not one held back for the next.
+      Future<AppExitResponse> asked() => tester.binding.handleRequestAppExit();
+      await keepers.last.undo();
+      fakes.last.fileChanged = true;
+      expect(await asked(), AppExitResponse.cancel);
+      final third = FakeDocument()..fileChanged = true;
+      final another = Keeper(await Session.over(third));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Kept(keeper: another, child: const SizedBox()),
+        ),
+      );
+      await another.apply(const Command.enterText(cell: 'a', text: 'typed'));
+      expect(await asked(), AppExitResponse.cancel);
+      for (final keeper in [...keepers, another]) {
         await endKeeping(keeper);
       }
     });
@@ -811,6 +824,21 @@ void main() {
         File('${folder.path}/example.wombat').readAsStringSync(),
         contains('"typed and left"'),
       );
+    });
+
+    testWidgets('the stage goes with the screen', (tester) async {
+      final fake = FakeDocument();
+      final keeper = Keeper(await Session.over(fake));
+      await tester.pumpWidget(MaterialApp(home: GridOnKeeper(keeper)));
+      await tester.pump();
+      expect(text(tester, 'title'), 'Root');
+      // ignore: invalid_use_of_protected_member
+      expect(keeper.hasListeners, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      // ignore: invalid_use_of_protected_member
+      expect(keeper.hasListeners, isFalse);
+      await keeper.close();
     });
 
     testWidgets('a root that cannot be read is said', (tester) async {

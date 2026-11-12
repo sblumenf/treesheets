@@ -244,12 +244,7 @@ class _StartScreenState extends State<StartScreen> {
 /// document is covered by it (decision A155): tells the keeper when the app is no
 /// longer in front, and holds the app's exit until the document is in its file.
 class Kept extends StatefulWidget {
-  const Kept({
-    super.key,
-    required this.keeper,
-    required this.child,
-    this.exitWithin = const Duration(seconds: 5),
-  });
+  const Kept({super.key, required this.keeper, required this.child});
 
   final Keeper keeper;
   final Widget child;
@@ -257,7 +252,7 @@ class Kept extends StatefulWidget {
   /// How long an exit that the system asks for waits for the document to be put
   /// away. After that the app leaves all the same, so that a save that hangs cannot
   /// keep the app from ever being closed.
-  final Duration exitWithin;
+  static const exitWithin = Duration(seconds: 5);
 
   @override
   State<Kept> createState() => _KeptState();
@@ -301,10 +296,9 @@ class _KeptState extends State<Kept> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// Nothing waits for what the keeper is asked here, and after the end of the work
-  /// there is nothing to put away.
+  /// Nothing waits for what the keeper is asked here, and after the end of the work,
+  /// when the keeper refuses, there is nothing to put away.
   void _ask(Future<void> Function() what) {
-    if (widget.keeper.ended != null) return;
     what()
         .then<void>((_) {})
         .catchError(
@@ -340,18 +334,18 @@ class _KeptState extends State<Kept> with WidgetsBindingObserver {
   /// documentation of Flutter 3.47 does not say so, and it was not tried. (Android
   /// and iOS do not ask; there the app is put away first, which is the case above.)
   /// The answer waits until the document is put away and closed, but no longer than
-  /// [Kept.exitWithin].
+  /// [exitWithin].
   ///
   /// If the document is then not in its file, or what was being typed could not be
   /// entered, the exit is held back once, so that the user sees what the screen says
   /// about it. Asked again with nothing better, the app leaves.
   @override
   Future<AppExitResponse> didRequestAppExit() => _leave().timeout(
-    widget.exitWithin,
+    Kept.exitWithin,
     onTimeout: () {
       // Whether everything was saved cannot be known here.
       debugPrint(
-        'Wombat: leaving after waiting ${widget.exitWithin.inSeconds} s for '
+        'Wombat: leaving after waiting ${Kept.exitWithin.inSeconds} s for '
         'the document to be saved; whether it was saved is not known.',
       );
       return AppExitResponse.exit;

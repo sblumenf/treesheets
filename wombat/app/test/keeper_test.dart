@@ -313,7 +313,42 @@ void main() {
       await save;
       expect(keeper.state, saved);
       expect(seen, [unsaved, saving, saved]);
+      // And what is done after it is unsaved, not still being saved.
+      await keeper.undo();
+      expect(keeper.state, unsaved);
     });
+
+    // What makes a document unsaved is what the core's own flag follows (decision
+    // A151): every list of a report but the formula cells that show something else.
+    for (final list in [
+      'changed',
+      'created',
+      'removed',
+      'grids',
+      'tags',
+      'recalculated',
+    ]) {
+      keeperTest('a report with only "$list" in it', (
+        tester,
+        keeper,
+        fake,
+      ) async {
+        List<String> only(String name) => name == list ? ['a'] : const [];
+        fake.reports = (_) => Report(
+          changed: only('changed'),
+          created: only('created'),
+          removed: only('removed'),
+          grids: only('grids'),
+          tags: only('tags'),
+          recalculated: only('recalculated'),
+        );
+        await keeper.apply(edit);
+        final counts = list != 'recalculated';
+        expect(keeper.state, counts ? unsaved : saved);
+        await tester.pump(const Duration(seconds: 1));
+        expect(calls(fake, 'save'), counts ? 1 : 0);
+      });
+    }
 
     keeperTest('what changed nothing leaves it saved, and starts no clock', (
       tester,
@@ -340,6 +375,12 @@ void main() {
       keeper,
       fake,
     ) async {
+      // Also with nothing unsaved: the file could not be looked at.
+      failFirst(fake, 'save', broken);
+      await keeper.save();
+      expect(keeper.state, failed);
+      await keeper.save();
+      expect(keeper.state, saved);
       final seen = states(keeper);
       await keeper.apply(edit);
       failFirst(fake, 'save', broken);
@@ -406,12 +447,15 @@ void main() {
       await keeper.undo();
       await keeper.putAway();
       expect((told, asked), (3, 1));
-      // Twice is once: the listener of another is not taken with it.
-      final other = keeper.attach(onChange: () => told++);
-      attachment.detach();
+      // Twice is once: the same listener attached again is not taken with it.
+      void tell() => told++;
+      final first = keeper.attach(onChange: tell);
+      first.detach();
+      final again = keeper.attach(onChange: tell);
+      first.detach();
       await keeper.redo();
       expect(told, 4);
-      other.detach();
+      again.detach();
     });
 
     keeperTest('finishes in the turn of its queue', (
@@ -512,7 +556,8 @@ void main() {
       var asked = 0;
       keeper.attach(
         finish: () async {
-          asked++;
+          // (It ran away without end when it was asked again each time.)
+          if (++asked > 3) return;
           await keeper.apply(edit);
           await keeper.putAway();
         },
@@ -599,6 +644,24 @@ void main() {
     });
   });
 
+  group('the app is put away, and the core fails', () {
+    keeperTest('a fault while something finishes is said, not thrown', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      keeper.attach(
+        finish: () async {
+          await keeper.apply(edit);
+          failFirst(fake, 'undo', PanicException('at /home/builder/core.rs'));
+          await keeper.undo();
+        },
+      );
+      expect(await keeper.putAway(), [isA<PanicException>()]);
+      expect((keeper.ended, calls(fake, 'save')), (faultSentence, 1));
+    });
+  });
+
   group('closing', () {
     keeperTest('saves, gives the document up, and says so', (
       tester,
@@ -677,6 +740,23 @@ void main() {
         expect(seen, isEmpty);
       });
     }
+
+    keeperTest(
+      'the clock\'s save whose turn comes after the close is no error',
+      (tester, keeper, fake) async {
+        await keeper.apply(edit);
+        // The clock strikes while a call is at work and the close already waits.
+        final gate = holdFirst(fake, 'grid');
+        final read = keeper.grid('a');
+        final close = keeper.close();
+        await tester.pump(const Duration(seconds: 1));
+        gate.complete();
+        await read;
+        await close;
+        await tester.pump();
+        expect((fake.closed, calls(fake, 'save')), (true, 0));
+      },
+    );
 
     keeperTest('a close that works takes back what a save before it said', (
       tester,

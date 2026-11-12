@@ -163,16 +163,10 @@ class Keeper extends ChangeNotifier {
   }
 
   /// Everything listeners are told of. An error is the same as the one before when
-  /// it says the same: the core makes a new one for every failure.
-  Object get _view {
-    final error = _saveError;
-    final said = error is BridgeError
-        ? '${error.kind.name}: ${error.message}'
-        : error == null
-        ? null
-        : '${error.runtimeType}: $error';
-    return (state, said, _ended, _opens);
-  }
+  /// it says the same: the core makes a new one for every failure, and two of them
+  /// are equal when their kind and message are. ([opens] is not here: it changes only
+  /// when [state] does.)
+  Object get _view => (state, _saveError, _ended);
 
   /// Tells the listeners if there is something new, apart from the piece that runs.
   void _tell() {
@@ -360,9 +354,7 @@ class Keeper extends ChangeNotifier {
     }
 
     await Future.wait([
-      for (final attachment in [..._attached])
-        if (attachment._finish != null || attachment._queue != null)
-          one(attachment),
+      for (final attachment in [..._attached]) one(attachment),
     ]);
     return failed;
   }
@@ -515,7 +507,7 @@ Future<void> endKeeping(Keeper keeper) async {
     try {
       return await end();
     } catch (_) {
-      if (keeper.ended != null) return;
+      // What could not be closed is let go of; what has ended refuses both.
     }
   }
 }

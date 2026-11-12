@@ -175,6 +175,10 @@ class FakeDocument with Hooks implements OpenDocument {
   /// The file was removed.
   bool fileGone = false;
 
+  /// What a command that worked answers with in place of its own report, if set:
+  /// for reports that the two commands of the stand-in never give.
+  Report Function(Report report)? reports;
+
   /// A panic left the document half changed.
   bool broken = false;
   bool closed = false;
@@ -277,7 +281,8 @@ class FakeDocument with Hooks implements OpenDocument {
       _done.add((cell, _info(cell).text, text));
       _undone.clear();
     }
-    return _set(cell, text);
+    final report = _set(cell, text);
+    return reports?.call(report) ?? report;
   });
 
   @override

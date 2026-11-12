@@ -444,6 +444,44 @@ void main() {
       expect(await a.run(() => third.run(() => b.run(() async => 4))), 4);
     });
 
+    test(
+      'a wait that is over is forgotten, and so is a piece that has ended',
+      () async {
+        final a = InTurn();
+        final b = InTurn();
+        final asked = Completer<void>();
+        final gate = Completer<void>();
+        final fromA = a.run(() async {
+          await b.run(() async {});
+          asked.complete();
+          await gate.future;
+        });
+        await asked.future;
+        // The piece of a still runs, and no longer waits for b: a piece of b may ask a.
+        final fromB = b.run(() => a.run(() async => 9));
+        await pumpEventQueue();
+        gate.complete();
+        await fromA;
+        expect(await fromB.timeout(const Duration(seconds: 5)), 9);
+
+        // What a piece started and did not wait for may ask the queue once the piece
+        // has ended: it is inside nothing that runs.
+        final ended = Completer<void>();
+        late Future<int> later;
+        final left = Completer<void>();
+        await a.run(() async {
+          unawaited(() async {
+            await ended.future;
+            later = a.run(() async => 3);
+            left.complete();
+          }());
+        });
+        ended.complete();
+        await left.future;
+        expect(await later, 3);
+      },
+    );
+
     test('a piece is joined by what asks from inside it', () async {
       final turns = InTurn();
       final order = <String>[];
