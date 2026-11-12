@@ -277,7 +277,8 @@ Future<void> readable(String path) async {
       from: path,
       to: '${folder.path}/copy.wombat',
     );
-    // Nothing was done to it, so this writes nothing.
+    // Nothing was done to it, so this writes nothing. It gives the copy's handle and
+    // name back now and not when the collector comes, which no test can tell apart.
     await copy.close();
   } finally {
     try {

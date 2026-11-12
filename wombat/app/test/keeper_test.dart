@@ -423,21 +423,24 @@ void main() {
       },
     );
 
-    keeperTest('is opened after the calls made before the choice', (
-      tester,
-      keeper,
-      fake,
-    ) async {
-      final gate = holdFirst(fake, 'apply');
-      final change = keeper.apply(edit);
-      final open = keeper.openTheirs();
-      await tester.pump();
-      expect(fake.disposed, isFalse);
-      gate.complete();
-      expect((await change).changed, ['a']);
-      await open;
-      expect(fake.disposed, isTrue);
-    }, reopen: (_) => Session.over(FakeDocument()));
+    keeperTest(
+      'is opened after the calls made before the choice',
+      (tester, keeper, fake) async {
+        final gate = holdFirst(fake, 'apply');
+        final change = keeper.apply(edit);
+        final open = keeper.openTheirs();
+        // And a call made after the choice is for the document that is opened.
+        final after = keeper.grid('a');
+        await tester.pump();
+        expect(fake.disposed, isFalse);
+        gate.complete();
+        expect((await change).changed, ['a']);
+        await open;
+        expect(fake.disposed, isTrue);
+        expect((await after).cell.text, 'theirs');
+      },
+      reopen: (_) => Session.over(FakeDocument()..cells['a']!.text = 'theirs'),
+    );
 
     keeperTest(
       'that cannot be read leaves everything as it is',

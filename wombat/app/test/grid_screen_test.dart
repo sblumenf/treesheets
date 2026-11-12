@@ -468,6 +468,48 @@ void main() {
     await keeper.letGo();
   });
 
+  screenTest('after a fault the system\'s back leaves the app, once', (
+    tester,
+    stage,
+    fake,
+  ) async {
+    failFirst(fake, 'undo', PanicException('at /home/builder/core.rs'));
+    await stage.enterText('a', 'typed');
+    await press(tester, 'undo');
+    expect(key('ended'), findsOneWidget);
+    // The system does the leaving; the screen does not ask for it a second time.
+    final left = await back(tester);
+    await tester.pump();
+    await tester.pump();
+    expect(left, ['SystemNavigator.pop']);
+  });
+
+  testWidgets('after a fault, back from a screen that is not the first one', (
+    tester,
+  ) async {
+    final fake = FakeDocument();
+    final keeper = Keeper(await Session.over(fake));
+    final stage = await Stage.open(keeper);
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigator, home: const Text('below')),
+    );
+    navigator.currentState!.push(
+      MaterialPageRoute<void>(builder: (_) => GridScreen(stage: stage)),
+    );
+    await tester.pumpAndSettle();
+    failFirst(fake, 'undo', PanicException('at /home/builder/core.rs'));
+    await press(tester, 'undo');
+    expect(key('ended'), findsOneWidget);
+    // The system takes the screen away, and that is all: the screen does not go on
+    // to leave the app as from its root.
+    final left = await back(tester);
+    await tester.pumpAndSettle();
+    expect(find.byType(GridScreen), findsNothing);
+    expect(find.text('below'), findsOneWidget);
+    expect(left, isEmpty);
+  });
+
   group('the system\'s back', () {
     screenTest('goes up one level, and leaves the app only from the root', (
       tester,
