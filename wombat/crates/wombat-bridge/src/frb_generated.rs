@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1414368767;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1493078975;
 
 // Section: executor
 
@@ -95,6 +95,57 @@ fn wire__crate__api__document__OpenDocument_apply_impl(
                         &mut *api_that_guard,
                         api_command,
                     )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__document__OpenDocument_cell_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OpenDocument_cell",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OpenDocument>,
+            >>::sse_decode(&mut deserializer);
+            let api_cell = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::wire::BridgeError>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok =
+                        crate::api::document::OpenDocument::cell(&*api_that_guard, api_cell)?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -647,6 +698,61 @@ fn wire__crate__api__document__OpenDocument_save_impl(
         },
     )
 }
+fn wire__crate__api__document__OpenDocument_stage_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OpenDocument_stage",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OpenDocument>,
+            >>::sse_decode(&mut deserializer);
+            let api_cell = <String>::sse_decode(&mut deserializer);
+            let api_ask = <crate::api::wire::StageAsk>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::wire::BridgeError>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::document::OpenDocument::stage(
+                        &*api_that_guard,
+                        api_cell,
+                        api_ask,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__document__OpenDocument_undo_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -885,6 +991,56 @@ impl SseDecode for crate::api::wire::CellKind {
             5 => crate::api::wire::CellKind::ViewV,
             6 => crate::api::wire::CellKind::Formula,
             _ => unreachable!("Invalid variant for CellKind: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::wire::CellLook {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_text = <String>::sse_decode(deserializer);
+        let mut var_textCut = <bool>::sse_decode(deserializer);
+        let mut var_kind = <crate::api::wire::CellKind>::sse_decode(deserializer);
+        let mut var_result = <Option<String>>::sse_decode(deserializer);
+        let mut var_resultCut = <bool>::sse_decode(deserializer);
+        let mut var_failed = <bool>::sse_decode(deserializer);
+        let mut var_cellColor = <crate::api::wire::Rgb>::sse_decode(deserializer);
+        let mut var_textColor = <crate::api::wire::Rgb>::sse_decode(deserializer);
+        let mut var_isTag = <bool>::sse_decode(deserializer);
+        let mut var_style = <crate::api::wire::Style>::sse_decode(deserializer);
+        let mut var_relSize = <i32>::sse_decode(deserializer);
+        let mut var_textAlign = <crate::api::wire::HorizAlign>::sse_decode(deserializer);
+        let mut var_vertAlign = <crate::api::wire::VertAlign>::sse_decode(deserializer);
+        let mut var_runs = <Vec<crate::api::wire::RunInfo>>::sse_decode(deserializer);
+        let mut var_links = <Vec<crate::api::wire::LinkInfo>>::sse_decode(deserializer);
+        let mut var_image = <Option<String>>::sse_decode(deserializer);
+        let mut var_hasNote = <bool>::sse_decode(deserializer);
+        let mut var_hasGrid = <bool>::sse_decode(deserializer);
+        let mut var_summary = <Option<u32>>::sse_decode(deserializer);
+        let mut var_full = <Option<u32>>::sse_decode(deserializer);
+        return crate::api::wire::CellLook {
+            id: var_id,
+            text: var_text,
+            text_cut: var_textCut,
+            kind: var_kind,
+            result: var_result,
+            result_cut: var_resultCut,
+            failed: var_failed,
+            cell_color: var_cellColor,
+            text_color: var_textColor,
+            is_tag: var_isTag,
+            style: var_style,
+            rel_size: var_relSize,
+            text_align: var_textAlign,
+            vert_align: var_vertAlign,
+            runs: var_runs,
+            links: var_links,
+            image: var_image,
+            has_note: var_hasNote,
+            has_grid: var_hasGrid,
+            summary: var_summary,
+            full: var_full,
         };
     }
 }
@@ -1304,6 +1460,18 @@ impl SseDecode for crate::api::wire::Command {
     }
 }
 
+impl SseDecode for crate::api::wire::CutText {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_text = <String>::sse_decode(deserializer);
+        let mut var_cut = <bool>::sse_decode(deserializer);
+        return crate::api::wire::CutText {
+            text: var_text,
+            cut: var_cut,
+        };
+    }
+}
+
 impl SseDecode for crate::api::wire::DrawStyle {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1379,6 +1547,42 @@ impl SseDecode for crate::api::wire::GridInfo {
     }
 }
 
+impl SseDecode for crate::api::wire::GridPart {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_owner = <String>::sse_decode(deserializer);
+        let mut var_level = <u32>::sse_decode(deserializer);
+        let mut var_xs = <u32>::sse_decode(deserializer);
+        let mut var_ys = <u32>::sse_decode(deserializer);
+        let mut var_x0 = <u32>::sse_decode(deserializer);
+        let mut var_y0 = <u32>::sse_decode(deserializer);
+        let mut var_cols = <u32>::sse_decode(deserializer);
+        let mut var_rows = <u32>::sse_decode(deserializer);
+        let mut var_first = <u32>::sse_decode(deserializer);
+        let mut var_colWidths = <Vec<u32>>::sse_decode(deserializer);
+        let mut var_borderColor = <crate::api::wire::Rgb>::sse_decode(deserializer);
+        let mut var_outerSpacing = <u32>::sse_decode(deserializer);
+        let mut var_vertical = <bool>::sse_decode(deserializer);
+        let mut var_drawStyle = <crate::api::wire::DrawStyle>::sse_decode(deserializer);
+        return crate::api::wire::GridPart {
+            owner: var_owner,
+            level: var_level,
+            xs: var_xs,
+            ys: var_ys,
+            x0: var_x0,
+            y0: var_y0,
+            cols: var_cols,
+            rows: var_rows,
+            first: var_first,
+            col_widths: var_colWidths,
+            border_color: var_borderColor,
+            outer_spacing: var_outerSpacing,
+            vertical: var_vertical,
+            draw_style: var_drawStyle,
+        };
+    }
+}
+
 impl SseDecode for crate::api::wire::GridSize {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1387,6 +1591,34 @@ impl SseDecode for crate::api::wire::GridSize {
         return crate::api::wire::GridSize {
             xs: var_xs,
             cells: var_cells,
+        };
+    }
+}
+
+impl SseDecode for crate::api::wire::GridSummary {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_owner = <String>::sse_decode(deserializer);
+        let mut var_xs = <u32>::sse_decode(deserializer);
+        let mut var_ys = <u32>::sse_decode(deserializer);
+        let mut var_borderColor = <crate::api::wire::Rgb>::sse_decode(deserializer);
+        let mut var_previewCols = <u32>::sse_decode(deserializer);
+        let mut var_previewRows = <u32>::sse_decode(deserializer);
+        let mut var_preview = <Vec<crate::api::wire::CutText>>::sse_decode(deserializer);
+        let mut var_shapeCols = <u32>::sse_decode(deserializer);
+        let mut var_shapeRows = <u32>::sse_decode(deserializer);
+        let mut var_shape = <Vec<u8>>::sse_decode(deserializer);
+        return crate::api::wire::GridSummary {
+            owner: var_owner,
+            xs: var_xs,
+            ys: var_ys,
+            border_color: var_borderColor,
+            preview_cols: var_previewCols,
+            preview_rows: var_previewRows,
+            preview: var_preview,
+            shape_cols: var_shapeCols,
+            shape_rows: var_shapeRows,
+            shape: var_shape,
         };
     }
 }
@@ -1429,6 +1661,20 @@ impl SseDecode for crate::api::wire::ImageRef {
             file: var_file,
             scale: var_scale,
             extra: var_extra,
+        };
+    }
+}
+
+impl SseDecode for crate::api::wire::LinkInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_start = <u32>::sse_decode(deserializer);
+        let mut var_len = <u32>::sse_decode(deserializer);
+        let mut var_target = <crate::api::wire::LinkTarget>::sse_decode(deserializer);
+        return crate::api::wire::LinkInfo {
+            start: var_start,
+            len: var_len,
+            target: var_target,
         };
     }
 }
@@ -1484,6 +1730,30 @@ impl SseDecode for Vec<crate::api::wire::CellInfo> {
     }
 }
 
+impl SseDecode for Vec<crate::api::wire::CellLook> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::wire::CellLook>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::wire::CutText> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::wire::CutText>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::wire::EntryData> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1491,6 +1761,54 @@ impl SseDecode for Vec<crate::api::wire::EntryData> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::wire::EntryData>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::wire::GridPart> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::wire::GridPart>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::wire::GridSummary> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::wire::GridSummary>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::wire::LinkInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::wire::LinkInfo>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<u32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<u32>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -1515,6 +1833,30 @@ impl SseDecode for Vec<crate::api::wire::Prop> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::wire::Prop>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::wire::RunInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::wire::RunInfo>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::wire::TrailStep> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::wire::TrailStep>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -1591,6 +1933,17 @@ impl SseDecode for Option<crate::api::wire::Rgb> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::wire::Rgb>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<u32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<u32>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -1699,6 +2052,70 @@ impl SseDecode for crate::api::wire::Rgb {
     }
 }
 
+impl SseDecode for crate::api::wire::RunInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_start = <u32>::sse_decode(deserializer);
+        let mut var_len = <u32>::sse_decode(deserializer);
+        let mut var_style = <crate::api::wire::Style>::sse_decode(deserializer);
+        let mut var_color = <Option<crate::api::wire::Rgb>>::sse_decode(deserializer);
+        return crate::api::wire::RunInfo {
+            start: var_start,
+            len: var_len,
+            style: var_style,
+            color: var_color,
+        };
+    }
+}
+
+impl SseDecode for crate::api::wire::StageAsk {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_x0 = <i64>::sse_decode(deserializer);
+        let mut var_y0 = <i64>::sse_decode(deserializer);
+        let mut var_cols = <i64>::sse_decode(deserializer);
+        let mut var_rows = <i64>::sse_decode(deserializer);
+        let mut var_fullDepth = <i64>::sse_decode(deserializer);
+        let mut var_fullCells = <i64>::sse_decode(deserializer);
+        let mut var_previewCols = <i64>::sse_decode(deserializer);
+        let mut var_previewRows = <i64>::sse_decode(deserializer);
+        let mut var_shapeCols = <i64>::sse_decode(deserializer);
+        let mut var_shapeRows = <i64>::sse_decode(deserializer);
+        let mut var_textCut = <i64>::sse_decode(deserializer);
+        let mut var_previewCut = <i64>::sse_decode(deserializer);
+        return crate::api::wire::StageAsk {
+            x0: var_x0,
+            y0: var_y0,
+            cols: var_cols,
+            rows: var_rows,
+            full_depth: var_fullDepth,
+            full_cells: var_fullCells,
+            preview_cols: var_previewCols,
+            preview_rows: var_previewRows,
+            shape_cols: var_shapeCols,
+            shape_rows: var_shapeRows,
+            text_cut: var_textCut,
+            preview_cut: var_previewCut,
+        };
+    }
+}
+
+impl SseDecode for crate::api::wire::StageInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_trail = <Vec<crate::api::wire::TrailStep>>::sse_decode(deserializer);
+        let mut var_grids = <Vec<crate::api::wire::GridPart>>::sse_decode(deserializer);
+        let mut var_cells = <Vec<crate::api::wire::CellLook>>::sse_decode(deserializer);
+        let mut var_summaries = <Vec<crate::api::wire::GridSummary>>::sse_decode(deserializer);
+        return crate::api::wire::StageInfo {
+            trail: var_trail,
+            grids: var_grids,
+            cells: var_cells,
+            summaries: var_summaries,
+        };
+    }
+}
+
 impl SseDecode for crate::api::wire::Style {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1725,6 +2142,20 @@ impl SseDecode for crate::api::wire::TableData {
         return crate::api::wire::TableData {
             xs: var_xs,
             cells: var_cells,
+        };
+    }
+}
+
+impl SseDecode for crate::api::wire::TrailStep {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_shown = <crate::api::wire::CutText>::sse_decode(deserializer);
+        let mut var_color = <crate::api::wire::Rgb>::sse_decode(deserializer);
+        return crate::api::wire::TrailStep {
+            id: var_id,
+            shown: var_shown,
+            color: var_color,
         };
     }
 }
@@ -1779,39 +2210,43 @@ fn pde_ffi_dispatcher_primary_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         1 => wire__crate__api__document__OpenDocument_apply_impl(port, ptr, rust_vec_len, data_len),
-        2 => wire__crate__api__document__OpenDocument_close_impl(port, ptr, rust_vec_len, data_len),
-        3 => {
+        2 => wire__crate__api__document__OpenDocument_cell_impl(port, ptr, rust_vec_len, data_len),
+        3 => wire__crate__api__document__OpenDocument_close_impl(port, ptr, rust_vec_len, data_len),
+        4 => {
             wire__crate__api__document__OpenDocument_create_impl(port, ptr, rust_vec_len, data_len)
         }
-        4 => wire__crate__api__document__OpenDocument_grid_impl(port, ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__document__OpenDocument_id_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__document__OpenDocument_is_saved_impl(
+        5 => wire__crate__api__document__OpenDocument_grid_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__document__OpenDocument_id_impl(port, ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__document__OpenDocument_is_saved_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        7 => wire__crate__api__document__OpenDocument_open_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__document__OpenDocument_open_copy_impl(
+        8 => wire__crate__api__document__OpenDocument_open_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__document__OpenDocument_open_copy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        9 => wire__crate__api__document__OpenDocument_overwrite_impl(
+        10 => wire__crate__api__document__OpenDocument_overwrite_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        10 => wire__crate__api__document__OpenDocument_path_impl(port, ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__document__OpenDocument_redo_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__document__OpenDocument_root_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__document__OpenDocument_save_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__document__OpenDocument_undo_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__document__init_app_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__wire__report_default_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__wire__style_default_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__document__OpenDocument_path_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__document__OpenDocument_redo_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__document__OpenDocument_root_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__document__OpenDocument_save_impl(port, ptr, rust_vec_len, data_len),
+        15 => {
+            wire__crate__api__document__OpenDocument_stage_impl(port, ptr, rust_vec_len, data_len)
+        }
+        16 => wire__crate__api__document__OpenDocument_undo_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__document__init_app_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__wire__report_default_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__wire__style_default_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1902,6 +2337,41 @@ impl flutter_rust_bridge::IntoDart for crate::api::wire::CellKind {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::CellKind {}
 impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::CellKind> for crate::api::wire::CellKind {
     fn into_into_dart(self) -> crate::api::wire::CellKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wire::CellLook {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.text.into_into_dart().into_dart(),
+            self.text_cut.into_into_dart().into_dart(),
+            self.kind.into_into_dart().into_dart(),
+            self.result.into_into_dart().into_dart(),
+            self.result_cut.into_into_dart().into_dart(),
+            self.failed.into_into_dart().into_dart(),
+            self.cell_color.into_into_dart().into_dart(),
+            self.text_color.into_into_dart().into_dart(),
+            self.is_tag.into_into_dart().into_dart(),
+            self.style.into_into_dart().into_dart(),
+            self.rel_size.into_into_dart().into_dart(),
+            self.text_align.into_into_dart().into_dart(),
+            self.vert_align.into_into_dart().into_dart(),
+            self.runs.into_into_dart().into_dart(),
+            self.links.into_into_dart().into_dart(),
+            self.image.into_into_dart().into_dart(),
+            self.has_note.into_into_dart().into_dart(),
+            self.has_grid.into_into_dart().into_dart(),
+            self.summary.into_into_dart().into_dart(),
+            self.full.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::CellLook {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::CellLook> for crate::api::wire::CellLook {
+    fn into_into_dart(self) -> crate::api::wire::CellLook {
         self
     }
 }
@@ -2270,6 +2740,22 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::Command> for crate::api
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wire::CutText {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.text.into_into_dart().into_dart(),
+            self.cut.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::CutText {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::CutText> for crate::api::wire::CutText {
+    fn into_into_dart(self) -> crate::api::wire::CutText {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::wire::DrawStyle {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -2357,6 +2843,34 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::GridInfo> for crate::ap
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wire::GridPart {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.owner.into_into_dart().into_dart(),
+            self.level.into_into_dart().into_dart(),
+            self.xs.into_into_dart().into_dart(),
+            self.ys.into_into_dart().into_dart(),
+            self.x0.into_into_dart().into_dart(),
+            self.y0.into_into_dart().into_dart(),
+            self.cols.into_into_dart().into_dart(),
+            self.rows.into_into_dart().into_dart(),
+            self.first.into_into_dart().into_dart(),
+            self.col_widths.into_into_dart().into_dart(),
+            self.border_color.into_into_dart().into_dart(),
+            self.outer_spacing.into_into_dart().into_dart(),
+            self.vertical.into_into_dart().into_dart(),
+            self.draw_style.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::GridPart {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::GridPart> for crate::api::wire::GridPart {
+    fn into_into_dart(self) -> crate::api::wire::GridPart {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::wire::GridSize {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -2369,6 +2883,32 @@ impl flutter_rust_bridge::IntoDart for crate::api::wire::GridSize {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::GridSize {}
 impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::GridSize> for crate::api::wire::GridSize {
     fn into_into_dart(self) -> crate::api::wire::GridSize {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wire::GridSummary {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.owner.into_into_dart().into_dart(),
+            self.xs.into_into_dart().into_dart(),
+            self.ys.into_into_dart().into_dart(),
+            self.border_color.into_into_dart().into_dart(),
+            self.preview_cols.into_into_dart().into_dart(),
+            self.preview_rows.into_into_dart().into_dart(),
+            self.preview.into_into_dart().into_dart(),
+            self.shape_cols.into_into_dart().into_dart(),
+            self.shape_rows.into_into_dart().into_dart(),
+            self.shape.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::GridSummary {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::GridSummary>
+    for crate::api::wire::GridSummary
+{
+    fn into_into_dart(self) -> crate::api::wire::GridSummary {
         self
     }
 }
@@ -2406,6 +2946,23 @@ impl flutter_rust_bridge::IntoDart for crate::api::wire::ImageRef {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::ImageRef {}
 impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::ImageRef> for crate::api::wire::ImageRef {
     fn into_into_dart(self) -> crate::api::wire::ImageRef {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wire::LinkInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.start.into_into_dart().into_dart(),
+            self.len.into_into_dart().into_dart(),
+            self.target.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::LinkInfo {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::LinkInfo> for crate::api::wire::LinkInfo {
+    fn into_into_dart(self) -> crate::api::wire::LinkInfo {
         self
     }
 }
@@ -2533,6 +3090,70 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::Rgb> for crate::api::wi
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wire::RunInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.start.into_into_dart().into_dart(),
+            self.len.into_into_dart().into_dart(),
+            self.style.into_into_dart().into_dart(),
+            self.color.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::RunInfo {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::RunInfo> for crate::api::wire::RunInfo {
+    fn into_into_dart(self) -> crate::api::wire::RunInfo {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wire::StageAsk {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.x0.into_into_dart().into_dart(),
+            self.y0.into_into_dart().into_dart(),
+            self.cols.into_into_dart().into_dart(),
+            self.rows.into_into_dart().into_dart(),
+            self.full_depth.into_into_dart().into_dart(),
+            self.full_cells.into_into_dart().into_dart(),
+            self.preview_cols.into_into_dart().into_dart(),
+            self.preview_rows.into_into_dart().into_dart(),
+            self.shape_cols.into_into_dart().into_dart(),
+            self.shape_rows.into_into_dart().into_dart(),
+            self.text_cut.into_into_dart().into_dart(),
+            self.preview_cut.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::StageAsk {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::StageAsk> for crate::api::wire::StageAsk {
+    fn into_into_dart(self) -> crate::api::wire::StageAsk {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wire::StageInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.trail.into_into_dart().into_dart(),
+            self.grids.into_into_dart().into_dart(),
+            self.cells.into_into_dart().into_dart(),
+            self.summaries.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::StageInfo {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::StageInfo>
+    for crate::api::wire::StageInfo
+{
+    fn into_into_dart(self) -> crate::api::wire::StageInfo {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::wire::Style {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -2566,6 +3187,25 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::TableData>
     for crate::api::wire::TableData
 {
     fn into_into_dart(self) -> crate::api::wire::TableData {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wire::TrailStep {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.shown.into_into_dart().into_dart(),
+            self.color.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::TrailStep {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::TrailStep>
+    for crate::api::wire::TrailStep
+{
+    fn into_into_dart(self) -> crate::api::wire::TrailStep {
         self
     }
 }
@@ -2661,6 +3301,33 @@ impl SseEncode for crate::api::wire::CellKind {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::wire::CellLook {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.text, serializer);
+        <bool>::sse_encode(self.text_cut, serializer);
+        <crate::api::wire::CellKind>::sse_encode(self.kind, serializer);
+        <Option<String>>::sse_encode(self.result, serializer);
+        <bool>::sse_encode(self.result_cut, serializer);
+        <bool>::sse_encode(self.failed, serializer);
+        <crate::api::wire::Rgb>::sse_encode(self.cell_color, serializer);
+        <crate::api::wire::Rgb>::sse_encode(self.text_color, serializer);
+        <bool>::sse_encode(self.is_tag, serializer);
+        <crate::api::wire::Style>::sse_encode(self.style, serializer);
+        <i32>::sse_encode(self.rel_size, serializer);
+        <crate::api::wire::HorizAlign>::sse_encode(self.text_align, serializer);
+        <crate::api::wire::VertAlign>::sse_encode(self.vert_align, serializer);
+        <Vec<crate::api::wire::RunInfo>>::sse_encode(self.runs, serializer);
+        <Vec<crate::api::wire::LinkInfo>>::sse_encode(self.links, serializer);
+        <Option<String>>::sse_encode(self.image, serializer);
+        <bool>::sse_encode(self.has_note, serializer);
+        <bool>::sse_encode(self.has_grid, serializer);
+        <Option<u32>>::sse_encode(self.summary, serializer);
+        <Option<u32>>::sse_encode(self.full, serializer);
     }
 }
 
@@ -2995,6 +3662,14 @@ impl SseEncode for crate::api::wire::Command {
     }
 }
 
+impl SseEncode for crate::api::wire::CutText {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.text, serializer);
+        <bool>::sse_encode(self.cut, serializer);
+    }
+}
+
 impl SseEncode for crate::api::wire::DrawStyle {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3067,11 +3742,47 @@ impl SseEncode for crate::api::wire::GridInfo {
     }
 }
 
+impl SseEncode for crate::api::wire::GridPart {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.owner, serializer);
+        <u32>::sse_encode(self.level, serializer);
+        <u32>::sse_encode(self.xs, serializer);
+        <u32>::sse_encode(self.ys, serializer);
+        <u32>::sse_encode(self.x0, serializer);
+        <u32>::sse_encode(self.y0, serializer);
+        <u32>::sse_encode(self.cols, serializer);
+        <u32>::sse_encode(self.rows, serializer);
+        <u32>::sse_encode(self.first, serializer);
+        <Vec<u32>>::sse_encode(self.col_widths, serializer);
+        <crate::api::wire::Rgb>::sse_encode(self.border_color, serializer);
+        <u32>::sse_encode(self.outer_spacing, serializer);
+        <bool>::sse_encode(self.vertical, serializer);
+        <crate::api::wire::DrawStyle>::sse_encode(self.draw_style, serializer);
+    }
+}
+
 impl SseEncode for crate::api::wire::GridSize {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.xs, serializer);
         <i64>::sse_encode(self.cells, serializer);
+    }
+}
+
+impl SseEncode for crate::api::wire::GridSummary {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.owner, serializer);
+        <u32>::sse_encode(self.xs, serializer);
+        <u32>::sse_encode(self.ys, serializer);
+        <crate::api::wire::Rgb>::sse_encode(self.border_color, serializer);
+        <u32>::sse_encode(self.preview_cols, serializer);
+        <u32>::sse_encode(self.preview_rows, serializer);
+        <Vec<crate::api::wire::CutText>>::sse_encode(self.preview, serializer);
+        <u32>::sse_encode(self.shape_cols, serializer);
+        <u32>::sse_encode(self.shape_rows, serializer);
+        <Vec<u8>>::sse_encode(self.shape, serializer);
     }
 }
 
@@ -3113,6 +3824,15 @@ impl SseEncode for crate::api::wire::ImageRef {
         <String>::sse_encode(self.file, serializer);
         <f64>::sse_encode(self.scale, serializer);
         <String>::sse_encode(self.extra, serializer);
+    }
+}
+
+impl SseEncode for crate::api::wire::LinkInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.start, serializer);
+        <u32>::sse_encode(self.len, serializer);
+        <crate::api::wire::LinkTarget>::sse_encode(self.target, serializer);
     }
 }
 
@@ -3159,12 +3879,72 @@ impl SseEncode for Vec<crate::api::wire::CellInfo> {
     }
 }
 
+impl SseEncode for Vec<crate::api::wire::CellLook> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::wire::CellLook>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::wire::CutText> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::wire::CutText>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::wire::EntryData> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::wire::EntryData>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::wire::GridPart> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::wire::GridPart>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::wire::GridSummary> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::wire::GridSummary>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::wire::LinkInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::wire::LinkInfo>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<u32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <u32>::sse_encode(item, serializer);
         }
     }
 }
@@ -3185,6 +3965,26 @@ impl SseEncode for Vec<crate::api::wire::Prop> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::wire::Prop>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::wire::RunInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::wire::RunInfo>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::wire::TrailStep> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::wire::TrailStep>::sse_encode(item, serializer);
         }
     }
 }
@@ -3255,6 +4055,16 @@ impl SseEncode for Option<crate::api::wire::Rgb> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::wire::Rgb>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<u32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <u32>::sse_encode(value, serializer);
         }
     }
 }
@@ -3347,6 +4157,44 @@ impl SseEncode for crate::api::wire::Rgb {
     }
 }
 
+impl SseEncode for crate::api::wire::RunInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.start, serializer);
+        <u32>::sse_encode(self.len, serializer);
+        <crate::api::wire::Style>::sse_encode(self.style, serializer);
+        <Option<crate::api::wire::Rgb>>::sse_encode(self.color, serializer);
+    }
+}
+
+impl SseEncode for crate::api::wire::StageAsk {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.x0, serializer);
+        <i64>::sse_encode(self.y0, serializer);
+        <i64>::sse_encode(self.cols, serializer);
+        <i64>::sse_encode(self.rows, serializer);
+        <i64>::sse_encode(self.full_depth, serializer);
+        <i64>::sse_encode(self.full_cells, serializer);
+        <i64>::sse_encode(self.preview_cols, serializer);
+        <i64>::sse_encode(self.preview_rows, serializer);
+        <i64>::sse_encode(self.shape_cols, serializer);
+        <i64>::sse_encode(self.shape_rows, serializer);
+        <i64>::sse_encode(self.text_cut, serializer);
+        <i64>::sse_encode(self.preview_cut, serializer);
+    }
+}
+
+impl SseEncode for crate::api::wire::StageInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::wire::TrailStep>>::sse_encode(self.trail, serializer);
+        <Vec<crate::api::wire::GridPart>>::sse_encode(self.grids, serializer);
+        <Vec<crate::api::wire::CellLook>>::sse_encode(self.cells, serializer);
+        <Vec<crate::api::wire::GridSummary>>::sse_encode(self.summaries, serializer);
+    }
+}
+
 impl SseEncode for crate::api::wire::Style {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3363,6 +4211,15 @@ impl SseEncode for crate::api::wire::TableData {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.xs, serializer);
         <Vec<crate::api::wire::EntryData>>::sse_encode(self.cells, serializer);
+    }
+}
+
+impl SseEncode for crate::api::wire::TrailStep {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <crate::api::wire::CutText>::sse_encode(self.shown, serializer);
+        <crate::api::wire::Rgb>::sse_encode(self.color, serializer);
     }
 }
 

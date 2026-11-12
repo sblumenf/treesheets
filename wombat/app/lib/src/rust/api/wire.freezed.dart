@@ -13,6 +13,336 @@ part of 'wire.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
+mixin _$CellLook {
+
+ String get id; String get text; bool get textCut; CellKind get kind; String? get result; bool get resultCut; bool get failed; Rgb get cellColor; Rgb get textColor; bool get isTag; Style get style; int get relSize; HorizAlign get textAlign; VertAlign get vertAlign; List<RunInfo> get runs; List<LinkInfo> get links; String? get image; bool get hasNote; bool get hasGrid; int? get summary; int? get full;
+/// Create a copy of CellLook
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CellLookCopyWith<CellLook> get copyWith => _$CellLookCopyWithImpl<CellLook>(this as CellLook, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as CellLook;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CellLook&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.text, _this.text) || other.text == _this.text)&&(identical(other.textCut, _this.textCut) || other.textCut == _this.textCut)&&(identical(other.kind, _this.kind) || other.kind == _this.kind)&&(identical(other.result, _this.result) || other.result == _this.result)&&(identical(other.resultCut, _this.resultCut) || other.resultCut == _this.resultCut)&&(identical(other.failed, _this.failed) || other.failed == _this.failed)&&(identical(other.cellColor, _this.cellColor) || other.cellColor == _this.cellColor)&&(identical(other.textColor, _this.textColor) || other.textColor == _this.textColor)&&(identical(other.isTag, _this.isTag) || other.isTag == _this.isTag)&&(identical(other.style, _this.style) || other.style == _this.style)&&(identical(other.relSize, _this.relSize) || other.relSize == _this.relSize)&&(identical(other.textAlign, _this.textAlign) || other.textAlign == _this.textAlign)&&(identical(other.vertAlign, _this.vertAlign) || other.vertAlign == _this.vertAlign)&&const DeepCollectionEquality().equals(other.runs, _this.runs)&&const DeepCollectionEquality().equals(other.links, _this.links)&&(identical(other.image, _this.image) || other.image == _this.image)&&(identical(other.hasNote, _this.hasNote) || other.hasNote == _this.hasNote)&&(identical(other.hasGrid, _this.hasGrid) || other.hasGrid == _this.hasGrid)&&(identical(other.summary, _this.summary) || other.summary == _this.summary)&&(identical(other.full, _this.full) || other.full == _this.full));
+}
+
+
+@override
+int get hashCode {
+  final _this = this as CellLook;
+  return Object.hashAll([runtimeType,_this.id,_this.text,_this.textCut,_this.kind,_this.result,_this.resultCut,_this.failed,_this.cellColor,_this.textColor,_this.isTag,_this.style,_this.relSize,_this.textAlign,_this.vertAlign,const DeepCollectionEquality().hash(_this.runs),const DeepCollectionEquality().hash(_this.links),_this.image,_this.hasNote,_this.hasGrid,_this.summary,_this.full]);
+}
+
+@override
+String toString() {
+  final _this = this as CellLook;
+  return 'CellLook(id: ${_this.id}, text: ${_this.text}, textCut: ${_this.textCut}, kind: ${_this.kind}, result: ${_this.result}, resultCut: ${_this.resultCut}, failed: ${_this.failed}, cellColor: ${_this.cellColor}, textColor: ${_this.textColor}, isTag: ${_this.isTag}, style: ${_this.style}, relSize: ${_this.relSize}, textAlign: ${_this.textAlign}, vertAlign: ${_this.vertAlign}, runs: ${_this.runs}, links: ${_this.links}, image: ${_this.image}, hasNote: ${_this.hasNote}, hasGrid: ${_this.hasGrid}, summary: ${_this.summary}, full: ${_this.full})';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CellLookCopyWith<$Res>  {
+  factory $CellLookCopyWith(CellLook value, $Res Function(CellLook) _then) = _$CellLookCopyWithImpl;
+@useResult
+$Res call({
+ String id, String text, bool textCut, CellKind kind, String? result, bool resultCut, bool failed, Rgb cellColor, Rgb textColor, bool isTag, Style style, int relSize, HorizAlign textAlign, VertAlign vertAlign, List<RunInfo> runs, List<LinkInfo> links, String? image, bool hasNote, bool hasGrid, int? summary, int? full
+});
+
+
+
+
+}
+/// @nodoc
+class _$CellLookCopyWithImpl<$Res>
+    implements $CellLookCopyWith<$Res> {
+  _$CellLookCopyWithImpl(this._self, this._then);
+
+  final CellLook _self;
+  final $Res Function(CellLook) _then;
+
+/// Create a copy of CellLook
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? text = null,Object? textCut = null,Object? kind = null,Object? result = freezed,Object? resultCut = null,Object? failed = null,Object? cellColor = null,Object? textColor = null,Object? isTag = null,Object? style = null,Object? relSize = null,Object? textAlign = null,Object? vertAlign = null,Object? runs = null,Object? links = null,Object? image = freezed,Object? hasNote = null,Object? hasGrid = null,Object? summary = freezed,Object? full = freezed,}) {
+  return _then(CellLook(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
+as String,textCut: null == textCut ? _self.textCut : textCut // ignore: cast_nullable_to_non_nullable
+as bool,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as CellKind,result: freezed == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
+as String?,resultCut: null == resultCut ? _self.resultCut : resultCut // ignore: cast_nullable_to_non_nullable
+as bool,failed: null == failed ? _self.failed : failed // ignore: cast_nullable_to_non_nullable
+as bool,cellColor: null == cellColor ? _self.cellColor : cellColor // ignore: cast_nullable_to_non_nullable
+as Rgb,textColor: null == textColor ? _self.textColor : textColor // ignore: cast_nullable_to_non_nullable
+as Rgb,isTag: null == isTag ? _self.isTag : isTag // ignore: cast_nullable_to_non_nullable
+as bool,style: null == style ? _self.style : style // ignore: cast_nullable_to_non_nullable
+as Style,relSize: null == relSize ? _self.relSize : relSize // ignore: cast_nullable_to_non_nullable
+as int,textAlign: null == textAlign ? _self.textAlign : textAlign // ignore: cast_nullable_to_non_nullable
+as HorizAlign,vertAlign: null == vertAlign ? _self.vertAlign : vertAlign // ignore: cast_nullable_to_non_nullable
+as VertAlign,runs: null == runs ? _self.runs : runs // ignore: cast_nullable_to_non_nullable
+as List<RunInfo>,links: null == links ? _self.links : links // ignore: cast_nullable_to_non_nullable
+as List<LinkInfo>,image: freezed == image ? _self.image : image // ignore: cast_nullable_to_non_nullable
+as String?,hasNote: null == hasNote ? _self.hasNote : hasNote // ignore: cast_nullable_to_non_nullable
+as bool,hasGrid: null == hasGrid ? _self.hasGrid : hasGrid // ignore: cast_nullable_to_non_nullable
+as bool,summary: freezed == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
+as int?,full: freezed == full ? _self.full : full // ignore: cast_nullable_to_non_nullable
+as int?,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [CellLook].
+extension CellLookPatterns on CellLook {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _CellLook value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _CellLook() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _CellLook value)  $default,){
+final _that = this;
+switch (_that) {
+case _CellLook():
+return $default(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _CellLook value)?  $default,){
+final _that = this;
+switch (_that) {
+case _CellLook() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String text,  bool textCut,  CellKind kind,  String? result,  bool resultCut,  bool failed,  Rgb cellColor,  Rgb textColor,  bool isTag,  Style style,  int relSize,  HorizAlign textAlign,  VertAlign vertAlign,  List<RunInfo> runs,  List<LinkInfo> links,  String? image,  bool hasNote,  bool hasGrid,  int? summary,  int? full)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _CellLook() when $default != null:
+return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.resultCut,_that.failed,_that.cellColor,_that.textColor,_that.isTag,_that.style,_that.relSize,_that.textAlign,_that.vertAlign,_that.runs,_that.links,_that.image,_that.hasNote,_that.hasGrid,_that.summary,_that.full);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String text,  bool textCut,  CellKind kind,  String? result,  bool resultCut,  bool failed,  Rgb cellColor,  Rgb textColor,  bool isTag,  Style style,  int relSize,  HorizAlign textAlign,  VertAlign vertAlign,  List<RunInfo> runs,  List<LinkInfo> links,  String? image,  bool hasNote,  bool hasGrid,  int? summary,  int? full)  $default,) {final _that = this;
+switch (_that) {
+case _CellLook():
+return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.resultCut,_that.failed,_that.cellColor,_that.textColor,_that.isTag,_that.style,_that.relSize,_that.textAlign,_that.vertAlign,_that.runs,_that.links,_that.image,_that.hasNote,_that.hasGrid,_that.summary,_that.full);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String text,  bool textCut,  CellKind kind,  String? result,  bool resultCut,  bool failed,  Rgb cellColor,  Rgb textColor,  bool isTag,  Style style,  int relSize,  HorizAlign textAlign,  VertAlign vertAlign,  List<RunInfo> runs,  List<LinkInfo> links,  String? image,  bool hasNote,  bool hasGrid,  int? summary,  int? full)?  $default,) {final _that = this;
+switch (_that) {
+case _CellLook() when $default != null:
+return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.resultCut,_that.failed,_that.cellColor,_that.textColor,_that.isTag,_that.style,_that.relSize,_that.textAlign,_that.vertAlign,_that.runs,_that.links,_that.image,_that.hasNote,_that.hasGrid,_that.summary,_that.full);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class _CellLook implements CellLook {
+  const _CellLook({required this.id, required this.text, required this.textCut, required this.kind, this.result, required this.resultCut, required this.failed, required this.cellColor, required this.textColor, required this.isTag, required this.style, required this.relSize, required this.textAlign, required this.vertAlign, required  List<RunInfo> runs, required  List<LinkInfo> links, this.image, required this.hasNote, required this.hasGrid, this.summary, this.full}): _runs = runs,_links = links;
+  
+
+@override final  String id;
+@override final  String text;
+@override final  bool textCut;
+@override final  CellKind kind;
+@override final  String? result;
+@override final  bool resultCut;
+@override final  bool failed;
+@override final  Rgb cellColor;
+@override final  Rgb textColor;
+@override final  bool isTag;
+@override final  Style style;
+@override final  int relSize;
+@override final  HorizAlign textAlign;
+@override final  VertAlign vertAlign;
+ final  List<RunInfo> _runs;
+@override List<RunInfo> get runs {
+  if (_runs is EqualUnmodifiableListView) return _runs;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_runs);
+}
+
+ final  List<LinkInfo> _links;
+@override List<LinkInfo> get links {
+  if (_links is EqualUnmodifiableListView) return _links;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_links);
+}
+
+@override final  String? image;
+@override final  bool hasNote;
+@override final  bool hasGrid;
+@override final  int? summary;
+@override final  int? full;
+
+/// Create a copy of CellLook
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$CellLookCopyWith<_CellLook> get copyWith => __$CellLookCopyWithImpl<_CellLook>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CellLook&&(identical(other.id, id) || other.id == id)&&(identical(other.text, text) || other.text == text)&&(identical(other.textCut, textCut) || other.textCut == textCut)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.result, result) || other.result == result)&&(identical(other.resultCut, resultCut) || other.resultCut == resultCut)&&(identical(other.failed, failed) || other.failed == failed)&&(identical(other.cellColor, cellColor) || other.cellColor == cellColor)&&(identical(other.textColor, textColor) || other.textColor == textColor)&&(identical(other.isTag, isTag) || other.isTag == isTag)&&(identical(other.style, style) || other.style == style)&&(identical(other.relSize, relSize) || other.relSize == relSize)&&(identical(other.textAlign, textAlign) || other.textAlign == textAlign)&&(identical(other.vertAlign, vertAlign) || other.vertAlign == vertAlign)&&const DeepCollectionEquality().equals(other.runs, _runs)&&const DeepCollectionEquality().equals(other.links, _links)&&(identical(other.image, image) || other.image == image)&&(identical(other.hasNote, hasNote) || other.hasNote == hasNote)&&(identical(other.hasGrid, hasGrid) || other.hasGrid == hasGrid)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.full, full) || other.full == full));
+}
+
+
+@override
+int get hashCode {
+    return Object.hashAll([runtimeType,id,text,textCut,kind,result,resultCut,failed,cellColor,textColor,isTag,style,relSize,textAlign,vertAlign,const DeepCollectionEquality().hash(_runs),const DeepCollectionEquality().hash(_links),image,hasNote,hasGrid,summary,full]);
+}
+
+@override
+String toString() {
+    return 'CellLook(id: $id, text: $text, textCut: $textCut, kind: $kind, result: $result, resultCut: $resultCut, failed: $failed, cellColor: $cellColor, textColor: $textColor, isTag: $isTag, style: $style, relSize: $relSize, textAlign: $textAlign, vertAlign: $vertAlign, runs: $runs, links: $links, image: $image, hasNote: $hasNote, hasGrid: $hasGrid, summary: $summary, full: $full)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$CellLookCopyWith<$Res> implements $CellLookCopyWith<$Res> {
+  factory _$CellLookCopyWith(_CellLook value, $Res Function(_CellLook) _then) = __$CellLookCopyWithImpl;
+@override @useResult
+$Res call({
+ String id, String text, bool textCut, CellKind kind, String? result, bool resultCut, bool failed, Rgb cellColor, Rgb textColor, bool isTag, Style style, int relSize, HorizAlign textAlign, VertAlign vertAlign, List<RunInfo> runs, List<LinkInfo> links, String? image, bool hasNote, bool hasGrid, int? summary, int? full
+});
+
+
+
+
+}
+/// @nodoc
+class __$CellLookCopyWithImpl<$Res>
+    implements _$CellLookCopyWith<$Res> {
+  __$CellLookCopyWithImpl(this._self, this._then);
+
+  final _CellLook _self;
+  final $Res Function(_CellLook) _then;
+
+/// Create a copy of CellLook
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? text = null,Object? textCut = null,Object? kind = null,Object? result = freezed,Object? resultCut = null,Object? failed = null,Object? cellColor = null,Object? textColor = null,Object? isTag = null,Object? style = null,Object? relSize = null,Object? textAlign = null,Object? vertAlign = null,Object? runs = null,Object? links = null,Object? image = freezed,Object? hasNote = null,Object? hasGrid = null,Object? summary = freezed,Object? full = freezed,}) {
+  return _then(_CellLook(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
+as String,textCut: null == textCut ? _self.textCut : textCut // ignore: cast_nullable_to_non_nullable
+as bool,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as CellKind,result: freezed == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
+as String?,resultCut: null == resultCut ? _self.resultCut : resultCut // ignore: cast_nullable_to_non_nullable
+as bool,failed: null == failed ? _self.failed : failed // ignore: cast_nullable_to_non_nullable
+as bool,cellColor: null == cellColor ? _self.cellColor : cellColor // ignore: cast_nullable_to_non_nullable
+as Rgb,textColor: null == textColor ? _self.textColor : textColor // ignore: cast_nullable_to_non_nullable
+as Rgb,isTag: null == isTag ? _self.isTag : isTag // ignore: cast_nullable_to_non_nullable
+as bool,style: null == style ? _self.style : style // ignore: cast_nullable_to_non_nullable
+as Style,relSize: null == relSize ? _self.relSize : relSize // ignore: cast_nullable_to_non_nullable
+as int,textAlign: null == textAlign ? _self.textAlign : textAlign // ignore: cast_nullable_to_non_nullable
+as HorizAlign,vertAlign: null == vertAlign ? _self.vertAlign : vertAlign // ignore: cast_nullable_to_non_nullable
+as VertAlign,runs: null == runs ? _self._runs : runs // ignore: cast_nullable_to_non_nullable
+as List<RunInfo>,links: null == links ? _self._links : links // ignore: cast_nullable_to_non_nullable
+as List<LinkInfo>,image: freezed == image ? _self.image : image // ignore: cast_nullable_to_non_nullable
+as String?,hasNote: null == hasNote ? _self.hasNote : hasNote // ignore: cast_nullable_to_non_nullable
+as bool,hasGrid: null == hasGrid ? _self.hasGrid : hasGrid // ignore: cast_nullable_to_non_nullable
+as bool,summary: freezed == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
+as int?,full: freezed == full ? _self.full : full // ignore: cast_nullable_to_non_nullable
+as int?,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$Command {
 
 
@@ -3808,6 +4138,594 @@ cells: null == cells ? _self._cells : cells // ignore: cast_nullable_to_non_null
 as List<String>,from: freezed == from ? _self.from : from // ignore: cast_nullable_to_non_nullable
 as String?,to: freezed == to ? _self.to : to // ignore: cast_nullable_to_non_nullable
 as String?,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$GridPart {
+
+ String get owner; int get level; int get xs; int get ys; int get x0; int get y0; int get cols; int get rows; int get first; Uint32List get colWidths; Rgb get borderColor; int get outerSpacing; bool get vertical; DrawStyle get drawStyle;
+/// Create a copy of GridPart
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$GridPartCopyWith<GridPart> get copyWith => _$GridPartCopyWithImpl<GridPart>(this as GridPart, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as GridPart;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GridPart&&(identical(other.owner, _this.owner) || other.owner == _this.owner)&&(identical(other.level, _this.level) || other.level == _this.level)&&(identical(other.xs, _this.xs) || other.xs == _this.xs)&&(identical(other.ys, _this.ys) || other.ys == _this.ys)&&(identical(other.x0, _this.x0) || other.x0 == _this.x0)&&(identical(other.y0, _this.y0) || other.y0 == _this.y0)&&(identical(other.cols, _this.cols) || other.cols == _this.cols)&&(identical(other.rows, _this.rows) || other.rows == _this.rows)&&(identical(other.first, _this.first) || other.first == _this.first)&&const DeepCollectionEquality().equals(other.colWidths, _this.colWidths)&&(identical(other.borderColor, _this.borderColor) || other.borderColor == _this.borderColor)&&(identical(other.outerSpacing, _this.outerSpacing) || other.outerSpacing == _this.outerSpacing)&&(identical(other.vertical, _this.vertical) || other.vertical == _this.vertical)&&(identical(other.drawStyle, _this.drawStyle) || other.drawStyle == _this.drawStyle));
+}
+
+
+@override
+int get hashCode {
+  final _this = this as GridPart;
+  return Object.hash(runtimeType,_this.owner,_this.level,_this.xs,_this.ys,_this.x0,_this.y0,_this.cols,_this.rows,_this.first,const DeepCollectionEquality().hash(_this.colWidths),_this.borderColor,_this.outerSpacing,_this.vertical,_this.drawStyle);
+}
+
+@override
+String toString() {
+  final _this = this as GridPart;
+  return 'GridPart(owner: ${_this.owner}, level: ${_this.level}, xs: ${_this.xs}, ys: ${_this.ys}, x0: ${_this.x0}, y0: ${_this.y0}, cols: ${_this.cols}, rows: ${_this.rows}, first: ${_this.first}, colWidths: ${_this.colWidths}, borderColor: ${_this.borderColor}, outerSpacing: ${_this.outerSpacing}, vertical: ${_this.vertical}, drawStyle: ${_this.drawStyle})';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $GridPartCopyWith<$Res>  {
+  factory $GridPartCopyWith(GridPart value, $Res Function(GridPart) _then) = _$GridPartCopyWithImpl;
+@useResult
+$Res call({
+ String owner, int level, int xs, int ys, int x0, int y0, int cols, int rows, int first, Uint32List colWidths, Rgb borderColor, int outerSpacing, bool vertical, DrawStyle drawStyle
+});
+
+
+
+
+}
+/// @nodoc
+class _$GridPartCopyWithImpl<$Res>
+    implements $GridPartCopyWith<$Res> {
+  _$GridPartCopyWithImpl(this._self, this._then);
+
+  final GridPart _self;
+  final $Res Function(GridPart) _then;
+
+/// Create a copy of GridPart
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? owner = null,Object? level = null,Object? xs = null,Object? ys = null,Object? x0 = null,Object? y0 = null,Object? cols = null,Object? rows = null,Object? first = null,Object? colWidths = null,Object? borderColor = null,Object? outerSpacing = null,Object? vertical = null,Object? drawStyle = null,}) {
+  return _then(GridPart(
+owner: null == owner ? _self.owner : owner // ignore: cast_nullable_to_non_nullable
+as String,level: null == level ? _self.level : level // ignore: cast_nullable_to_non_nullable
+as int,xs: null == xs ? _self.xs : xs // ignore: cast_nullable_to_non_nullable
+as int,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
+as int,x0: null == x0 ? _self.x0 : x0 // ignore: cast_nullable_to_non_nullable
+as int,y0: null == y0 ? _self.y0 : y0 // ignore: cast_nullable_to_non_nullable
+as int,cols: null == cols ? _self.cols : cols // ignore: cast_nullable_to_non_nullable
+as int,rows: null == rows ? _self.rows : rows // ignore: cast_nullable_to_non_nullable
+as int,first: null == first ? _self.first : first // ignore: cast_nullable_to_non_nullable
+as int,colWidths: null == colWidths ? _self.colWidths : colWidths // ignore: cast_nullable_to_non_nullable
+as Uint32List,borderColor: null == borderColor ? _self.borderColor : borderColor // ignore: cast_nullable_to_non_nullable
+as Rgb,outerSpacing: null == outerSpacing ? _self.outerSpacing : outerSpacing // ignore: cast_nullable_to_non_nullable
+as int,vertical: null == vertical ? _self.vertical : vertical // ignore: cast_nullable_to_non_nullable
+as bool,drawStyle: null == drawStyle ? _self.drawStyle : drawStyle // ignore: cast_nullable_to_non_nullable
+as DrawStyle,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [GridPart].
+extension GridPartPatterns on GridPart {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _GridPart value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _GridPart() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _GridPart value)  $default,){
+final _that = this;
+switch (_that) {
+case _GridPart():
+return $default(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _GridPart value)?  $default,){
+final _that = this;
+switch (_that) {
+case _GridPart() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String owner,  int level,  int xs,  int ys,  int x0,  int y0,  int cols,  int rows,  int first,  Uint32List colWidths,  Rgb borderColor,  int outerSpacing,  bool vertical,  DrawStyle drawStyle)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _GridPart() when $default != null:
+return $default(_that.owner,_that.level,_that.xs,_that.ys,_that.x0,_that.y0,_that.cols,_that.rows,_that.first,_that.colWidths,_that.borderColor,_that.outerSpacing,_that.vertical,_that.drawStyle);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String owner,  int level,  int xs,  int ys,  int x0,  int y0,  int cols,  int rows,  int first,  Uint32List colWidths,  Rgb borderColor,  int outerSpacing,  bool vertical,  DrawStyle drawStyle)  $default,) {final _that = this;
+switch (_that) {
+case _GridPart():
+return $default(_that.owner,_that.level,_that.xs,_that.ys,_that.x0,_that.y0,_that.cols,_that.rows,_that.first,_that.colWidths,_that.borderColor,_that.outerSpacing,_that.vertical,_that.drawStyle);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String owner,  int level,  int xs,  int ys,  int x0,  int y0,  int cols,  int rows,  int first,  Uint32List colWidths,  Rgb borderColor,  int outerSpacing,  bool vertical,  DrawStyle drawStyle)?  $default,) {final _that = this;
+switch (_that) {
+case _GridPart() when $default != null:
+return $default(_that.owner,_that.level,_that.xs,_that.ys,_that.x0,_that.y0,_that.cols,_that.rows,_that.first,_that.colWidths,_that.borderColor,_that.outerSpacing,_that.vertical,_that.drawStyle);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class _GridPart implements GridPart {
+  const _GridPart({required this.owner, required this.level, required this.xs, required this.ys, required this.x0, required this.y0, required this.cols, required this.rows, required this.first, required this.colWidths, required this.borderColor, required this.outerSpacing, required this.vertical, required this.drawStyle});
+  
+
+@override final  String owner;
+@override final  int level;
+@override final  int xs;
+@override final  int ys;
+@override final  int x0;
+@override final  int y0;
+@override final  int cols;
+@override final  int rows;
+@override final  int first;
+@override final  Uint32List colWidths;
+@override final  Rgb borderColor;
+@override final  int outerSpacing;
+@override final  bool vertical;
+@override final  DrawStyle drawStyle;
+
+/// Create a copy of GridPart
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$GridPartCopyWith<_GridPart> get copyWith => __$GridPartCopyWithImpl<_GridPart>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GridPart&&(identical(other.owner, owner) || other.owner == owner)&&(identical(other.level, level) || other.level == level)&&(identical(other.xs, xs) || other.xs == xs)&&(identical(other.ys, ys) || other.ys == ys)&&(identical(other.x0, x0) || other.x0 == x0)&&(identical(other.y0, y0) || other.y0 == y0)&&(identical(other.cols, cols) || other.cols == cols)&&(identical(other.rows, rows) || other.rows == rows)&&(identical(other.first, first) || other.first == first)&&const DeepCollectionEquality().equals(other.colWidths, colWidths)&&(identical(other.borderColor, borderColor) || other.borderColor == borderColor)&&(identical(other.outerSpacing, outerSpacing) || other.outerSpacing == outerSpacing)&&(identical(other.vertical, vertical) || other.vertical == vertical)&&(identical(other.drawStyle, drawStyle) || other.drawStyle == drawStyle));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,owner,level,xs,ys,x0,y0,cols,rows,first,const DeepCollectionEquality().hash(colWidths),borderColor,outerSpacing,vertical,drawStyle);
+}
+
+@override
+String toString() {
+    return 'GridPart(owner: $owner, level: $level, xs: $xs, ys: $ys, x0: $x0, y0: $y0, cols: $cols, rows: $rows, first: $first, colWidths: $colWidths, borderColor: $borderColor, outerSpacing: $outerSpacing, vertical: $vertical, drawStyle: $drawStyle)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$GridPartCopyWith<$Res> implements $GridPartCopyWith<$Res> {
+  factory _$GridPartCopyWith(_GridPart value, $Res Function(_GridPart) _then) = __$GridPartCopyWithImpl;
+@override @useResult
+$Res call({
+ String owner, int level, int xs, int ys, int x0, int y0, int cols, int rows, int first, Uint32List colWidths, Rgb borderColor, int outerSpacing, bool vertical, DrawStyle drawStyle
+});
+
+
+
+
+}
+/// @nodoc
+class __$GridPartCopyWithImpl<$Res>
+    implements _$GridPartCopyWith<$Res> {
+  __$GridPartCopyWithImpl(this._self, this._then);
+
+  final _GridPart _self;
+  final $Res Function(_GridPart) _then;
+
+/// Create a copy of GridPart
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? owner = null,Object? level = null,Object? xs = null,Object? ys = null,Object? x0 = null,Object? y0 = null,Object? cols = null,Object? rows = null,Object? first = null,Object? colWidths = null,Object? borderColor = null,Object? outerSpacing = null,Object? vertical = null,Object? drawStyle = null,}) {
+  return _then(_GridPart(
+owner: null == owner ? _self.owner : owner // ignore: cast_nullable_to_non_nullable
+as String,level: null == level ? _self.level : level // ignore: cast_nullable_to_non_nullable
+as int,xs: null == xs ? _self.xs : xs // ignore: cast_nullable_to_non_nullable
+as int,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
+as int,x0: null == x0 ? _self.x0 : x0 // ignore: cast_nullable_to_non_nullable
+as int,y0: null == y0 ? _self.y0 : y0 // ignore: cast_nullable_to_non_nullable
+as int,cols: null == cols ? _self.cols : cols // ignore: cast_nullable_to_non_nullable
+as int,rows: null == rows ? _self.rows : rows // ignore: cast_nullable_to_non_nullable
+as int,first: null == first ? _self.first : first // ignore: cast_nullable_to_non_nullable
+as int,colWidths: null == colWidths ? _self.colWidths : colWidths // ignore: cast_nullable_to_non_nullable
+as Uint32List,borderColor: null == borderColor ? _self.borderColor : borderColor // ignore: cast_nullable_to_non_nullable
+as Rgb,outerSpacing: null == outerSpacing ? _self.outerSpacing : outerSpacing // ignore: cast_nullable_to_non_nullable
+as int,vertical: null == vertical ? _self.vertical : vertical // ignore: cast_nullable_to_non_nullable
+as bool,drawStyle: null == drawStyle ? _self.drawStyle : drawStyle // ignore: cast_nullable_to_non_nullable
+as DrawStyle,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$GridSummary {
+
+ String get owner; int get xs; int get ys; Rgb get borderColor; int get previewCols; int get previewRows; List<CutText> get preview; int get shapeCols; int get shapeRows; Uint8List get shape;
+/// Create a copy of GridSummary
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$GridSummaryCopyWith<GridSummary> get copyWith => _$GridSummaryCopyWithImpl<GridSummary>(this as GridSummary, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as GridSummary;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GridSummary&&(identical(other.owner, _this.owner) || other.owner == _this.owner)&&(identical(other.xs, _this.xs) || other.xs == _this.xs)&&(identical(other.ys, _this.ys) || other.ys == _this.ys)&&(identical(other.borderColor, _this.borderColor) || other.borderColor == _this.borderColor)&&(identical(other.previewCols, _this.previewCols) || other.previewCols == _this.previewCols)&&(identical(other.previewRows, _this.previewRows) || other.previewRows == _this.previewRows)&&const DeepCollectionEquality().equals(other.preview, _this.preview)&&(identical(other.shapeCols, _this.shapeCols) || other.shapeCols == _this.shapeCols)&&(identical(other.shapeRows, _this.shapeRows) || other.shapeRows == _this.shapeRows)&&const DeepCollectionEquality().equals(other.shape, _this.shape));
+}
+
+
+@override
+int get hashCode {
+  final _this = this as GridSummary;
+  return Object.hash(runtimeType,_this.owner,_this.xs,_this.ys,_this.borderColor,_this.previewCols,_this.previewRows,const DeepCollectionEquality().hash(_this.preview),_this.shapeCols,_this.shapeRows,const DeepCollectionEquality().hash(_this.shape));
+}
+
+@override
+String toString() {
+  final _this = this as GridSummary;
+  return 'GridSummary(owner: ${_this.owner}, xs: ${_this.xs}, ys: ${_this.ys}, borderColor: ${_this.borderColor}, previewCols: ${_this.previewCols}, previewRows: ${_this.previewRows}, preview: ${_this.preview}, shapeCols: ${_this.shapeCols}, shapeRows: ${_this.shapeRows}, shape: ${_this.shape})';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $GridSummaryCopyWith<$Res>  {
+  factory $GridSummaryCopyWith(GridSummary value, $Res Function(GridSummary) _then) = _$GridSummaryCopyWithImpl;
+@useResult
+$Res call({
+ String owner, int xs, int ys, Rgb borderColor, int previewCols, int previewRows, List<CutText> preview, int shapeCols, int shapeRows, Uint8List shape
+});
+
+
+
+
+}
+/// @nodoc
+class _$GridSummaryCopyWithImpl<$Res>
+    implements $GridSummaryCopyWith<$Res> {
+  _$GridSummaryCopyWithImpl(this._self, this._then);
+
+  final GridSummary _self;
+  final $Res Function(GridSummary) _then;
+
+/// Create a copy of GridSummary
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? owner = null,Object? xs = null,Object? ys = null,Object? borderColor = null,Object? previewCols = null,Object? previewRows = null,Object? preview = null,Object? shapeCols = null,Object? shapeRows = null,Object? shape = null,}) {
+  return _then(GridSummary(
+owner: null == owner ? _self.owner : owner // ignore: cast_nullable_to_non_nullable
+as String,xs: null == xs ? _self.xs : xs // ignore: cast_nullable_to_non_nullable
+as int,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
+as int,borderColor: null == borderColor ? _self.borderColor : borderColor // ignore: cast_nullable_to_non_nullable
+as Rgb,previewCols: null == previewCols ? _self.previewCols : previewCols // ignore: cast_nullable_to_non_nullable
+as int,previewRows: null == previewRows ? _self.previewRows : previewRows // ignore: cast_nullable_to_non_nullable
+as int,preview: null == preview ? _self.preview : preview // ignore: cast_nullable_to_non_nullable
+as List<CutText>,shapeCols: null == shapeCols ? _self.shapeCols : shapeCols // ignore: cast_nullable_to_non_nullable
+as int,shapeRows: null == shapeRows ? _self.shapeRows : shapeRows // ignore: cast_nullable_to_non_nullable
+as int,shape: null == shape ? _self.shape : shape // ignore: cast_nullable_to_non_nullable
+as Uint8List,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [GridSummary].
+extension GridSummaryPatterns on GridSummary {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _GridSummary value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _GridSummary() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _GridSummary value)  $default,){
+final _that = this;
+switch (_that) {
+case _GridSummary():
+return $default(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _GridSummary value)?  $default,){
+final _that = this;
+switch (_that) {
+case _GridSummary() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String owner,  int xs,  int ys,  Rgb borderColor,  int previewCols,  int previewRows,  List<CutText> preview,  int shapeCols,  int shapeRows,  Uint8List shape)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _GridSummary() when $default != null:
+return $default(_that.owner,_that.xs,_that.ys,_that.borderColor,_that.previewCols,_that.previewRows,_that.preview,_that.shapeCols,_that.shapeRows,_that.shape);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String owner,  int xs,  int ys,  Rgb borderColor,  int previewCols,  int previewRows,  List<CutText> preview,  int shapeCols,  int shapeRows,  Uint8List shape)  $default,) {final _that = this;
+switch (_that) {
+case _GridSummary():
+return $default(_that.owner,_that.xs,_that.ys,_that.borderColor,_that.previewCols,_that.previewRows,_that.preview,_that.shapeCols,_that.shapeRows,_that.shape);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String owner,  int xs,  int ys,  Rgb borderColor,  int previewCols,  int previewRows,  List<CutText> preview,  int shapeCols,  int shapeRows,  Uint8List shape)?  $default,) {final _that = this;
+switch (_that) {
+case _GridSummary() when $default != null:
+return $default(_that.owner,_that.xs,_that.ys,_that.borderColor,_that.previewCols,_that.previewRows,_that.preview,_that.shapeCols,_that.shapeRows,_that.shape);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class _GridSummary implements GridSummary {
+  const _GridSummary({required this.owner, required this.xs, required this.ys, required this.borderColor, required this.previewCols, required this.previewRows, required  List<CutText> preview, required this.shapeCols, required this.shapeRows, required this.shape}): _preview = preview;
+  
+
+@override final  String owner;
+@override final  int xs;
+@override final  int ys;
+@override final  Rgb borderColor;
+@override final  int previewCols;
+@override final  int previewRows;
+ final  List<CutText> _preview;
+@override List<CutText> get preview {
+  if (_preview is EqualUnmodifiableListView) return _preview;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_preview);
+}
+
+@override final  int shapeCols;
+@override final  int shapeRows;
+@override final  Uint8List shape;
+
+/// Create a copy of GridSummary
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$GridSummaryCopyWith<_GridSummary> get copyWith => __$GridSummaryCopyWithImpl<_GridSummary>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GridSummary&&(identical(other.owner, owner) || other.owner == owner)&&(identical(other.xs, xs) || other.xs == xs)&&(identical(other.ys, ys) || other.ys == ys)&&(identical(other.borderColor, borderColor) || other.borderColor == borderColor)&&(identical(other.previewCols, previewCols) || other.previewCols == previewCols)&&(identical(other.previewRows, previewRows) || other.previewRows == previewRows)&&const DeepCollectionEquality().equals(other.preview, _preview)&&(identical(other.shapeCols, shapeCols) || other.shapeCols == shapeCols)&&(identical(other.shapeRows, shapeRows) || other.shapeRows == shapeRows)&&const DeepCollectionEquality().equals(other.shape, shape));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,owner,xs,ys,borderColor,previewCols,previewRows,const DeepCollectionEquality().hash(_preview),shapeCols,shapeRows,const DeepCollectionEquality().hash(shape));
+}
+
+@override
+String toString() {
+    return 'GridSummary(owner: $owner, xs: $xs, ys: $ys, borderColor: $borderColor, previewCols: $previewCols, previewRows: $previewRows, preview: $preview, shapeCols: $shapeCols, shapeRows: $shapeRows, shape: $shape)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$GridSummaryCopyWith<$Res> implements $GridSummaryCopyWith<$Res> {
+  factory _$GridSummaryCopyWith(_GridSummary value, $Res Function(_GridSummary) _then) = __$GridSummaryCopyWithImpl;
+@override @useResult
+$Res call({
+ String owner, int xs, int ys, Rgb borderColor, int previewCols, int previewRows, List<CutText> preview, int shapeCols, int shapeRows, Uint8List shape
+});
+
+
+
+
+}
+/// @nodoc
+class __$GridSummaryCopyWithImpl<$Res>
+    implements _$GridSummaryCopyWith<$Res> {
+  __$GridSummaryCopyWithImpl(this._self, this._then);
+
+  final _GridSummary _self;
+  final $Res Function(_GridSummary) _then;
+
+/// Create a copy of GridSummary
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? owner = null,Object? xs = null,Object? ys = null,Object? borderColor = null,Object? previewCols = null,Object? previewRows = null,Object? preview = null,Object? shapeCols = null,Object? shapeRows = null,Object? shape = null,}) {
+  return _then(_GridSummary(
+owner: null == owner ? _self.owner : owner // ignore: cast_nullable_to_non_nullable
+as String,xs: null == xs ? _self.xs : xs // ignore: cast_nullable_to_non_nullable
+as int,ys: null == ys ? _self.ys : ys // ignore: cast_nullable_to_non_nullable
+as int,borderColor: null == borderColor ? _self.borderColor : borderColor // ignore: cast_nullable_to_non_nullable
+as Rgb,previewCols: null == previewCols ? _self.previewCols : previewCols // ignore: cast_nullable_to_non_nullable
+as int,previewRows: null == previewRows ? _self.previewRows : previewRows // ignore: cast_nullable_to_non_nullable
+as int,preview: null == preview ? _self._preview : preview // ignore: cast_nullable_to_non_nullable
+as List<CutText>,shapeCols: null == shapeCols ? _self.shapeCols : shapeCols // ignore: cast_nullable_to_non_nullable
+as int,shapeRows: null == shapeRows ? _self.shapeRows : shapeRows // ignore: cast_nullable_to_non_nullable
+as int,shape: null == shape ? _self.shape : shape // ignore: cast_nullable_to_non_nullable
+as Uint8List,
   ));
 }
 

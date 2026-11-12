@@ -47,6 +47,12 @@ abstract class OpenDocument implements RustOpaqueInterface {
   /// carried out in either order ([`OpenDocument::open`] says more).
   Future<Report> apply({required Command command});
 
+  /// One cell with its whole text, runs and links, nothing cut: what an editor opens
+  /// on. The colours are those the cell is drawn in, as in [`OpenDocument::stage`];
+  /// `summary` and `full` are `None`. It only reads. A cell that does not exist is
+  /// [`ErrorKind::NotFound`], text that is no ID [`ErrorKind::BadRequest`].
+  Future<CellLook> cell({required String cell});
+
   /// Ends the work on the document: saves what is unsaved and gives the document up.
   ///
   /// - If anything was done since the last save, it is saved as by
@@ -160,6 +166,27 @@ abstract class OpenDocument implements RustOpaqueInterface {
   ///
   /// On an error nothing was written, and the document is as unsaved as it was.
   Future<void> save();
+
+  /// What a screen that shows nested grids draws from, in one answer: the grid of
+  /// `cell` (the stage) or a window of its rows and columns, the trail from the root
+  /// down to `cell`, and every grid nested below as far as `ask` says, cell by cell
+  /// or in reduced form (the texts of its first cells, a miniature of colours, its
+  /// size). [`StageInfo`] says how the parts refer to each other, [`StageAsk`] what
+  /// can be asked.
+  ///
+  /// It only reads, and the same document and request always give the same answer,
+  /// so that after a change the stage can be read again and compared with the answer
+  /// before, entry by entry, to redraw what differs. The work is in proportion to the
+  /// answer (the cells, preview texts and shape cells given), not to the document: a
+  /// window of 40 rows of a grid of 100,000 rows looks at 40 rows. Nearly all of the
+  /// time of a large answer is the shapes; ask for smaller ones, or for a window, when
+  /// a read takes too long.
+  ///
+  /// A `cell` without a grid gives its trail and nothing else. A cell that does not
+  /// exist is [`ErrorKind::NotFound`] (after an undo took the stage away, say: go up
+  /// the trail that was read last); text that is no ID, or a number in `ask` below 0 or
+  /// above 4294967295, is [`ErrorKind::BadRequest`].
+  Future<StageInfo> stage({required String cell, required StageAsk ask});
 
   /// Undoes the latest command and returns what that changed, or `None` if there is
   /// nothing to undo.

@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'wire.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// An error, as a value an interface can show.
 class BridgeError implements FrbException {
@@ -110,6 +110,70 @@ enum CellKind {
 
   /// A formula; the cell's text is the formula itself.
   formula,
+}
+
+/// One cell with all that is needed to draw it.
+///
+/// - `id`: the ID of the cell.
+/// - `text`, `text_cut`: the text, and whether anything of it was left out. It is cut to
+///   `StageAsk.text_cut` as [`CutText`] says (from `OpenDocument::cell` it is whole). For
+///   a formula cell it is the formula. It may hold line breaks (U+000A).
+/// - `kind`: what the cell is to the formula system.
+/// - `result`, `result_cut`: what a formula cell shows instead of its text, cut like the
+///   text, and whether anything of it was left out; no result for every other kind.
+/// - `failed`: whether `result` is an error value such as `#NAME?`.
+/// - `cell_color`: the background colour to draw: the tag's if the cell is a tag, else
+///   the cell's own.
+/// - `text_color`: the colour of the text outside of coloured runs: the tag's if the cell
+///   is a tag, else the cell's own.
+/// - `is_tag`: whether the cell is a tag: its whole text (not cut; for a formula cell,
+///   the formula) is the name of a tag of the document. As in TreeSheets, a tag is drawn
+///   in the tag's two colours and in no other: `cell_color` and `text_color` are then the
+///   tag's, and no run has a colour.
+/// - `style`: the base style of the text.
+/// - `rel_size`: the text size relative to the default; as in TreeSheets, positive is
+///   smaller.
+/// - `text_align`, `vert_align`: horizontal and vertical alignment.
+/// - `runs`: the ranges of `text` styled differently from `style`: sorted, not
+///   overlapping, and inside the text as it is given here (a run that the cut goes
+///   through ends at the cut; one beyond it is left out). Neighbours of the same style and
+///   colour are one run, and no run equals `style` without a colour. Their positions are
+///   in Unicode code points, not in the UTF-16 units of a Dart string ([`RunInfo`]).
+/// - `links`: the ranges of `text` that are links: sorted, not overlapping, cut like the
+///   runs, and in code points too.
+/// - `image`: the file name of the cell's image in the document's image folder, if it
+///   has one.
+/// - `has_note`: whether the cell has a note.
+/// - `has_grid`: whether the cell has a grid.
+/// - `summary`: the place of the cell's entry in `StageInfo.summaries`: there is one
+///   exactly if the cell has a grid. Always none from `OpenDocument::cell`.
+/// - `full`: the place of the cell's grid in `StageInfo.grids`, if it is given cell by
+///   cell. Always none from `OpenDocument::cell`.
+@freezed
+sealed class CellLook with _$CellLook {
+  const factory CellLook({
+    required String id,
+    required String text,
+    required bool textCut,
+    required CellKind kind,
+    String? result,
+    required bool resultCut,
+    required bool failed,
+    required Rgb cellColor,
+    required Rgb textColor,
+    required bool isTag,
+    required Style style,
+    required int relSize,
+    required HorizAlign textAlign,
+    required VertAlign vertAlign,
+    required List<RunInfo> runs,
+    required List<LinkInfo> links,
+    String? image,
+    required bool hasNote,
+    required bool hasGrid,
+    int? summary,
+    int? full,
+  }) = _CellLook;
 }
 
 /// A cell with everything inside it, to paste or to move into a document. It is made by
@@ -731,6 +795,33 @@ sealed class Command with _$Command {
   }) = Command_RetargetLinks;
 }
 
+/// A text that may have been cut short.
+///
+/// A text is only ever cut between two user-perceived characters (a letter with its
+/// accents, a flag, an emoji made of several), so what is left is the longest such
+/// beginning of the whole text that has at most the asked number of code points. It can
+/// be shorter than asked, and is empty if the first character alone is too long.
+class CutText {
+  /// The beginning of the text that was kept; all of it if `cut` is false.
+  final String text;
+
+  /// Whether anything was left out.
+  final bool cut;
+
+  const CutText({required this.text, required this.cut});
+
+  @override
+  int get hashCode => text.hashCode ^ cut.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CutText &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          cut == other.cut;
+}
+
 /// How the grid of a cell is drawn.
 enum DrawStyle {
   /// A grid with borders.
@@ -867,6 +958,51 @@ class GridInfo {
           cells == other.cells;
 }
 
+/// A grid whose cells are in `StageInfo.cells`.
+///
+/// (For this type, [`CellLook`] and [`GridSummary`] the generator leaves the comments of
+/// the fields out of the Dart class, in exchange for a `==` that compares the lists
+/// inside; so each field is described here.)
+///
+/// - `owner`: the ID of the cell whose grid this is.
+/// - `level`: how far below the stage: 0 for the stage cell's grid, 1 for the grids of
+///   its cells, and so on.
+/// - `xs`, `ys`: the columns and the rows of the whole grid.
+/// - `x0`, `y0`: the first column and the first row given. For the stage grid these are
+///   `StageAsk.x0` and `StageAsk.y0`, or `xs` and `ys` if those are past the end; for a
+///   nested grid 0.
+/// - `cols`, `rows`: how many columns and rows are given: as many as asked for, or as
+///   there are from `x0` and `y0` on, if those are fewer; for a nested grid all of them.
+/// - `first`: where the cells of this grid start in `StageInfo.cells`. `cols` times
+///   `rows` cells follow, row by row: the cell in column `x0 + i` of row `y0 + j` is at
+///   `first + j * cols + i`.
+/// - `col_widths`: the width at which text wraps (TreeSheets' unit; the default is 80)
+///   for each column that is given: `cols` entries, the first for column `x0`.
+/// - `border_color`: the colour of the grid's border.
+/// - `outer_spacing`: the space around the grid.
+/// - `vertical`: whether the grid is below the owner's text (the default) instead of
+///   beside it.
+/// - `draw_style`: how the owner wants its grid drawn.
+@freezed
+sealed class GridPart with _$GridPart {
+  const factory GridPart({
+    required String owner,
+    required int level,
+    required int xs,
+    required int ys,
+    required int x0,
+    required int y0,
+    required int cols,
+    required int rows,
+    required int first,
+    required Uint32List colWidths,
+    required Rgb borderColor,
+    required int outerSpacing,
+    required bool vertical,
+    required DrawStyle drawStyle,
+  }) = _GridPart;
+}
+
 /// The size of the grid inside one cell of a [`TableData`].
 class GridSize {
   /// The number of columns, at least 1.
@@ -888,6 +1024,44 @@ class GridSize {
           runtimeType == other.runtimeType &&
           xs == other.xs &&
           cells == other.cells;
+}
+
+/// A grid in reduced form: what a Preview, a Shape and a Badge are drawn from.
+///
+/// - `owner`: the ID of the cell whose grid this is.
+/// - `xs`, `ys`: the columns and the rows of the grid. `xs` times `ys` is the count a
+///   Badge shows: the cells of this grid, without those further down.
+/// - `border_color`: the colour of the grid's border.
+/// - `preview_cols`, `preview_rows`: the size of the preview block:
+///   `StageAsk.preview_cols` by `StageAsk.preview_rows`, or `xs` or `ys` where that is
+///   fewer.
+/// - `preview`: what the cells of the grid's top-left block of `preview_cols` by
+///   `preview_rows` show, row by row (`preview_cols` times `preview_rows` entries), each
+///   on one line: cut to `StageAsk.preview_cut`, and then every line break, and any other
+///   character below U+0020, replaced by a space.
+/// - `shape_cols`, `shape_rows`: the size of the shape block: `StageAsk.shape_cols` by
+///   `StageAsk.shape_rows`, or `xs` or `ys` where that is fewer.
+/// - `shape`: the grid's top-left block of `shape_cols` by `shape_rows` cells, row by
+///   row, four bytes a cell: the red, green and blue of the background colour the cell is
+///   drawn in (its tag's if it is a tag), then how much it holds: 255 if it has a grid;
+///   else the number of code points it shows, but at most 254; so 0 is a cell that shows
+///   nothing. In Dart it is a `Uint8List`, one block of memory however large the shape.
+///   `==` compares it byte by byte, which for large shapes is most of the cost of
+///   comparing two summaries.
+@freezed
+sealed class GridSummary with _$GridSummary {
+  const factory GridSummary({
+    required String owner,
+    required int xs,
+    required int ys,
+    required Rgb borderColor,
+    required int previewCols,
+    required int previewRows,
+    required List<CutText> preview,
+    required int shapeCols,
+    required int shapeRows,
+    required Uint8List shape,
+  }) = _GridSummary;
 }
 
 /// Horizontal alignment of a cell's content.
@@ -936,6 +1110,38 @@ class ImageRef {
           file == other.file &&
           scale == other.scale &&
           extra == other.extra;
+}
+
+/// A range of a cell's text that is a link.
+class LinkInfo {
+  /// The position of the first character of the range, counted in Unicode code points
+  /// from 0, not in the UTF-16 units of a Dart string.
+  final int start;
+
+  /// The length of the range in code points, at least 1.
+  final int len;
+
+  /// Where the link goes. A file may hold a link of a kind this core does not know: it
+  /// is given as `LinkTarget.unknown`.
+  final LinkTarget target;
+
+  const LinkInfo({
+    required this.start,
+    required this.len,
+    required this.target,
+  });
+
+  @override
+  int get hashCode => start.hashCode ^ len.hashCode ^ target.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LinkInfo &&
+          runtimeType == other.runtimeType &&
+          start == other.start &&
+          len == other.len &&
+          target == other.target;
 }
 
 @freezed
@@ -1110,6 +1316,201 @@ class Rgb {
           b == other.b;
 }
 
+/// A range of a cell's text that is styled differently from the rest.
+class RunInfo {
+  /// The position of the first character of the range, counted in Unicode code points
+  /// from 0, not in the UTF-16 units of a Dart string: turn it into an offset of the
+  /// string before building spans (count the code points of the string up to it).
+  final int start;
+
+  /// The length of the range in code points, at least 1.
+  final int len;
+
+  /// The complete style of the range (not a difference from the cell's).
+  final Style style;
+
+  /// The colour of the range, or `None` for the cell's text colour.
+  final Rgb? color;
+
+  const RunInfo({
+    required this.start,
+    required this.len,
+    required this.style,
+    this.color,
+  });
+
+  @override
+  int get hashCode =>
+      start.hashCode ^ len.hashCode ^ style.hashCode ^ color.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RunInfo &&
+          runtimeType == other.runtimeType &&
+          start == other.start &&
+          len == other.len &&
+          style == other.style &&
+          color == other.color;
+}
+
+/// What an interface wants of the stage and of what is nested below it: the request of
+/// `OpenDocument::stage`.
+///
+/// Every number must be from 0 to 4294967295; any other is refused
+/// ([`ErrorKind::BadRequest`]), never cut. Within that any value is safe: a number larger
+/// than what the document has means "all of it", and zero means "none". The core's
+/// starting values for a phone are: the whole stage grid (`x0` 0, `y0` 0, `cols` and
+/// `rows` 4294967295), `full_depth` 1, `full_cells` 24, previews of 3 by 4 cells cut at 40
+/// code points, shapes of 12 by 20 cells, `text_cut` 2000.
+///
+/// A read is not a command and is never recorded, so this and the types of the answer
+/// have no JSON form.
+class StageAsk {
+  /// The first column of the stage grid to give, counted from 0.
+  final int x0;
+
+  /// The first row of the stage grid to give, counted from 0.
+  final int y0;
+
+  /// How many columns of the stage grid to give, from `x0` on.
+  final int cols;
+
+  /// How many rows of the stage grid to give, from `y0` on. The window (`x0`, `y0`,
+  /// `cols`, `rows`) is cut to the grid, and a window that lies outside the grid gives
+  /// no cells. Only the stage grid has a window; a nested grid is given whole or not at
+  /// all.
+  final int rows;
+
+  /// How many levels of nested grids may be given cell by cell, counted from the stage
+  /// grid: 0 none, 1 the grids of the stage grid's cells, 2 also the grids of their
+  /// cells, and so on.
+  final int fullDepth;
+
+  /// A nested grid with more cells than this (columns times rows) is not given cell by
+  /// cell, and neither is anything inside it.
+  final int fullCells;
+
+  /// The columns of the top-left block whose texts a summary gives.
+  final int previewCols;
+
+  /// The rows of that block.
+  final int previewRows;
+
+  /// The columns of the top-left block that a summary's shape covers.
+  final int shapeCols;
+
+  /// The rows of that block.
+  final int shapeRows;
+
+  /// The most code points of the text and of the result of a [`CellLook`].
+  final int textCut;
+
+  /// The most code points of a text in a summary's preview and in the trail.
+  final int previewCut;
+
+  const StageAsk({
+    required this.x0,
+    required this.y0,
+    required this.cols,
+    required this.rows,
+    required this.fullDepth,
+    required this.fullCells,
+    required this.previewCols,
+    required this.previewRows,
+    required this.shapeCols,
+    required this.shapeRows,
+    required this.textCut,
+    required this.previewCut,
+  });
+
+  @override
+  int get hashCode =>
+      x0.hashCode ^
+      y0.hashCode ^
+      cols.hashCode ^
+      rows.hashCode ^
+      fullDepth.hashCode ^
+      fullCells.hashCode ^
+      previewCols.hashCode ^
+      previewRows.hashCode ^
+      shapeCols.hashCode ^
+      shapeRows.hashCode ^
+      textCut.hashCode ^
+      previewCut.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StageAsk &&
+          runtimeType == other.runtimeType &&
+          x0 == other.x0 &&
+          y0 == other.y0 &&
+          cols == other.cols &&
+          rows == other.rows &&
+          fullDepth == other.fullDepth &&
+          fullCells == other.fullCells &&
+          previewCols == other.previewCols &&
+          previewRows == other.previewRows &&
+          shapeCols == other.shapeCols &&
+          shapeRows == other.shapeRows &&
+          textCut == other.textCut &&
+          previewCut == other.previewCut;
+}
+
+/// The stage and what is nested below it, in a flat form: no entry holds another, they
+/// name each other by their place in the lists. The order of everything is fully
+/// determined by the document and the request, so two answers can be compared entry by
+/// entry to find what to redraw.
+///
+/// Only Rust sends this and the types in it, so their numbers are as wide as the core's.
+///
+/// In Dart, the entries of the four lists are values: `==` on a [`TrailStep`], a
+/// [`GridPart`], a [`CellLook`] or a [`GridSummary`] compares everything in it, the lists
+/// inside too. `==` on this type itself does not (it asks whether the lists are the very
+/// same objects): compare two answers entry by entry.
+class StageInfo {
+  /// The cells from the root to the stage cell, the root first and the stage cell last.
+  /// Never empty; for the root it is the root alone.
+  final List<TrailStep> trail;
+
+  /// The grids given cell by cell. `grids[0]` is the stage cell's own grid (its window);
+  /// if the stage cell has no grid, `grids` is empty. After it come the nested grids
+  /// given whole, in the order in which the cells that own them appear in `cells`; so
+  /// all grids of one level come before any grid of the next.
+  final List<GridPart> grids;
+
+  /// The cells of all `grids`: those of `grids[0]` first, then those of `grids[1]`, and
+  /// so on, each grid's cells row by row. `GridPart.first` says where a grid's cells
+  /// start.
+  final List<CellLook> cells;
+
+  /// One for each cell in `cells` that has a grid, in the order of those cells, whether
+  /// or not that grid is also in `grids`.
+  final List<GridSummary> summaries;
+
+  const StageInfo({
+    required this.trail,
+    required this.grids,
+    required this.cells,
+    required this.summaries,
+  });
+
+  @override
+  int get hashCode =>
+      trail.hashCode ^ grids.hashCode ^ cells.hashCode ^ summaries.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StageInfo &&
+          runtimeType == other.runtimeType &&
+          trail == other.trail &&
+          grids == other.grids &&
+          cells == other.cells &&
+          summaries == other.summaries;
+}
+
 /// Text style switches.
 class Style {
   /// Bold.
@@ -1192,6 +1593,35 @@ class TableData {
           runtimeType == other.runtimeType &&
           xs == other.xs &&
           cells == other.cells;
+}
+
+/// One cell on the way from the root to the stage: what a title bar and a trail bar show.
+class TrailStep {
+  /// The ID of the cell.
+  final String id;
+
+  /// What the cell shows (the result of a formula cell, the text of any other) on one
+  /// line: cut to `StageAsk.preview_cut`, and then every line break, and any other
+  /// character below U+0020, replaced by a space.
+  final CutText shown;
+
+  /// The background colour the cell is drawn in: its tag's if it is a tag (see
+  /// `CellLook.is_tag`), else its own.
+  final Rgb color;
+
+  const TrailStep({required this.id, required this.shown, required this.color});
+
+  @override
+  int get hashCode => id.hashCode ^ shown.hashCode ^ color.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TrailStep &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          shown == other.shown &&
+          color == other.color;
 }
 
 /// Vertical alignment of a cell's content.

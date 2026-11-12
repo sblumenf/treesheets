@@ -13,7 +13,10 @@
 //! generator does not carry the comment of an enum that holds data (`Command`, `Prop`,
 //! `LinkTarget`) nor this one, only those of their variants and fields and of the other
 //! types; so a rule that a Dart developer must know is said on a variant, on a field or
-//! on [`Report`] as well.
+//! on [`Report`] as well. The three entry types of a stage read ([`CellLook`],
+//! [`GridPart`], [`GridSummary`]) are generated another way, which gives them a `==`
+//! that compares the lists inside and loses the comments of their fields: there the
+//! comment of the type describes every field.
 //!
 //! Text crosses as Unicode. A Dart string is made of UTF-16 units and may hold half of a
 //! surrogate pair on its own, which is no character; such a half arrives here as U+FFFD,
@@ -33,6 +36,7 @@
 //! core takes fewer: a narrower number would lose its high bits on the way without
 //! anyone being told (decision A134). `convert.rs` refuses what is out of range.
 
+use flutter_rust_bridge::frb;
 use serde::{Deserialize, Serialize};
 
 use crate::record::present;
@@ -964,6 +968,11 @@ pub struct CutText {
 /// entry to find what to redraw.
 ///
 /// Only Rust sends this and the types in it, so their numbers are as wide as the core's.
+///
+/// In Dart, the entries of the four lists are values: `==` on a [`TrailStep`], a
+/// [`GridPart`], a [`CellLook`] or a [`GridSummary`] compares everything in it, the lists
+/// inside too. `==` on this type itself does not (it asks whether the lists are the very
+/// same objects): compare two answers entry by entry.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct StageInfo {
     /// The cells from the root to the stage cell, the root first and the stage cell last.
@@ -998,39 +1007,58 @@ pub struct TrailStep {
 }
 
 /// A grid whose cells are in `StageInfo.cells`.
+///
+/// (For this type, [`CellLook`] and [`GridSummary`] the generator leaves the comments of
+/// the fields out of the Dart class, in exchange for a `==` that compares the lists
+/// inside; so each field is described here.)
+///
+/// - `owner`: the ID of the cell whose grid this is.
+/// - `level`: how far below the stage: 0 for the stage cell's grid, 1 for the grids of
+///   its cells, and so on.
+/// - `xs`, `ys`: the columns and the rows of the whole grid.
+/// - `x0`, `y0`: the first column and the first row given. For the stage grid these are
+///   `StageAsk.x0` and `StageAsk.y0`, or `xs` and `ys` if those are past the end; for a
+///   nested grid 0.
+/// - `cols`, `rows`: how many columns and rows are given: as many as asked for, or as
+///   there are from `x0` and `y0` on, if those are fewer; for a nested grid all of them.
+/// - `first`: where the cells of this grid start in `StageInfo.cells`. `cols` times
+///   `rows` cells follow, row by row: the cell in column `x0 + i` of row `y0 + j` is at
+///   `first + j * cols + i`.
+/// - `col_widths`: the width at which text wraps (TreeSheets' unit; the default is 80)
+///   for each column that is given: `cols` entries, the first for column `x0`.
+/// - `border_color`: the colour of the grid's border.
+/// - `outer_spacing`: the space around the grid.
+/// - `vertical`: whether the grid is below the owner's text (the default) instead of
+///   beside it.
+/// - `draw_style`: how the owner wants its grid drawn.
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[frb(dart_metadata=("freezed"))]
 pub struct GridPart {
     /// The ID of the cell whose grid this is.
     pub owner: String,
-    /// How far below the stage: 0 for the stage cell's grid, 1 for the grids of its cells,
-    /// and so on.
+    /// How far below the stage.
     pub level: u32,
     /// The columns of the whole grid.
     pub xs: u32,
     /// The rows of the whole grid.
     pub ys: u32,
-    /// The first column given. For the stage grid this is `StageAsk.x0`, or `xs` if that
-    /// is past the end; for a nested grid 0.
+    /// The first column given.
     pub x0: u32,
-    /// The first row given, likewise.
+    /// The first row given.
     pub y0: u32,
-    /// How many columns are given: as many as asked for, or as there are from `x0` on, if
-    /// those are fewer; for a nested grid all `xs`.
+    /// How many columns are given.
     pub cols: u32,
-    /// How many rows are given, likewise.
+    /// How many rows are given.
     pub rows: u32,
-    /// Where the cells of this grid start in `StageInfo.cells`. `cols` times `rows` cells
-    /// follow, row by row: the cell in column `x0 + i` of row `y0 + j` is at
-    /// `first + j * cols + i`.
+    /// Where the cells of this grid start in `StageInfo.cells`.
     pub first: u32,
-    /// The width at which text wraps (TreeSheets' unit; the default is 80) for each column
-    /// that is given: `cols` entries, the first for column `x0`.
+    /// The wrap width of each column that is given.
     pub col_widths: Vec<u32>,
     /// The colour of the grid's border.
     pub border_color: Rgb,
     /// The space around the grid.
     pub outer_spacing: u32,
-    /// Whether the grid is below the owner's text (the default) instead of beside it.
+    /// Whether the grid is below the owner's text instead of beside it.
     pub vertical: bool,
     /// How the owner wants its grid drawn.
     pub draw_style: DrawStyle,
@@ -1065,95 +1093,132 @@ pub struct LinkInfo {
 }
 
 /// One cell with all that is needed to draw it.
+///
+/// - `id`: the ID of the cell.
+/// - `text`, `text_cut`: the text, and whether anything of it was left out. It is cut to
+///   `StageAsk.text_cut` as [`CutText`] says (from `OpenDocument::cell` it is whole). For
+///   a formula cell it is the formula. It may hold line breaks (U+000A).
+/// - `kind`: what the cell is to the formula system.
+/// - `result`, `result_cut`: what a formula cell shows instead of its text, cut like the
+///   text, and whether anything of it was left out; no result for every other kind.
+/// - `failed`: whether `result` is an error value such as `#NAME?`.
+/// - `cell_color`: the background colour to draw: the tag's if the cell is a tag, else
+///   the cell's own.
+/// - `text_color`: the colour of the text outside of coloured runs: the tag's if the cell
+///   is a tag, else the cell's own.
+/// - `is_tag`: whether the cell is a tag: its whole text (not cut; for a formula cell,
+///   the formula) is the name of a tag of the document. As in TreeSheets, a tag is drawn
+///   in the tag's two colours and in no other: `cell_color` and `text_color` are then the
+///   tag's, and no run has a colour.
+/// - `style`: the base style of the text.
+/// - `rel_size`: the text size relative to the default; as in TreeSheets, positive is
+///   smaller.
+/// - `text_align`, `vert_align`: horizontal and vertical alignment.
+/// - `runs`: the ranges of `text` styled differently from `style`: sorted, not
+///   overlapping, and inside the text as it is given here (a run that the cut goes
+///   through ends at the cut; one beyond it is left out). Neighbours of the same style and
+///   colour are one run, and no run equals `style` without a colour. Their positions are
+///   in Unicode code points, not in the UTF-16 units of a Dart string ([`RunInfo`]).
+/// - `links`: the ranges of `text` that are links: sorted, not overlapping, cut like the
+///   runs, and in code points too.
+/// - `image`: the file name of the cell's image in the document's image folder, if it
+///   has one.
+/// - `has_note`: whether the cell has a note.
+/// - `has_grid`: whether the cell has a grid.
+/// - `summary`: the place of the cell's entry in `StageInfo.summaries`: there is one
+///   exactly if the cell has a grid. Always none from `OpenDocument::cell`.
+/// - `full`: the place of the cell's grid in `StageInfo.grids`, if it is given cell by
+///   cell. Always none from `OpenDocument::cell`.
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[frb(dart_metadata=("freezed"))]
 pub struct CellLook {
     /// The ID of the cell.
     pub id: String,
-    /// The text, cut to `StageAsk.text_cut` as [`CutText`] says (from
-    /// `OpenDocument::cell` it is whole); for a formula cell, the formula. It may hold
-    /// line breaks (U+000A).
+    /// The text, as far as it was asked for; for a formula cell, the formula.
     pub text: String,
     /// Whether anything of the text was left out.
     pub text_cut: bool,
     /// What the cell is to the formula system.
     pub kind: CellKind,
-    /// What a formula cell shows instead of its text, cut like the text; `None` for every
-    /// other kind.
+    /// What a formula cell shows instead of its text.
     pub result: Option<String>,
     /// Whether anything of the result was left out.
     pub result_cut: bool,
     /// Whether `result` is an error value such as `#NAME?`.
     pub failed: bool,
-    /// The background colour to draw: the tag's if the cell is a tag, else the cell's own.
+    /// The background colour to draw.
     pub cell_color: Rgb,
-    /// The colour of the text outside of coloured runs: the tag's if the cell is a tag,
-    /// else the cell's own.
+    /// The colour of the text outside of coloured runs.
     pub text_color: Rgb,
-    /// Whether the cell is a tag: its whole text (not cut; for a formula cell, the
-    /// formula) is the name of a tag of the document. As in TreeSheets, a tag is drawn in
-    /// the tag's two colours and in no other: `cell_color` and `text_color` are then the
-    /// tag's, and no run has a colour.
+    /// Whether the cell is a tag, and drawn in the tag's colours.
     pub is_tag: bool,
     /// The base style of the text.
     pub style: Style,
-    /// The text size relative to the default; as in TreeSheets, positive is smaller.
+    /// The text size relative to the default; positive is smaller.
     pub rel_size: i32,
     /// Horizontal alignment.
     pub text_align: HorizAlign,
     /// Vertical alignment.
     pub vert_align: VertAlign,
-    /// The ranges of `text` styled differently from `style`: sorted, not overlapping, and
-    /// inside the text as it is given here (a run that the cut goes through ends at the
-    /// cut; one beyond it is left out). Neighbours of the same style and colour are one
-    /// run, and no run equals `style` without a colour. Positions are in code points.
+    /// The ranges of `text` styled differently from `style`, in code points.
     pub runs: Vec<RunInfo>,
-    /// The ranges of `text` that are links: sorted, not overlapping, and cut like the
-    /// runs. Positions are in code points.
+    /// The ranges of `text` that are links, in code points.
     pub links: Vec<LinkInfo>,
-    /// The file name of the cell's image in the document's image folder, if it has one.
+    /// The file name of the cell's image, if it has one.
     pub image: Option<String>,
     /// Whether the cell has a note.
     pub has_note: bool,
     /// Whether the cell has a grid.
     pub has_grid: bool,
-    /// The place of the cell's entry in `StageInfo.summaries`: there is one exactly if
-    /// the cell has a grid. Always `None` from `OpenDocument::cell`.
+    /// The place of the cell's entry in `StageInfo.summaries`.
     pub summary: Option<u32>,
-    /// The place of the cell's grid in `StageInfo.grids`, if it is given cell by cell.
-    /// Always `None` from `OpenDocument::cell`.
+    /// The place of the cell's grid in `StageInfo.grids`.
     pub full: Option<u32>,
 }
 
 /// A grid in reduced form: what a Preview, a Shape and a Badge are drawn from.
+///
+/// - `owner`: the ID of the cell whose grid this is.
+/// - `xs`, `ys`: the columns and the rows of the grid. `xs` times `ys` is the count a
+///   Badge shows: the cells of this grid, without those further down.
+/// - `border_color`: the colour of the grid's border.
+/// - `preview_cols`, `preview_rows`: the size of the preview block:
+///   `StageAsk.preview_cols` by `StageAsk.preview_rows`, or `xs` or `ys` where that is
+///   fewer.
+/// - `preview`: what the cells of the grid's top-left block of `preview_cols` by
+///   `preview_rows` show, row by row (`preview_cols` times `preview_rows` entries), each
+///   on one line: cut to `StageAsk.preview_cut`, and then every line break, and any other
+///   character below U+0020, replaced by a space.
+/// - `shape_cols`, `shape_rows`: the size of the shape block: `StageAsk.shape_cols` by
+///   `StageAsk.shape_rows`, or `xs` or `ys` where that is fewer.
+/// - `shape`: the grid's top-left block of `shape_cols` by `shape_rows` cells, row by
+///   row, four bytes a cell: the red, green and blue of the background colour the cell is
+///   drawn in (its tag's if it is a tag), then how much it holds: 255 if it has a grid;
+///   else the number of code points it shows, but at most 254; so 0 is a cell that shows
+///   nothing. In Dart it is a `Uint8List`, one block of memory however large the shape.
+///   `==` compares it byte by byte, which for large shapes is most of the cost of
+///   comparing two summaries.
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[frb(dart_metadata=("freezed"))]
 pub struct GridSummary {
     /// The ID of the cell whose grid this is.
     pub owner: String,
     /// The columns of the grid.
     pub xs: u32,
-    /// The rows of the grid. `xs` times `ys` is the count a Badge shows: the cells of
-    /// this grid, without those further down.
+    /// The rows of the grid.
     pub ys: u32,
     /// The colour of the grid's border.
     pub border_color: Rgb,
-    /// The columns of the preview block: `StageAsk.preview_cols`, or `xs` if that is
-    /// fewer.
+    /// The columns of the preview block.
     pub preview_cols: u32,
-    /// The rows of the preview block: `StageAsk.preview_rows`, or `ys` if that is fewer.
+    /// The rows of the preview block.
     pub preview_rows: u32,
-    /// What the cells of the grid's top-left block of `preview_cols` by `preview_rows`
-    /// show, row by row (`preview_cols` times `preview_rows` entries), each on one line:
-    /// cut to `StageAsk.preview_cut`, and then every line break, and any other character
-    /// below U+0020, replaced by a space.
+    /// What the cells of the preview block show, row by row, each on one line.
     pub preview: Vec<CutText>,
-    /// The columns of the shape block: `StageAsk.shape_cols`, or `xs` if that is fewer.
+    /// The columns of the shape block.
     pub shape_cols: u32,
-    /// The rows of the shape block: `StageAsk.shape_rows`, or `ys` if that is fewer.
+    /// The rows of the shape block.
     pub shape_rows: u32,
-    /// The grid's top-left block of `shape_cols` by `shape_rows` cells, row by row, four
-    /// bytes a cell: the red, green and blue of the background colour the cell is drawn in
-    /// (its tag's if it is a tag), then how much it holds: 255 if it has a grid; else the
-    /// number of code points it shows, but at most 254; so 0 is a cell that shows nothing.
-    /// In Dart this is a `Uint8List`, one block of memory however large the shape.
+    /// The shape block row by row, four bytes a cell: colour, then how much it holds.
     pub shape: Vec<u8>,
 }
