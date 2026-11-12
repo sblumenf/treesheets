@@ -128,6 +128,9 @@ jobs:
         fi
     - name: Check that the generated code is what the generator writes
       run: |
+        # Everything generated is removed first, so that a file the generator writes no
+        # more is seen as deleted: left in place it would be neither changed nor new.
+        rm -rf lib/src/rust ../crates/wombat-bridge/src/frb_generated.rs
         flutter_rust_bridge_codegen generate
         (cd .. && cargo fmt --all)
         cd "$GITHUB_WORKSPACE"
