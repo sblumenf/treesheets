@@ -2224,5 +2224,6 @@ fn every_step_and_its_inverse_cancel_exactly() {
     assert_eq!(work, doc);
 }
 
+mod cancel;
 mod restructure;
 mod retype;

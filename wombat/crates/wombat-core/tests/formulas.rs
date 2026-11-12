@@ -514,6 +514,49 @@ fn a_run_that_only_assigns_variables_still_recalculates() {
     );
 }
 
+/// A run inside a group that is cancelled: what it wrote into the views is taken back
+/// with the group; the variables it assigned stay, as they stay when a run is undone
+/// (decision A64: they are not part of the document).
+#[test]
+fn a_run_in_a_cancelled_group_is_taken_back_but_its_variables_stay() {
+    let spec = json!([
+        "",
+        0,
+        4,
+        2,
+        [
+            ["2", 0],
+            ["+", 1],
+            ["3", 0],
+            ["", 3],
+            ["5", 0],
+            ["x", 2],
+            ["=x+1", 6],
+            ["", 0]
+        ]
+    ]);
+    let mut ids = SeededIds::from_u64(1);
+    let mut e = Editor::new(build(&spec, &mut ids)).unwrap();
+    let root = e.document().root();
+    let view = e.document().child(root, 3, 0).unwrap();
+    let formula = e.document().child(root, 2, 1).unwrap();
+    let before = format::to_string(e.document()).unwrap();
+    assert_eq!((e.shown(view), e.shown(formula)), (Some(""), Some("#N/A")));
+    e.begin_group();
+    assert!(!e.apply(Command::Run, None, &mut ids).unwrap().is_empty());
+    assert_eq!((e.shown(view), e.shown(formula)), (Some("5"), Some("6")));
+    assert_eq!(e.cancel_group().unwrap().changed, [view]);
+    assert_eq!(format::to_string(e.document()).unwrap(), before);
+    assert_eq!((e.undo_len(), e.redo_len()), (0, 0));
+    assert_eq!((e.shown(view), e.shown(formula)), (Some(""), Some("6")));
+    assert_eq!(e.calc().variables().get("x").unwrap().text(), "5");
+    assert!(e.calc().last_run().is_some());
+    // Taking the group back changed no result: the formula showed 6 before it too.
+    assert_eq!(e.recalculated(), []);
+    let anew = Calc::with_variables(e.document(), e.calc().variables().clone());
+    assert_eq!(e.calc().results(), anew.results());
+}
+
 #[test]
 fn a_run_that_would_go_too_deep_or_take_too_long_is_refused() {
     // Each level is run three times by the level above it (twice for its two directions,

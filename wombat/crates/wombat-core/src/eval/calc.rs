@@ -853,7 +853,9 @@ impl Calc {
     }
 
     /// The formula cells whose results changed in the last command, undo or redo, in
-    /// document order; after a group, those of all its commands, by ID.
+    /// document order; after a group, those of all its commands, by ID; after a group
+    /// that was cancelled, those of taking it back
+    /// ([`crate::Editor::recalculated`] says it in full).
     pub fn recalculated(&self) -> &[CellId] {
         &self.recalculated
     }
@@ -905,6 +907,12 @@ impl Calc {
                 .filter(|id| doc.cell(*id).is_some())
                 .collect();
         }
+    }
+
+    /// Stops collecting and drops what was collected: `recalculated` is then what the
+    /// next update finds, for a group that is taken back and not ended.
+    pub(crate) fn cancel_group(&mut self) {
+        self.group = None;
     }
 
     /// Brings the results up to date after a change of the document.

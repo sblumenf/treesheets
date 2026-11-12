@@ -402,9 +402,10 @@ proptest! {
         prop_assert!(calc.results().values().all(|r| r.chars().count() < 10_000));
     }
 
-    /// Random commands, undo and redo: the results are always those of working everything
-    /// out, the report of what recalculated is exact, and undoing everything gives the
-    /// original bytes and results.
+    /// Random commands, groups that are ended or cancelled, undo and redo: the results are
+    /// always those of working everything out, the report of what recalculated is exact
+    /// (after a cancel: what taking the group back recalculated), and undoing everything
+    /// gives the original bytes and results.
     #[test]
     fn keeping_up_to_date_equals_working_everything_out(
         seed in any::<u64>(),
@@ -417,6 +418,10 @@ proptest! {
         let first = results(editor.calc());
         let mut grouped = false;
         let mut group_before = first.clone();
+        // Whether a run in the open group gave the variables other values: those stay
+        // when the group is cancelled, as they stay when a run is undone.
+        let mut group_ran = false;
+        let mut group_bytes = original.clone();
         for (n, (step_seed, kind, op)) in steps.iter().enumerate() {
             let before = results(editor.calc());
             let mut r = Rng(*step_seed | 1);
@@ -434,6 +439,24 @@ proptest! {
                     editor.begin_group();
                     grouped = true;
                     group_before = before;
+                    group_ran = false;
+                    group_bytes = format::to_string(editor.document()).unwrap();
+                    continue;
+                }
+                4 if grouped => {
+                    editor.cancel_group().unwrap();
+                    prop_assert_eq!(
+                        format::to_string(editor.document()).unwrap(),
+                        group_bytes.clone()
+                    );
+                    grouped = false;
+                    what = format!("step {n}: cancel of group");
+                    // Exact, where the end of a group may name too much: only the
+                    // results that differ from those just before the cancel.
+                    check(&editor, &before, false, &what);
+                    if !group_ran {
+                        prop_assert_eq!(results(editor.calc()), group_before.clone(), "{}", what);
+                    }
                     continue;
                 }
                 3 if grouped => {
@@ -451,8 +474,9 @@ proptest! {
                         command(&mut r, editor.document())
                     };
                     what = format!("step {n}: {command:?}");
+                    let variables = editor.calc().variables().clone();
                     match editor.apply(command, None, &mut ids) {
-                        Ok(_) => {}
+                        Ok(_) => group_ran |= *editor.calc().variables() != variables,
                         Err(Error::Refused(_) | Error::NotFound(_) | Error::Limit(_)) => {
                             prop_assert_eq!(results(editor.calc()), before, "refused: {}", what);
                             continue;

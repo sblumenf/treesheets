@@ -47,7 +47,21 @@ impl Editor {
         self.calc.shown(&self.doc, id)
     }
 
-    /// The formula cells whose results the last command, undo, redo or group changed.
+    /// The formula cells whose results changed (or that became formula cells) in the last
+    /// thing that was done to the document:
+    ///
+    /// - a command that was carried out, also one that changed nothing and also one
+    ///   inside a group: those of that command alone, in document order;
+    /// - an undo or a redo: those of it;
+    /// - the end of the outermost group: those of every command since it was opened that
+    ///   still exist, by ID. A result that changed and changed back is among them;
+    /// - a cancelled group: those of taking it back, as an undo of the group would give
+    ///   them: the results that differ from those just before the cancel. (Whoever
+    ///   followed each command inside the group is then up to date; against the results
+    ///   from before the group nothing differs, unless a run inside it left variables.)
+    ///
+    /// A command that is refused, opening a group, ending an inner group, and ending or
+    /// cancelling when no group is open all leave it as it was.
     pub fn recalculated(&self) -> &[CellId] {
         self.calc.recalculated()
     }

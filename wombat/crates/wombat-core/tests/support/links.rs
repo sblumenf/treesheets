@@ -30,6 +30,9 @@ pub enum Act {
     Link(usize, [u32; 4]),
     /// Several commands as one unit.
     Group(usize, Vec<Op>),
+    /// Several commands in a group that is cancelled: whoever followed the report of each
+    /// command and then that of the cancel is where it was.
+    Cancelled(usize, Vec<Op>),
     Undo(usize),
     Redo(usize),
     /// Copies a cell of one document over a cell of another (or of the same).
@@ -56,6 +59,8 @@ pub fn act() -> impl Strategy<Value = Act> {
         12 => (doc(), op()).prop_map(|(d, op)| Act::Apply(d, op)),
         10 => (doc(), any::<[u32; 4]>()).prop_map(|(d, n)| Act::Link(d, n)),
         2 => (doc(), proptest::collection::vec(op(), 0..4)).prop_map(|(d, ops)| Act::Group(d, ops)),
+        2 => (doc(), proptest::collection::vec(op(), 0..4))
+            .prop_map(|(d, ops)| Act::Cancelled(d, ops)),
         5 => doc().prop_map(Act::Undo),
         3 => doc().prop_map(Act::Redo),
         3 => (doc(), doc(), any::<[u32; 2]>()).prop_map(|(a, b, n)| Act::Paste(a, b, n)),
@@ -452,6 +457,29 @@ pub fn run_with(docs: Vec<Document>, acts: &[Act], hook: &mut dyn Hook) -> Stats
                 }
                 let changes = editors[d].end_group();
                 follow(&mut index, hook, &editors[d], &changes);
+            }
+            Act::Cancelled(d, ops) => {
+                let d = d % count;
+                let old = index.clone();
+                let before = editors[d].clone();
+                editors[d].begin_group();
+                for op in ops {
+                    let command = support::command(editors[d].document(), op);
+                    if let Ok(changes) = editors[d].apply(command, None, &mut ids) {
+                        follow(&mut index, hook, &editors[d], &changes);
+                    }
+                }
+                let back = editors[d].cancel_group().unwrap();
+                follow(&mut index, hook, &editors[d], &back);
+                assert!(index == old, "cancel of {what}");
+                assert!(*editors[d].document() == *before.document(), "{what}");
+                assert_eq!(
+                    (editors[d].undo_len(), editors[d].redo_len()),
+                    (before.undo_len(), before.redo_len()),
+                    "{what}"
+                );
+                support::check_bound(&editors[d], &what);
+                check(&editors, &index, &what);
             }
             Act::Undo(d) => {
                 let d = d % count;
