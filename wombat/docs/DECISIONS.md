@@ -2240,18 +2240,19 @@ are where milestones 4, 5 and 6, built apart, meet).
     - **It only reads, without recursion**, and fails only when the stage cell does not
       exist (`NotFound`); a stage cell without a grid gives its trail and no grids.
       `Editor::cell_look(id)` gives one cell with nothing cut: what an editor opens on.
-    - *Departures from the design note it implements (written before the code and not
-      kept in the repository), each because the code or the specification showed it:* the request has named fields (`x0`, `y0`, `cols`, `rows`,
-      `preview_cols` …) instead of tuples; `GridPart::col_widths` are those of the columns
-      given, not of all columns (a window of a grid with many columns would otherwise carry
-      what it did not ask for); `GridPart::level` says how far below the stage a grid is;
-      `CellLook::has_grid` is its own field (from `cell_look` there is no summary to tell
-      by); every text that can be cut is a `CutText` with its own flag, the result, the
-      preview texts and the trail included (the design flagged only the cell's text); the
-      runs of a tag lose their colours; the cut is found at the place of the cut, not by
-      testing every character before it (the same answer as `text::floor_boundary`, which a
-      test holds, at a fraction of the cost when every preview text is cut); `StageAsk` has
-      a `Default` with the design's values to start from.
+    - *Departures from the design note it implements (written before the code and not kept
+      in the repository), each because the code or the specification showed it:* the request
+      has named fields (`x0`, `y0`, `cols`, `rows`, `preview_cols` …) instead of tuples;
+      `GridPart::col_widths` are those of the columns given, not of all columns (a window of
+      a grid with many columns would otherwise carry what it did not ask for);
+      `GridPart::level` says how far below the stage a grid is; `CellLook::has_grid` is its
+      own field (from `cell_look` there is no summary to tell by); every text that can be
+      cut is a `CutText` with its own flag, the result, the preview texts and the trail
+      included (the design flagged only the cell's text); the runs of a tag lose their
+      colours; the cut is found at the place of the cut, not by testing every character
+      before it (the same answer as `text::floor_boundary`, which a test holds, at a
+      fraction of the cost when every preview text is cut); `StageAsk` has a `Default` with
+      the design's values to start from.
     - *What it does not do:* the fold state and the remembered scroll position are view
       state and are added by the bridge (A173); the image itself, the note's text, the unknown
       fields of runs and links are not given; nothing says which stage cells a change
