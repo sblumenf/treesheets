@@ -217,6 +217,304 @@ void main() {
     expect(() => codePoints('', 1), throwsRangeError);
   });
 
+  test('a position of the core as an offset of a Dart string', () {
+    // a, an emoji (two units), e with an accent of its own (two code points), a line
+    // break, a flag (two code points of two units each), b.
+    const sample = 'a\u{1F600}e\u{301}\n\u{1F1E9}\u{1F1EA}b';
+    expect(sample.runes.length, 8);
+    expect(sample.length, 11);
+    expect(
+      [for (var n = 0; n <= 8; n++) units(sample, n)],
+      [0, 1, 3, 4, 5, 6, 8, 10, 11],
+    );
+    // There and back, at every position.
+    for (var n = 0; n <= 8; n++) {
+      expect(codePoints(sample, units(sample, n)), n);
+    }
+    // Half a pair on its own is one code point of one unit, either half.
+    const halves = 'x\u{D83D}y\u{DE00}\u{DE00}z';
+    expect(halves.runes.length, 6);
+    expect(
+      [for (var n = 0; n <= 6; n++) units(halves, n)],
+      [0, 1, 2, 3, 4, 5, 6],
+    );
+    // The halves the other way round are no pair.
+    expect(units('\u{DE00}\u{D83D}', 1), 1);
+    // A high half at the very end.
+    expect(units('a\u{D83D}', 2), 2);
+    expect(units('', 0), 0);
+  });
+
+  test('a position outside the text is refused there too', () {
+    expect(() => units('abc', -1), throwsRangeError);
+    expect(() => units('abc', 4), throwsRangeError);
+    expect(() => units('', 1), throwsRangeError);
+    // Three code points in four units.
+    expect(units('a\u{1F600}b', 3), 4);
+    expect(() => units('a\u{1F600}b', 4), throwsRangeError);
+  });
+
+  const plain = Style(
+    bold: false,
+    italic: false,
+    fixed: false,
+    underline: false,
+    strike: false,
+  );
+  const bold = Style(
+    bold: true,
+    italic: false,
+    fixed: false,
+    underline: false,
+    strike: false,
+  );
+
+  test('the spans of a text of several lines are where its runs say', () async {
+    // The line end arrives as CR LF and is one code point in the document; the run
+    // that the core gives for the bold word after it is placed by `units`.
+    final doc = await create();
+    await doc.apply(
+      Command.setText(cell: doc.root, text: 'one \u{1F600}\r\ntwo three'),
+    );
+    final text = (await doc.cell(doc.root)).text;
+    expect(text, 'one \u{1F600}\ntwo three');
+    final at = codePoints(text, text.indexOf('two'));
+    expect(at, 6);
+    await doc.apply(
+      Command.setRangeStyle(
+        cell: doc.root,
+        start: at,
+        len: 3,
+        set_: bold,
+        clear: plain,
+      ),
+    );
+    final look = await doc.cell(doc.root);
+    final run = look.runs.single;
+    expect((run.start, run.len, run.style.bold), (6, 3, true));
+    expect(
+      look.text.substring(
+        units(look.text, run.start),
+        units(look.text, run.start + run.len),
+      ),
+      'two',
+    );
+    await doc.close();
+  });
+
+  test('the request of a phone is the one the bridge names', () {
+    // The comment of `StageAsk` in the bridge names the core's starting values, and a
+    // test there holds the comment to the core. This holds the app to the comment.
+    final wire = File('../crates/wombat-bridge/src/api/wire.rs')
+        .readAsStringSync()
+        .replaceAll(RegExp(r'\s*\n\s*///\s*'), ' ');
+    final said = RegExp(
+      r'starting values for a phone are: the whole stage grid \(`x0` (\d+), '
+      r'`y0` (\d+), `cols` and `rows` (\d+)\), `full_depth` (\d+), '
+      r'`full_cells` (\d+), previews of (\d+) by (\d+) cells cut at (\d+) code '
+      r'points, shapes of (\d+) by (\d+) cells, `text_cut` (\d+)\.',
+    ).firstMatch(wire);
+    expect(said, isNotNull, reason: 'the comment of StageAsk has changed');
+    int n(int group) => int.parse(said!.group(group)!);
+    expect(
+      phoneAsk,
+      StageAsk(
+        x0: n(1),
+        y0: n(2),
+        cols: n(3),
+        rows: n(3),
+        fullDepth: n(4),
+        fullCells: n(5),
+        previewCols: n(6),
+        previewRows: n(7),
+        previewCut: n(8),
+        shapeCols: n(9),
+        shapeRows: n(10),
+        textCut: n(11),
+      ),
+    );
+    expect(phoneAsk.rows, 4294967295);
+  });
+
+  test('the stage and one cell of the example', () async {
+    final doc = await openExample(folder, 'stage');
+    final stage = await doc.stage(doc.root, phoneAsk);
+    expect(stage.trail.map((step) => step.id), [doc.root]);
+    final grid = stage.grids.first;
+    expect((grid.owner, grid.level, grid.first), (doc.root, 0, 0));
+    expect((grid.cols, grid.rows), (grid.xs, grid.ys));
+    final cells = stage.cells;
+    expect(cells.length, greaterThanOrEqualTo(grid.xs * grid.ys));
+    // Every cell with a grid has its summary, in the order of the cells.
+    final owners = [
+      for (final cell in cells)
+        if (cell.hasGrid) cell.id,
+    ];
+    expect(stage.summaries.map((summary) => summary.owner), owners);
+    for (final cell in cells) {
+      expect(cell.summary == null, !cell.hasGrid);
+      if (cell.summary case final at?) {
+        expect(stage.summaries[at].owner, cell.id);
+      }
+      if (cell.full case final at?) expect(stage.grids[at].owner, cell.id);
+    }
+    // Read again, every entry is equal; the answer as a whole is not.
+    final again = await doc.stage(doc.root, phoneAsk);
+    expect(again.cells, cells);
+    expect(again.summaries, stage.summaries);
+    expect(again.grids, stage.grids);
+    expect(again.trail, stage.trail);
+    expect(again == stage, isFalse);
+
+    final one = await doc.cell(cells.first.id);
+    expect(one.id, cells.first.id);
+    expect((one.summary, one.full), (null, null));
+    await expectLater(
+      doc.stage('no ID', phoneAsk),
+      refusedAs(ErrorKind.badRequest),
+    );
+    await expectLater(
+      doc.stage(
+        doc.root,
+        const StageAsk(
+          x0: -1,
+          y0: 0,
+          cols: 1,
+          rows: 1,
+          fullDepth: 0,
+          fullCells: 0,
+          previewCols: 0,
+          previewRows: 0,
+          shapeCols: 0,
+          shapeRows: 0,
+          textCut: 0,
+          previewCut: 0,
+        ),
+      ),
+      refusedAs(ErrorKind.badRequest),
+    );
+    await doc.close();
+  });
+
+  test('a group is one step, and a cancelled one is none', () async {
+    final doc = await create();
+    await doc.apply(Command.setText(cell: doc.root, text: 'start'));
+    await doc.save();
+    expect(await doc.inGroup(), isFalse);
+
+    await doc.beginGroup();
+    expect(await doc.inGroup(), isTrue);
+    expect((await doc.retype(doc.root, 'started')).changed, [doc.root]);
+    expect((await doc.retype(doc.root, 'started')).changed, isEmpty);
+    await expectLater(doc.undo(), refusedAs(ErrorKind.refused));
+    expect(await doc.isSaved(), isFalse);
+    expect((await doc.cancelGroup()).changed, [doc.root]);
+    expect(await doc.inGroup(), isFalse);
+    expect(await text(doc), 'start');
+    // Nothing is left to save of a cancelled group.
+    expect(await doc.isSaved(), isTrue);
+
+    await doc.beginGroup();
+    await doc.retype(doc.root, 'one\r\ntwo');
+    await doc.apply(Command.enterText(cell: doc.root, text: 'one\r\ntwo'));
+    expect((await doc.endGroup()).changed, [doc.root]);
+    // The line end is one code point in the document.
+    expect(await text(doc), 'one\ntwo');
+    expect((await doc.endGroup()).changed, isEmpty);
+    expect((await doc.cancelGroup()).changed, isEmpty);
+    expect((await doc.undo())!.changed, [doc.root]);
+    expect(await text(doc), 'start');
+    await doc.close();
+  });
+
+  test('the view state: a level gone to, remembered, folded, saved', () async {
+    final doc = await openExample(folder, 'view');
+    expect(await doc.viewStage(), doc.root);
+    expect(await doc.isViewSaved(), isTrue);
+    final stage = await doc.stage(doc.root, phoneAsk);
+    final inner = stage.cells.firstWhere((cell) => cell.hasGrid);
+    final plain = stage.cells.firstWhere((cell) => !cell.hasGrid);
+
+    await doc.viewGo(
+      inner.id,
+      left: LevelInfo(cell: doc.root, x: 1, y: 2, selected: plain.id),
+    );
+    expect(await doc.viewStage(), inner.id);
+    expect(await doc.isViewSaved(), isFalse);
+    // Neither is a change to the document.
+    expect(await doc.isSaved(), isTrue);
+    final level = (await doc.stage(doc.root, phoneAsk)).level!;
+    expect(
+      (level.cell, level.x, level.y, level.selected),
+      (doc.root, 1, 2, plain.id),
+    );
+    await doc.viewRemember(LevelInfo(cell: inner.id, x: 0, y: 1));
+    expect((await doc.stage(inner.id, phoneAsk)).level!.y, 1);
+    await expectLater(doc.viewGo(plain.id), refusedAs(ErrorKind.refused));
+    expect(await doc.viewStage(), inner.id);
+
+    expect(await doc.setFolded(inner.id, folded: true), isTrue);
+    expect(await doc.setFolded(inner.id, folded: true), isFalse);
+    expect((await doc.cell(inner.id)).folded, isTrue);
+    await expectLater(
+      doc.setFolded(plain.id, folded: true),
+      refusedAs(ErrorKind.refused),
+    );
+
+    await doc.saveView();
+    expect(await doc.isViewSaved(), isTrue);
+    await doc.close();
+    // The next start finds the level, the position and the fold.
+    final again = await Session.open(doc.path);
+    expect(await again.viewStage(), inner.id);
+    expect((await again.stage(inner.id, phoneAsk)).level!.y, 1);
+    expect((await again.cell(inner.id)).folded, isTrue);
+    await again.close();
+  });
+
+  test('each new call waits for its turn, and is refused after the end', () async {
+    final (doc, watched) = await watchExample(folder, 'turns');
+    final stage = await doc.stage(doc.root, phoneAsk);
+    final inner = stage.cells.firstWhere((cell) => cell.hasGrid).id;
+    watched.log.clear();
+    final level = LevelInfo(cell: doc.root, x: 0, y: 0);
+    // Every call is slow to start, so that one made after it would overtake it.
+    watched.before = (_) =>
+        Future<void>.delayed(const Duration(milliseconds: 2));
+    final calls = <String, Future<Object?> Function()>{
+      'beginGroup': doc.beginGroup,
+      'inGroup': doc.inGroup,
+      'retype': () => doc.retype(doc.root, 'typed'),
+      'stage': () => doc.stage(doc.root, phoneAsk),
+      'cell': () => doc.cell(doc.root),
+      'endGroup': doc.endGroup,
+      'cancelGroup': doc.cancelGroup,
+      'viewGo': () => doc.viewGo(inner, left: level),
+      'viewStage': doc.viewStage,
+      'viewRemember': () => doc.viewRemember(level),
+      'setFolded': () => doc.setFolded(inner, folded: true),
+      'isViewSaved': doc.isViewSaved,
+      'saveView': doc.saveView,
+    };
+    // None is waited for before the next is made.
+    final answers = [for (final call in calls.values) call()];
+    await Future.wait(answers);
+    expect(watched.log, [
+      for (final name in calls.keys) ...[name, '$name.'],
+    ]);
+    expect(await answers[1], isTrue);
+    expect(await answers[8], inner);
+    expect(await answers[11], isFalse);
+
+    watched.before = null;
+    await doc.close();
+    for (final call in calls.values) {
+      await expectLater(call(), refusedAs(ErrorKind.closed));
+    }
+    // Refused by the session: nothing reached the handle.
+    expect(watched.log.where((name) => name == 'saveView').length, 1);
+  });
+
   test('discarding comes after the calls made before it', () async {
     final fake = FakeDocument();
     final doc = await Session.over(fake);
