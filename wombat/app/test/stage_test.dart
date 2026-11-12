@@ -1,5 +1,5 @@
 // The logic of the simple grid screen without a device and without widgets, against the
-// real core. Build the library first, from `wombat/`: cargo build -p wombat_bridge
+// real core.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

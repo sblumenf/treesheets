@@ -1,23 +1,18 @@
 // The measuring of `lib/measure.dart` on a small document, without a device, so that its
-// steps are tested on every push; the numbers mean nothing here. The library must be
-// built first, from `wombat/`: cargo build -p wombat_bridge
+// steps are tested on every push; the numbers mean nothing here.
 import 'dart:io';
 
-import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wombat_app/measure.dart';
 import 'package:wombat_app/src/rust/api/document.dart';
-import 'package:wombat_app/src/rust/frb_generated.dart';
+
+import 'support.dart';
 
 void main() {
   late Directory folder;
 
   setUpAll(() async {
-    await RustLib.init(
-      externalLibrary: ExternalLibrary.open(
-        '../target/debug/libwombat_bridge.so',
-      ),
-    );
+    await loadBridge();
     folder = await Directory.systemTemp.createTemp('wombat-measure-test');
   });
 

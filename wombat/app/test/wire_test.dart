@@ -1,6 +1,5 @@
 // What crosses the bridge from Dart is checked on the other side, not cut to fit: these
-// call the real library, which must be built first, from `wombat/`:
-// cargo build -p wombat_bridge
+// call the real library.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

@@ -1,6 +1,6 @@
 // The steps of the bare app without a device: open the example, read the root grid, set
-// the text of one cell, undo. It calls the real core through the bridge, so the library
-// must be built first, from `wombat/`: cargo build -p wombat_bridge
+// the text of one cell, undo. It calls the real core through the bridge, which
+// `loadBridge` builds first.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
