@@ -41,10 +41,10 @@ impl Rng {
     }
 }
 
-const NAMES: &[&str] = &["A", "B", "C", "a b", "Total", "x"];
+const NAMES: &[&str] = &["A", "B", "C", "a b", "Total", "x", "a\nb"];
 const DATA: &[&str] = &[
     "1", "2", "10", "2.5", "-3", "0", "", "abc", "007", "1e3", "0x10", " 4 ", "A", "B", "#NAME?",
-    "é", "  ", "1e400",
+    "é", "  ", "1e400", "5\n", "\n6", "7\n8", "\n", "a\nb",
 ];
 const TOKENS: &[&str] = &[
     "SUM(",
@@ -106,6 +106,9 @@ const TOKENS: &[&str] = &[
     "😀",
     "e",
     "E",
+    "\n",
+    "'\n'",
+    "a\nb",
 ];
 
 /// A formula: often well formed, sometimes a soup of tokens, sometimes any characters.
@@ -352,7 +355,7 @@ proptest! {
     /// Any text read as a number, and any number written as text.
     #[test]
     fn numbers_are_read_and_written_without_panic(
-        text in "[ +\\-0-9a-fxXpPeE.infaN]{0,24}",
+        text in "[ \n+\\-0-9a-fxXpPeE.infaN]{0,24}",
         bits in any::<u64>(),
     ) {
         use wombat_core::eval::{num_text, stream_num, strict_num};
@@ -391,7 +394,7 @@ proptest! {
 
     /// Any formula text at all.
     #[test]
-    fn any_text_is_a_formula_with_some_result(text in ".{0,60}", soup in proptest::collection::vec(0..TOKENS.len(), 0..40)) {
+    fn any_text_is_a_formula_with_some_result(text in "(.|\n){0,60}", soup in proptest::collection::vec(0..TOKENS.len(), 0..40)) {
         let soup: String = soup.iter().map(|n| TOKENS[*n]).collect();
         let mut ids = SeededIds::from_u64(1);
         let table = json!(["A", 0, 2, 2, [["1", 0], ["x", 0], [format!("={soup}"), 6], ["B", 0, 1, 1, [["2", 0]]]]]);
@@ -400,6 +403,8 @@ proptest! {
         let calc = Calc::new(&doc);
         prop_assert_eq!(calc.results().len(), 4);
         prop_assert!(calc.results().values().all(|r| r.chars().count() < 10_000));
+        // What a formula shows can be put into a cell (`Collapse` does).
+        prop_assert!(calc.results().values().all(|r| wombat_core::text::is_clean(r)));
     }
 
     /// Random commands, groups that are ended or cancelled, undo and redo: the results are
