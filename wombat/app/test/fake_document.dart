@@ -112,6 +112,14 @@ class Watched with Hooks implements OpenDocument {
       hooked('grid', () => _real.grid(cell: cell));
 
   @override
+  Future<StageInfo> stage({required String cell, required StageAsk ask}) =>
+      hooked('stage', () => _real.stage(cell: cell, ask: ask));
+
+  @override
+  Future<CellLook> cell({required String cell}) =>
+      hooked('cell', () => _real.cell(cell: cell));
+
+  @override
   Future<Report> apply({required Command command}) =>
       hooked('apply', () => _real.apply(command: command));
 
@@ -265,6 +273,16 @@ class FakeDocument with Hooks implements OpenDocument {
       cells: inside.cells.map(_info).toList(),
     );
   });
+
+  // The stand-in does not know the calls below yet: nothing uses them through it.
+
+  @override
+  Future<StageInfo> stage({required String cell, required StageAsk ask}) =>
+      throw UnimplementedError('stage');
+
+  @override
+  Future<CellLook> cell({required String cell}) =>
+      throw UnimplementedError('cell');
 
   @override
   Future<Report> apply({required Command command}) => _call('apply', () {
