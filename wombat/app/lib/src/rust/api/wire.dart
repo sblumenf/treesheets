@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'wire.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// An error, as a value an interface can show.
 class BridgeError implements FrbException {
@@ -145,6 +145,10 @@ enum CellKind {
 ///   has one.
 /// - `has_note`: whether the cell has a note.
 /// - `has_grid`: whether the cell has a grid.
+/// - `folded`: whether the cell's grid is folded (hidden) on this device
+///   (`OpenDocument::set_folded`). Only a cell with a grid can be. The answer is the same
+///   whether folded or not, with the grid's summary and cells: hiding it is the
+///   interface's to do.
 /// - `summary`: the place of the cell's entry in `StageInfo.summaries`: there is one
 ///   exactly if the cell has a grid. Always none from `OpenDocument::cell`.
 /// - `full`: the place of the cell's grid in `StageInfo.grids`, if it is given cell by
@@ -171,6 +175,7 @@ sealed class CellLook with _$CellLook {
     String? image,
     required bool hasNote,
     required bool hasGrid,
+    required bool folded,
     int? summary,
     int? full,
   }) = _CellLook;
@@ -1112,6 +1117,52 @@ class ImageRef {
           extra == other.extra;
 }
 
+/// What one level remembers on this device. A level is a cell whose grid fills the
+/// screen. This is view state, not part of the document: it is kept in a file of its own
+/// for each device, changing it is no command and cannot be undone, and it does not make
+/// the document unsaved.
+///
+/// Dart sends this as well as reads it, so the numbers are 64 bits wide on the way and
+/// must be from 0 to 4294967295; any other is refused ([`ErrorKind::BadRequest`]).
+class LevelInfo {
+  /// The ID of the cell whose grid is the level.
+  final String cell;
+
+  /// The column of the grid at the left edge of what was last seen, counted from 0. A
+  /// column and a row, not a distance: a distance would mean nothing on a screen of
+  /// another size or after the text size changed. A position beyond the grid becomes
+  /// its last column or row.
+  final int x;
+
+  /// The row of the grid at the top edge of what was last seen, counted from 0.
+  final int y;
+
+  /// The ID of the cell that was selected there, if one was. It is forgotten when that
+  /// cell is removed.
+  final String? selected;
+
+  const LevelInfo({
+    required this.cell,
+    required this.x,
+    required this.y,
+    this.selected,
+  });
+
+  @override
+  int get hashCode =>
+      cell.hashCode ^ x.hashCode ^ y.hashCode ^ selected.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LevelInfo &&
+          runtimeType == other.runtimeType &&
+          cell == other.cell &&
+          x == other.x &&
+          y == other.y &&
+          selected == other.selected;
+}
+
 /// A range of a cell's text that is a link.
 class LinkInfo {
   /// The position of the first character of the range, counted in Unicode code points
@@ -1489,16 +1540,28 @@ class StageInfo {
   /// or not that grid is also in `grids`.
   final List<GridSummary> summaries;
 
+  /// What the stage cell's level remembers on this device: where it was scrolled to and
+  /// what was selected there when it was last left or the app was put away
+  /// (`OpenDocument::view_go`, `OpenDocument::view_remember`). `None` for a level that
+  /// was never left, and for one whose cell was removed in between, even if an undo
+  /// brought it back.
+  final LevelInfo? level;
+
   const StageInfo({
     required this.trail,
     required this.grids,
     required this.cells,
     required this.summaries,
+    this.level,
   });
 
   @override
   int get hashCode =>
-      trail.hashCode ^ grids.hashCode ^ cells.hashCode ^ summaries.hashCode;
+      trail.hashCode ^
+      grids.hashCode ^
+      cells.hashCode ^
+      summaries.hashCode ^
+      level.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1508,7 +1571,8 @@ class StageInfo {
           trail == other.trail &&
           grids == other.grids &&
           cells == other.cells &&
-          summaries == other.summaries;
+          summaries == other.summaries &&
+          level == other.level;
 }
 
 /// Text style switches.

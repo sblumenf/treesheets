@@ -6,13 +6,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use flutter_rust_bridge::frb;
 use wombat_core::storage::{self, FileCheck, FileState};
-use wombat_core::{Document, Editor, SeededIds};
+use wombat_core::{Document, Editor, SeededIds, ViewState};
 
 use super::wire::{
-    BridgeError, CellLook, Command, ErrorKind, GridInfo, Report, StageAsk, StageInfo,
+    BridgeError, CellLook, Command, ErrorKind, GridInfo, LevelInfo, Report, StageAsk, StageInfo,
 };
 use crate::convert::{
-    cell_id, command_in, grid_out, look_out, report_out, stage_ask_in, stage_out,
+    cell_id, command_in, grid_out, level_in, look_out, report_out, stage_ask_in, stage_out,
 };
 use crate::open_files::Claim;
 
@@ -65,6 +65,14 @@ struct Session {
     /// What the file looked like when it was read or last written, to tell at the next
     /// save whether another program changed it since.
     file: FileState,
+    /// The view state of the document on this device: which level the screen shows, what
+    /// each level remembers, which grids are folded. It is here, beside the editor,
+    /// because it has to be told of every change to the document, and every change
+    /// passes [`Session::report`].
+    view: ViewState,
+    /// Whether the view state was not changed since it was read from its file, or
+    /// written to it: there is nothing to write.
+    view_saved: bool,
     /// Set while a call that changes the document is under way. Found set at the start
     /// of a call, it means that such a call never finished: a panic unwound through it
     /// and the document may be half changed.
@@ -88,6 +96,10 @@ impl Session {
     fn report(&mut self, changes: &wombat_core::Changes) -> Report {
         if !changes.is_empty() {
             self.saved = false;
+        }
+        // The view state forgets what refers to cells that are gone.
+        if self.view.apply_changes(self.editor.document(), changes) {
+            self.view_saved = false;
         }
         report_out(changes, self.editor.recalculated())
     }
@@ -119,6 +131,21 @@ impl Session {
         Ok(())
     }
 
+    /// Writes the view state to its file if it changed since it was read or written.
+    /// The file is found by the folder of the document and the document's ID, as the
+    /// storage layer says.
+    fn save_view(&mut self) -> Result<(), BridgeError> {
+        if self.view_saved {
+            return Ok(());
+        }
+        #[cfg(test)]
+        assert!(!self.panic_in_write, "on purpose, while writing the file");
+        let folder = self.path.parent().unwrap_or(Path::new(""));
+        storage::save_view_state(folder, &self.view)?;
+        self.view_saved = true;
+        Ok(())
+    }
+
     /// What a drop may save: unsaved work whose file is as it was or gone. A file that
     /// someone else changed is left alone, because a drop has no one to ask or tell.
     fn save_quietly(&mut self) {
@@ -143,13 +170,26 @@ impl Session {
 /// panic. It also blocks that thread for as long as the save takes, and it never runs at
 /// all when the system kills the app: an interface saves by calling `save` or `close`,
 /// and does not count on this.
+///
+/// The view state is written here too, if it changed, also for a document that was
+/// closed properly: closing saves the document and then drops this. It comes after the
+/// document, so that nothing about it can keep the document from being saved, and
+/// whether it could be written is nobody's concern: it is a convenience, and the next
+/// start finds the screen where the file last said, or at the root.
 impl Drop for Session {
     fn drop(&mut self) {
-        // Nothing is saved from a document that may be half changed.
-        if self.saved || self.unfinished {
+        // Nothing is saved from a document that may be half changed, nor of where the
+        // screen was in it.
+        if self.unfinished || (self.saved && self.view_saved) {
             return;
         }
-        if let Err(panic) = catch_unwind(AssertUnwindSafe(|| self.save_quietly())) {
+        let save = AssertUnwindSafe(|| {
+            if !self.saved {
+                self.save_quietly();
+            }
+            let _ = self.save_view();
+        });
+        if let Err(panic) = catch_unwind(save) {
             std::mem::forget(panic);
         }
     }
@@ -220,6 +260,18 @@ impl OpenDocument {
         // only what `Document::validate` refuses, and saving ran that on this very
         // document before it wrote. So no file is left without a document that is open.
         let editor = Editor::new(doc)?;
+        let doc = editor.document();
+        // Where the screen was is a convenience: a file of it that is missing, damaged,
+        // written by a newer version or another document's is no reason not to open the
+        // document, and the screen starts at the root. Such a file is left as it is until
+        // there is something to write. Nor is it an error that the file is older than
+        // the document and names cells that are gone: those are forgotten.
+        let folder = claim.path().parent().unwrap_or(Path::new(""));
+        let mut view = storage::load_view_state(folder, doc.id())
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| ViewState::new(doc.id()));
+        view.retain_existing(doc);
         Ok(OpenDocument {
             session: Some(Session {
                 editor,
@@ -229,6 +281,8 @@ impl OpenDocument {
                 saved: true,
                 saved_before_group: false,
                 file,
+                view,
+                view_saved: true,
                 unfinished: false,
                 _claim: claim,
                 #[cfg(test)]
@@ -448,7 +502,8 @@ impl OpenDocument {
     pub fn stage(&self, cell: String, ask: StageAsk) -> Result<StageInfo, BridgeError> {
         let session = self.session()?;
         let ask = stage_ask_in(ask)?;
-        Ok(stage_out(session.editor.stage_view(cell_id(&cell)?, &ask)?))
+        let view = session.editor.stage_view(cell_id(&cell)?, &ask)?;
+        Ok(stage_out(view, &session.view))
     }
 
     /// One cell with its whole text, runs and links, nothing cut: what an editor opens
@@ -457,7 +512,111 @@ impl OpenDocument {
     /// [`ErrorKind::NotFound`], text that is no ID [`ErrorKind::BadRequest`].
     pub fn cell(&self, cell: String) -> Result<CellLook, BridgeError> {
         let session = self.session()?;
-        Ok(look_out(session.editor.cell_look(cell_id(&cell)?)?))
+        let look = session.editor.cell_look(cell_id(&cell)?)?;
+        Ok(look_out(look, &session.view))
+    }
+
+    /// The level to show: the cell whose grid fills the screen, as an ID. That is the
+    /// level last gone to on this device ([`OpenDocument::view_go`]), also before the
+    /// app was last closed; if that cell is gone or has lost its grid, the nearest cell
+    /// above it that has one; otherwise the root. It is always a cell of the document,
+    /// so this is where a screen starts, and where it goes when its stage disappears.
+    ///
+    /// The calls named `view_…`, [`OpenDocument::set_folded`] and
+    /// [`OpenDocument::save_view`] are about the **view state**: which level is shown,
+    /// what each level remembers (in [`StageInfo`] `level`) and which grids are folded
+    /// (in [`CellLook`] `folded`). It belongs to this device, not to the document:
+    /// changing it is no command, is not in the undo history and never makes the
+    /// document unsaved. It is read when the document is opened (a copy made by
+    /// [`OpenDocument::open_copy`] starts with that of the original), follows every
+    /// change by itself (what refers to a removed cell is forgotten, and does not come
+    /// back when an undo or a cancelled group brings the cell back), and is written to a
+    /// file of its own beside the document by [`OpenDocument::save_view`], by
+    /// [`OpenDocument::close`] and when the handle is disposed of. A view-state file that
+    /// is missing or cannot be read is never an error: the screen starts at the root.
+    pub fn view_stage(&self) -> Result<String, BridgeError> {
+        let session = self.session()?;
+        Ok(session.view.stage(session.editor.document()).to_string())
+    }
+
+    /// Makes `cell` the level that is shown, after remembering in `left`, if given, how
+    /// the level that is left looked (dive, up, a jump along the trail). Scrolling
+    /// itself needs no call: hand the position over here when the level is left.
+    ///
+    /// Refused, with nothing remembered and nowhere gone: a `cell` that has no grid,
+    /// except the root ([`ErrorKind::Refused`]); a `left` whose cell has no grid, the
+    /// root included, which a new document's is ([`ErrorKind::Refused`]); a cell that
+    /// does not exist, `left.selected` too ([`ErrorKind::NotFound`]); text that is no
+    /// ID, or a position below 0 or above 4294967295 ([`ErrorKind::BadRequest`]).
+    pub fn view_go(&mut self, cell: String, left: Option<LevelInfo>) -> Result<(), BridgeError> {
+        let session = self.session_mut()?;
+        let doc = session.editor.document();
+        let cell = cell_id(&cell)?;
+        let left = left.map(level_in).transpose()?;
+        // Asked of a view state made for the question, so that a place that cannot be
+        // gone to is refused before anything is remembered.
+        ViewState::new(doc.id()).go(doc, cell)?;
+        if let Some(left) = left {
+            session.view.remember(doc, left)?;
+            session.view_saved = false;
+        }
+        let before = session.view.zoom;
+        session.view.go(doc, cell)?;
+        if session.view.zoom != before {
+            session.view_saved = false;
+        }
+        Ok(())
+    }
+
+    /// Remembers how a level looks without going anywhere: for the level that is shown,
+    /// before the app is put away. It replaces what was remembered of that level. The
+    /// 256 levels remembered last are kept.
+    ///
+    /// Refused as `left` of [`OpenDocument::view_go`] is. That includes the root of a
+    /// document that has no grid yet ([`ErrorKind::Refused`]): there is nothing to
+    /// remember of it, and an interface that is put away there goes on without.
+    pub fn view_remember(&mut self, level: LevelInfo) -> Result<(), BridgeError> {
+        let session = self.session_mut()?;
+        let level = level_in(level)?;
+        session.view.remember(session.editor.document(), level)?;
+        session.view_saved = false;
+        Ok(())
+    }
+
+    /// Folds (hides) or unfolds the grid of `cell` on this device, and returns whether
+    /// that changed anything. A cell without a grid is refused ([`ErrorKind::Refused`]),
+    /// one that does not exist is [`ErrorKind::NotFound`]. The fold goes when the cell
+    /// or its grid is removed, and does not come back with it.
+    pub fn set_folded(&mut self, cell: String, folded: bool) -> Result<bool, BridgeError> {
+        let session = self.session_mut()?;
+        let doc = session.editor.document();
+        let changed = session.view.set_folded(doc, cell_id(&cell)?, folded)?;
+        if changed {
+            session.view_saved = false;
+        }
+        Ok(changed)
+    }
+
+    /// Whether the view state is as its file has it: nothing of it changed since it was
+    /// read or written, by a call or by a change to the document that removed something
+    /// it referred to. True also when there is no file and nothing to put in one.
+    pub fn is_view_saved(&self) -> Result<bool, BridgeError> {
+        Ok(self.session()?.view_saved)
+    }
+
+    /// Writes the view state to its file if it changed since it was read or written
+    /// ([`OpenDocument::is_view_saved`]); otherwise it does nothing. The file is small,
+    /// is this device's alone, and is replaced whole.
+    ///
+    /// It has nothing to do with the document's file: it is written also when the
+    /// document cannot be saved, and an error here says nothing about the document
+    /// ([`ErrorKind::Io`]; [`ErrorKind::Invalid`] when the folder for these files,
+    /// `.wombat-view` beside the document, is a link or a file, where the core will not
+    /// write). Such an error is for whoever wants to know: nothing is lost
+    /// but where the screen was, [`OpenDocument::close`] tries again without reporting,
+    /// and an interface should not show it as a failed save.
+    pub fn save_view(&mut self) -> Result<(), BridgeError> {
+        self.session_mut()?.save_view()
     }
 
     /// Carries out a command and returns what it changed.
@@ -694,6 +853,11 @@ impl OpenDocument {
     /// - If nothing was done since the last save, nothing is written and the file is not
     ///   looked at: closing a document that was only read never fails, never brings back a
     ///   file that was removed, and never complains about a file that someone else changed.
+    ///
+    /// The view state ([`OpenDocument::view_stage`]) is written too if it changed, after
+    /// the document and only when the close succeeds. That it could not be written is
+    /// not reported and does not fail the close: call [`OpenDocument::save_view`] first
+    /// to know.
     ///
     /// After a close that succeeded the file may be opened again, the memory is freed, and
     /// every later call on this handle, `close` included, is refused with

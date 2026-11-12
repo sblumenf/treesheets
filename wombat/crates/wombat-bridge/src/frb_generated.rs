@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 971812213;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 135176716;
 
 // Section: executor
 
@@ -583,6 +583,56 @@ fn wire__crate__api__document__OpenDocument_is_saved_impl(
         },
     )
 }
+fn wire__crate__api__document__OpenDocument_is_view_saved_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OpenDocument_is_view_saved",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OpenDocument>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::wire::BridgeError>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok =
+                        crate::api::document::OpenDocument::is_view_saved(&*api_that_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__document__OpenDocument_open_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -952,6 +1002,111 @@ fn wire__crate__api__document__OpenDocument_save_impl(
         },
     )
 }
+fn wire__crate__api__document__OpenDocument_save_view_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OpenDocument_save_view",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OpenDocument>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::wire::BridgeError>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, true,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let mut api_that_guard = api_that_guard.unwrap();
+                    let output_ok =
+                        crate::api::document::OpenDocument::save_view(&mut *api_that_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__document__OpenDocument_set_folded_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OpenDocument_set_folded",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OpenDocument>,
+            >>::sse_decode(&mut deserializer);
+            let api_cell = <String>::sse_decode(&mut deserializer);
+            let api_folded = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::wire::BridgeError>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, true,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let mut api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::document::OpenDocument::set_folded(
+                        &mut *api_that_guard,
+                        api_cell,
+                        api_folded,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__document__OpenDocument_stage_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1050,6 +1205,164 @@ fn wire__crate__api__document__OpenDocument_undo_impl(
                     }
                     let mut api_that_guard = api_that_guard.unwrap();
                     let output_ok = crate::api::document::OpenDocument::undo(&mut *api_that_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__document__OpenDocument_view_go_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OpenDocument_view_go",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OpenDocument>,
+            >>::sse_decode(&mut deserializer);
+            let api_cell = <String>::sse_decode(&mut deserializer);
+            let api_left = <Option<crate::api::wire::LevelInfo>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::wire::BridgeError>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, true,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let mut api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::document::OpenDocument::view_go(
+                        &mut *api_that_guard,
+                        api_cell,
+                        api_left,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__document__OpenDocument_view_remember_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OpenDocument_view_remember",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OpenDocument>,
+            >>::sse_decode(&mut deserializer);
+            let api_level = <crate::api::wire::LevelInfo>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::wire::BridgeError>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, true,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let mut api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::document::OpenDocument::view_remember(
+                        &mut *api_that_guard,
+                        api_level,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__document__OpenDocument_view_stage_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OpenDocument_view_stage",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OpenDocument>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::wire::BridgeError>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok =
+                        crate::api::document::OpenDocument::view_stage(&*api_that_guard)?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -1271,6 +1584,7 @@ impl SseDecode for crate::api::wire::CellLook {
         let mut var_image = <Option<String>>::sse_decode(deserializer);
         let mut var_hasNote = <bool>::sse_decode(deserializer);
         let mut var_hasGrid = <bool>::sse_decode(deserializer);
+        let mut var_folded = <bool>::sse_decode(deserializer);
         let mut var_summary = <Option<u32>>::sse_decode(deserializer);
         let mut var_full = <Option<u32>>::sse_decode(deserializer);
         return crate::api::wire::CellLook {
@@ -1293,6 +1607,7 @@ impl SseDecode for crate::api::wire::CellLook {
             image: var_image,
             has_note: var_hasNote,
             has_grid: var_hasGrid,
+            folded: var_folded,
             summary: var_summary,
             full: var_full,
         };
@@ -1919,6 +2234,22 @@ impl SseDecode for crate::api::wire::ImageRef {
     }
 }
 
+impl SseDecode for crate::api::wire::LevelInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_cell = <String>::sse_decode(deserializer);
+        let mut var_x = <i64>::sse_decode(deserializer);
+        let mut var_y = <i64>::sse_decode(deserializer);
+        let mut var_selected = <Option<String>>::sse_decode(deserializer);
+        return crate::api::wire::LevelInfo {
+            cell: var_cell,
+            x: var_x,
+            y: var_y,
+            selected: var_selected,
+        };
+    }
+}
+
 impl SseDecode for crate::api::wire::LinkInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2160,6 +2491,17 @@ impl SseDecode for Option<crate::api::wire::ImageRef> {
     }
 }
 
+impl SseDecode for Option<crate::api::wire::LevelInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::wire::LevelInfo>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::wire::LinkTarget> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2361,11 +2703,13 @@ impl SseDecode for crate::api::wire::StageInfo {
         let mut var_grids = <Vec<crate::api::wire::GridPart>>::sse_decode(deserializer);
         let mut var_cells = <Vec<crate::api::wire::CellLook>>::sse_decode(deserializer);
         let mut var_summaries = <Vec<crate::api::wire::GridSummary>>::sse_decode(deserializer);
+        let mut var_level = <Option<crate::api::wire::LevelInfo>>::sse_decode(deserializer);
         return crate::api::wire::StageInfo {
             trail: var_trail,
             grids: var_grids,
             cells: var_cells,
             summaries: var_summaries,
+            level: var_level,
         };
     }
 }
@@ -2501,33 +2845,66 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__document__OpenDocument_open_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__document__OpenDocument_open_copy_impl(
+        12 => wire__crate__api__document__OpenDocument_is_view_saved_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__document__OpenDocument_overwrite_impl(
+        13 => wire__crate__api__document__OpenDocument_open_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__document__OpenDocument_open_copy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        15 => wire__crate__api__document__OpenDocument_path_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__document__OpenDocument_redo_impl(port, ptr, rust_vec_len, data_len),
-        17 => {
+        15 => wire__crate__api__document__OpenDocument_overwrite_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        16 => wire__crate__api__document__OpenDocument_path_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__document__OpenDocument_redo_impl(port, ptr, rust_vec_len, data_len),
+        18 => {
             wire__crate__api__document__OpenDocument_retype_impl(port, ptr, rust_vec_len, data_len)
         }
-        18 => wire__crate__api__document__OpenDocument_root_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__document__OpenDocument_save_impl(port, ptr, rust_vec_len, data_len),
-        20 => {
+        19 => wire__crate__api__document__OpenDocument_root_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__document__OpenDocument_save_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__document__OpenDocument_save_view_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        22 => wire__crate__api__document__OpenDocument_set_folded_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        23 => {
             wire__crate__api__document__OpenDocument_stage_impl(port, ptr, rust_vec_len, data_len)
         }
-        21 => wire__crate__api__document__OpenDocument_undo_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__document__init_app_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__wire__report_default_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__wire__style_default_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__document__OpenDocument_undo_impl(port, ptr, rust_vec_len, data_len),
+        25 => {
+            wire__crate__api__document__OpenDocument_view_go_impl(port, ptr, rust_vec_len, data_len)
+        }
+        26 => wire__crate__api__document__OpenDocument_view_remember_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        27 => wire__crate__api__document__OpenDocument_view_stage_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        28 => wire__crate__api__document__init_app_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__wire__report_default_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__wire__style_default_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2644,6 +3021,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::wire::CellLook {
             self.image.into_into_dart().into_dart(),
             self.has_note.into_into_dart().into_dart(),
             self.has_grid.into_into_dart().into_dart(),
+            self.folded.into_into_dart().into_dart(),
             self.summary.into_into_dart().into_dart(),
             self.full.into_into_dart().into_dart(),
         ]
@@ -3231,6 +3609,26 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::ImageRef> for crate::ap
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wire::LevelInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.cell.into_into_dart().into_dart(),
+            self.x.into_into_dart().into_dart(),
+            self.y.into_into_dart().into_dart(),
+            self.selected.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::LevelInfo {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::LevelInfo>
+    for crate::api::wire::LevelInfo
+{
+    fn into_into_dart(self) -> crate::api::wire::LevelInfo {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::wire::LinkInfo {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -3422,6 +3820,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::wire::StageInfo {
             self.grids.into_into_dart().into_dart(),
             self.cells.into_into_dart().into_dart(),
             self.summaries.into_into_dart().into_dart(),
+            self.level.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3607,6 +4006,7 @@ impl SseEncode for crate::api::wire::CellLook {
         <Option<String>>::sse_encode(self.image, serializer);
         <bool>::sse_encode(self.has_note, serializer);
         <bool>::sse_encode(self.has_grid, serializer);
+        <bool>::sse_encode(self.folded, serializer);
         <Option<u32>>::sse_encode(self.summary, serializer);
         <Option<u32>>::sse_encode(self.full, serializer);
     }
@@ -4108,6 +4508,16 @@ impl SseEncode for crate::api::wire::ImageRef {
     }
 }
 
+impl SseEncode for crate::api::wire::LevelInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.cell, serializer);
+        <i64>::sse_encode(self.x, serializer);
+        <i64>::sse_encode(self.y, serializer);
+        <Option<String>>::sse_encode(self.selected, serializer);
+    }
+}
+
 impl SseEncode for crate::api::wire::LinkInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4310,6 +4720,16 @@ impl SseEncode for Option<crate::api::wire::ImageRef> {
     }
 }
 
+impl SseEncode for Option<crate::api::wire::LevelInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::wire::LevelInfo>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::wire::LinkTarget> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4473,6 +4893,7 @@ impl SseEncode for crate::api::wire::StageInfo {
         <Vec<crate::api::wire::GridPart>>::sse_encode(self.grids, serializer);
         <Vec<crate::api::wire::CellLook>>::sse_encode(self.cells, serializer);
         <Vec<crate::api::wire::GridSummary>>::sse_encode(self.summaries, serializer);
+        <Option<crate::api::wire::LevelInfo>>::sse_encode(self.level, serializer);
     }
 }
 

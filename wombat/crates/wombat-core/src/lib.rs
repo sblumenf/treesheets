@@ -45,7 +45,7 @@ pub use model::{
     Cell, CellKind, Color, Document, DrawStyle, FreshIds, Grid, ImageRef, Link, LinkTarget, Run,
     Style, Tag, TextAlign, VertAlign,
 };
-pub use view::{Selection, ViewState};
+pub use view::{Level, Selection, ViewState};
 pub use workspace::{IdCollision, Workspace};
 
 /// The version of the core library.

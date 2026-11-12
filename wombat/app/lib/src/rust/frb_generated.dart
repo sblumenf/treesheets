@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 971812213;
+  int get rustContentHash => 135176716;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -125,6 +125,10 @@ abstract class RustLibApi extends BaseApi {
     required OpenDocument that,
   });
 
+  Future<bool> crateApiDocumentOpenDocumentIsViewSaved({
+    required OpenDocument that,
+  });
+
   Future<OpenDocument> crateApiDocumentOpenDocumentOpen({required String path});
 
   Future<OpenDocument> crateApiDocumentOpenDocumentOpenCopy({
@@ -152,6 +156,16 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiDocumentOpenDocumentSave({required OpenDocument that});
 
+  Future<void> crateApiDocumentOpenDocumentSaveView({
+    required OpenDocument that,
+  });
+
+  Future<bool> crateApiDocumentOpenDocumentSetFolded({
+    required OpenDocument that,
+    required String cell,
+    required bool folded,
+  });
+
   Future<StageInfo> crateApiDocumentOpenDocumentStage({
     required OpenDocument that,
     required String cell,
@@ -159,6 +173,21 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<Report?> crateApiDocumentOpenDocumentUndo({
+    required OpenDocument that,
+  });
+
+  Future<void> crateApiDocumentOpenDocumentViewGo({
+    required OpenDocument that,
+    required String cell,
+    LevelInfo? left,
+  });
+
+  Future<void> crateApiDocumentOpenDocumentViewRemember({
+    required OpenDocument that,
+    required LevelInfo level,
+  });
+
+  Future<String> crateApiDocumentOpenDocumentViewStage({
     required OpenDocument that,
   });
 
@@ -573,6 +602,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<bool> crateApiDocumentOpenDocumentIsViewSaved({
+    required OpenDocument that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentIsViewSavedConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentIsViewSavedConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_is_view_saved",
+        argNames: ["that"],
+      );
+
+  @override
   Future<OpenDocument> crateApiDocumentOpenDocumentOpen({
     required String path,
   }) {
@@ -584,7 +649,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -617,7 +682,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 14,
             port: port_,
           );
         },
@@ -654,7 +719,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -690,7 +755,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -723,7 +788,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 17,
             port: port_,
           );
         },
@@ -760,7 +825,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 18,
             port: port_,
           );
         },
@@ -796,7 +861,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 19,
             port: port_,
           );
         },
@@ -827,7 +892,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -844,6 +909,82 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiDocumentOpenDocumentSaveConstMeta =>
       const TaskConstMeta(debugName: "OpenDocument_save", argNames: ["that"]);
+
+  @override
+  Future<void> crateApiDocumentOpenDocumentSaveView({
+    required OpenDocument that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 21,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentSaveViewConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentSaveViewConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_save_view",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiDocumentOpenDocumentSetFolded({
+    required OpenDocument that,
+    required String cell,
+    required bool folded,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          sse_encode_String(cell, serializer);
+          sse_encode_bool(folded, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 22,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentSetFoldedConstMeta,
+        argValues: [that, cell, folded],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentSetFoldedConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_set_folded",
+        argNames: ["that", "cell", "folded"],
+      );
 
   @override
   Future<StageInfo> crateApiDocumentOpenDocumentStage({
@@ -864,7 +1005,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 23,
             port: port_,
           );
         },
@@ -900,7 +1041,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 24,
             port: port_,
           );
         },
@@ -919,6 +1060,120 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "OpenDocument_undo", argNames: ["that"]);
 
   @override
+  Future<void> crateApiDocumentOpenDocumentViewGo({
+    required OpenDocument that,
+    required String cell,
+    LevelInfo? left,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          sse_encode_String(cell, serializer);
+          sse_encode_opt_box_autoadd_level_info(left, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 25,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentViewGoConstMeta,
+        argValues: [that, cell, left],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentViewGoConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_view_go",
+        argNames: ["that", "cell", "left"],
+      );
+
+  @override
+  Future<void> crateApiDocumentOpenDocumentViewRemember({
+    required OpenDocument that,
+    required LevelInfo level,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_level_info(level, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 26,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentViewRememberConstMeta,
+        argValues: [that, level],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentViewRememberConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_view_remember",
+        argNames: ["that", "level"],
+      );
+
+  @override
+  Future<String> crateApiDocumentOpenDocumentViewStage({
+    required OpenDocument that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentViewStageConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentViewStageConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_view_stage",
+        argNames: ["that"],
+      );
+
+  @override
   Future<void> crateApiDocumentInitApp() {
     return handler.executeNormal(
       NormalTask(
@@ -927,7 +1182,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 28,
             port: port_,
           );
         },
@@ -954,7 +1209,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 29,
             port: port_,
           );
         },
@@ -981,7 +1236,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1088,6 +1343,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LevelInfo dco_decode_box_autoadd_level_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_level_info(raw);
+  }
+
+  @protected
   LinkTarget dco_decode_box_autoadd_link_target(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_link_target(raw);
@@ -1168,8 +1429,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   CellLook dco_decode_cell_look(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 21)
-      throw Exception('unexpected arr length: expect 21 but see ${arr.length}');
+    if (arr.length != 22)
+      throw Exception('unexpected arr length: expect 22 but see ${arr.length}');
     return CellLook(
       id: dco_decode_String(arr[0]),
       text: dco_decode_String(arr[1]),
@@ -1190,8 +1451,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       image: dco_decode_opt_String(arr[16]),
       hasNote: dco_decode_bool(arr[17]),
       hasGrid: dco_decode_bool(arr[18]),
-      summary: dco_decode_opt_box_autoadd_u_32(arr[19]),
-      full: dco_decode_opt_box_autoadd_u_32(arr[20]),
+      folded: dco_decode_bool(arr[19]),
+      summary: dco_decode_opt_box_autoadd_u_32(arr[20]),
+      full: dco_decode_opt_box_autoadd_u_32(arr[21]),
     );
   }
 
@@ -1591,6 +1853,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LevelInfo dco_decode_level_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return LevelInfo(
+      cell: dco_decode_String(arr[0]),
+      x: dco_decode_CastedPrimitive_i_64(arr[1]),
+      y: dco_decode_CastedPrimitive_i_64(arr[2]),
+      selected: dco_decode_opt_String(arr[3]),
+    );
+  }
+
+  @protected
   LinkInfo dco_decode_link_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1724,6 +2000,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LevelInfo? dco_decode_opt_box_autoadd_level_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_level_info(raw);
+  }
+
+  @protected
   LinkTarget? dco_decode_opt_box_autoadd_link_target(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_link_target(raw);
@@ -1853,13 +2135,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StageInfo dco_decode_stage_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return StageInfo(
       trail: dco_decode_list_trail_step(arr[0]),
       grids: dco_decode_list_grid_part(arr[1]),
       cells: dco_decode_list_cell_look(arr[2]),
       summaries: dco_decode_list_grid_summary(arr[3]),
+      level: dco_decode_opt_box_autoadd_level_info(arr[4]),
     );
   }
 
@@ -2026,6 +2309,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LevelInfo sse_decode_box_autoadd_level_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_level_info(deserializer));
+  }
+
+  @protected
   LinkTarget sse_decode_box_autoadd_link_target(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_link_target(deserializer));
@@ -2124,6 +2413,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_image = sse_decode_opt_String(deserializer);
     var var_hasNote = sse_decode_bool(deserializer);
     var var_hasGrid = sse_decode_bool(deserializer);
+    var var_folded = sse_decode_bool(deserializer);
     var var_summary = sse_decode_opt_box_autoadd_u_32(deserializer);
     var var_full = sse_decode_opt_box_autoadd_u_32(deserializer);
     return CellLook(
@@ -2146,6 +2436,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       image: var_image,
       hasNote: var_hasNote,
       hasGrid: var_hasGrid,
+      folded: var_folded,
       summary: var_summary,
       full: var_full,
     );
@@ -2621,6 +2912,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LevelInfo sse_decode_level_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_cell = sse_decode_String(deserializer);
+    var var_x = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_y = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_selected = sse_decode_opt_String(deserializer);
+    return LevelInfo(
+      cell: var_cell,
+      x: var_x,
+      y: var_y,
+      selected: var_selected,
+    );
+  }
+
+  @protected
   LinkInfo sse_decode_link_info(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_start = sse_decode_u_32(deserializer);
@@ -2840,6 +3146,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LevelInfo? sse_decode_opt_box_autoadd_level_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_level_info(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   LinkTarget? sse_decode_opt_box_autoadd_link_target(
     SseDeserializer deserializer,
   ) {
@@ -3019,11 +3338,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_grids = sse_decode_list_grid_part(deserializer);
     var var_cells = sse_decode_list_cell_look(deserializer);
     var var_summaries = sse_decode_list_grid_summary(deserializer);
+    var var_level = sse_decode_opt_box_autoadd_level_info(deserializer);
     return StageInfo(
       trail: var_trail,
       grids: var_grids,
       cells: var_cells,
       summaries: var_summaries,
+      level: var_level,
     );
   }
 
@@ -3195,6 +3516,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_level_info(
+    LevelInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_level_info(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_link_target(
     LinkTarget self,
     SseSerializer serializer,
@@ -3292,6 +3622,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.image, serializer);
     sse_encode_bool(self.hasNote, serializer);
     sse_encode_bool(self.hasGrid, serializer);
+    sse_encode_bool(self.folded, serializer);
     sse_encode_opt_box_autoadd_u_32(self.summary, serializer);
     sse_encode_opt_box_autoadd_u_32(self.full, serializer);
   }
@@ -3733,6 +4064,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_level_info(LevelInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.cell, serializer);
+    sse_encode_CastedPrimitive_i_64(self.x, serializer);
+    sse_encode_CastedPrimitive_i_64(self.y, serializer);
+    sse_encode_opt_String(self.selected, serializer);
+  }
+
+  @protected
   void sse_encode_link_info(LinkInfo self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self.start, serializer);
@@ -3946,6 +4286,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_level_info(
+    LevelInfo? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_level_info(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_link_target(
     LinkTarget? self,
     SseSerializer serializer,
@@ -4092,6 +4445,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_grid_part(self.grids, serializer);
     sse_encode_list_cell_look(self.cells, serializer);
     sse_encode_list_grid_summary(self.summaries, serializer);
+    sse_encode_opt_box_autoadd_level_info(self.level, serializer);
   }
 
   @protected
@@ -4266,6 +4620,11 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   ///   looked at: closing a document that was only read never fails, never brings back a
   ///   file that was removed, and never complains about a file that someone else changed.
   ///
+  /// The view state ([`OpenDocument::view_stage`]) is written too if it changed, after
+  /// the document and only when the close succeeds. That it could not be written is
+  /// not reported and does not fail the close: call [`OpenDocument::save_view`] first
+  /// to know.
+  ///
   /// After a close that succeeded the file may be opened again, the memory is freed, and
   /// every later call on this handle, `close` included, is refused with
   /// [`ErrorKind::Closed`]. The handle itself is still Dart's to dispose of.
@@ -4309,6 +4668,12 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   /// saved document whose file was not written since ([`OpenDocument::cancel_group`]).
   Future<bool> isSaved() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentIsSaved(that: this);
+
+  /// Whether the view state is as its file has it: nothing of it changed since it was
+  /// read or written, by a call or by a change to the document that removed something
+  /// it referred to. True also when there is no file and nothing to put in one.
+  Future<bool> isViewSaved() =>
+      RustLib.instance.api.crateApiDocumentOpenDocumentIsViewSaved(that: this);
 
   /// Writes the document to its file whatever is there, replacing what another program
   /// saved since: for when [`OpenDocument::save`] answered [`ErrorKind::ChangedOnDisk`]
@@ -4374,6 +4739,31 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   Future<void> save() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentSave(that: this);
 
+  /// Writes the view state to its file if it changed since it was read or written
+  /// ([`OpenDocument::is_view_saved`]); otherwise it does nothing. The file is small,
+  /// is this device's alone, and is replaced whole.
+  ///
+  /// It has nothing to do with the document's file: it is written also when the
+  /// document cannot be saved, and an error here says nothing about the document
+  /// ([`ErrorKind::Io`]; [`ErrorKind::Invalid`] when the folder for these files,
+  /// `.wombat-view` beside the document, is a link or a file, where the core will not
+  /// write). Such an error is for whoever wants to know: nothing is lost
+  /// but where the screen was, [`OpenDocument::close`] tries again without reporting,
+  /// and an interface should not show it as a failed save.
+  Future<void> saveView() =>
+      RustLib.instance.api.crateApiDocumentOpenDocumentSaveView(that: this);
+
+  /// Folds (hides) or unfolds the grid of `cell` on this device, and returns whether
+  /// that changed anything. A cell without a grid is refused ([`ErrorKind::Refused`]),
+  /// one that does not exist is [`ErrorKind::NotFound`]. The fold goes when the cell
+  /// or its grid is removed, and does not come back with it.
+  Future<bool> setFolded({required String cell, required bool folded}) =>
+      RustLib.instance.api.crateApiDocumentOpenDocumentSetFolded(
+        that: this,
+        cell: cell,
+        folded: folded,
+      );
+
   /// What a screen that shows nested grids draws from, in one answer: the grid of
   /// `cell` (the stage) or a window of its rows and columns, the trail from the root
   /// down to `cell`, and every grid nested below as far as `ask` says, cell by cell
@@ -4405,4 +4795,49 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   /// group is open ([`ErrorKind::Refused`]).
   Future<Report?> undo() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentUndo(that: this);
+
+  /// Makes `cell` the level that is shown, after remembering in `left`, if given, how
+  /// the level that is left looked (dive, up, a jump along the trail). Scrolling
+  /// itself needs no call: hand the position over here when the level is left.
+  ///
+  /// Refused, with nothing remembered and nowhere gone: a `cell` that has no grid,
+  /// except the root ([`ErrorKind::Refused`]); a `left` whose cell has no grid, the
+  /// root included, which a new document's is ([`ErrorKind::Refused`]); a cell that
+  /// does not exist, `left.selected` too ([`ErrorKind::NotFound`]); text that is no
+  /// ID, or a position below 0 or above 4294967295 ([`ErrorKind::BadRequest`]).
+  Future<void> viewGo({required String cell, LevelInfo? left}) => RustLib
+      .instance
+      .api
+      .crateApiDocumentOpenDocumentViewGo(that: this, cell: cell, left: left);
+
+  /// Remembers how a level looks without going anywhere: for the level that is shown,
+  /// before the app is put away. It replaces what was remembered of that level. The
+  /// 256 levels remembered last are kept.
+  ///
+  /// Refused as `left` of [`OpenDocument::view_go`] is. That includes the root of a
+  /// document that has no grid yet ([`ErrorKind::Refused`]): there is nothing to
+  /// remember of it, and an interface that is put away there goes on without.
+  Future<void> viewRemember({required LevelInfo level}) => RustLib.instance.api
+      .crateApiDocumentOpenDocumentViewRemember(that: this, level: level);
+
+  /// The level to show: the cell whose grid fills the screen, as an ID. That is the
+  /// level last gone to on this device ([`OpenDocument::view_go`]), also before the
+  /// app was last closed; if that cell is gone or has lost its grid, the nearest cell
+  /// above it that has one; otherwise the root. It is always a cell of the document,
+  /// so this is where a screen starts, and where it goes when its stage disappears.
+  ///
+  /// The calls named `view_…`, [`OpenDocument::set_folded`] and
+  /// [`OpenDocument::save_view`] are about the **view state**: which level is shown,
+  /// what each level remembers (in [`StageInfo`] `level`) and which grids are folded
+  /// (in [`CellLook`] `folded`). It belongs to this device, not to the document:
+  /// changing it is no command, is not in the undo history and never makes the
+  /// document unsaved. It is read when the document is opened (a copy made by
+  /// [`OpenDocument::open_copy`] starts with that of the original), follows every
+  /// change by itself (what refers to a removed cell is forgotten, and does not come
+  /// back when an undo or a cancelled group brings the cell back), and is written to a
+  /// file of its own beside the document by [`OpenDocument::save_view`], by
+  /// [`OpenDocument::close`] and when the handle is disposed of. A view-state file that
+  /// is missing or cannot be read is never an error: the screen starts at the root.
+  Future<String> viewStage() =>
+      RustLib.instance.api.crateApiDocumentOpenDocumentViewStage(that: this);
 }

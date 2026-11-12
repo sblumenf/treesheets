@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$CellLook {
 
- String get id; String get text; bool get textCut; CellKind get kind; String? get result; bool get resultCut; bool get failed; Rgb get cellColor; Rgb get textColor; bool get isTag; Style get style; int get relSize; HorizAlign get textAlign; VertAlign get vertAlign; List<RunInfo> get runs; List<LinkInfo> get links; String? get image; bool get hasNote; bool get hasGrid; int? get summary; int? get full;
+ String get id; String get text; bool get textCut; CellKind get kind; String? get result; bool get resultCut; bool get failed; Rgb get cellColor; Rgb get textColor; bool get isTag; Style get style; int get relSize; HorizAlign get textAlign; VertAlign get vertAlign; List<RunInfo> get runs; List<LinkInfo> get links; String? get image; bool get hasNote; bool get hasGrid; bool get folded; int? get summary; int? get full;
 /// Create a copy of CellLook
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,20 +27,20 @@ $CellLookCopyWith<CellLook> get copyWith => _$CellLookCopyWithImpl<CellLook>(thi
 @override
 bool operator ==(Object other) {
   final _this = this as CellLook;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CellLook&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.text, _this.text) || other.text == _this.text)&&(identical(other.textCut, _this.textCut) || other.textCut == _this.textCut)&&(identical(other.kind, _this.kind) || other.kind == _this.kind)&&(identical(other.result, _this.result) || other.result == _this.result)&&(identical(other.resultCut, _this.resultCut) || other.resultCut == _this.resultCut)&&(identical(other.failed, _this.failed) || other.failed == _this.failed)&&(identical(other.cellColor, _this.cellColor) || other.cellColor == _this.cellColor)&&(identical(other.textColor, _this.textColor) || other.textColor == _this.textColor)&&(identical(other.isTag, _this.isTag) || other.isTag == _this.isTag)&&(identical(other.style, _this.style) || other.style == _this.style)&&(identical(other.relSize, _this.relSize) || other.relSize == _this.relSize)&&(identical(other.textAlign, _this.textAlign) || other.textAlign == _this.textAlign)&&(identical(other.vertAlign, _this.vertAlign) || other.vertAlign == _this.vertAlign)&&const DeepCollectionEquality().equals(other.runs, _this.runs)&&const DeepCollectionEquality().equals(other.links, _this.links)&&(identical(other.image, _this.image) || other.image == _this.image)&&(identical(other.hasNote, _this.hasNote) || other.hasNote == _this.hasNote)&&(identical(other.hasGrid, _this.hasGrid) || other.hasGrid == _this.hasGrid)&&(identical(other.summary, _this.summary) || other.summary == _this.summary)&&(identical(other.full, _this.full) || other.full == _this.full));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CellLook&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.text, _this.text) || other.text == _this.text)&&(identical(other.textCut, _this.textCut) || other.textCut == _this.textCut)&&(identical(other.kind, _this.kind) || other.kind == _this.kind)&&(identical(other.result, _this.result) || other.result == _this.result)&&(identical(other.resultCut, _this.resultCut) || other.resultCut == _this.resultCut)&&(identical(other.failed, _this.failed) || other.failed == _this.failed)&&(identical(other.cellColor, _this.cellColor) || other.cellColor == _this.cellColor)&&(identical(other.textColor, _this.textColor) || other.textColor == _this.textColor)&&(identical(other.isTag, _this.isTag) || other.isTag == _this.isTag)&&(identical(other.style, _this.style) || other.style == _this.style)&&(identical(other.relSize, _this.relSize) || other.relSize == _this.relSize)&&(identical(other.textAlign, _this.textAlign) || other.textAlign == _this.textAlign)&&(identical(other.vertAlign, _this.vertAlign) || other.vertAlign == _this.vertAlign)&&const DeepCollectionEquality().equals(other.runs, _this.runs)&&const DeepCollectionEquality().equals(other.links, _this.links)&&(identical(other.image, _this.image) || other.image == _this.image)&&(identical(other.hasNote, _this.hasNote) || other.hasNote == _this.hasNote)&&(identical(other.hasGrid, _this.hasGrid) || other.hasGrid == _this.hasGrid)&&(identical(other.folded, _this.folded) || other.folded == _this.folded)&&(identical(other.summary, _this.summary) || other.summary == _this.summary)&&(identical(other.full, _this.full) || other.full == _this.full));
 }
 
 
 @override
 int get hashCode {
   final _this = this as CellLook;
-  return Object.hashAll([runtimeType,_this.id,_this.text,_this.textCut,_this.kind,_this.result,_this.resultCut,_this.failed,_this.cellColor,_this.textColor,_this.isTag,_this.style,_this.relSize,_this.textAlign,_this.vertAlign,const DeepCollectionEquality().hash(_this.runs),const DeepCollectionEquality().hash(_this.links),_this.image,_this.hasNote,_this.hasGrid,_this.summary,_this.full]);
+  return Object.hashAll([runtimeType,_this.id,_this.text,_this.textCut,_this.kind,_this.result,_this.resultCut,_this.failed,_this.cellColor,_this.textColor,_this.isTag,_this.style,_this.relSize,_this.textAlign,_this.vertAlign,const DeepCollectionEquality().hash(_this.runs),const DeepCollectionEquality().hash(_this.links),_this.image,_this.hasNote,_this.hasGrid,_this.folded,_this.summary,_this.full]);
 }
 
 @override
 String toString() {
   final _this = this as CellLook;
-  return 'CellLook(id: ${_this.id}, text: ${_this.text}, textCut: ${_this.textCut}, kind: ${_this.kind}, result: ${_this.result}, resultCut: ${_this.resultCut}, failed: ${_this.failed}, cellColor: ${_this.cellColor}, textColor: ${_this.textColor}, isTag: ${_this.isTag}, style: ${_this.style}, relSize: ${_this.relSize}, textAlign: ${_this.textAlign}, vertAlign: ${_this.vertAlign}, runs: ${_this.runs}, links: ${_this.links}, image: ${_this.image}, hasNote: ${_this.hasNote}, hasGrid: ${_this.hasGrid}, summary: ${_this.summary}, full: ${_this.full})';
+  return 'CellLook(id: ${_this.id}, text: ${_this.text}, textCut: ${_this.textCut}, kind: ${_this.kind}, result: ${_this.result}, resultCut: ${_this.resultCut}, failed: ${_this.failed}, cellColor: ${_this.cellColor}, textColor: ${_this.textColor}, isTag: ${_this.isTag}, style: ${_this.style}, relSize: ${_this.relSize}, textAlign: ${_this.textAlign}, vertAlign: ${_this.vertAlign}, runs: ${_this.runs}, links: ${_this.links}, image: ${_this.image}, hasNote: ${_this.hasNote}, hasGrid: ${_this.hasGrid}, folded: ${_this.folded}, summary: ${_this.summary}, full: ${_this.full})';
 }
 
 
@@ -51,7 +51,7 @@ abstract mixin class $CellLookCopyWith<$Res>  {
   factory $CellLookCopyWith(CellLook value, $Res Function(CellLook) _then) = _$CellLookCopyWithImpl;
 @useResult
 $Res call({
- String id, String text, bool textCut, CellKind kind, String? result, bool resultCut, bool failed, Rgb cellColor, Rgb textColor, bool isTag, Style style, int relSize, HorizAlign textAlign, VertAlign vertAlign, List<RunInfo> runs, List<LinkInfo> links, String? image, bool hasNote, bool hasGrid, int? summary, int? full
+ String id, String text, bool textCut, CellKind kind, String? result, bool resultCut, bool failed, Rgb cellColor, Rgb textColor, bool isTag, Style style, int relSize, HorizAlign textAlign, VertAlign vertAlign, List<RunInfo> runs, List<LinkInfo> links, String? image, bool hasNote, bool hasGrid, bool folded, int? summary, int? full
 });
 
 
@@ -68,7 +68,7 @@ class _$CellLookCopyWithImpl<$Res>
 
 /// Create a copy of CellLook
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? text = null,Object? textCut = null,Object? kind = null,Object? result = freezed,Object? resultCut = null,Object? failed = null,Object? cellColor = null,Object? textColor = null,Object? isTag = null,Object? style = null,Object? relSize = null,Object? textAlign = null,Object? vertAlign = null,Object? runs = null,Object? links = null,Object? image = freezed,Object? hasNote = null,Object? hasGrid = null,Object? summary = freezed,Object? full = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? text = null,Object? textCut = null,Object? kind = null,Object? result = freezed,Object? resultCut = null,Object? failed = null,Object? cellColor = null,Object? textColor = null,Object? isTag = null,Object? style = null,Object? relSize = null,Object? textAlign = null,Object? vertAlign = null,Object? runs = null,Object? links = null,Object? image = freezed,Object? hasNote = null,Object? hasGrid = null,Object? folded = null,Object? summary = freezed,Object? full = freezed,}) {
   return _then(CellLook(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
@@ -89,6 +89,7 @@ as List<RunInfo>,links: null == links ? _self.links : links // ignore: cast_null
 as List<LinkInfo>,image: freezed == image ? _self.image : image // ignore: cast_nullable_to_non_nullable
 as String?,hasNote: null == hasNote ? _self.hasNote : hasNote // ignore: cast_nullable_to_non_nullable
 as bool,hasGrid: null == hasGrid ? _self.hasGrid : hasGrid // ignore: cast_nullable_to_non_nullable
+as bool,folded: null == folded ? _self.folded : folded // ignore: cast_nullable_to_non_nullable
 as bool,summary: freezed == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
 as int?,full: freezed == full ? _self.full : full // ignore: cast_nullable_to_non_nullable
 as int?,
@@ -173,10 +174,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String text,  bool textCut,  CellKind kind,  String? result,  bool resultCut,  bool failed,  Rgb cellColor,  Rgb textColor,  bool isTag,  Style style,  int relSize,  HorizAlign textAlign,  VertAlign vertAlign,  List<RunInfo> runs,  List<LinkInfo> links,  String? image,  bool hasNote,  bool hasGrid,  int? summary,  int? full)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String text,  bool textCut,  CellKind kind,  String? result,  bool resultCut,  bool failed,  Rgb cellColor,  Rgb textColor,  bool isTag,  Style style,  int relSize,  HorizAlign textAlign,  VertAlign vertAlign,  List<RunInfo> runs,  List<LinkInfo> links,  String? image,  bool hasNote,  bool hasGrid,  bool folded,  int? summary,  int? full)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _CellLook() when $default != null:
-return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.resultCut,_that.failed,_that.cellColor,_that.textColor,_that.isTag,_that.style,_that.relSize,_that.textAlign,_that.vertAlign,_that.runs,_that.links,_that.image,_that.hasNote,_that.hasGrid,_that.summary,_that.full);case _:
+return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.resultCut,_that.failed,_that.cellColor,_that.textColor,_that.isTag,_that.style,_that.relSize,_that.textAlign,_that.vertAlign,_that.runs,_that.links,_that.image,_that.hasNote,_that.hasGrid,_that.folded,_that.summary,_that.full);case _:
   return orElse();
 
 }
@@ -194,10 +195,10 @@ return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String text,  bool textCut,  CellKind kind,  String? result,  bool resultCut,  bool failed,  Rgb cellColor,  Rgb textColor,  bool isTag,  Style style,  int relSize,  HorizAlign textAlign,  VertAlign vertAlign,  List<RunInfo> runs,  List<LinkInfo> links,  String? image,  bool hasNote,  bool hasGrid,  int? summary,  int? full)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String text,  bool textCut,  CellKind kind,  String? result,  bool resultCut,  bool failed,  Rgb cellColor,  Rgb textColor,  bool isTag,  Style style,  int relSize,  HorizAlign textAlign,  VertAlign vertAlign,  List<RunInfo> runs,  List<LinkInfo> links,  String? image,  bool hasNote,  bool hasGrid,  bool folded,  int? summary,  int? full)  $default,) {final _that = this;
 switch (_that) {
 case _CellLook():
-return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.resultCut,_that.failed,_that.cellColor,_that.textColor,_that.isTag,_that.style,_that.relSize,_that.textAlign,_that.vertAlign,_that.runs,_that.links,_that.image,_that.hasNote,_that.hasGrid,_that.summary,_that.full);}
+return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.resultCut,_that.failed,_that.cellColor,_that.textColor,_that.isTag,_that.style,_that.relSize,_that.textAlign,_that.vertAlign,_that.runs,_that.links,_that.image,_that.hasNote,_that.hasGrid,_that.folded,_that.summary,_that.full);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -211,10 +212,10 @@ return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String text,  bool textCut,  CellKind kind,  String? result,  bool resultCut,  bool failed,  Rgb cellColor,  Rgb textColor,  bool isTag,  Style style,  int relSize,  HorizAlign textAlign,  VertAlign vertAlign,  List<RunInfo> runs,  List<LinkInfo> links,  String? image,  bool hasNote,  bool hasGrid,  int? summary,  int? full)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String text,  bool textCut,  CellKind kind,  String? result,  bool resultCut,  bool failed,  Rgb cellColor,  Rgb textColor,  bool isTag,  Style style,  int relSize,  HorizAlign textAlign,  VertAlign vertAlign,  List<RunInfo> runs,  List<LinkInfo> links,  String? image,  bool hasNote,  bool hasGrid,  bool folded,  int? summary,  int? full)?  $default,) {final _that = this;
 switch (_that) {
 case _CellLook() when $default != null:
-return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.resultCut,_that.failed,_that.cellColor,_that.textColor,_that.isTag,_that.style,_that.relSize,_that.textAlign,_that.vertAlign,_that.runs,_that.links,_that.image,_that.hasNote,_that.hasGrid,_that.summary,_that.full);case _:
+return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.resultCut,_that.failed,_that.cellColor,_that.textColor,_that.isTag,_that.style,_that.relSize,_that.textAlign,_that.vertAlign,_that.runs,_that.links,_that.image,_that.hasNote,_that.hasGrid,_that.folded,_that.summary,_that.full);case _:
   return null;
 
 }
@@ -226,7 +227,7 @@ return $default(_that.id,_that.text,_that.textCut,_that.kind,_that.result,_that.
 
 
 class _CellLook implements CellLook {
-  const _CellLook({required this.id, required this.text, required this.textCut, required this.kind, this.result, required this.resultCut, required this.failed, required this.cellColor, required this.textColor, required this.isTag, required this.style, required this.relSize, required this.textAlign, required this.vertAlign, required  List<RunInfo> runs, required  List<LinkInfo> links, this.image, required this.hasNote, required this.hasGrid, this.summary, this.full}): _runs = runs,_links = links;
+  const _CellLook({required this.id, required this.text, required this.textCut, required this.kind, this.result, required this.resultCut, required this.failed, required this.cellColor, required this.textColor, required this.isTag, required this.style, required this.relSize, required this.textAlign, required this.vertAlign, required  List<RunInfo> runs, required  List<LinkInfo> links, this.image, required this.hasNote, required this.hasGrid, required this.folded, this.summary, this.full}): _runs = runs,_links = links;
   
 
 @override final  String id;
@@ -260,6 +261,7 @@ class _CellLook implements CellLook {
 @override final  String? image;
 @override final  bool hasNote;
 @override final  bool hasGrid;
+@override final  bool folded;
 @override final  int? summary;
 @override final  int? full;
 
@@ -273,18 +275,18 @@ _$CellLookCopyWith<_CellLook> get copyWith => __$CellLookCopyWithImpl<_CellLook>
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CellLook&&(identical(other.id, id) || other.id == id)&&(identical(other.text, text) || other.text == text)&&(identical(other.textCut, textCut) || other.textCut == textCut)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.result, result) || other.result == result)&&(identical(other.resultCut, resultCut) || other.resultCut == resultCut)&&(identical(other.failed, failed) || other.failed == failed)&&(identical(other.cellColor, cellColor) || other.cellColor == cellColor)&&(identical(other.textColor, textColor) || other.textColor == textColor)&&(identical(other.isTag, isTag) || other.isTag == isTag)&&(identical(other.style, style) || other.style == style)&&(identical(other.relSize, relSize) || other.relSize == relSize)&&(identical(other.textAlign, textAlign) || other.textAlign == textAlign)&&(identical(other.vertAlign, vertAlign) || other.vertAlign == vertAlign)&&const DeepCollectionEquality().equals(other.runs, _runs)&&const DeepCollectionEquality().equals(other.links, _links)&&(identical(other.image, image) || other.image == image)&&(identical(other.hasNote, hasNote) || other.hasNote == hasNote)&&(identical(other.hasGrid, hasGrid) || other.hasGrid == hasGrid)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.full, full) || other.full == full));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CellLook&&(identical(other.id, id) || other.id == id)&&(identical(other.text, text) || other.text == text)&&(identical(other.textCut, textCut) || other.textCut == textCut)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.result, result) || other.result == result)&&(identical(other.resultCut, resultCut) || other.resultCut == resultCut)&&(identical(other.failed, failed) || other.failed == failed)&&(identical(other.cellColor, cellColor) || other.cellColor == cellColor)&&(identical(other.textColor, textColor) || other.textColor == textColor)&&(identical(other.isTag, isTag) || other.isTag == isTag)&&(identical(other.style, style) || other.style == style)&&(identical(other.relSize, relSize) || other.relSize == relSize)&&(identical(other.textAlign, textAlign) || other.textAlign == textAlign)&&(identical(other.vertAlign, vertAlign) || other.vertAlign == vertAlign)&&const DeepCollectionEquality().equals(other.runs, _runs)&&const DeepCollectionEquality().equals(other.links, _links)&&(identical(other.image, image) || other.image == image)&&(identical(other.hasNote, hasNote) || other.hasNote == hasNote)&&(identical(other.hasGrid, hasGrid) || other.hasGrid == hasGrid)&&(identical(other.folded, folded) || other.folded == folded)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.full, full) || other.full == full));
 }
 
 
 @override
 int get hashCode {
-    return Object.hashAll([runtimeType,id,text,textCut,kind,result,resultCut,failed,cellColor,textColor,isTag,style,relSize,textAlign,vertAlign,const DeepCollectionEquality().hash(_runs),const DeepCollectionEquality().hash(_links),image,hasNote,hasGrid,summary,full]);
+    return Object.hashAll([runtimeType,id,text,textCut,kind,result,resultCut,failed,cellColor,textColor,isTag,style,relSize,textAlign,vertAlign,const DeepCollectionEquality().hash(_runs),const DeepCollectionEquality().hash(_links),image,hasNote,hasGrid,folded,summary,full]);
 }
 
 @override
 String toString() {
-    return 'CellLook(id: $id, text: $text, textCut: $textCut, kind: $kind, result: $result, resultCut: $resultCut, failed: $failed, cellColor: $cellColor, textColor: $textColor, isTag: $isTag, style: $style, relSize: $relSize, textAlign: $textAlign, vertAlign: $vertAlign, runs: $runs, links: $links, image: $image, hasNote: $hasNote, hasGrid: $hasGrid, summary: $summary, full: $full)';
+    return 'CellLook(id: $id, text: $text, textCut: $textCut, kind: $kind, result: $result, resultCut: $resultCut, failed: $failed, cellColor: $cellColor, textColor: $textColor, isTag: $isTag, style: $style, relSize: $relSize, textAlign: $textAlign, vertAlign: $vertAlign, runs: $runs, links: $links, image: $image, hasNote: $hasNote, hasGrid: $hasGrid, folded: $folded, summary: $summary, full: $full)';
 }
 
 
@@ -295,7 +297,7 @@ abstract mixin class _$CellLookCopyWith<$Res> implements $CellLookCopyWith<$Res>
   factory _$CellLookCopyWith(_CellLook value, $Res Function(_CellLook) _then) = __$CellLookCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String text, bool textCut, CellKind kind, String? result, bool resultCut, bool failed, Rgb cellColor, Rgb textColor, bool isTag, Style style, int relSize, HorizAlign textAlign, VertAlign vertAlign, List<RunInfo> runs, List<LinkInfo> links, String? image, bool hasNote, bool hasGrid, int? summary, int? full
+ String id, String text, bool textCut, CellKind kind, String? result, bool resultCut, bool failed, Rgb cellColor, Rgb textColor, bool isTag, Style style, int relSize, HorizAlign textAlign, VertAlign vertAlign, List<RunInfo> runs, List<LinkInfo> links, String? image, bool hasNote, bool hasGrid, bool folded, int? summary, int? full
 });
 
 
@@ -312,7 +314,7 @@ class __$CellLookCopyWithImpl<$Res>
 
 /// Create a copy of CellLook
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? text = null,Object? textCut = null,Object? kind = null,Object? result = freezed,Object? resultCut = null,Object? failed = null,Object? cellColor = null,Object? textColor = null,Object? isTag = null,Object? style = null,Object? relSize = null,Object? textAlign = null,Object? vertAlign = null,Object? runs = null,Object? links = null,Object? image = freezed,Object? hasNote = null,Object? hasGrid = null,Object? summary = freezed,Object? full = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? text = null,Object? textCut = null,Object? kind = null,Object? result = freezed,Object? resultCut = null,Object? failed = null,Object? cellColor = null,Object? textColor = null,Object? isTag = null,Object? style = null,Object? relSize = null,Object? textAlign = null,Object? vertAlign = null,Object? runs = null,Object? links = null,Object? image = freezed,Object? hasNote = null,Object? hasGrid = null,Object? folded = null,Object? summary = freezed,Object? full = freezed,}) {
   return _then(_CellLook(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
@@ -333,6 +335,7 @@ as List<RunInfo>,links: null == links ? _self._links : links // ignore: cast_nul
 as List<LinkInfo>,image: freezed == image ? _self.image : image // ignore: cast_nullable_to_non_nullable
 as String?,hasNote: null == hasNote ? _self.hasNote : hasNote // ignore: cast_nullable_to_non_nullable
 as bool,hasGrid: null == hasGrid ? _self.hasGrid : hasGrid // ignore: cast_nullable_to_non_nullable
+as bool,folded: null == folded ? _self.folded : folded // ignore: cast_nullable_to_non_nullable
 as bool,summary: freezed == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
 as int?,full: freezed == full ? _self.full : full // ignore: cast_nullable_to_non_nullable
 as int?,

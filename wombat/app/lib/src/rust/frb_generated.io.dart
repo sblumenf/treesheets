@@ -72,6 +72,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ImageRef dco_decode_box_autoadd_image_ref(dynamic raw);
 
   @protected
+  LevelInfo dco_decode_box_autoadd_level_info(dynamic raw);
+
+  @protected
   LinkTarget dco_decode_box_autoadd_link_target(dynamic raw);
 
   @protected
@@ -150,6 +153,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ImageRef dco_decode_image_ref(dynamic raw);
 
   @protected
+  LevelInfo dco_decode_level_info(dynamic raw);
+
+  @protected
   LinkInfo dco_decode_link_info(dynamic raw);
 
   @protected
@@ -205,6 +211,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ImageRef? dco_decode_opt_box_autoadd_image_ref(dynamic raw);
+
+  @protected
+  LevelInfo? dco_decode_opt_box_autoadd_level_info(dynamic raw);
 
   @protected
   LinkTarget? dco_decode_opt_box_autoadd_link_target(dynamic raw);
@@ -306,6 +315,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ImageRef sse_decode_box_autoadd_image_ref(SseDeserializer deserializer);
 
   @protected
+  LevelInfo sse_decode_box_autoadd_level_info(SseDeserializer deserializer);
+
+  @protected
   LinkTarget sse_decode_box_autoadd_link_target(SseDeserializer deserializer);
 
   @protected
@@ -384,6 +396,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ImageRef sse_decode_image_ref(SseDeserializer deserializer);
 
   @protected
+  LevelInfo sse_decode_level_info(SseDeserializer deserializer);
+
+  @protected
   LinkInfo sse_decode_link_info(SseDeserializer deserializer);
 
   @protected
@@ -439,6 +454,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ImageRef? sse_decode_opt_box_autoadd_image_ref(SseDeserializer deserializer);
+
+  @protected
+  LevelInfo? sse_decode_opt_box_autoadd_level_info(
+    SseDeserializer deserializer,
+  );
 
   @protected
   LinkTarget? sse_decode_opt_box_autoadd_link_target(
@@ -555,6 +575,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_level_info(
+    LevelInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_link_target(
     LinkTarget self,
     SseSerializer serializer,
@@ -642,6 +668,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_image_ref(ImageRef self, SseSerializer serializer);
 
   @protected
+  void sse_encode_level_info(LevelInfo self, SseSerializer serializer);
+
+  @protected
   void sse_encode_link_info(LinkInfo self, SseSerializer serializer);
 
   @protected
@@ -716,6 +745,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_image_ref(
     ImageRef? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_level_info(
+    LevelInfo? self,
     SseSerializer serializer,
   );
 

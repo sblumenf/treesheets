@@ -1,6 +1,7 @@
 //! The stage read: every field of what goes out against a value written by hand, with a
 //! different value in every field, so that two fields swapped or one dropped fails; and
-//! every number of the request at both ends of its range.
+//! every number of the request, and of a level sent to be remembered, at both ends of its
+//! range.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -10,12 +11,34 @@
 
 use wombat_bridge::api::wire as w;
 use wombat_bridge::api::wire::ErrorKind;
-use wombat_bridge::convert::{look_out, stage_ask_in, stage_out};
+use wombat_bridge::convert::{level_in, level_out, look_out, stage_ask_in, stage_out};
 use wombat_core::model::Extra;
 use wombat_core::{
-    CellId, CellKind, CellLook, Color, CutText, DocId, DrawStyle, GridPart, GridSummary, Id, Link,
-    LinkTarget, Run, StageAsk, StageView, Style, TextAlign, TrailStep, VertAlign,
+    CellId, CellKind, CellLook, Color, CutText, DocId, DrawStyle, GridPart, GridSummary, Id, Level,
+    Link, LinkTarget, Run, StageAsk, StageView, Style, TextAlign, TrailStep, VertAlign, ViewState,
 };
+
+/// A view state in which the cell 1 is folded and no other, and two levels remember
+/// something: the cell 24 and the cell 20.
+fn a_view() -> ViewState {
+    let mut view = ViewState::new(DocId(Id::from_u128(99)));
+    view.folded.insert(c(1));
+    view.levels.push(Level {
+        cell: c(20),
+        x: 83,
+        y: 84,
+        selected: None,
+        extra: Extra::new(),
+    });
+    view.levels.push(Level {
+        cell: c(24),
+        x: 80,
+        y: 81,
+        selected: Some(c(82)),
+        extra: Extra::new(),
+    });
+    view
+}
 
 /// The cell with the number `n`, as the core has it.
 fn c(n: u128) -> CellId {
@@ -189,6 +212,7 @@ fn a_look() -> (CellLook, w::CellLook) {
         image: Some("picture.png".into()),
         has_note: true,
         has_grid: false,
+        folded: true,
         summary: Some(15),
         full: Some(16),
     };
@@ -200,6 +224,8 @@ fn a_look() -> (CellLook, w::CellLook) {
 /// there.
 fn another_look() -> (CellLook, w::CellLook) {
     let (mut core, mut wire) = a_look();
+    // Another cell, which the view state does not have folded.
+    (core.id, wire.id, wire.folded) = (c(90), t(90), false);
     core.text = cut("whole", false);
     (wire.text, wire.text_cut) = ("whole".into(), false);
     core.result = Some(cut("part", true));
@@ -220,14 +246,14 @@ fn another_look() -> (CellLook, w::CellLook) {
 #[test]
 fn every_field_of_a_cell_is_the_field_of_that_name() {
     let (core, wire) = a_look();
-    assert_eq!(look_out(core), wire);
+    assert_eq!(look_out(core, &a_view()), wire);
     let (core, wire) = another_look();
-    assert_eq!(look_out(core), wire);
+    assert_eq!(look_out(core, &a_view()), wire);
     // A cell that is no formula cell has no result, and then none was cut.
     let (mut core, mut wire) = a_look();
     core.result = None;
     (wire.result, wire.result_cut) = (None, false);
-    assert_eq!(look_out(core), wire);
+    assert_eq!(look_out(core, &a_view()), wire);
 }
 
 #[test]
@@ -383,8 +409,87 @@ fn every_field_of_the_stage_is_the_field_of_that_name() {
                 shape: Vec::new(),
             },
         ],
+        // What the view state remembers of the cell the trail ends at, and of no other.
+        level: Some(w::LevelInfo {
+            cell: t(24),
+            x: 80,
+            y: 81,
+            selected: Some(t(82)),
+        }),
     };
-    assert_eq!(stage_out(core), wire);
+    assert_eq!(stage_out(core.clone(), &a_view()), wire);
+    // A level of which nothing is remembered.
+    let mut view = a_view();
+    view.levels.pop();
+    assert_eq!(stage_out(core, &view).level, None);
+}
+
+/// What a level remembers, in both directions, each against a value written by hand.
+#[test]
+fn every_field_of_a_level_is_the_field_of_that_name() {
+    let wire = w::LevelInfo {
+        cell: t(1),
+        x: 2,
+        y: 3,
+        selected: Some(t(4)),
+    };
+    let core = Level {
+        cell: c(1),
+        x: 2,
+        y: 3,
+        selected: Some(c(4)),
+        extra: Extra::new(),
+    };
+    assert_eq!(level_in(wire.clone()).unwrap(), core);
+    assert_eq!(level_out(&core), wire);
+    let nothing = w::LevelInfo {
+        selected: None,
+        ..wire
+    };
+    let core = Level {
+        selected: None,
+        ..core
+    };
+    assert_eq!(level_in(nothing.clone()).unwrap(), core);
+    assert_eq!(level_out(&core), nothing);
+}
+
+#[test]
+fn a_level_is_checked_on_the_way_in() {
+    let level = |x: i64, y: i64| w::LevelInfo {
+        cell: t(1),
+        x,
+        y,
+        selected: None,
+    };
+    let most = i64::from(u32::MAX);
+    let taken = level_in(level(0, most)).unwrap();
+    assert_eq!((taken.x, taken.y), (0, u32::MAX));
+    let taken = level_in(level(most, 0)).unwrap();
+    assert_eq!((taken.x, taken.y), (u32::MAX, 0));
+    for wrong in [-1, most + 1, i64::MIN, i64::MAX] {
+        assert_eq!(
+            level_in(level(wrong, 0)).unwrap_err().kind,
+            ErrorKind::BadRequest
+        );
+        assert_eq!(
+            level_in(level(0, wrong)).unwrap_err().kind,
+            ErrorKind::BadRequest
+        );
+    }
+    let no_cell = w::LevelInfo {
+        cell: "no ID".into(),
+        ..level(0, 0)
+    };
+    assert_eq!(level_in(no_cell).unwrap_err().kind, ErrorKind::BadRequest);
+    let no_selected = w::LevelInfo {
+        selected: Some("no ID".into()),
+        ..level(0, 0)
+    };
+    assert_eq!(
+        level_in(no_selected).unwrap_err().kind,
+        ErrorKind::BadRequest
+    );
 }
 
 /// A request with a different number in every field.

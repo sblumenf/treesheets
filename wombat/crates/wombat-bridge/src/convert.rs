@@ -11,13 +11,13 @@ use std::path::Path;
 use wombat_core as core;
 use wombat_core::convert::{Entry, Table};
 use wombat_core::model::Extra;
-use wombat_core::{CellId, Clip, DocId};
+use wombat_core::{CellId, Clip, DocId, Level, ViewState};
 
 use crate::api::wire::{
     BridgeError, CellInfo, CellKind, CellLook, ClipData, Command, CutText, DrawStyle, EntryData,
-    ErrorKind, GridInfo, GridPart, GridSize, GridSummary, HorizAlign, ImageRef, LinkInfo,
-    LinkTarget, Prop, Report, Rgb, RunInfo, StageAsk, StageInfo, Style, TableData, TrailStep,
-    VertAlign,
+    ErrorKind, GridInfo, GridPart, GridSize, GridSummary, HorizAlign, ImageRef, LevelInfo,
+    LinkInfo, LinkTarget, Prop, Report, Rgb, RunInfo, StageAsk, StageInfo, Style, TableData,
+    TrailStep, VertAlign,
 };
 
 impl BridgeError {
@@ -992,9 +992,33 @@ fn cut_out(text: core::CutText) -> CutText {
     }
 }
 
-/// One cell with all that is needed to draw it, to carry. What the core holds in the
-/// unknown fields of a run or a link is not carried: the core gives none here.
-pub fn look_out(look: core::CellLook) -> CellLook {
+/// What a level remembers, each number checked against what the core takes.
+pub fn level_in(level: LevelInfo) -> In<Level> {
+    Ok(Level {
+        cell: cell_id(&level.cell)?,
+        x: unsigned(level.x)?,
+        y: unsigned(level.y)?,
+        selected: level.selected.as_deref().map(cell_id).transpose()?,
+        extra: Extra::new(),
+    })
+}
+
+/// What a level remembers, to carry. Fields that this core does not know, which a file
+/// written by a newer one may hold, are not carried; they stay with the level in the
+/// view state until it is remembered anew.
+pub fn level_out(level: &Level) -> LevelInfo {
+    LevelInfo {
+        cell: level.cell.to_string(),
+        x: level.x.into(),
+        y: level.y.into(),
+        selected: level.selected.map(|cell| cell.to_string()),
+    }
+}
+
+/// One cell with all that is needed to draw it, to carry, with whether `view` has its
+/// grid folded. What the core holds in the unknown fields of a run or a link is not
+/// carried: the core gives none here.
+pub fn look_out(look: core::CellLook, view: &ViewState) -> CellLook {
     let (result, result_cut) = match look.result {
         Some(result) => (Some(result.text), result.cut),
         None => (None, false),
@@ -1030,13 +1054,17 @@ pub fn look_out(look: core::CellLook) -> CellLook {
         image: look.image,
         has_note: look.has_note,
         has_grid: look.has_grid,
+        folded: view.is_folded(look.id),
         summary: look.summary,
         full: look.full,
     }
 }
 
-/// The stage and what is nested below it, to carry.
-pub fn stage_out(view: core::StageView) -> StageInfo {
+/// The stage and what is nested below it, to carry, with what the view state `state`
+/// adds: which grids are folded, and what the stage cell's level remembers.
+pub fn stage_out(view: core::StageView, state: &ViewState) -> StageInfo {
+    // The stage cell is where the trail ends.
+    let stage = view.trail.last().map(|step| step.id);
     let step = |step: core::TrailStep| TrailStep {
         id: step.id.to_string(),
         shown: cut_out(step.shown),
@@ -1073,7 +1101,12 @@ pub fn stage_out(view: core::StageView) -> StageInfo {
     StageInfo {
         trail: view.trail.into_iter().map(step).collect(),
         grids: view.grids.into_iter().map(grid).collect(),
-        cells: view.cells.into_iter().map(look_out).collect(),
+        cells: view
+            .cells
+            .into_iter()
+            .map(|look| look_out(look, state))
+            .collect(),
         summaries: view.summaries.into_iter().map(summary).collect(),
+        level: stage.and_then(|stage| state.level(stage)).map(level_out),
     }
 }

@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 import 'wire.dart';
 
-// These functions are ignored because they are not marked as `pub`: `change`, `closed`, `half_changed`, `now`, `os_ids`, `report`, `save_quietly`, `save`, `session_mut`, `session`, `with`, `write`
+// These functions are ignored because they are not marked as `pub`: `change`, `closed`, `half_changed`, `now`, `os_ids`, `report`, `save_quietly`, `save_view`, `save`, `session_mut`, `session`, `with`, `write`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Clock`, `Session`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `drop`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `audit`, `copy_with`, `create_with`, `open_with`, `set_fixed_time`
@@ -110,6 +110,11 @@ abstract class OpenDocument implements RustOpaqueInterface {
   ///   looked at: closing a document that was only read never fails, never brings back a
   ///   file that was removed, and never complains about a file that someone else changed.
   ///
+  /// The view state ([`OpenDocument::view_stage`]) is written too if it changed, after
+  /// the document and only when the close succeeds. That it could not be written is
+  /// not reported and does not fail the close: call [`OpenDocument::save_view`] first
+  /// to know.
+  ///
   /// After a close that succeeded the file may be opened again, the memory is freed, and
   /// every later call on this handle, `close` included, is refused with
   /// [`ErrorKind::Closed`]. The handle itself is still Dart's to dispose of.
@@ -159,6 +164,11 @@ abstract class OpenDocument implements RustOpaqueInterface {
   /// sets it again without a save: cancelling a group of commands that was opened on a
   /// saved document whose file was not written since ([`OpenDocument::cancel_group`]).
   Future<bool> isSaved();
+
+  /// Whether the view state is as its file has it: nothing of it changed since it was
+  /// read or written, by a call or by a change to the document that removed something
+  /// it referred to. True also when there is no file and nothing to put in one.
+  Future<bool> isViewSaved();
 
   /// Opens the document in the file at `path`. Refused if a document has that file open
   /// ([`ErrorKind::AlreadyOpen`]).
@@ -252,6 +262,25 @@ abstract class OpenDocument implements RustOpaqueInterface {
   /// On an error nothing was written, and the document is as unsaved as it was.
   Future<void> save();
 
+  /// Writes the view state to its file if it changed since it was read or written
+  /// ([`OpenDocument::is_view_saved`]); otherwise it does nothing. The file is small,
+  /// is this device's alone, and is replaced whole.
+  ///
+  /// It has nothing to do with the document's file: it is written also when the
+  /// document cannot be saved, and an error here says nothing about the document
+  /// ([`ErrorKind::Io`]; [`ErrorKind::Invalid`] when the folder for these files,
+  /// `.wombat-view` beside the document, is a link or a file, where the core will not
+  /// write). Such an error is for whoever wants to know: nothing is lost
+  /// but where the screen was, [`OpenDocument::close`] tries again without reporting,
+  /// and an interface should not show it as a failed save.
+  Future<void> saveView();
+
+  /// Folds (hides) or unfolds the grid of `cell` on this device, and returns whether
+  /// that changed anything. A cell without a grid is refused ([`ErrorKind::Refused`]),
+  /// one that does not exist is [`ErrorKind::NotFound`]. The fold goes when the cell
+  /// or its grid is removed, and does not come back with it.
+  Future<bool> setFolded({required String cell, required bool folded});
+
   /// What a screen that shows nested grids draws from, in one answer: the grid of
   /// `cell` (the stage) or a window of its rows and columns, the trail from the root
   /// down to `cell`, and every grid nested below as far as `ask` says, cell by cell
@@ -277,4 +306,44 @@ abstract class OpenDocument implements RustOpaqueInterface {
   /// returns what that changed, or `None` if there is nothing to undo. Refused while a
   /// group is open ([`ErrorKind::Refused`]).
   Future<Report?> undo();
+
+  /// Makes `cell` the level that is shown, after remembering in `left`, if given, how
+  /// the level that is left looked (dive, up, a jump along the trail). Scrolling
+  /// itself needs no call: hand the position over here when the level is left.
+  ///
+  /// Refused, with nothing remembered and nowhere gone: a `cell` that has no grid,
+  /// except the root ([`ErrorKind::Refused`]); a `left` whose cell has no grid, the
+  /// root included, which a new document's is ([`ErrorKind::Refused`]); a cell that
+  /// does not exist, `left.selected` too ([`ErrorKind::NotFound`]); text that is no
+  /// ID, or a position below 0 or above 4294967295 ([`ErrorKind::BadRequest`]).
+  Future<void> viewGo({required String cell, LevelInfo? left});
+
+  /// Remembers how a level looks without going anywhere: for the level that is shown,
+  /// before the app is put away. It replaces what was remembered of that level. The
+  /// 256 levels remembered last are kept.
+  ///
+  /// Refused as `left` of [`OpenDocument::view_go`] is. That includes the root of a
+  /// document that has no grid yet ([`ErrorKind::Refused`]): there is nothing to
+  /// remember of it, and an interface that is put away there goes on without.
+  Future<void> viewRemember({required LevelInfo level});
+
+  /// The level to show: the cell whose grid fills the screen, as an ID. That is the
+  /// level last gone to on this device ([`OpenDocument::view_go`]), also before the
+  /// app was last closed; if that cell is gone or has lost its grid, the nearest cell
+  /// above it that has one; otherwise the root. It is always a cell of the document,
+  /// so this is where a screen starts, and where it goes when its stage disappears.
+  ///
+  /// The calls named `view_…`, [`OpenDocument::set_folded`] and
+  /// [`OpenDocument::save_view`] are about the **view state**: which level is shown,
+  /// what each level remembers (in [`StageInfo`] `level`) and which grids are folded
+  /// (in [`CellLook`] `folded`). It belongs to this device, not to the document:
+  /// changing it is no command, is not in the undo history and never makes the
+  /// document unsaved. It is read when the document is opened (a copy made by
+  /// [`OpenDocument::open_copy`] starts with that of the original), follows every
+  /// change by itself (what refers to a removed cell is forgotten, and does not come
+  /// back when an undo or a cancelled group brings the cell back), and is written to a
+  /// file of its own beside the document by [`OpenDocument::save_view`], by
+  /// [`OpenDocument::close`] and when the handle is disposed of. A view-state file that
+  /// is missing or cannot be read is never an error: the screen starts at the root.
+  Future<String> viewStage();
 }

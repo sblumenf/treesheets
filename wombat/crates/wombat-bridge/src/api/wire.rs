@@ -990,6 +990,35 @@ pub struct StageInfo {
     /// One for each cell in `cells` that has a grid, in the order of those cells, whether
     /// or not that grid is also in `grids`.
     pub summaries: Vec<GridSummary>,
+    /// What the stage cell's level remembers on this device: where it was scrolled to and
+    /// what was selected there when it was last left or the app was put away
+    /// (`OpenDocument::view_go`, `OpenDocument::view_remember`). `None` for a level that
+    /// was never left, and for one whose cell was removed in between, even if an undo
+    /// brought it back.
+    pub level: Option<LevelInfo>,
+}
+
+/// What one level remembers on this device. A level is a cell whose grid fills the
+/// screen. This is view state, not part of the document: it is kept in a file of its own
+/// for each device, changing it is no command and cannot be undone, and it does not make
+/// the document unsaved.
+///
+/// Dart sends this as well as reads it, so the numbers are 64 bits wide on the way and
+/// must be from 0 to 4294967295; any other is refused ([`ErrorKind::BadRequest`]).
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct LevelInfo {
+    /// The ID of the cell whose grid is the level.
+    pub cell: String,
+    /// The column of the grid at the left edge of what was last seen, counted from 0. A
+    /// column and a row, not a distance: a distance would mean nothing on a screen of
+    /// another size or after the text size changed. A position beyond the grid becomes
+    /// its last column or row.
+    pub x: i64,
+    /// The row of the grid at the top edge of what was last seen, counted from 0.
+    pub y: i64,
+    /// The ID of the cell that was selected there, if one was. It is forgotten when that
+    /// cell is removed.
+    pub selected: Option<String>,
 }
 
 /// One cell on the way from the root to the stage: what a title bar and a trail bar show.
@@ -1125,6 +1154,10 @@ pub struct LinkInfo {
 ///   has one.
 /// - `has_note`: whether the cell has a note.
 /// - `has_grid`: whether the cell has a grid.
+/// - `folded`: whether the cell's grid is folded (hidden) on this device
+///   (`OpenDocument::set_folded`). Only a cell with a grid can be. The answer is the same
+///   whether folded or not, with the grid's summary and cells: hiding it is the
+///   interface's to do.
 /// - `summary`: the place of the cell's entry in `StageInfo.summaries`: there is one
 ///   exactly if the cell has a grid. Always none from `OpenDocument::cell`.
 /// - `full`: the place of the cell's grid in `StageInfo.grids`, if it is given cell by
@@ -1170,6 +1203,8 @@ pub struct CellLook {
     pub has_note: bool,
     /// Whether the cell has a grid.
     pub has_grid: bool,
+    /// Whether the cell's grid is folded on this device.
+    pub folded: bool,
     /// The place of the cell's entry in `StageInfo.summaries`.
     pub summary: Option<u32>,
     /// The place of the cell's grid in `StageInfo.grids`.

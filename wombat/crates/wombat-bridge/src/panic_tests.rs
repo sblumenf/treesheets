@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use wombat_core::SeededIds;
 
 use crate::api::document::OpenDocument;
-use crate::api::wire::{BridgeError, Command, ErrorKind, StageAsk};
+use crate::api::wire::{BridgeError, Command, ErrorKind, LevelInfo, StageAsk};
 
 /// A new document with unsaved work in it: the root has a grid of one cell, the file
 /// does not have it yet.
@@ -180,6 +180,61 @@ fn after_a_panic_a_group_is_as_lost_as_its_document() {
         let again = OpenDocument::open_with(&path, SeededIds::from_u64(5)).unwrap();
         assert_eq!(again.grid(root).unwrap().cell.text, "");
         drop(again);
+        remove(&path);
+    }
+}
+
+/// After a panic nothing is written of where the screen was either, and the view calls
+/// are refused like the rest.
+#[test]
+fn after_a_panic_the_view_state_is_not_written() {
+    let (mut doc, path) = unsaved("view");
+    let root = doc.root().unwrap();
+    doc.save().unwrap();
+    doc.set_folded(root.clone(), true).unwrap();
+    assert!(!doc.is_view_saved().unwrap());
+    doc.panic_in_change();
+    assert!(catch_unwind(AssertUnwindSafe(|| doc.undo())).is_err());
+    is_internal(doc.view_stage());
+    is_internal(doc.view_go(root.clone(), None));
+    let level = LevelInfo {
+        cell: root.clone(),
+        x: 0,
+        y: 0,
+        selected: None,
+    };
+    is_internal(doc.view_remember(level));
+    is_internal(doc.set_folded(root, false));
+    is_internal(doc.is_view_saved());
+    is_internal(doc.save_view());
+    drop(doc);
+    assert!(!path.with_file_name(wombat_core::storage::VIEW_DIR).exists());
+    remove(&path);
+}
+
+/// The view state is written where the document is: in the drop, where a panic that came
+/// out would end the app. One that happens there stays there, also in the drop that a
+/// close ends with.
+#[test]
+fn a_panic_while_the_view_state_is_written_stays_inside_the_drop() {
+    for close in [false, true] {
+        let (mut doc, path) = unsaved(if close { "view-close" } else { "view-drop" });
+        let root = doc.root().unwrap();
+        doc.save().unwrap();
+        doc.set_folded(root, true).unwrap();
+        doc.panic_in_write();
+        // The switch works: a write that is asked for does panic.
+        assert!(catch_unwind(AssertUnwindSafe(|| doc.save_view())).is_err());
+        if close {
+            assert!(matches!(
+                catch_unwind(AssertUnwindSafe(|| doc.close())),
+                Ok(Ok(()))
+            ));
+        }
+        assert!(catch_unwind(AssertUnwindSafe(|| drop(doc))).is_ok());
+        assert!(!path.with_file_name(wombat_core::storage::VIEW_DIR).exists());
+        // The file is free all the same.
+        drop(OpenDocument::open_with(&path, SeededIds::from_u64(5)).unwrap());
         remove(&path);
     }
 }

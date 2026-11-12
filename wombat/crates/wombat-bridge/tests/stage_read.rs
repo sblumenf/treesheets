@@ -21,9 +21,9 @@ use proptest::prelude::*;
 use support::{command, op, Op};
 use wombat_bridge::api::document::OpenDocument;
 use wombat_bridge::api::wire::{self as w, CellKind, Command, ErrorKind, StageAsk};
-use wombat_bridge::convert::{command_out, look_out, stage_ask_in, stage_out};
+use wombat_bridge::convert::{command_out, level_out, look_out, stage_ask_in, stage_out};
 use wombat_core::construct::Construct;
-use wombat_core::{storage, CellId, Document, Editor, SeededIds};
+use wombat_core::{storage, CellId, Document, Editor, Level, SeededIds, ViewState};
 
 /// The core's starting values for a phone, as Dart would send them.
 fn phone() -> StageAsk {
@@ -315,13 +315,26 @@ fn read_both(ops: &[Op], asks: &[(StageAsk, u32)], seed: u64) {
         let (got, want) = (bridge.apply(wire), shadow.apply(core, Some(1), &mut ids));
         assert_eq!(got.is_ok(), want.is_ok());
     }
-    let cells = shadow.document().cells_in_order();
+    let doc = shadow.document();
+    let cells = doc.cells_in_order();
+    // A view state beside the bridge's, told the same.
+    let mut view = ViewState::new(doc.id());
     for (ask, pick) in asks {
         let id = cells[*pick as usize % cells.len()];
+        // Each cell that is read is folded and remembered first, if it can be.
+        let fold = bridge.set_folded(id.to_string(), pick % 3 != 0);
+        assert_eq!(fold.ok(), view.set_folded(doc, id, pick % 3 != 0).ok());
+        let level = Level {
+            x: pick % 3,
+            y: pick % 5,
+            ..Level::new(id)
+        };
+        let remember = bridge.view_remember(level_out(&level));
+        assert_eq!(remember.is_ok(), view.remember(doc, level).is_ok());
         let core = stage_ask_in(*ask).unwrap();
-        let want = stage_out(shadow.stage_view(id, &core).unwrap());
+        let want = stage_out(shadow.stage_view(id, &core).unwrap(), &view);
         assert_eq!(bridge.stage(id.to_string(), *ask).unwrap(), want, "{ask:?}");
-        let want = look_out(shadow.cell_look(id).unwrap());
+        let want = look_out(shadow.cell_look(id).unwrap(), &view);
         assert_eq!(bridge.cell(id.to_string()).unwrap(), want);
     }
     drop(bridge);
@@ -424,7 +437,10 @@ fn timed(what: &str, doc: &OpenDocument, editor: &Editor, ask: StageAsk) -> Dura
     let core = stage_ask_in(ask).unwrap();
     let (alone, view) = middle(|| editor.stage_view(root, &core).unwrap());
     let (whole, stage) = middle(|| doc.stage(root.to_string(), ask).unwrap());
-    assert_eq!(stage, stage_out(view));
+    assert_eq!(
+        stage,
+        stage_out(view, &ViewState::new(editor.document().id()))
+    );
     let shapes: usize = stage.summaries.iter().map(|s| s.shape.len() / 4).sum();
     println!(
         "stage: {what}: {whole:?} through the bridge, {alone:?} the core alone \
