@@ -47,7 +47,11 @@ pub fn read_bounded(path: &Path) -> Result<Vec<u8>, Error> {
 /// Reads a whole file, refusing one larger than `max` bytes without reading it all. For
 /// files that are not Wombat's own, such as one to import, whose limit is the caller's.
 pub fn read_up_to(path: &Path, max: u64) -> Result<Vec<u8>, Error> {
-    let file = File::open(path).map_err(io(path))?;
+    read_open(File::open(path).map_err(io(path))?, path, max)
+}
+
+/// [`read_up_to`] for a file that is open already.
+fn read_open(file: File, path: &Path, max: u64) -> Result<Vec<u8>, Error> {
     let mut bytes = Vec::new();
     // `take` also bounds files that do not report a length, such as devices.
     file.take(max.saturating_add(1))
@@ -102,9 +106,111 @@ fn temp_path(path: &Path) -> Result<PathBuf, Error> {
 ///
 /// Two programs saving the same file at once are not protected from each other.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), Error> {
+    write_atomic_with_state(path, bytes).map(|_| ())
+}
+
+/// [`write_atomic`], returning the state of the file that was written.
+fn write_atomic_with_state(path: &Path, bytes: &[u8]) -> Result<FileState, Error> {
     let target = real_path(path)?;
     let temp = write_temp(&target, &mut |file| file.write_all(bytes)).map_err(io(path))?;
-    replace(&temp, &target).map_err(io(path))
+    // The state is taken from the new file before it gets the name, not from the name
+    // afterwards: what another program puts there right after the rename must not be
+    // remembered as what was written here. Renaming changes none of what is noted. The
+    // file is closed by now, since some systems settle its time only then.
+    let state = match fs::symlink_metadata(&temp) {
+        Ok(found) => FileState::of(&found),
+        Err(error) => {
+            let _ = fs::remove_file(&temp);
+            return Err(io(path)(error));
+        }
+    };
+    replace(&temp, &target).map_err(io(path))?;
+    Ok(state)
+}
+
+/// What a file looked like at one moment, to tell later whether it is still that file with
+/// that content: a document that is open remembers the state of its file from when it was
+/// last read or written, and asks [`FileState::check`] before it saves over it. Taking and
+/// checking a state costs one look at the file's entry in its folder, never a read of its
+/// content, so it can be done at every save of a file of any size.
+///
+/// What is noted, and so what a check can see:
+///
+/// - the length in bytes, on every platform;
+/// - the time of modification, where the platform gives one, in the file system's own
+///   units (nanoseconds on most, 2 seconds on FAT);
+/// - on Unix (Linux, Android, macOS, iOS) which file it is: the device and the file's
+///   number on it. A program that saves as [`write_atomic`] does, by putting a new file
+///   under the old name, is noticed by this alone, whatever the length and the clock say.
+///
+/// What a check cannot see:
+///
+/// - on Unix, a file that was rewritten in place (the same file, not a new one under its
+///   name) with the same number of bytes and the same time of modification: written within
+///   one tick of the file system's clock of the moment noted here, or by a program that
+///   puts the old time back. The same holds for a file that was deleted and made anew
+///   within that tick, where the system gives the new file the old one's number;
+/// - on Windows, where the file's number is not noted, any change that keeps both the
+///   length and the time of modification, a replacement by a new file included;
+/// - where there is no file system (`wasm32-unknown-unknown`) there is no state to take:
+///   loading and saving fail before one is asked for.
+///
+/// When the file's permissions, owner or name change, or it gets extended attributes or
+/// a second name, it is still unchanged: the time of that kind of change is deliberately
+/// left out, because tools for backup, search and synchronisation make such changes to
+/// files they do not edit.
+///
+/// Seeing every change would take reading the whole file at every save.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct FileState {
+    len: u64,
+    modified: Option<std::time::SystemTime>,
+    /// The device and the file's number on it; `None` where the platform has none.
+    file: Option<(u64, u64)>,
+}
+
+/// What [`FileState::check`] found.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum FileCheck {
+    /// The file is as it was when the state was taken, as far as a [`FileState`] can tell.
+    Unchanged,
+    /// There is no file at the path any more.
+    Gone,
+    /// There is something at the path that is not what the state was taken of: the file
+    /// with other content, another file, or a folder.
+    Changed,
+}
+
+impl FileState {
+    fn of(found: &fs::Metadata) -> FileState {
+        #[cfg(unix)]
+        let file = {
+            use std::os::unix::fs::MetadataExt;
+            Some((found.dev(), found.ino()))
+        };
+        // Windows has such a number too, but the standard library does not give it yet.
+        #[cfg(not(unix))]
+        let file = None;
+        FileState {
+            len: found.len(),
+            modified: found.modified().ok(),
+            file,
+        }
+    }
+
+    /// Compares what is at `path` now with this state. A symbolic link is followed, as
+    /// by [`write_atomic`]: what is compared is the file that saving to `path` would
+    /// replace. A link that leads nowhere is an error, as it is for saving, and so is
+    /// a path that cannot be looked at; only a path with nothing at it is
+    /// [`FileCheck::Gone`].
+    pub fn check(&self, path: &Path) -> Result<FileCheck, Error> {
+        match fs::metadata(real_path(path)?) {
+            Ok(found) if FileState::of(&found) == *self => Ok(FileCheck::Unchanged),
+            Ok(_) => Ok(FileCheck::Changed),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(FileCheck::Gone),
+            Err(error) => Err(io(path)(error)),
+        }
+    }
 }
 
 /// As [`write_atomic`] for a file whose name the program chooses itself (an image in an
@@ -230,6 +336,16 @@ fn folder_of(path: &Path) -> &Path {
 /// were not there before the call are removed again. What was there is not removed (but an
 /// image file of the same name that was in the folder of `to` has been replaced by then).
 pub fn copy_document(from: &Path, to: &Path, ids: &mut dyn IdSource) -> Result<Document, Error> {
+    copy_document_with_state(from, to, ids).map(|(copy, _)| copy)
+}
+
+/// [`copy_document`], with the state of the file `to` as it was written
+/// ([`save_document_with_state`]), for a program that keeps the copy open.
+pub fn copy_document_with_state(
+    from: &Path,
+    to: &Path,
+    ids: &mut dyn IdSource,
+) -> Result<(Document, FileState), Error> {
     // Also true for a link that leads nowhere, which `exists` would not see.
     if fs::symlink_metadata(to).is_ok() {
         return Err(Error::AlreadyExists(to.to_path_buf()));
@@ -254,10 +370,10 @@ pub fn copy_document(from: &Path, to: &Path, ids: &mut dyn IdSource) -> Result<D
         if let Ok(Some(view)) = load_view_state(folder_of(from), original.id()) {
             save_view_state(folder_of(to), &view.with_fresh_ids(&fresh))?;
         }
-        save_document(&copy, to)
+        save_document_with_state(&copy, to)
     })();
     match done {
-        Ok(()) => Ok(copy),
+        Ok(state) => Ok((copy, state)),
         Err(error) => {
             // Best effort: the error to report is the one from copying. A folder that has
             // got something else in it meanwhile stays, since only an empty one is removed.
@@ -280,8 +396,36 @@ pub fn load_document(path: &Path) -> Result<Document, Error> {
 /// Saves a document to a `.wombat` file, atomically. An invalid document, or one too large
 /// to be loaded again, is not written.
 pub fn save_document(doc: &Document, path: &Path) -> Result<(), Error> {
+    save_document_with_state(doc, path).map(|_| ())
+}
+
+/// [`load_document`], with the state of the file that the document was read from, to
+/// check later whether another program changed it ([`FileState::check`]).
+///
+/// The state and the bytes come from the same open file, the state first. A change made
+/// while the file is being read is therefore later than the state and is reported by a
+/// check, within the limits that [`FileState`] names; it is never taken for what was read.
+pub fn load_document_with_state(path: &Path) -> Result<(Document, FileState), Error> {
+    let file = File::open(path).map_err(io(path))?;
+    let state = FileState::of(&file.metadata().map_err(io(path))?);
+    let doc = crate::format::from_slice(&read_open(file, path, MAX_FILE_BYTES)?)?;
+    Ok((doc, state))
+}
+
+/// [`save_document`], returning the state of the file that was written, to check later
+/// whether another program changed it ([`FileState::check`]).
+///
+/// The state is that of the new file itself, taken before it is given its name. What
+/// another program puts at `path` afterwards, however soon, is therefore reported by a
+/// check and never taken for what was saved. On an error nothing was written and the state
+/// remembered from before still holds.
+///
+/// This does not look at what is at `path` before it writes: the caller checks the state
+/// it remembers first and decides. Between that check and the rename another program can
+/// still save, and its file is then replaced unseen; no state closes that gap.
+pub fn save_document_with_state(doc: &Document, path: &Path) -> Result<FileState, Error> {
     let text = crate::format::to_string(doc)?;
-    write_atomic(path, text.as_bytes())
+    write_atomic_with_state(path, text.as_bytes())
 }
 
 /// A step of [`save_two`], named for [`save_two_checked`].

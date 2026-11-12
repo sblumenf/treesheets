@@ -1,5 +1,6 @@
 //! Files, after the review of the bridge (milestone B1): a copy of a document that fails
-//! half-way leaves nothing behind.
+//! half-way leaves nothing behind, and a program that has a document open can tell whether
+//! its file is still the one it read or wrote.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -137,4 +138,227 @@ fn a_copy_whose_images_cannot_all_be_copied_leaves_nothing_behind() {
     let result = storage::copy_document(&from, &to, &mut SeededIds::from_u64(2));
     assert!(result.is_err(), "{result:?}");
     assert_eq!(names(&dir), ["a.wombat", "a.wombat.images"]);
+}
+
+/// What a file looked like when it was read or written, and whether it still does: how an
+/// open document knows that another program changed its file.
+mod file_state {
+    use super::*;
+    use std::io::{Seek, SeekFrom, Write};
+    use std::time::{Duration, SystemTime};
+    use wombat_core::storage::{FileCheck, FileState};
+
+    /// Saves a document as `path` and returns it with the state of the file.
+    fn saved(path: &Path) -> (Document, FileState) {
+        let doc = sample(1, &[]);
+        let state = storage::save_document_with_state(&doc, path).unwrap();
+        (doc, state)
+    }
+
+    fn modified(path: &Path) -> SystemTime {
+        fs::metadata(path).unwrap().modified().unwrap()
+    }
+
+    /// Other bytes of the same number as those in `path`.
+    fn other_bytes(path: &Path) -> Vec<u8> {
+        let mut bytes = fs::read(path).unwrap();
+        let last = bytes.last_mut().unwrap();
+        *last = if *last == b' ' { b'\n' } else { b' ' };
+        bytes
+    }
+
+    /// Writes `bytes` over the start of the file without replacing it, as a program that
+    /// does not save atomically does, and then sets the time of modification.
+    fn rewrite_in_place(path: &Path, bytes: &[u8], time: SystemTime) {
+        let mut file = fs::OpenOptions::new().write(true).open(path).unwrap();
+        file.seek(SeekFrom::Start(0)).unwrap();
+        file.write_all(bytes).unwrap();
+        file.set_modified(time).unwrap();
+    }
+
+    #[test]
+    fn a_file_that_nobody_touched_is_as_remembered() {
+        let dir = folder("unchanged");
+        let path = dir.join("a.wombat");
+        let (doc, written) = saved(&path);
+        assert_eq!(written.check(&path).unwrap(), FileCheck::Unchanged);
+        // Reading it gives the same document and the same state as writing it did.
+        let (loaded, read) = storage::load_document_with_state(&path).unwrap();
+        assert_eq!(loaded, doc);
+        assert_eq!(read, written);
+        assert_eq!(read.check(&path).unwrap(), FileCheck::Unchanged);
+        // Reading changes nothing.
+        assert_eq!(storage::load_document(&path).unwrap(), doc);
+        assert_eq!(read.check(&path).unwrap(), FileCheck::Unchanged);
+    }
+
+    #[test]
+    fn a_deleted_file_is_gone() {
+        let dir = folder("gone");
+        let path = dir.join("a.wombat");
+        let (_, state) = saved(&path);
+        fs::remove_file(&path).unwrap();
+        assert_eq!(state.check(&path).unwrap(), FileCheck::Gone);
+        // So is one whose folder went with it.
+        fs::remove_dir(&dir).unwrap();
+        assert_eq!(state.check(&path).unwrap(), FileCheck::Gone);
+    }
+
+    /// Another program saved the file the way this one does: a new file under the old
+    /// name. On Unix that is seen whatever the length and the clock say, because it is
+    /// another file; elsewhere only the time of modification can tell.
+    #[cfg(unix)]
+    #[test]
+    fn a_file_replaced_by_one_of_the_same_length_was_changed() {
+        let dir = folder("replaced");
+        let path = dir.join("a.wombat");
+        let (_, state) = saved(&path);
+        let (other, time) = (other_bytes(&path), modified(&path));
+        storage::write_atomic(&path, &other).unwrap();
+        // Even with the old time of modification put back.
+        let file = fs::OpenOptions::new().write(true).open(&path).unwrap();
+        file.set_modified(time).unwrap();
+        drop(file);
+        assert_eq!(fs::metadata(&path).unwrap().len(), other.len() as u64);
+        assert_eq!(modified(&path), time);
+        assert_eq!(state.check(&path).unwrap(), FileCheck::Changed);
+    }
+
+    #[test]
+    fn a_file_that_was_appended_to_was_changed() {
+        let dir = folder("appended");
+        let path = dir.join("a.wombat");
+        let (_, state) = saved(&path);
+        let time = modified(&path);
+        let mut file = fs::OpenOptions::new().append(true).open(&path).unwrap();
+        file.write_all(b"\n").unwrap();
+        // The length alone tells, whatever the clock says.
+        file.set_modified(time).unwrap();
+        drop(file);
+        assert_eq!(modified(&path), time);
+        assert_eq!(state.check(&path).unwrap(), FileCheck::Changed);
+    }
+
+    #[test]
+    fn a_file_rewritten_in_place_at_another_time_was_changed() {
+        let dir = folder("rewritten");
+        let path = dir.join("a.wombat");
+        let (_, state) = saved(&path);
+        let later = modified(&path) + Duration::from_millis(1);
+        rewrite_in_place(&path, &other_bytes(&path), later);
+        assert_eq!(state.check(&path).unwrap(), FileCheck::Changed);
+    }
+
+    /// The blind spot, written down: the same file (not a new one under its name) with
+    /// other bytes of the same number and the same time of modification is taken for
+    /// unchanged. That takes a program that rewrites the file in place and either does it
+    /// within one tick of the file system's clock after it was read or written here, or
+    /// puts the old time back. Seeing it would take reading the whole file at every save.
+    #[test]
+    fn a_file_rewritten_in_place_with_the_same_length_and_time_is_not_noticed() {
+        let dir = folder("blind_spot");
+        let path = dir.join("a.wombat");
+        let (_, state) = saved(&path);
+        let (before, time) = (fs::read(&path).unwrap(), modified(&path));
+        rewrite_in_place(&path, &other_bytes(&path), time);
+        assert_ne!(fs::read(&path).unwrap(), before);
+        assert_eq!(state.check(&path).unwrap(), FileCheck::Unchanged);
+    }
+
+    #[test]
+    fn saving_again_gives_the_state_to_remember() {
+        let dir = folder("save_again");
+        let path = dir.join("a.wombat");
+        let (_, first) = saved(&path);
+        // Another program changes the file; the document is saved over it all the same.
+        fs::write(&path, b"something else altogether").unwrap();
+        assert_eq!(first.check(&path).unwrap(), FileCheck::Changed);
+        let doc = sample(2, &[]);
+        let second = storage::save_document_with_state(&doc, &path).unwrap();
+        assert_eq!(second.check(&path).unwrap(), FileCheck::Unchanged);
+        assert_eq!(storage::load_document(&path).unwrap(), doc);
+
+        // A save that fails leaves the file as it was remembered.
+        let blocker = block_saving(&path);
+        assert!(storage::save_document_with_state(&sample(3, &[]), &path).is_err());
+        fs::remove_dir(dir.join(blocker)).unwrap();
+        assert_eq!(second.check(&path).unwrap(), FileCheck::Unchanged);
+        assert_eq!(names(&dir), ["a.wombat"]);
+
+        // The file of an earlier save is not the file of a later one, even one with the
+        // same bytes: each save puts a new file under the name.
+        #[cfg(unix)]
+        {
+            let third = storage::save_document_with_state(&doc, &path).unwrap();
+            assert_eq!(second.check(&path).unwrap(), FileCheck::Changed);
+            assert_eq!(third.check(&path).unwrap(), FileCheck::Unchanged);
+        }
+    }
+
+    #[test]
+    fn something_else_at_the_name_was_changed() {
+        let dir = folder("not_a_file");
+        let path = dir.join("a.wombat");
+        let (_, state) = saved(&path);
+        fs::remove_file(&path).unwrap();
+        fs::create_dir(&path).unwrap();
+        assert_eq!(state.check(&path).unwrap(), FileCheck::Changed);
+    }
+
+    #[test]
+    fn a_copy_comes_with_the_state_of_its_file() {
+        let dir = folder("copy_state");
+        let (from, to) = (dir.join("a.wombat"), dir.join("b.wombat"));
+        let doc = sample(1, &["pic.png"]);
+        save_with_all(&doc, &from, &["pic.png"]);
+        let mut ids = SeededIds::from_u64(2);
+        let (copy, state) = storage::copy_document_with_state(&from, &to, &mut ids).unwrap();
+        assert_eq!(storage::load_document(&to).unwrap(), copy);
+        assert_ne!(copy.id(), doc.id());
+        assert_eq!(state.check(&to).unwrap(), FileCheck::Unchanged);
+        assert_eq!(state.check(&from).unwrap(), FileCheck::Changed);
+        assert_eq!(names(&storage::images_dir(&to)), ["pic.png"]);
+    }
+
+    /// A document opened through a symbolic link: the state is that of the file the link
+    /// leads to, as saving replaces that file and keeps the link.
+    #[cfg(unix)]
+    #[test]
+    fn a_link_is_followed_to_the_file_it_leads_to() {
+        use std::os::unix::fs::symlink;
+        let dir = folder("link");
+        let (real, link) = (dir.join("real.wombat"), dir.join("link.wombat"));
+        let (doc, written) = saved(&real);
+        symlink(&real, &link).unwrap();
+        let (loaded, state) = storage::load_document_with_state(&link).unwrap();
+        assert_eq!(loaded, doc);
+        assert_eq!(state, written);
+        assert_eq!(state.check(&link).unwrap(), FileCheck::Unchanged);
+
+        // Another program replaces the file through the link.
+        storage::write_atomic(&link, &other_bytes(&real)).unwrap();
+        let is_link = |path: &Path| fs::symlink_metadata(path).unwrap().file_type().is_symlink();
+        assert!(is_link(&link));
+        assert_eq!(state.check(&link).unwrap(), FileCheck::Changed);
+        assert_eq!(state.check(&real).unwrap(), FileCheck::Changed);
+
+        // Saving through the link gives the state of the file behind it.
+        let state = storage::save_document_with_state(&doc, &link).unwrap();
+        assert!(is_link(&link));
+        assert_eq!(state.check(&link).unwrap(), FileCheck::Unchanged);
+        assert_eq!(state.check(&real).unwrap(), FileCheck::Unchanged);
+
+        // The link is made to lead to another file, even one with the same bytes.
+        let elsewhere = dir.join("elsewhere.wombat");
+        fs::copy(&real, &elsewhere).unwrap();
+        fs::remove_file(&link).unwrap();
+        symlink(&elsewhere, &link).unwrap();
+        assert_eq!(state.check(&link).unwrap(), FileCheck::Changed);
+        assert_eq!(state.check(&real).unwrap(), FileCheck::Unchanged);
+
+        // The file behind the link is deleted: saving there is an error
+        // (`write_atomic`), so asking is one too, and not "gone".
+        fs::remove_file(&elsewhere).unwrap();
+        assert!(state.check(&link).is_err());
+    }
 }
