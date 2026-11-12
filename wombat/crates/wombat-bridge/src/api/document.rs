@@ -161,6 +161,9 @@ fn closed() -> BridgeError {
 /// A document that is open for reading and editing, with its undo history and the file it
 /// is saved to. Dart holds it as an opaque handle; it lives until Dart lets go of it.
 ///
+/// (The generator does not carry this comment into Dart; what a Dart developer must know
+/// of it is repeated on [`OpenDocument::open`].)
+///
 /// **One call at a time, sent by the caller.** Two calls on one document never run at the
 /// same moment: a lock keeps them apart (calls that only read may run together). But the
 /// lock does not keep them in order. Each call is handed to a pool of threads, and of two
@@ -168,8 +171,8 @@ fn closed() -> BridgeError {
 /// that makes a call before the one before has answered can therefore have them carried
 /// out the other way round: characters typed in the wrong order, a command refused because
 /// the one it builds on has not happened yet. So the caller sends one call, waits for its
-/// answer, and only then sends the next; the app does that in one place, a Dart class that
-/// wraps this one and queues the calls.
+/// answer, and only then sends the next. An app does that best in one place: a Dart class
+/// that wraps this one and sends the calls one after another in the order they were made.
 ///
 /// **Errors.** Every call answers with a value or with a [`BridgeError`]. After a call
 /// that changes the document panicked, which is a fault in the program and not something a
@@ -241,6 +244,23 @@ impl OpenDocument {
 
     /// Opens the document in the file at `path`. Refused if a document has that file open
     /// ([`ErrorKind::AlreadyOpen`]).
+    ///
+    /// What to know about the document this gives, and those of [`OpenDocument::create`]
+    /// and [`OpenDocument::open_copy`] (it is said here because the generator does not
+    /// carry the comment of the type itself into Dart):
+    ///
+    /// - **Send one call at a time.** Two calls on one document never run at the same
+    ///   moment, but they are not kept in order: of two that are both under way either
+    ///   may be carried out first. Wait for the answer of each call before making the
+    ///   next one on the same document.
+    /// - **End with [`OpenDocument::close`]**, which saves. Disposing of a handle that was
+    ///   not closed saves too if it can, but can report nothing, blocks the thread that
+    ///   disposes, and does not happen when the system kills the app.
+    /// - **Every call can fail** with a [`BridgeError`]: with [`ErrorKind::Closed`] after
+    ///   `close`, and with [`ErrorKind::Internal`] after a call that changes the document
+    ///   panicked (a fault in the program; the document may be half changed, nothing more
+    ///   is saved from it, and its file is as it was last saved: dispose of the handle and
+    ///   open the file again).
     pub fn open(path: String) -> Result<OpenDocument, BridgeError> {
         OpenDocument::open_with(Path::new(&path), os_ids()?)
     }
@@ -399,6 +419,9 @@ impl OpenDocument {
     ///
     /// A command that changed something is one step of the undo history and empties the
     /// redo history.
+    ///
+    /// Wait for the answer before the next call on this document: calls that overlap are
+    /// carried out in either order ([`OpenDocument::open`] says more).
     pub fn apply(&mut self, command: Command) -> Result<Report, BridgeError> {
         self.change(|session| {
             let command = command_in(command)?;

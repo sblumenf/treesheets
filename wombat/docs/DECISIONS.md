@@ -1417,6 +1417,8 @@ are where milestones 4, 5 and 6, built apart, meet).
     so where a Dart developer reads it, and a Dart test pins it. And because the generator
     does not carry the comment of an enum that holds data (`Command`, `Prop`, `LinkTarget`)
     into Dart, the rules a Dart developer needs are stated on variants, fields and `Report`.
+    The comment of the handle `OpenDocument` is not carried over either; what it says is
+    repeated on `open`, and the rules for every command are on `apply`.
 138. **An open document knows its file by length, time and, on Unix, which file it is** (from
     the review of the bridge). A program that keeps a document open must know, when it saves,
     whether another program changed the file. Reading a file of up to 32 MiB at every save to
@@ -1490,7 +1492,9 @@ are where milestones 4, 5 and 6, built apart, meet).
     A path through a link that leads nowhere names nothing; nothing is opened or made
     through such a link anyway. Not seen to be the same file: a second hard link to it, and,
     for a file that is not there yet, a name that differs only in a way the file system
-    ignores (case on macOS and Windows). The set is the bridge's one piece of state shared
+    ignores (case on macOS and Windows). And a claim stays on the file that the path named
+    when the document was opened: if a link on the way is changed while it is open, saving
+    follows the new link and the claim does not. The set is the bridge's one piece of state shared
     by the whole process; it is not in the core, which has none. It knows nothing of other
     processes: what another program does to the file is seen at saving (A140). A lock that
     a panicking thread left poisoned is used all the same, since no step on the set can

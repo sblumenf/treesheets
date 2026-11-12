@@ -3124,6 +3124,9 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   ///
   /// A command that changed something is one step of the undo history and empties the
   /// redo history.
+  ///
+  /// Wait for the answer before the next call on this document: calls that overlap are
+  /// carried out in either order ([`OpenDocument::open`] says more).
   Future<Report> apply({required Command command}) => RustLib.instance.api
       .crateApiDocumentOpenDocumentApply(that: this, command: command);
 

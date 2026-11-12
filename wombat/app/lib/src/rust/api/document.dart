@@ -39,6 +39,9 @@ abstract class OpenDocument implements RustOpaqueInterface {
   ///
   /// A command that changed something is one step of the undo history and empties the
   /// redo history.
+  ///
+  /// Wait for the answer before the next call on this document: calls that overlap are
+  /// carried out in either order ([`OpenDocument::open`] says more).
   Future<Report> apply({required Command command});
 
   /// Ends the work on the document: saves what is unsaved and gives the document up.
@@ -79,6 +82,23 @@ abstract class OpenDocument implements RustOpaqueInterface {
 
   /// Opens the document in the file at `path`. Refused if a document has that file open
   /// ([`ErrorKind::AlreadyOpen`]).
+  ///
+  /// What to know about the document this gives, and those of [`OpenDocument::create`]
+  /// and [`OpenDocument::open_copy`] (it is said here because the generator does not
+  /// carry the comment of the type itself into Dart):
+  ///
+  /// - **Send one call at a time.** Two calls on one document never run at the same
+  ///   moment, but they are not kept in order: of two that are both under way either
+  ///   may be carried out first. Wait for the answer of each call before making the
+  ///   next one on the same document.
+  /// - **End with [`OpenDocument::close`]**, which saves. Disposing of a handle that was
+  ///   not closed saves too if it can, but can report nothing, blocks the thread that
+  ///   disposes, and does not happen when the system kills the app.
+  /// - **Every call can fail** with a [`BridgeError`]: with [`ErrorKind::Closed`] after
+  ///   `close`, and with [`ErrorKind::Internal`] after a call that changes the document
+  ///   panicked (a fault in the program; the document may be half changed, nothing more
+  ///   is saved from it, and its file is as it was last saved: dispose of the handle and
+  ///   open the file again).
   static Future<OpenDocument> open({required String path}) =>
       RustLib.instance.api.crateApiDocumentOpenDocumentOpen(path: path);
 
