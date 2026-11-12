@@ -36,6 +36,7 @@ pub mod text;
 pub mod view;
 pub mod workspace;
 
+pub use edit::{CellLook, CutText, GridPart, GridSummary, StageAsk, StageView, TrailStep};
 pub use edit::{CellView, Changes, Clip, Command, Editor, GridView, Prop};
 pub use error::Error;
 pub use id::{CellId, DocId, Id, IdSource, SeededIds};

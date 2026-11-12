@@ -28,6 +28,7 @@ mod program;
 mod read;
 mod restructure;
 mod size;
+mod stage;
 mod step;
 
 use std::collections::HashMap;
@@ -43,6 +44,7 @@ use step::{ChangeSet, Step};
 
 pub use paste::Clip;
 pub use read::{CellView, GridView};
+pub use stage::{CellLook, CutText, GridPart, GridSummary, StageAsk, StageView, TrailStep};
 
 /// The smallest width of a column, as in TreeSheets.
 pub const MIN_COL_WIDTH: u32 = 5;
