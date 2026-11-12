@@ -338,9 +338,10 @@ jobs:
         fi
         # Room for what the tests log, which the last step prints.
         adb -s "$DEVICE" logcat -G 16M
-        for scale in window_animation_scale transition_animation_scale animator_duration_scale; do
-          adb -s "$DEVICE" shell settings put global "$scale" 0
-        done
+        # Android's animations are left as a phone has them. Switched off (a transition
+        # scale of 0), Flutter is told to do without its own and runs them twenty times as
+        # fast: a test that presses a button and waits for the screen to come to rest then
+        # stops waiting before the app has answered, which is how the first run failed.
         adb -s "$DEVICE" shell input keyevent 82
         adb devices -l
         adb -s "$DEVICE" shell getprop ro.build.version.release
