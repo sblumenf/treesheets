@@ -912,8 +912,11 @@ void main() {
       await tester.drag(key('stage-down-0'), const Offset(0, -300));
       await tester.pumpAndSettle();
       expect(key('shape-1-2/0-0'), findsOneWidget);
-      expect(key('badge-1-3/0-0'), findsOneWidget);
-      expect(key('badge-1-3/1-0'), findsOneWidget);
+      // A Badge is what a grid folded on this device shows: its count.
+      expect(
+        find.descendant(of: key('badge-1-3'), matching: find.text('12')),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
 
       await show(tester, 'empty', 'Wombat');

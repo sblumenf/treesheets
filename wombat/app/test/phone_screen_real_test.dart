@@ -115,17 +115,28 @@ void main() {
   }
 
   /// A document nested four levels deep, small enough to make for every test: the
-  /// root has 3 by 4 cells; its first cell holds 3 by 4 again, the first of each
-  /// later row 2 by 2, which are small enough to be drawn cell by cell.
-  Future<(Session, Watched)> nested(Directory folder, String name) async {
+  /// root has `across` columns and 4 rows; its first cell holds a grid of that
+  /// size again, and every third cell after it one of 2 by 2. With two columns
+  /// the grids fit cell by cell at the width of a phone; with three they do not.
+  Future<(Session, Watched)> nestedOf(
+    int across,
+    Directory folder,
+    String name,
+  ) async {
     final file = File('${folder.path}/$name.wombat');
     await writeDocument(
       file,
-      nestedTable(const [(3, 4), (2, 2), (2, 2), (1, 2)]),
+      nestedTable([(across, 4), const (2, 2), const (2, 2), const (1, 2)]),
       'Nested',
     );
     return watch(file.path);
   }
+
+  Future<(Session, Watched)> nested(Directory folder, String name) =>
+      nestedOf(2, folder, name);
+
+  Future<(Session, Watched)> nestedWide(Directory folder, String name) =>
+      nestedOf(3, folder, name);
 
   Future<(Session, Watched)> empty(Directory folder, String name) =>
       watch('${folder.path}/$name.wombat', create: true);
@@ -221,17 +232,16 @@ void main() {
       await go(tester, 'child-3-0', 'Level 0 cell 3.0 text');
       expect(shown(tester, '3-0'), 'Level 1 cell 3.0 text');
       await go(tester, 'child-3-0', 'Level 1 cell 3.0 text');
-      // Two levels down, the grid of the first cell of the second row is small
-      // enough to be drawn cell by cell: the third level is on the screen.
       expect(shown(tester, '0-1'), 'Level 2 cell 0.1 text');
-      expect(key('full-0-1'), findsOneWidget);
-      expect(shown(tester, '0-1/1-1'), 'Level 3 cell 1.1 text');
-      await edit(tester, '0-1/1-1', 'Level 3 cell 1.1 text');
+      await go(tester, 'child-0-1', 'Level 2 cell 0.1 text');
+      // Three levels down.
+      expect(shown(tester, '1-1'), 'Level 3 cell 1.1 text');
+      await edit(tester, '1-1', 'Level 3 cell 1.1 text');
       await closed(tester, 'cancel');
       // The trail says where that is, and leads back.
       expect(
         [
-          for (var i = 0; i < 3; i++)
+          for (var i = 0; i < 4; i++)
             tester
                 .widget<Text>(
                   find.descendant(
@@ -241,7 +251,12 @@ void main() {
                 )
                 .data,
         ],
-        ['Six levels', '› Level 0 cell 3.0 text', '› Level 1 cell 3.0 text'],
+        [
+          'Six levels',
+          '› Level 0 cell 3.0 text',
+          '› Level 1 cell 3.0 text',
+          '› Level 2 cell 0.1 text',
+        ],
       );
       await go(tester, 'trail-0', 'Six levels');
     }, open: (_, _) => watch(sixLevels));
@@ -276,8 +291,12 @@ void main() {
       doc,
       watch,
     ) async {
-      await go(tester, 'child-0-0', 'Level 0 cell 0.0 text');
-      await go(tester, 'child-0-0', 'Level 1 cell 0.0 text');
+      // The grids are drawn cell by cell here: into one by its cell and "Open ›".
+      expect(key('full-0-0'), findsOneWidget);
+      await edit(tester, '0-0', 'Level 0 cell 0.0 text');
+      await go(tester, 'tool-open', 'Level 0 cell 0.0 text');
+      await edit(tester, '0-0', 'Level 1 cell 0.0 text');
+      await go(tester, 'tool-open', 'Level 1 cell 0.0 text');
       await edit(tester, '1-0', 'Level 2 cell 1.0 text');
       type(tester, 'edited two levels down');
       await closed(tester, 'save');
@@ -293,7 +312,7 @@ void main() {
     realTest(
       '3 and 7: add a row to a nested grid and fill two cells; undo three times',
       (tester, keeper, doc, watch) async {
-        // The grid of 2 by 2 in the second row, drawn cell by cell.
+        // The grid of 2 by 2 in the second row, second column, drawn cell by cell.
         final owner = await idAt(tester, keeper, keeper.root, 3);
         expect(await texts(tester, keeper, owner), [
           'Level 1 cell 0.0 text',
@@ -302,22 +321,22 @@ void main() {
           'Level 1 cell 1.1 text',
         ]);
         // Return in its last row adds a row, and the editor is on the new cell.
-        await edit(tester, '0-1/0-1', 'Level 1 cell 0.1 text');
+        await edit(tester, '1-1/0-1', 'Level 1 cell 0.1 text');
         await pressReturn(tester);
         await until(
           tester,
-          () => there('cell-0-1/0-2') && editor(tester) == '',
+          () => there('cell-1-1/0-2') && editor(tester) == '',
         );
         type(tester, 'first');
         // → moves to the cell on the right, in the new row.
         await tap(
           tester,
           'tool-right',
-          () => shown(tester, '0-1/0-2') == 'first' && editor(tester) == '',
+          () => shown(tester, '1-1/0-2') == 'first' && editor(tester) == '',
         );
         type(tester, 'second');
         await tester.pump();
-        expect(shown(tester, '0-1/1-2'), 'second');
+        expect(shown(tester, '1-1/1-2'), 'second');
         await closed(tester, 'save');
         expect(await texts(tester, keeper, owner), [
           'Level 1 cell 0.0 text',
@@ -331,9 +350,9 @@ void main() {
 
         // Flow 7: the last three changes, one after the other: the second text,
         // the first, and the row.
-        await tap(tester, 'undo', () => shown(tester, '0-1/1-2') == '');
-        await tap(tester, 'undo', () => shown(tester, '0-1/0-2') == '');
-        await tap(tester, 'undo', () => !there('cell-0-1/0-2'));
+        await tap(tester, 'undo', () => shown(tester, '1-1/1-2') == '');
+        await tap(tester, 'undo', () => shown(tester, '1-1/0-2') == '');
+        await tap(tester, 'undo', () => !there('cell-1-1/0-2'));
         expect((await texts(tester, keeper, owner)).length, 4);
         // And nothing more: the text Return entered had not changed.
         await tap(tester, 'undo', () => line(tester, 'message') != null);
@@ -342,8 +361,8 @@ void main() {
         for (var i = 0; i < 3; i++) {
           await press(tester, 'redo');
         }
-        await until(tester, () => there('cell-0-1/1-2'));
-        await until(tester, () => shown(tester, '0-1/1-2') == 'second');
+        await until(tester, () => there('cell-1-1/1-2'));
+        await until(tester, () => shown(tester, '1-1/1-2') == 'second');
       },
       open: nested,
     );
@@ -574,7 +593,7 @@ void main() {
         await tap(tester, 'redo', () => there('cell-0-0/0-8'));
         expect(key('full-0-0'), findsOneWidget);
       },
-      open: nested,
+      open: nestedWide,
       variants: const Variants(tapChildUnfolds: true),
     );
 
@@ -582,20 +601,20 @@ void main() {
       'a row added to a Full grid that then has too many cells for that: the '
       'editor closes, nothing is lost',
       (tester, keeper, doc, watch) async {
-        // The grid of 2 by 2 in the second row, made 2 by 12: 24 cells.
+        // The grid of 2 by 2 in the second row, second column, made 2 by 12: 24 cells.
         final owner = await idAt(tester, keeper, keeper.root, 3);
         await real(
           tester,
           () => keeper.apply(Command.insertRows(cell: owner, at: 2, count: 10)),
         );
-        await until(tester, () => there('cell-0-1/0-11'));
-        await edit(tester, '0-1/1-0', 'Level 1 cell 1.0 text');
+        await until(tester, () => there('cell-1-1/0-11'));
+        await edit(tester, '1-1/1-0', 'Level 1 cell 1.0 text');
         type(tester, 'kept');
         await press(tester, 'tool-row');
         // 26 cells: a Preview now, which has no cell for the editor to be on.
-        await until(tester, () => there('preview-0-1'));
+        await until(tester, () => there('preview-1-1'));
         expect(key('editor'), findsNothing);
-        expect(key('full-0-1'), findsNothing);
+        expect(key('full-1-1'), findsNothing);
         final all = await texts(tester, keeper, owner);
         expect((all.length, all[1], all[3]), (26, 'kept', ''));
       },

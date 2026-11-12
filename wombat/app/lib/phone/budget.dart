@@ -74,10 +74,12 @@ DepthForm formOf({
   return DepthForm.badge;
 }
 
-/// The least width of a column of a Full grid: a target, and room for three
-/// characters' worth of text at the system's size.
+/// The least width of a column of a Full grid: room for a short word at the
+/// system's text size (four and a half times the size of a cell's text), and never
+/// less than a target. A grid whose columns would be narrower is not "near full
+/// size": its texts would break after every few letters.
 double fullColumn(double textScale) {
-  final text = 3 * cellFont * textScale;
+  final text = 4.5 * cellFont * textScale;
   return text > target ? text : target;
 }
 

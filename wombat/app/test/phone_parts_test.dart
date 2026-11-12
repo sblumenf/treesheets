@@ -93,8 +93,8 @@ void main() {
     test(
       'Full where every column is a target wide and the cells are given',
       () {
-        expect(form(96, summary(2, 2)), DepthForm.full);
-        expect(form(95.9, summary(2, 2)), DepthForm.preview);
+        expect(form(144, summary(2, 2)), DepthForm.full);
+        expect(form(143.9, summary(2, 2)), DepthForm.preview);
         // Not given cell by cell: nothing to draw it from.
         expect(form(400, summary(2, 2), given: false), DepthForm.preview);
         // More cells than a grid may have to be Full by itself: 24 are, 25 not.
@@ -104,15 +104,15 @@ void main() {
     );
 
     test('larger text needs wider columns, so a grid steps down sooner', () {
-      expect(fullColumn(1), 48);
-      expect(fullColumn(0.8), 48);
-      expect(fullColumn(2), 96);
+      expect(fullColumn(1), 72);
+      expect(fullColumn(0.5), 48);
+      expect(fullColumn(2), 144);
       expect(form(150, summary(2, 2)), DepthForm.full);
       expect(form(150, summary(2, 2), textScale: 2), DepthForm.preview);
       // And a Preview's text needs more room too.
       expect(form(111, summary(2, 2), textScale: 2), DepthForm.shape);
-      expect(form(111, summary(2, 2)), DepthForm.full);
-      expect(form(192, summary(2, 2), textScale: 2), DepthForm.full);
+      expect(form(288, summary(2, 2), textScale: 2), DepthForm.full);
+      expect(form(287, summary(2, 2), textScale: 2), DepthForm.preview);
     });
 
     test('Preview where its text is readable and has room', () {

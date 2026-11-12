@@ -15,7 +15,7 @@ enum TestDocument {
   example('example.wombat', Words.example),
 
   /// A small document made by hand that shows each form of the depth budget at
-  /// the width of a phone, and text of several lines, right to left, long, styled
+  /// the width of a phone (the Badge by a grid that is folded), and text of several lines, right to left, long, styled
   /// and coloured.
   forms('depth-forms.wombat', Words.forms),
 
@@ -110,12 +110,8 @@ List<_Cell> _forms() => [
   ]),
   const _Cell('Shape, inside a Full grid'),
   _Cell('2 by 1', 2, [_mixed('12 by 20'), const _Cell('beside it')]),
-  const _Cell('Badge, inside a Full grid'),
-  _Cell('3 by 1', 3, [
-    _mixed('big'),
-    const _Cell('small', 2, [_Cell('1'), _Cell('2'), _Cell('3'), _Cell('4')]),
-    const _Cell('none'),
-  ]),
+  const _Cell('Badge: folded on this device'),
+  _Cell('3 by 4', 3, [for (var n = 0; n < 12; n++) _Cell('B $n')]),
   const _Cell('Line breaks'),
   const _Cell('first line\nsecond line\nthird line'),
   const _Cell('Right to left'),
@@ -138,7 +134,9 @@ List<_Cell> _forms() => [
 ];
 
 /// Makes the document "Depth forms" and saves it at `file`: the cells as one
-/// import, and then what a table cannot say, the styles and colours.
+/// import, and then what a table cannot say: the styles and colours, and the
+/// grid that is folded, which is this device's view of it and no part of the
+/// document.
 Future<void> _writeForms(File file) async {
   final part = File('${file.path}.part');
   if (part.existsSync()) part.deleteSync();
@@ -198,6 +196,9 @@ Future<void> _writeForms(File file) async {
       props: const [Prop.cellColor(Rgb(r: 200, g: 230, b: 201))],
     ),
   );
+  await doc.setFolded(named(3), folded: true);
+  // Closing writes the view state too, under the document's ID, which the
+  // file keeps under its other name.
   await doc.close();
   part.renameSync(file.path);
 }
