@@ -9,15 +9,36 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 import 'wire.dart';
 
-// These functions are ignored because they are not marked as `pub`: `closed`, `now`, `os_ids`, `report`, `save_quietly`, `save`, `session_mut`, `session`, `with`, `write`
+// These functions are ignored because they are not marked as `pub`: `change`, `closed`, `half_changed`, `now`, `os_ids`, `report`, `save_quietly`, `save`, `session_mut`, `session`, `with`, `write`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Clock`, `Session`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `drop`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `copy_with`, `create_with`, `open_with`, `set_fixed_time`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OpenDocument>>
 abstract class OpenDocument implements RustOpaqueInterface {
-  /// Carries out a command and returns what it changed. On an error the document is
-  /// exactly as before.
+  /// Carries out a command and returns what it changed.
+  ///
+  /// What holds for every command:
+  ///
+  /// - **On an error nothing changed**: the document and its undo history are exactly
+  ///   as before, and the document is as saved or unsaved as it was.
+  /// - **A command that asks for nothing new succeeds and changes nothing** (setting a
+  ///   colour that a cell already has, inserting empty text): the report is empty,
+  ///   nothing is added to the undo history, and the document stays saved if it was.
+  ///   (`Run` can change what formula cells show without changing the document; those
+  ///   cells are then in `recalculated` of a report that is otherwise empty.)
+  /// - **Positions and lengths in text are counted in Unicode code points**, not in the
+  ///   UTF-16 units of a Dart string, and must not cut a user-perceived character (a
+  ///   letter with its accents, a flag, an emoji made of several). One that does, or is
+  ///   outside the text, is refused ([`ErrorKind::Refused`]); it is never moved.
+  /// - **Control characters in cell text become spaces** (everything below U+0020:
+  ///   line breaks and tabs too). Notes keep them.
+  /// - Cells are named by their ID as text; text that is no ID is refused
+  ///   ([`ErrorKind::BadRequest`]) and an ID that no cell has is
+  ///   [`ErrorKind::NotFound`]. Whole numbers out of range are refused, never cut.
+  ///
+  /// A command that changed something is one step of the undo history and empties the
+  /// redo history.
   Future<Report> apply({required Command command});
 
   /// Ends the work on the document: saves what is unsaved and gives the document up.

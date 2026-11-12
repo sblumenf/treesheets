@@ -3101,8 +3101,29 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
         RustLib.instance.api.rust_arc_decrement_strong_count_OpenDocumentPtr,
   );
 
-  /// Carries out a command and returns what it changed. On an error the document is
-  /// exactly as before.
+  /// Carries out a command and returns what it changed.
+  ///
+  /// What holds for every command:
+  ///
+  /// - **On an error nothing changed**: the document and its undo history are exactly
+  ///   as before, and the document is as saved or unsaved as it was.
+  /// - **A command that asks for nothing new succeeds and changes nothing** (setting a
+  ///   colour that a cell already has, inserting empty text): the report is empty,
+  ///   nothing is added to the undo history, and the document stays saved if it was.
+  ///   (`Run` can change what formula cells show without changing the document; those
+  ///   cells are then in `recalculated` of a report that is otherwise empty.)
+  /// - **Positions and lengths in text are counted in Unicode code points**, not in the
+  ///   UTF-16 units of a Dart string, and must not cut a user-perceived character (a
+  ///   letter with its accents, a flag, an emoji made of several). One that does, or is
+  ///   outside the text, is refused ([`ErrorKind::Refused`]); it is never moved.
+  /// - **Control characters in cell text become spaces** (everything below U+0020:
+  ///   line breaks and tabs too). Notes keep them.
+  /// - Cells are named by their ID as text; text that is no ID is refused
+  ///   ([`ErrorKind::BadRequest`]) and an ID that no cell has is
+  ///   [`ErrorKind::NotFound`]. Whole numbers out of range are refused, never cut.
+  ///
+  /// A command that changed something is one step of the undo history and empties the
+  /// redo history.
   Future<Report> apply({required Command command}) => RustLib.instance.api
       .crateApiDocumentOpenDocumentApply(that: this, command: command);
 

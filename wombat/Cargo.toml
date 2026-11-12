@@ -17,3 +17,9 @@ unwrap_used = "warn"
 expect_used = "warn"
 panic = "warn"
 indexing_slicing = "warn"
+
+# No profile here (`[profile.release]`, `[profile.dev]`) may set `panic = "abort"`. The
+# bridge counts on a panic unwinding: `flutter_rust_bridge` catches it where Dart called
+# and hands Dart an exception, and the open document then refuses to be used
+# (decisions A129 and A143). With `abort`, a panic anywhere ends the app without a
+# word and without saving. `crates/wombat-bridge/src/lib.rs` refuses to compile then.

@@ -831,6 +831,11 @@ pub enum ErrorKind {
     AlreadyOpen,
     /// The call was made on a document that was closed; nothing was done.
     Closed,
+    /// A fault in the program itself: an earlier call that changes the document did not
+    /// finish (it panicked), so the document may be half changed. Every later call on it
+    /// is refused with this and nothing more is saved from it; its file is as it was
+    /// last saved. The handle can only be disposed of, and the file opened again.
+    Internal,
 }
 
 /// An error, as a value an interface can show.

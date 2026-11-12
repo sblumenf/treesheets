@@ -1285,26 +1285,68 @@ are where milestones 4, 5 and 6, built apart, meet).
     cells in it** (`Report.recalculated`). The core's `Changes` stays as decision A90 left it;
     the bridge adds `Editor::recalculated()`, because an interface that redraws only what a
     report names would otherwise show old results of formulas.
-127. **An open document is an opaque handle** (`OpenDocument`: editor, file, ID source, clock,
-    whether saved), not something looked up by document ID: two files can have the same ID
-    (A28). Every call is asynchronous on the Dart side and runs off the thread that draws;
-    `flutter_rust_bridge` lets one call at a time work on a document, and Dart awaits each. A
-    test in the core asserts that `Editor` can move between threads. Only plain `apply` is
-    bridged; joining typing into one undo unit and groups come with the real interface.
+127. **An open document is an opaque handle** (`OpenDocument`: editor, file and what it looked
+    like when last read or written, ID source, clock, whether saved), not something looked up
+    by document ID: two files can have the same ID (A28). Every call is asynchronous on the
+    Dart side, and the core's work runs off the thread that draws. (Not all of a call does:
+    Dart writes the arguments and reads the answer on its own thread, and the arguments are
+    read on the Rust side inside the call itself, before the work is handed over. For an
+    import of 100,000 cells the evaluation after the review measured 34 to 130 ms of the
+    caller's time, of 464 to 736 ms in all; so much data belongs in a call that takes a
+    path or bytes.)
+    `flutter_rust_bridge` keeps two calls on one document from running at the same moment,
+    with a lock. It does not keep them in order: each call goes to a pool of threads, and of
+    two that wait either may go first. The review saw 40 insertions into one cell, made
+    without waiting, end with the wrong text in 6 of 20 rounds. So the caller sends one call
+    at a time and waits for its answer before the next; the comment of `OpenDocument` says
+    so, and the app is to do it in one place on the Dart side, where the order of calls is
+    known. A test in the core asserts that `Editor` can move between threads. Only plain
+    `apply` is bridged; joining typing into one undo unit and groups come with the real
+    interface.
 128. **The bridge supplies what the core takes as arguments:** new IDs from a generator seeded
     from the operating system once per open document (`getrandom`), and the time from the
     device's clock. Tests give both.
-129. **Errors cross as `{kind, message, path}`.** The kind mirrors the variants of the core's
-    error, for the interface to switch on; the message is the core's English text. What is
-    wrong with something sent over the bridge (text that is no ID, say) has a kind of its own,
-    `BadRequest` (A133).
-    A panic, which the core is written not to have, is caught by `flutter_rust_bridge` at the
-    boundary and arrives in Dart as a `PanicException`, not as a crash (tried in a throwaway
-    project for synchronous and asynchronous calls; no test in the repository does it, since
-    it would need a function that panics on purpose).
+129. **Errors cross as `{kind, message, path}`; a panic is caught, and what it leaves is not
+    used.** The kind mirrors the variants of the core's error, for the interface to switch
+    on; the message is the core's English text. The bridge adds kinds of its own:
+    `BadRequest` for what is wrong with something sent over it (A133), `ChangedOnDisk`
+    (A140), `AlreadyOpen` (A141), `Closed` (A142) and `Internal` (A143).
+    A panic is a fault in the program; the core is written not to have any. What happens
+    if there is one all the same was tried by the evaluation after the review, in a copy
+    of the bridge with a function that panics on purpose:
+    - In a call, the panic is caught by `flutter_rust_bridge` where the work runs
+      (`catch_unwind`), and Dart gets a `PanicException`, not a crash. Its text can hold a
+      backtrace with the paths of the machine that built the app, so an interface shows a
+      sentence of its own and not that text.
+    - The lock around a document is not poisoned by a panic (it is tokio's, which has no
+      poisoning). After a panic in a call that changes a document, the document was still
+      there, half changed, readable, called saved, with the command in its history.
+      Decision A143 is about that.
+    - A panic while a handle is dropped is not caught: the generated function that drops
+      it is a plain `extern "C"` function, and a panic that reaches the end of one ends the
+      process. What the bridge does in a drop is therefore guarded by itself (A142).
+    - All of this needs panics to unwind. Nothing in the workspace sets `panic = "abort"`;
+      a comment at the end of the workspace's `Cargo.toml` says that nothing may, and
+      `crates/wombat-bridge/src/lib.rs` does not compile if something does (tried once with
+      `CARGO_PROFILE_DEV_PANIC=abort`).
+    - No test in the repository sends a panic across to Dart: that would need a function
+      that Dart can call and that panics, in the library that ships. The tests of what the
+      document does after a panic are inside the crate (`src/panic_tests.rs`) and use
+      switches that exist only in its test build.
+    The library is started with `PanicBacktrace::setup()` only, not with
+    `flutter_rust_bridge`'s `setup_default_user_utils`. That also set `RUST_BACKTRACE` in
+    the environment of the process, while other threads of the app run and may read the
+    environment, which C does not make safe; and on Android, iOS and macOS it sent whatever
+    any library logs, down to the finest level, to the system's log, in release builds too.
+    Nothing in Wombat logs. The price is that a panic is reported with a backtrace only
+    when the app was started with `RUST_BACKTRACE=1`. A test holds that starting the
+    library leaves that variable alone.
 130. **The app opens the example through a copy with fresh IDs** (`OpenDocument::open_copy`,
-    which is `storage::copy_document`): every install has the same example file, and A28 says
-    a copy gets its own IDs. A new document is saved where it is created, as `Workspace::create`
+    which is `storage::copy_document_with_state`): every install has the same example file,
+    and A28 says a copy gets its own IDs. A copy that fails leaves nothing behind (A139), and
+    the editor that is made of the copy afterwards cannot fail, because it refuses only what
+    the save, which has just written that very document, refuses too; so there is never a
+    file of a copy without an open document for it. The same holds for a new document. A new document is saved where it is created, as `Workspace::create`
     does. The bare app writes into the system's temporary folder; where documents live, opening
     from bytes, and Android's picked documents (which are not paths) are for the real
     interface.
@@ -1475,6 +1517,19 @@ are where milestones 4, 5 and 6, built apart, meet).
       giving up the claim on the file cannot panic (A141).
     After `close()` the handle holds nothing; it is still Dart's to dispose of. `id()`,
     `root()`, `path()` and `is_saved()` can now fail, with `Closed`.
+143. **A document that a panic may have left half changed is not used again** (from the
+    evaluation after the review; see A129 for what a panic does). The open document notes
+    that a call which changes it (`apply`, `undo`, `redo`) is under way, from before the
+    core is asked until the report is made, and clears the note when the call ends, with a
+    value or with an error (the core leaves the document as it was when it refuses). If a
+    call finds the note set, an earlier one never ended: a panic unwound through it. Then
+    every call, reads and `is_saved()` included, is refused with `Internal`; `save`,
+    `overwrite` and `close` write nothing, and neither does the drop of the handle, which
+    still gives up the file. So the file stays as it was last saved, and the way on is to
+    dispose of the handle and open the file again; what was not saved is lost, which is
+    better than saving half a command over what was whole. Calls that only read, and
+    saving, set no note: they do not change the document, and a save that panics has not
+    replaced the file (the new file gets its name in one last step).
 
 ## B. Deliberate departures from TreeSheets
 

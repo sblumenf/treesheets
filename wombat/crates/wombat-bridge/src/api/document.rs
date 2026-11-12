@@ -56,11 +56,19 @@ struct Session {
     /// What the file looked like when it was read or last written, to tell at the next
     /// save whether another program changed it since.
     file: FileState,
+    /// Set while a call that changes the document is under way. Found set at the start
+    /// of a call, it means that such a call never finished: a panic unwound through it
+    /// and the document may be half changed.
+    unfinished: bool,
     /// Keeps the file from being opened a second time; gives it up when dropped.
     _claim: Claim,
     /// Makes writing the file panic, for the test of what a drop does then.
     #[cfg(test)]
     panic_in_write: bool,
+    /// Makes a call that changes the document panic when the core has done its part and
+    /// the call is not finished, for the test of what later calls do then.
+    #[cfg(test)]
+    panic_in_change: bool,
 }
 
 impl Session {
@@ -122,12 +130,23 @@ impl Session {
 /// and does not count on this.
 impl Drop for Session {
     fn drop(&mut self) {
-        if self.saved {
+        // Nothing is saved from a document that may be half changed.
+        if self.saved || self.unfinished {
             return;
         }
         if let Err(panic) = catch_unwind(AssertUnwindSafe(|| self.save_quietly())) {
             std::mem::forget(panic);
         }
+    }
+}
+
+fn half_changed() -> BridgeError {
+    BridgeError {
+        kind: ErrorKind::Internal,
+        message: "a fault in the program: an earlier change to the document did not finish, \
+                  so the document is not used any more; its file is as it was last saved"
+            .into(),
+        path: None,
     }
 }
 
@@ -140,8 +159,23 @@ fn closed() -> BridgeError {
 }
 
 /// A document that is open for reading and editing, with its undo history and the file it
-/// is saved to. Dart holds it as an opaque handle; it lives until Dart lets go of it. Two
-/// calls on one document never run at the same time: the second waits for the first.
+/// is saved to. Dart holds it as an opaque handle; it lives until Dart lets go of it.
+///
+/// **One call at a time, sent by the caller.** Two calls on one document never run at the
+/// same moment: a lock keeps them apart (calls that only read may run together). But the
+/// lock does not keep them in order. Each call is handed to a pool of threads, and of two
+/// calls that are both waiting either may go first, whichever was made first. A caller
+/// that makes a call before the one before has answered can therefore have them carried
+/// out the other way round: characters typed in the wrong order, a command refused because
+/// the one it builds on has not happened yet. So the caller sends one call, waits for its
+/// answer, and only then sends the next; the app does that in one place, a Dart class that
+/// wraps this one and queues the calls.
+///
+/// **Errors.** Every call answers with a value or with a [`BridgeError`]. After a call
+/// that changes the document panicked, which is a fault in the program and not something a
+/// caller can cause, every later call is refused ([`ErrorKind::Internal`]) and nothing more
+/// is saved: the document may be half changed. Dispose of the handle and open the file
+/// again; it is as it was last saved.
 ///
 /// A file is open in one document at a time: while this one is open, opening its file
 /// again is refused ([`ErrorKind::AlreadyOpen`]).
@@ -177,20 +211,32 @@ impl OpenDocument {
                 clock: Clock::System,
                 saved: true,
                 file,
+                unfinished: false,
                 _claim: claim,
                 #[cfg(test)]
                 panic_in_write: false,
+                #[cfg(test)]
+                panic_in_change: false,
             }),
         })
     }
 
-    /// The document, or the refusal of every call once it was closed.
+    /// The document, or the refusal of every call, reads and saving included, once it was
+    /// closed or a change to it did not finish.
     fn session(&self) -> Result<&Session, BridgeError> {
-        self.session.as_ref().ok_or_else(closed)
+        match &self.session {
+            None => Err(closed()),
+            Some(session) if session.unfinished => Err(half_changed()),
+            Some(session) => Ok(session),
+        }
     }
 
     fn session_mut(&mut self) -> Result<&mut Session, BridgeError> {
-        self.session.as_mut().ok_or_else(closed)
+        match &mut self.session {
+            None => Err(closed()),
+            Some(session) if session.unfinished => Err(half_changed()),
+            Some(session) => Ok(session),
+        }
     }
 
     /// Opens the document in the file at `path`. Refused if a document has that file open
@@ -269,6 +315,36 @@ impl OpenDocument {
         }
     }
 
+    /// Makes every later call that changes the document panic before it is finished, for
+    /// the tests in `panic_tests.rs`. It exists only in this crate's own test build.
+    #[cfg(test)]
+    #[frb(ignore)]
+    pub(crate) fn panic_in_change(&mut self) {
+        if let Some(session) = &mut self.session {
+            session.panic_in_change = true;
+        }
+    }
+
+    /// Runs a call that changes the document, and notes that it is under way from before
+    /// the core is asked until the answer is ready. The core is written not to panic, and
+    /// when it refuses a command it leaves the document as it was. But should a panic
+    /// unwind through `work` all the same, the note stays, and every later call is refused
+    /// ([`ErrorKind::Internal`]): no lock here is poisoned by a panic, so without the note
+    /// the half-changed document would be shown, edited and saved as if nothing had
+    /// happened.
+    fn change<T>(
+        &mut self,
+        work: impl FnOnce(&mut Session) -> Result<T, BridgeError>,
+    ) -> Result<T, BridgeError> {
+        let session = self.session_mut()?;
+        session.unfinished = true;
+        let result = work(session);
+        #[cfg(test)]
+        assert!(!session.panic_in_change, "on purpose, in a change");
+        session.unfinished = false;
+        result
+    }
+
     /// The permanent ID of the document.
     pub fn id(&self) -> Result<String, BridgeError> {
         Ok(self.session()?.editor.document().id().to_string())
@@ -300,31 +376,55 @@ impl OpenDocument {
         Ok(grid_out(session.editor.grid_view(cell_id(&cell)?)?))
     }
 
-    /// Carries out a command and returns what it changed. On an error the document is
-    /// exactly as before.
+    /// Carries out a command and returns what it changed.
+    ///
+    /// What holds for every command:
+    ///
+    /// - **On an error nothing changed**: the document and its undo history are exactly
+    ///   as before, and the document is as saved or unsaved as it was.
+    /// - **A command that asks for nothing new succeeds and changes nothing** (setting a
+    ///   colour that a cell already has, inserting empty text): the report is empty,
+    ///   nothing is added to the undo history, and the document stays saved if it was.
+    ///   (`Run` can change what formula cells show without changing the document; those
+    ///   cells are then in `recalculated` of a report that is otherwise empty.)
+    /// - **Positions and lengths in text are counted in Unicode code points**, not in the
+    ///   UTF-16 units of a Dart string, and must not cut a user-perceived character (a
+    ///   letter with its accents, a flag, an emoji made of several). One that does, or is
+    ///   outside the text, is refused ([`ErrorKind::Refused`]); it is never moved.
+    /// - **Control characters in cell text become spaces** (everything below U+0020:
+    ///   line breaks and tabs too). Notes keep them.
+    /// - Cells are named by their ID as text; text that is no ID is refused
+    ///   ([`ErrorKind::BadRequest`]) and an ID that no cell has is
+    ///   [`ErrorKind::NotFound`]. Whole numbers out of range are refused, never cut.
+    ///
+    /// A command that changed something is one step of the undo history and empties the
+    /// redo history.
     pub fn apply(&mut self, command: Command) -> Result<Report, BridgeError> {
-        let session = self.session_mut()?;
-        let command = command_in(command)?;
-        let changes = session
-            .editor
-            .apply(command, session.clock.now(), &mut session.ids)?;
-        Ok(session.report(&changes))
+        self.change(|session| {
+            let command = command_in(command)?;
+            let changes = session
+                .editor
+                .apply(command, session.clock.now(), &mut session.ids)?;
+            Ok(session.report(&changes))
+        })
     }
 
     /// Undoes the latest command and returns what that changed, or `None` if there is
     /// nothing to undo.
     pub fn undo(&mut self) -> Result<Option<Report>, BridgeError> {
-        let session = self.session_mut()?;
-        let changes = session.editor.undo()?;
-        Ok(changes.map(|changes| session.report(&changes)))
+        self.change(|session| {
+            let changes = session.editor.undo()?;
+            Ok(changes.map(|changes| session.report(&changes)))
+        })
     }
 
     /// Redoes the command that was undone last and returns what that changed, or `None`
     /// if there is nothing to redo.
     pub fn redo(&mut self) -> Result<Option<Report>, BridgeError> {
-        let session = self.session_mut()?;
-        let changes = session.editor.redo()?;
-        Ok(changes.map(|changes| session.report(&changes)))
+        self.change(|session| {
+            let changes = session.editor.redo()?;
+            Ok(changes.map(|changes| session.report(&changes)))
+        })
     }
 
     /// Makes the file hold the document, without ever going over what another program
@@ -376,8 +476,18 @@ impl OpenDocument {
     }
 }
 
-/// Runs once when the app starts the library.
+/// Runs once when the app starts the library. It makes a panic remember where it happened
+/// if the environment asks for that (`RUST_BACKTRACE`), so that the exception Dart gets can
+/// say so.
+///
+/// It is not `flutter_rust_bridge`'s `setup_default_user_utils`, which does two things
+/// more. It sets `RUST_BACKTRACE` in the environment of the process, while the other
+/// threads of the app are running and may be reading it: C gives no protection there.
+/// And on Android, iOS and macOS it sends everything that any library logs, down to the
+/// finest level, to the system's log, in release builds too; nothing in Wombat logs, so
+/// that could only ever be noise or somebody's text. The price: an app that was not
+/// started with `RUST_BACKTRACE=1` reports a panic by its message and place alone.
 #[frb(init)]
 pub fn init_app() {
-    flutter_rust_bridge::setup_default_user_utils();
+    flutter_rust_bridge::PanicBacktrace::setup();
 }

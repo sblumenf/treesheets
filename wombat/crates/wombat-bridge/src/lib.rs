@@ -12,12 +12,22 @@
 //! - `open_files`: the files that are open in this process, so that none is open twice.
 //!
 //! Errors cross as values ([`api::wire::BridgeError`]). Nothing here panics on what comes
-//! over the bridge; should the core ever panic, `flutter_rust_bridge` catches it at the
-//! boundary and Dart gets an exception, not a crash.
+//! over the bridge. Should the core ever panic in a call, `flutter_rust_bridge` catches it
+//! at the boundary and Dart gets an exception, not a crash; a document that the panic may
+//! have left half changed refuses every later call. A panic while Dart drops a handle would
+//! not be caught by anyone, so what happens there is guarded here (decisions A129, A142
+//! and A143).
 //!
 //! `frb_generated.rs` is written by `flutter_rust_bridge_codegen generate`, run in `app/`,
 //! and is never edited by hand. It is the one place in Wombat with `unsafe` code, which
 //! calling into another language needs (decision A122).
+
+// See the end of the workspace's `Cargo.toml`.
+#[cfg(not(panic = "unwind"))]
+compile_error!(
+    "wombat_bridge must be built with unwinding panics: with `panic = \"abort\"` a panic \
+     ends the app instead of reaching Dart as an exception"
+);
 
 pub mod api;
 pub mod convert;
