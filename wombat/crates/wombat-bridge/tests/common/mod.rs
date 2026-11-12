@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use wombat_bridge::api::document::OpenDocument;
 use wombat_bridge::api::wire::Command;
-use wombat_core::SeededIds;
+use wombat_core::{self as core, SeededIds};
 
 /// The document that comes with the app.
 pub fn example() -> PathBuf {
@@ -48,4 +48,60 @@ pub fn text_in_file(path: &Path) -> String {
     let editor = wombat_core::Editor::new(doc).unwrap();
     let view = editor.grid_view(editor.document().root()).unwrap();
     view.cells[1].text.clone()
+}
+
+/// The number of commands the core has. The match in [`index`] does not compile when one
+/// is added; then this and [`index`] need the new one, and so do the generator of
+/// `roundtrip.rs` and the table of `fields.rs`, whose tests fail until they have it.
+pub const COMMANDS: usize = 45;
+
+/// Which command a command is, from 0.
+pub fn index(command: &core::Command) -> usize {
+    match command {
+        core::Command::InsertText { .. } => 0,
+        core::Command::DeleteText { .. } => 1,
+        core::Command::ReplaceText { .. } => 2,
+        core::Command::SetText { .. } => 3,
+        core::Command::SetRangeStyle { .. } => 4,
+        core::Command::SetRangeColor { .. } => 5,
+        core::Command::SetLink { .. } => 6,
+        core::Command::SetProps { .. } => 7,
+        core::Command::SetStyle { .. } => 8,
+        core::Command::SetColumnWidth { .. } => 9,
+        core::Command::CreateGrid { .. } => 10,
+        core::Command::RemoveGrid { .. } => 11,
+        core::Command::InsertRows { .. } => 12,
+        core::Command::InsertColumns { .. } => 13,
+        core::Command::DeleteRows { .. } => 14,
+        core::Command::DeleteColumns { .. } => 15,
+        core::Command::ClearCells { .. } => 16,
+        core::Command::DeleteCells { .. } => 17,
+        core::Command::MoveRows { .. } => 18,
+        core::Command::MoveColumns { .. } => 19,
+        core::Command::SwapCells { .. } => 20,
+        core::Command::MoveCell { .. } => 21,
+        core::Command::CopyCell { .. } => 22,
+        core::Command::SetTag { .. } => 23,
+        core::Command::RemoveTag { .. } => 24,
+        core::Command::SortRows { .. } => 25,
+        core::Command::Transpose { .. } => 26,
+        core::Command::HierarchySwap { .. } => 27,
+        core::Command::Hierarchify { .. } => 28,
+        core::Command::Flatten { .. } => 29,
+        core::Command::Wrap { .. } => 30,
+        core::Command::Collapse { .. } => 31,
+        core::Command::SplitCell { .. } => 32,
+        core::Command::TagCells { .. } => 33,
+        core::Command::UntagCells { .. } => 34,
+        core::Command::AdjustRelSize { .. } => 35,
+        core::Command::AdjustColumnWidths { .. } => 36,
+        core::Command::Run => 37,
+        core::Command::EnterText { .. } => 38,
+        core::Command::ToggleCheck { .. } => 39,
+        core::Command::PasteCells { .. } => 40,
+        core::Command::AdoptCells { .. } => 41,
+        core::Command::ReleaseCell { .. } => 42,
+        core::Command::Import { .. } => 43,
+        core::Command::RetargetLinks { .. } => 44,
+    }
 }

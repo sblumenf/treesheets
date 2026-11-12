@@ -7,8 +7,11 @@
     clippy::indexing_slicing
 )]
 
+mod common;
+
 use std::collections::BTreeSet;
 
+use common::{index, COMMANDS};
 use proptest::prelude::*;
 use proptest::strategy::{Union, ValueTree};
 use proptest::test_runner::TestRunner;
@@ -22,61 +25,6 @@ use wombat_core::{
     CellId, CellKind, Clip, Color, Command, DocId, Document, DrawStyle, Editor, Id, ImageRef,
     LinkTarget, Prop, SeededIds, Style, TextAlign, VertAlign,
 };
-
-/// The number of commands the core has. The match in [`index`] does not compile when one
-/// is added; then this, [`index`] and [`command`] need the new one.
-const COMMANDS: usize = 45;
-
-/// Which command a command is, from 0.
-fn index(command: &Command) -> usize {
-    match command {
-        Command::InsertText { .. } => 0,
-        Command::DeleteText { .. } => 1,
-        Command::ReplaceText { .. } => 2,
-        Command::SetText { .. } => 3,
-        Command::SetRangeStyle { .. } => 4,
-        Command::SetRangeColor { .. } => 5,
-        Command::SetLink { .. } => 6,
-        Command::SetProps { .. } => 7,
-        Command::SetStyle { .. } => 8,
-        Command::SetColumnWidth { .. } => 9,
-        Command::CreateGrid { .. } => 10,
-        Command::RemoveGrid { .. } => 11,
-        Command::InsertRows { .. } => 12,
-        Command::InsertColumns { .. } => 13,
-        Command::DeleteRows { .. } => 14,
-        Command::DeleteColumns { .. } => 15,
-        Command::ClearCells { .. } => 16,
-        Command::DeleteCells { .. } => 17,
-        Command::MoveRows { .. } => 18,
-        Command::MoveColumns { .. } => 19,
-        Command::SwapCells { .. } => 20,
-        Command::MoveCell { .. } => 21,
-        Command::CopyCell { .. } => 22,
-        Command::SetTag { .. } => 23,
-        Command::RemoveTag { .. } => 24,
-        Command::SortRows { .. } => 25,
-        Command::Transpose { .. } => 26,
-        Command::HierarchySwap { .. } => 27,
-        Command::Hierarchify { .. } => 28,
-        Command::Flatten { .. } => 29,
-        Command::Wrap { .. } => 30,
-        Command::Collapse { .. } => 31,
-        Command::SplitCell { .. } => 32,
-        Command::TagCells { .. } => 33,
-        Command::UntagCells { .. } => 34,
-        Command::AdjustRelSize { .. } => 35,
-        Command::AdjustColumnWidths { .. } => 36,
-        Command::Run => 37,
-        Command::EnterText { .. } => 38,
-        Command::ToggleCheck { .. } => 39,
-        Command::PasteCells { .. } => 40,
-        Command::AdoptCells { .. } => 41,
-        Command::ReleaseCell { .. } => 42,
-        Command::Import { .. } => 43,
-        Command::RetargetLinks { .. } => 44,
-    }
-}
 
 /// Every kind of error. The match in [`every_kind_is_listed`] does not compile when one is
 /// added; then this needs the new one.
