@@ -757,6 +757,21 @@ proptest! {
                     follow(&mut view, editor.document(), &changes);
                     prop_assert_eq!(&view, &told);
                 }
+                Act::Cancelled(ops) => {
+                    editor.begin_group();
+                    for op in ops {
+                        let before = editor.document().clone();
+                        let command = command(&before, op);
+                        if let Ok(changes) = editor.apply(command, Some(1), &mut ids) {
+                            follow_from(&mut view, &before, &editor, &changes);
+                        }
+                        do_look(&mut view, editor.document(), second);
+                    }
+                    // The cancel is followed like an undo: from the document just before it.
+                    let before = editor.document().clone();
+                    let changes = editor.cancel_group().unwrap();
+                    follow_from(&mut view, &before, &editor, &changes);
+                }
                 Act::Undo => {
                     if let Some(changes) = editor.undo().unwrap() {
                         follow_from(&mut view, &before, &editor, &changes);
