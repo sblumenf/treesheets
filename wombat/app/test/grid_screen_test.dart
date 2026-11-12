@@ -2,11 +2,14 @@
 // that can be made to wait and to fail: what is shown, that nothing typed is lost, that
 // the document is saved without being asked, and what the screen says when it is not.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart'
     show PanicException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wombat_app/grid/grid_screen.dart';
 import 'package:wombat_app/grid/stage.dart';
+import 'package:wombat_app/keeper.dart';
+import 'package:wombat_app/main.dart' show Kept;
 import 'package:wombat_app/session.dart';
 import 'package:wombat_app/src/rust/api/wire.dart';
 
@@ -32,23 +35,94 @@ void main() {
     await tester.pump();
   }
 
-  /// A test with the screen on a stand-in document. The stage is closed at the end,
-  /// which stops the clock of its saving.
+  /// Types into the editor as a user can: into whatever has the keyboard, which is
+  /// the editor only while it has the focus. (`tester.enterText` would give it the
+  /// focus first, and so pass where a user's keys go nowhere.)
+  void type(WidgetTester tester, String text) =>
+      tester.testTextInput.enterText(text);
+
+  Future<void> pressReturn(WidgetTester tester) async {
+    await tester.testTextInput.receiveAction(TextInputAction.next);
+    await tester.pump();
+  }
+
+  bool focused(WidgetTester tester) =>
+      tester.widget<TextField>(key('editor')).focusNode!.hasFocus;
+
+  String? message(WidgetTester tester) => key('message').evaluate().isEmpty
+      ? null
+      : tester.widget<Text>(key('message')).data;
+
+  Future<void> lifecycle(WidgetTester tester, AppLifecycleState state) async {
+    tester.binding.handleAppLifecycleStateChanged(state);
+    await tester.pump();
+  }
+
+  // The system takes an app away step by step, and brings it back the same way.
+  const away = [
+    AppLifecycleState.inactive,
+    AppLifecycleState.hidden,
+    AppLifecycleState.paused,
+    AppLifecycleState.detached,
+  ];
+
+  /// The app goes out of sight, as far as `to`, and comes back to the front.
+  Future<void> awayAndBack(WidgetTester tester, AppLifecycleState to) async {
+    final steps = away.sublist(0, away.indexOf(to) + 1);
+    for (final step in steps) {
+      await lifecycle(tester, step);
+    }
+    for (final step in steps.reversed.skip(1)) {
+      await lifecycle(tester, step);
+    }
+    await lifecycle(tester, AppLifecycleState.resumed);
+  }
+
+  /// The system's back, as the edge swipe or the back button of Android sends it.
+  /// Leaving the app is asked of the system by a message, which is counted.
+  Future<List<String>> back(WidgetTester tester, {int times = 1}) async {
+    final left = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'SystemNavigator.pop') left.add(call.method);
+        return null;
+      },
+    );
+    for (var i = 0; i < times; i++) {
+      await tester.binding.handlePopRoute();
+    }
+    await tester.pump();
+    return left;
+  }
+
+  /// A test with the screen on a stand-in document, kept as the app keeps its own.
+  /// The document is closed at the end, which stops the clock of its saving.
   void screenTest(
     String name,
     Future<void> Function(WidgetTester tester, Stage stage, FakeDocument fake)
     body, {
     Future<Session> Function(String path)? reopen,
+    Future<void> Function(String path)? canBeRead,
   }) {
     testWidgets(name, (tester) async {
       final fake = FakeDocument();
-      final stage = await Stage.open(
+      final keeper = Keeper(
         await Session.over(fake),
         reopen: reopen ?? Session.open,
+        canBeRead: canBeRead ?? (_) async {},
       );
-      await tester.pumpWidget(MaterialApp(home: GridScreen(stage: stage)));
+      final stage = await Stage.open(keeper);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Kept(
+            keeper: keeper,
+            child: GridScreen(stage: stage),
+          ),
+        ),
+      );
       await body(tester, stage, fake);
-      await stage.close();
+      await keeper.close();
     });
   }
 
@@ -77,6 +151,344 @@ void main() {
     await press(tester, 'cell-1');
     expect(editor(tester), '=1+1');
     await press(tester, 'cancel');
+  });
+
+  screenTest('the cells touched last and the cell being edited are tinted', (
+    tester,
+    stage,
+    fake,
+  ) async {
+    final colors = Theme.of(tester.element(key('grid'))).colorScheme;
+    Color tint(int index) => tester
+        .widget<ColoredBox>(
+          find
+              .ancestor(
+                of: key('cell-$index'),
+                matching: find.byType(ColoredBox),
+              )
+              .first,
+        )
+        .color;
+    expect(tint(0), Colors.transparent);
+    await press(tester, 'cell-0');
+    expect(tint(0), colors.primaryContainer);
+    expect(tint(3), Colors.transparent);
+    type(tester, 'typed');
+    await press(tester, 'save');
+    expect(tint(0), colors.tertiaryContainer);
+    expect(tint(3), Colors.transparent);
+    // Being edited shows over having been touched.
+    await press(tester, 'cell-0');
+    expect(tint(0), colors.primaryContainer);
+    await press(tester, 'cancel');
+  });
+
+  screenTest('names where the document has none', (tester, stage, fake) async {
+    // A stage without a text, a level of the trail without one, a cell without a grid.
+    fake.cells['root']!.text = '';
+    fake.cells['c']!.text = '';
+    await stage.refresh();
+    await tester.pump();
+    expect(title(tester), 'Wombat');
+    expect(find.text('(empty)'), findsOneWidget);
+    await press(tester, 'open-2');
+    expect(find.text('(empty)'), findsOneWidget);
+    expect(find.text('› (empty)'), findsOneWidget);
+    expect(key('no-grid'), findsNothing);
+    fake.cells['c']!
+      ..xs = 0
+      ..cells = [];
+    await stage.refresh();
+    await tester.pump();
+    expect(find.text('This cell has no grid.'), findsOneWidget);
+    expect(key('grid'), findsNothing);
+  });
+
+  screenTest('the trail: the level one is at cannot be pressed', (
+    tester,
+    stage,
+    fake,
+  ) async {
+    TextButton level(int i) => tester.widget<TextButton>(key('trail-$i'));
+    expect(level(0).onPressed, isNull);
+    expect(tester.widget<IconButton>(key('up')).onPressed, isNull);
+    await press(tester, 'open-2');
+    expect(level(0).onPressed, isNotNull);
+    expect(level(1).onPressed, isNull);
+    expect(tester.widget<IconButton>(key('up')).onPressed, isNotNull);
+    expect(find.text('› three'), findsOneWidget);
+  });
+
+  screenTest('a message goes when it is tapped, and with the next action', (
+    tester,
+    stage,
+    fake,
+  ) async {
+    await press(tester, 'redo');
+    expect(message(tester), 'Nothing to redo');
+    await tester.tap(key('message'));
+    await tester.pump();
+    expect(message(tester), isNull);
+    await press(tester, 'undo');
+    expect(message(tester), 'Nothing to undo');
+    // Gone at the tap, not when the action's turn comes.
+    final gate = holdFirst(fake, 'grid');
+    await press(tester, 'open-2');
+    expect(message(tester), isNull);
+    gate.complete();
+    await tester.pump();
+  });
+
+  screenTest('the editor opens with the cursor at the end of the text', (
+    tester,
+    stage,
+    fake,
+  ) async {
+    await press(tester, 'cell-0');
+    final controller = tester.widget<TextField>(key('editor')).controller!;
+    expect(controller.selection, const TextSelection.collapsed(offset: 3));
+    expect(focused(tester), isTrue);
+    await press(tester, 'cancel');
+  });
+
+  group('one action after the other', () {
+    // The review's three: the screen judged "is an editor open?" when the finger came
+    // down, and the stage moved away from under the editor it then opened.
+    screenTest('a cell tapped, then Open, behind an undo that is held up', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await stage.enterText('a', 'x');
+      await tester.pump();
+      final gate = holdFirst(fake, 'undo');
+      await tester.tap(key('undo'));
+      await tester.tap(key('cell-0'));
+      await tester.tap(key('open-2'));
+      await tester.pump();
+      expect(key('editor'), findsNothing);
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      // In their order: the undo, the editor on what it left, and the tap outside
+      // the editor, which only closes it (UI_SPEC section 6).
+      expect(key('editor'), findsNothing);
+      expect(title(tester), 'Root');
+      expect(fake.log.where((call) => call == 'apply').length, 2);
+      expect(fake.cells['a']!.text, 'one');
+    });
+
+    screenTest('a cell tapped, then up, behind an undo that is held up', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'open-2');
+      await stage.enterText('e', 'x');
+      await tester.pump();
+      final gate = holdFirst(fake, 'undo');
+      await tester.tap(key('undo'));
+      await tester.tap(key('cell-0'));
+      await tester.tap(key('up'));
+      await tester.pump();
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      // The editor opened on "five", and up closed it, kept its text and went up.
+      expect(key('editor'), findsNothing);
+      expect(title(tester), 'Root');
+      expect(fake.cells['e']!.text, 'five');
+    });
+
+    screenTest(
+      'a cell tapped, then the trail, behind an undo that is held up',
+      (tester, stage, fake) async {
+        await press(tester, 'open-2');
+        await stage.enterText('e', 'x');
+        await tester.pump();
+        final gate = holdFirst(fake, 'undo');
+        await tester.tap(key('undo'));
+        await tester.tap(key('cell-0'));
+        await tester.tap(key('trail-0'));
+        await tester.pump();
+        gate.complete();
+        await tester.pump();
+        await tester.pump();
+        expect(key('editor'), findsNothing);
+        expect(title(tester), 'Root');
+      },
+    );
+
+    screenTest(
+      'a cell tapped, then Open, behind the save that came by itself',
+      (tester, stage, fake) async {
+        await stage.enterText('a', 'x');
+        await tester.pump();
+        final gate = holdFirst(fake, 'save');
+        await tester.pump(const Duration(seconds: 1));
+        expect(fake.log.last, 'save');
+        await tester.tap(key('cell-0'));
+        await tester.tap(key('open-2'));
+        await tester.pump();
+        gate.complete();
+        await tester.pump();
+        await tester.pump();
+        expect(key('editor'), findsNothing);
+        expect(title(tester), 'Root');
+      },
+    );
+
+    screenTest('up, then a cell, while the way up is held: no editor on it', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'open-2');
+      final gate = holdFirst(fake, 'grid');
+      await tester.tap(key('up'));
+      // Where "five" is now, "one" will be: the tap meant a cell that is gone from
+      // the stage when its turn comes, and opens nothing.
+      await tester.tap(key('cell-0'));
+      await tester.pump();
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(title(tester), 'Root');
+      expect(key('editor'), findsNothing);
+      expect(message(tester), isNull);
+    });
+
+    // The review's two: actions that were dropped without a word.
+    screenTest('two taps on undo with the editor open undo twice', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await stage.enterText('d', '4');
+      await tester.pump();
+      await press(tester, 'cell-0');
+      type(tester, 'typed');
+      final gate = holdFirst(fake, 'apply');
+      await tester.tap(key('undo'));
+      await tester.tap(key('undo'));
+      await tester.pump();
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      // The first takes back what was typed, the second the edit before it.
+      expect((fake.cells['a']!.text, fake.cells['d']!.text), ('one', 'four'));
+      expect(message(tester), isNull);
+      expect(key('editor'), findsNothing);
+    });
+
+    for (final (name, target, tap) in [
+      ('undo', 'cell-0', 'undo'),
+      ('redo', 'cell-0', 'redo'),
+      ('up', 'cell-0', 'up'),
+      ('the trail', 'cell-0', 'trail-0'),
+    ]) {
+      screenTest('$name, and more typed while the text is entered: said', (
+        tester,
+        stage,
+        fake,
+      ) async {
+        await press(tester, 'open-2');
+        await press(tester, target);
+        type(tester, 'first');
+        final gate = holdFirst(fake, 'apply');
+        await press(tester, tap);
+        type(tester, 'first and more');
+        gate.complete();
+        await tester.pump();
+        // What was sent is in the document, the rest is in the editor, and the
+        // action was not done, which is said.
+        expect(fake.cells['e']!.text, 'first');
+        expect(editor(tester), 'first and more');
+        expect(title(tester), 'three');
+        expect(
+          message(tester),
+          'Not done: more was typed in the meantime. It is still in the editor.',
+        );
+        expect(fake.log.contains('undo'), isFalse);
+        // The same again does it.
+        await press(tester, tap);
+        expect(
+          fake.cells['e']!.text,
+          tap == 'undo' ? 'first' : 'first and more',
+        );
+        expect(key('editor'), findsNothing);
+        expect(message(tester), tap == 'redo' ? 'Nothing to redo' : null);
+      });
+    }
+
+    screenTest('an error that no action expected is shown like the others', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      // No ordinary error: a mistake in the program, from the middle of an action.
+      failFirst(fake, 'grid', StateError('a mistake'));
+      await press(tester, 'open-2');
+      expect(message(tester), 'Error: Bad state: a mistake');
+      expect(tester.takeException(), isNull);
+      // The queue of actions goes on.
+      await press(tester, 'open-2');
+      expect(title(tester), 'three');
+    });
+  });
+
+  group('the system\'s back', () {
+    screenTest('goes up one level, and leaves the app only from the root', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'open-2');
+      expect(title(tester), 'three');
+      expect(await back(tester), isEmpty);
+      expect(title(tester), 'Root');
+      expect(await back(tester), ['SystemNavigator.pop']);
+      expect(title(tester), 'Root');
+    });
+
+    screenTest('twice, while the way up is held: up, then out', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'open-2');
+      final gate = holdFirst(fake, 'grid');
+      final left = await back(tester, times: 2);
+      // Not out of the app from a level that is only about to be left.
+      expect(left, isEmpty);
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(title(tester), 'Root');
+      expect(left, ['SystemNavigator.pop']);
+    });
+
+    screenTest('keeps what is being typed, as the arrow does', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'open-2');
+      await press(tester, 'cell-0');
+      type(tester, 'typed');
+      expect(await back(tester), isEmpty);
+      expect(fake.cells['e']!.text, 'typed');
+      expect(key('editor'), findsNothing);
+      expect(title(tester), 'Root');
+      // Text that the core refuses: the editor stays, and the app is not left.
+      await press(tester, 'cell-0');
+      type(tester, 'too much');
+      failFirst(fake, 'apply', broken);
+      expect(await back(tester), isEmpty);
+      expect(editor(tester), 'too much');
+      expect(message(tester), 'Error (io): the disk is gone');
+      await press(tester, 'cancel');
+    });
   });
 
   group('taps that come close together', () {
@@ -155,7 +567,7 @@ void main() {
       fake,
     ) async {
       await press(tester, 'cell-0');
-      await tester.enterText(key('editor'), 'typed');
+      type(tester, 'typed');
       await press(tester, 'open-2');
       expect(fake.cells['a']!.text, 'typed');
       expect(key('editor'), findsNothing);
@@ -170,7 +582,7 @@ void main() {
       fake,
     ) async {
       await press(tester, 'cell-0');
-      await tester.enterText(key('editor'), 'typed');
+      type(tester, 'typed');
       await press(tester, 'cell-3');
       expect(fake.cells['a']!.text, 'typed');
       expect(fake.cells['d']!.text, 'four');
@@ -188,7 +600,7 @@ void main() {
     ) async {
       await press(tester, 'open-2');
       await press(tester, 'cell-0');
-      await tester.enterText(key('editor'), 'typed');
+      type(tester, 'typed');
       await press(tester, 'up');
       expect(fake.cells['e']!.text, 'typed');
       expect(key('editor'), findsNothing);
@@ -202,7 +614,7 @@ void main() {
     ) async {
       await press(tester, 'open-2');
       await press(tester, 'cell-0');
-      await tester.enterText(key('editor'), 'typed');
+      type(tester, 'typed');
       await press(tester, 'trail-0');
       expect(fake.cells['e']!.text, 'typed');
       expect(key('editor'), findsNothing);
@@ -215,7 +627,7 @@ void main() {
       fake,
     ) async {
       await press(tester, 'cell-0');
-      await tester.enterText(key('editor'), 'typed');
+      type(tester, 'typed');
       await press(tester, 'undo');
       expect(key('editor'), findsNothing);
       expect(shown(tester, 0), 'one');
@@ -230,7 +642,7 @@ void main() {
     ) async {
       await press(tester, 'open-2');
       await press(tester, 'cell-0');
-      await tester.enterText(key('editor'), 'too much');
+      type(tester, 'too much');
       failFirst(
         fake,
         'apply',
@@ -252,22 +664,98 @@ void main() {
       fake,
     ) async {
       await press(tester, 'cell-0');
-      await tester.enterText(key('editor'), 'first');
+      type(tester, 'first');
       final gate = holdFirst(fake, 'apply');
-      await tester.testTextInput.receiveAction(TextInputAction.next);
-      await tester.pump();
+      await pressReturn(tester);
       // The core is still at work, and the user types on.
-      await tester.enterText(key('editor'), 'first and more');
+      type(tester, 'first and more');
       gate.complete();
       await tester.pump();
       expect(fake.cells['a']!.text, 'first');
       expect(editor(tester), 'first and more');
       // Return again takes the rest and moves on to the cell below.
-      await tester.testTextInput.receiveAction(TextInputAction.next);
-      await tester.pump();
+      await pressReturn(tester);
       expect(fake.cells['a']!.text, 'first and more');
       expect(editor(tester), 'three');
       await press(tester, 'cancel');
+    });
+
+    // The review's: Return took the focus away, so that keys typed after it went
+    // nowhere; the test above passed because it gave the focus back itself.
+    screenTest('while Return is at work the editor keeps the keyboard', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-0');
+      type(tester, 'first');
+      final gate = holdFirst(fake, 'apply');
+      await pressReturn(tester);
+      expect(focused(tester), isTrue);
+      expect(tester.testTextInput.isVisible, isTrue);
+      gate.complete();
+      await tester.pump();
+      expect(editor(tester), 'three');
+      expect(focused(tester), isTrue);
+      await press(tester, 'cancel');
+    });
+
+    screenTest(
+      'Return on text that the core refuses leaves the editor in use',
+      (tester, stage, fake) async {
+        await press(tester, 'cell-0');
+        type(tester, 'too much');
+        failFirst(
+          fake,
+          'apply',
+          const BridgeError(kind: ErrorKind.limit, message: 'too long'),
+        );
+        await pressReturn(tester);
+        await tester.pump();
+        expect(message(tester), 'Error (limit): too long');
+        expect(editor(tester), 'too much');
+        expect(focused(tester), isTrue);
+        // And the user types on, and Return then takes it.
+        type(tester, 'less');
+        await pressReturn(tester);
+        expect(fake.cells['a']!.text, 'less');
+        expect(editor(tester), 'three');
+        await press(tester, 'cancel');
+      },
+    );
+
+    screenTest('Return in the last row enters the text and closes the editor', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-3');
+      type(tester, 'last');
+      await pressReturn(tester);
+      expect(tester.takeException(), isNull);
+      expect(fake.cells['d']!.text, 'last');
+      expect(key('editor'), findsNothing);
+      // The last row of one column, too.
+      await press(tester, 'open-2');
+      await press(tester, 'cell-1');
+      await pressReturn(tester);
+      expect(tester.takeException(), isNull);
+      expect(key('editor'), findsNothing);
+    });
+
+    screenTest('Return on a cell that an undo took off the stage closes it', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-0');
+      // The cell is gone from the stage behind the editor's back.
+      fake.cells['root']!.cells = ['x', 'b', 'c', 'd'];
+      fake.cells['x'] = FakeCell('in its place');
+      await pressReturn(tester);
+      expect(tester.takeException(), isNull);
+      // Not on to "the cell below" of a cell that is not there.
+      expect(key('editor'), findsNothing);
     });
 
     screenTest('keys typed while the tick is at work are not thrown away', (
@@ -276,10 +764,10 @@ void main() {
       fake,
     ) async {
       await press(tester, 'cell-0');
-      await tester.enterText(key('editor'), 'first');
+      type(tester, 'first');
       final gate = holdFirst(fake, 'apply');
       await press(tester, 'save');
-      await tester.enterText(key('editor'), 'first and more');
+      type(tester, 'first and more');
       gate.complete();
       await tester.pump();
       expect(editor(tester), 'first and more');
@@ -292,12 +780,11 @@ void main() {
       'Return saves and moves to the cell below; the cross does not save',
       (tester, stage, fake) async {
         await press(tester, 'cell-1');
-        await tester.enterText(key('editor'), 'typed');
-        await tester.testTextInput.receiveAction(TextInputAction.next);
-        await tester.pump();
+        type(tester, 'typed');
+        await pressReturn(tester);
         expect(fake.cells['b']!.text, 'typed');
         expect(editor(tester), 'four');
-        await tester.enterText(key('editor'), 'not this');
+        type(tester, 'not this');
         await press(tester, 'cancel');
         expect(key('editor'), findsNothing);
         expect(fake.cells['d']!.text, 'four');
@@ -312,11 +799,11 @@ void main() {
       fake,
     ) async {
       await press(tester, 'cell-0');
-      await tester.enterText(key('editor'), '1');
+      type(tester, '1');
       await press(tester, 'save');
       await tester.pump(const Duration(milliseconds: 600));
       await press(tester, 'cell-3');
-      await tester.enterText(key('editor'), '4');
+      type(tester, '4');
       await press(tester, 'save');
       expect(fake.saves, 0);
       // A second after the first change, not after the last.
@@ -331,28 +818,46 @@ void main() {
       expect(fake.saves, 2);
     });
 
-    // The system takes an app away step by step, and brings it back the same way.
-    const away = [
-      AppLifecycleState.inactive,
-      AppLifecycleState.hidden,
-      AppLifecycleState.paused,
-      AppLifecycleState.detached,
-    ];
-    for (var steps = 1; steps <= away.length; steps++) {
+    screenTest(
+      'when the app is no longer in front, but not what is being typed',
+      (tester, stage, fake) async {
+        await stage.enterText('d', 'entered');
+        await press(tester, 'cell-0');
+        type(tester, 'half a sentence');
+        // A window that loses the focus, a dialog of the system: not leaving.
+        await lifecycle(tester, AppLifecycleState.inactive);
+        expect(fake.saves, 1);
+        expect(fake.log.contains('apply'), isTrue);
+        expect(fake.cells['a']!.text, 'one');
+        expect(fake.log.where((call) => call == 'apply').length, 1);
+        await lifecycle(tester, AppLifecycleState.resumed);
+        expect(editor(tester), 'half a sentence');
+        expect(focused(tester), isTrue);
+        // So the cross is still "not this", with nothing to take back.
+        await press(tester, 'cancel');
+        expect(fake.cells['a']!.text, 'one');
+        expect(fake.log.contains('undo'), isFalse);
+      },
+    );
+
+    for (var steps = 2; steps <= away.length; steps++) {
       final state = away[steps - 1];
       screenTest(
         'at once when the app is ${state.name}, with what is being typed',
         (tester, stage, fake) async {
           await press(tester, 'cell-0');
-          await tester.enterText(key('editor'), 'half a sentence');
+          type(tester, 'half a sentence');
           for (final step in away.take(steps)) {
-            tester.binding.handleAppLifecycleStateChanged(step);
-            await tester.pump();
+            await lifecycle(tester, step);
           }
           expect(fake.cells['a']!.text, 'half a sentence');
-          // Once for every step of the way: this one too.
-          expect(fake.saves, steps);
+          // Entered once and written once, however many steps the way has; the
+          // saves after it find nothing to write.
+          expect(fake.log.where((call) => call == 'apply').length, 1);
+          expect(fake.saves, 1);
+          expect(fake.saved, isTrue);
           expect(fake.log.sublist(fake.log.length - 2), ['save', 'save.']);
+          expect(fake.log, containsAllInOrder(['apply.', 'save']));
           // The editor is still there for when the app comes back.
           expect(editor(tester), 'half a sentence');
 
@@ -360,19 +865,184 @@ void main() {
               ? <AppLifecycleState>[]
               : away.take(steps - 1).toList().reversed;
           for (final step in back) {
-            tester.binding.handleAppLifecycleStateChanged(step);
-            await tester.pump();
+            await lifecycle(tester, step);
           }
-          final saves = fake.saves;
-          tester.binding.handleAppLifecycleStateChanged(
-            AppLifecycleState.resumed,
-          );
-          await tester.pump();
-          expect(fake.saves, saves);
+          final calls = fake.log.where((call) => call == 'save').length;
+          await lifecycle(tester, AppLifecycleState.resumed);
+          expect(fake.log.where((call) => call == 'save').length, calls);
           await press(tester, 'cancel');
         },
       );
     }
+
+    // The review's two: after the app had been away, the cross kept the text, and
+    // one editing was two steps of the undo history.
+    screenTest(
+      'the cross after the app was out of sight still means "not this"',
+      (tester, stage, fake) async {
+        await press(tester, 'cell-0');
+        type(tester, 'not this');
+        await lifecycle(tester, AppLifecycleState.inactive);
+        await lifecycle(tester, AppLifecycleState.hidden);
+        expect((fake.cells['a']!.text, fake.saves), ('not this', 1));
+        await lifecycle(tester, AppLifecycleState.inactive);
+        await lifecycle(tester, AppLifecycleState.resumed);
+        await press(tester, 'cancel');
+        expect(key('editor'), findsNothing);
+        expect(fake.cells['a']!.text, 'one');
+        expect(shown(tester, 0), 'one');
+        // Nothing of it is left to undo, and the file follows a second later.
+        await press(tester, 'undo');
+        expect(message(tester), 'Nothing to undo');
+        await tester.pump(const Duration(seconds: 1));
+        expect((fake.saves, fake.saved), (2, true));
+      },
+    );
+
+    screenTest('one editing, the app out of sight in the middle: one undo', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-0');
+      type(tester, 'half');
+      await awayAndBack(tester, AppLifecycleState.hidden);
+      type(tester, 'half and more');
+      // Away a second time, with more: still not said yes to.
+      await awayAndBack(tester, AppLifecycleState.paused);
+      expect(fake.cells['a']!.text, 'half and more');
+      type(tester, 'half and whole');
+      await press(tester, 'save');
+      expect(fake.cells['a']!.text, 'half and whole');
+      await press(tester, 'undo');
+      expect(fake.cells['a']!.text, 'one');
+      await press(tester, 'undo');
+      expect(message(tester), 'Nothing to undo');
+    });
+
+    screenTest('the tick on the very text that went in when the app left', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-0');
+      type(tester, 'whole');
+      await awayAndBack(tester, AppLifecycleState.hidden);
+      final calls = fake.log.length;
+      await press(tester, 'save');
+      // The document has it: nothing is sent, and it is said yes to.
+      expect(fake.log.length, calls);
+      expect(key('editor'), findsNothing);
+      // So a cross on the next editing of the cell takes nothing back.
+      await press(tester, 'cell-0');
+      await press(tester, 'cancel');
+      expect(fake.cells['a']!.text, 'whole');
+    });
+
+    screenTest('away with the text the cell has: nothing to take back', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await stage.enterText('d', 'before');
+      await press(tester, 'cell-0');
+      await awayAndBack(tester, AppLifecycleState.hidden);
+      await press(tester, 'cancel');
+      // The cross did not undo the edit before this editing.
+      expect(fake.cells['d']!.text, 'before');
+      expect(fake.log.contains('undo'), isFalse);
+    });
+
+    screenTest(
+      'text that the core refuses when the app leaves is kept and said',
+      (tester, stage, fake) async {
+        await stage.enterText('d', 'entered');
+        await press(tester, 'cell-0');
+        type(tester, 'too long');
+        failFirst(
+          fake,
+          'apply',
+          const BridgeError(kind: ErrorKind.limit, message: 'too long'),
+        );
+        await lifecycle(tester, AppLifecycleState.inactive);
+        await lifecycle(tester, AppLifecycleState.hidden);
+        expect(editor(tester), 'too long');
+        expect(message(tester), 'Error (limit): too long');
+        // What was in the document is saved all the same.
+        expect((fake.saves, fake.saved), (1, true));
+        // And the cross has nothing to take back.
+        await press(tester, 'cancel');
+        expect(fake.cells['d']!.text, 'entered');
+      },
+    );
+
+    screenTest('a cross that cannot take the text back leaves the editor', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-0');
+      type(tester, 'not this');
+      await awayAndBack(tester, AppLifecycleState.hidden);
+      failFirst(fake, 'undo', broken);
+      await press(tester, 'cancel');
+      expect(message(tester), 'Error (io): the disk is gone');
+      expect(editor(tester), 'not this');
+      await press(tester, 'cancel');
+      expect(key('editor'), findsNothing);
+      expect(fake.cells['a']!.text, 'one');
+    });
+
+    screenTest('a screen that goes with its editor open enters the text', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-0');
+      type(tester, 'left in the editor');
+      await tester.pumpWidget(const SizedBox());
+      // As the app does when its screen goes: the close waits for the text.
+      await stage.keeper.close();
+      expect(fake.cells['a']!.text, 'left in the editor');
+      expect(fake.log, containsAllInOrder(['apply.', 'close']));
+      expect((fake.saves, fake.closed), (1, true));
+    });
+
+    screenTest('a screen that goes after the app was away enters one step', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-0');
+      type(tester, 'half');
+      await awayAndBack(tester, AppLifecycleState.hidden);
+      type(tester, 'half and whole');
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(fake.cells['a']!.text, 'half and whole');
+      await stage.undo();
+      expect(fake.cells['a']!.text, 'one');
+    });
+
+    screenTest('a screen that has gone is no longer asked or told', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await press(tester, 'cell-0');
+      type(tester, 'the same');
+      await awayAndBack(tester, AppLifecycleState.hidden);
+      await tester.pumpWidget(const SizedBox());
+      final calls = fake.log.length;
+      // Its text was in the document already: nothing more is sent for it.
+      await tester.pump();
+      expect(fake.log.length, calls);
+      // Neither a change of the stage nor the app being put away reaches it.
+      await stage.dive('c');
+      await stage.keeper.putAway();
+      expect(tester.takeException(), isNull);
+      expect(fake.log.where((call) => call == 'apply').length, 1);
+    });
 
     screenTest('there is no Save to forget', (tester, stage, fake) async {
       expect(find.text('Save'), findsNothing);
@@ -405,11 +1075,7 @@ void main() {
       fake,
     ) async {
       await stage.enterText('a', 'mine');
-      failFirst(
-        fake,
-        'save',
-        const BridgeError(kind: ErrorKind.changedOnDisk, message: 'changed'),
-      );
+      fake.fileChanged = true;
       await tester.pump(const Duration(seconds: 1));
       expect(
         tester.widget<Text>(key('trouble')).data,
@@ -428,11 +1094,7 @@ void main() {
       (tester, stage, fake) async {
         await press(tester, 'open-2');
         await stage.enterText('e', 'mine');
-        failFirst(
-          fake,
-          'save',
-          const BridgeError(kind: ErrorKind.changedOnDisk, message: 'changed'),
-        );
+        fake.fileChanged = true;
         await tester.pump(const Duration(seconds: 1));
         // Also what is in the editor goes: the choice is the other file.
         await press(tester, 'cell-0');
@@ -451,10 +1113,53 @@ void main() {
     );
 
     screenTest(
+      'open theirs when theirs cannot be read: said, and nothing given up',
+      (tester, stage, fake) async {
+        await stage.enterText('d', 'mine');
+        fake.fileChanged = true;
+        await tester.pump(const Duration(seconds: 1));
+        await press(tester, 'cell-0');
+        type(tester, 'being typed');
+        await press(tester, 'open-theirs');
+        expect(
+          message(tester),
+          'The file as the other program left it cannot be opened, so this '
+          'document is still open, and not saved. '
+          'Error (io): the disk is gone',
+        );
+        // The choice is still there, and so are the document and the editor.
+        expect(key('open-theirs'), findsOneWidget);
+        expect(fake.disposed, isFalse);
+        expect(editor(tester), 'being typed');
+        await press(tester, 'keep-mine');
+        expect(key('trouble'), findsNothing);
+        expect(fake.overwrites, 1);
+        await press(tester, 'cancel');
+      },
+      canBeRead: (_) => throw broken,
+    );
+
+    screenTest(
+      'open theirs when reading theirs runs into a fault: this one is whole',
+      (tester, stage, fake) async {
+        await stage.enterText('d', 'mine');
+        fake.fileChanged = true;
+        await tester.pump(const Duration(seconds: 1));
+        await press(tester, 'open-theirs');
+        // Not the sentence that says this document cannot be used any more.
+        expect(message(tester), endsWith('Reading it ran into a fault.'));
+        expect(find.textContaining('builder'), findsNothing);
+        expect(key('ended'), findsNothing);
+        await press(tester, 'keep-mine');
+      },
+      canBeRead: (_) => throw PanicException('at /home/builder/core.rs'),
+    );
+
+    screenTest(
       'a grid that could not be read again, with the way to try again',
       (tester, stage, fake) async {
         await press(tester, 'cell-0');
-        await tester.enterText(key('editor'), 'typed');
+        type(tester, 'typed');
         failFirst(fake, 'grid', broken);
         await press(tester, 'save');
         // The edit was made, so the editor is closed; what is shown is old.
@@ -472,13 +1177,49 @@ void main() {
     );
   });
 
+  testWidgets('a screen given another stage moves to it, text entered', (
+    tester,
+  ) async {
+    Future<(Keeper, Stage, FakeDocument)> open(String a) async {
+      final fake = FakeDocument()..cells['a']!.text = a;
+      final keeper = Keeper(await Session.over(fake));
+      return (keeper, await Stage.open(keeper), fake);
+    }
+
+    final (keeper1, stage1, fake1) = await open('one');
+    final (keeper2, stage2, _) = await open('the other');
+    Widget on(Stage stage) => MaterialApp(home: GridScreen(stage: stage));
+    await tester.pumpWidget(on(stage1));
+    await press(tester, 'cell-0');
+    type(tester, 'typed on the first');
+    await tester.pumpWidget(on(stage2));
+    await tester.pump();
+    expect(fake1.cells['a']!.text, 'typed on the first');
+    expect(key('editor'), findsNothing);
+    expect(shown(tester, 0), 'the other');
+    // It follows the new stage and not the old one.
+    await stage2.enterText('a', 'changed');
+    await tester.pump();
+    expect(shown(tester, 0), 'changed');
+    await stage1.dive('c');
+    await tester.pump();
+    expect(title(tester), 'Root');
+    // The same stage given again changes nothing.
+    await press(tester, 'cell-0');
+    await tester.pumpWidget(on(stage2));
+    expect(editor(tester), 'changed');
+    await press(tester, 'cancel');
+    await keeper1.close();
+    await keeper2.close();
+  });
+
   screenTest('after a fault a fixed sentence, and the document is left alone', (
     tester,
     stage,
     fake,
   ) async {
     await press(tester, 'cell-0');
-    await tester.enterText(key('editor'), 'typed');
+    type(tester, 'typed');
     failFirst(
       fake,
       'apply',
@@ -496,9 +1237,12 @@ void main() {
     expect(tester.widget<IconButton>(key('undo')).onPressed, isNull);
     expect(tester.widget<IconButton>(key('redo')).onPressed, isNull);
     final calls = fake.log.length;
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await awayAndBack(tester, AppLifecycleState.paused);
     await tester.pump(const Duration(seconds: 2));
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    expect(fake.log.length, calls);
+    // The system's back is the system's again, which leaves the app: there is
+    // nothing to go up in.
+    expect(await back(tester), ['SystemNavigator.pop']);
     expect(fake.log.length, calls);
   });
 }

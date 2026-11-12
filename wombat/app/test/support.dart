@@ -3,7 +3,10 @@ import 'dart:io';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:wombat_app/session.dart';
+import 'package:wombat_app/src/rust/api/document.dart';
 import 'package:wombat_app/src/rust/frb_generated.dart';
+
+import 'fake_document.dart';
 
 /// Loads the bridge as the tests use it, without a device. It builds the library
 /// first, so that a test never passes or fails on what some earlier build left behind;
@@ -50,3 +53,15 @@ Future<Session> openExample(Directory folder, String name) => Session.openCopy(
   from: 'assets/example.wombat',
   to: '${folder.path}/$name.wombat',
 );
+
+/// The same, with the handle of the real core under a watcher that can hold a call up,
+/// make it fail, and tell when one has ended.
+Future<(Session, Watched)> watchExample(Directory folder, String name) async {
+  final watched = Watched(
+    await OpenDocument.openCopy(
+      from: 'assets/example.wombat',
+      to: '${folder.path}/$name.wombat',
+    ),
+  );
+  return (await Session.over(watched), watched);
+}

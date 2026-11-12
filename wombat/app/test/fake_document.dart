@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter_rust_bridge/flutter_rust_bridge.dart'
+    show PanicException;
 import 'package:wombat_app/src/rust/api/document.dart';
 import 'package:wombat_app/src/rust/api/wire.dart';
 
@@ -20,9 +22,46 @@ class FakeCell {
   List<String> cells;
 }
 
+/// What a document under test can be made to do at the start of each call.
+mixin Hooks {
+  /// Runs at the start of every call, with its name: `grid`, `apply`, `undo`, `redo`,
+  /// `save`, `overwrite`, `close`, `isSaved`. The call goes on when it ends, and fails
+  /// with what it throws.
+  FutureOr<void> Function(String call)? before;
+
+  /// Every call, as `name` when it began and `name.` when it ended, well or badly.
+  final List<String> log = [];
+
+  final Map<String, Completer<void>> _awaited = {};
+
+  /// Ends when the next call named `call` has ended, well or badly: for waiting for
+  /// what the app does by itself, such as saving, and not for a time.
+  Future<void> next(String call) =>
+      (_awaited[call] ??= Completer<void>()).future;
+
+  /// Called when a call that changes the document was failed with a panic.
+  void broke() {}
+
+  Future<T> hooked<T>(String name, FutureOr<T> Function() work) async {
+    log.add(name);
+    try {
+      try {
+        await before?.call(name);
+      } on PanicException {
+        if (const {'apply', 'undo', 'redo'}.contains(name)) broke();
+        rethrow;
+      }
+      return await work();
+    } finally {
+      log.add('$name.');
+      _awaited.remove(name)?.complete();
+    }
+  }
+}
+
 /// Makes the first call named `call` wait until the returned completer is completed;
 /// the calls after it go on at once.
-Completer<void> holdFirst(FakeDocument doc, String call) {
+Completer<void> holdFirst(Hooks doc, String call) {
   final gate = Completer<void>();
   var held = false;
   doc.before = (name) {
@@ -34,7 +73,7 @@ Completer<void> holdFirst(FakeDocument doc, String call) {
 }
 
 /// Makes the first call named `call` fail with `error`.
-void failFirst(FakeDocument doc, String call, Object error) {
+void failFirst(Hooks doc, String call, Object error) {
   var failed = false;
   doc.before = (name) {
     if (failed || name != call) return;
@@ -43,14 +82,68 @@ void failFirst(FakeDocument doc, String call, Object error) {
   };
 }
 
+/// A document of the real core that can be held up and made to fail like the
+/// stand-in: every call goes on to the handle it was made over.
+class Watched with Hooks implements OpenDocument {
+  Watched(this._real);
+
+  final OpenDocument _real;
+
+  @override
+  Future<String> id() => _real.id();
+
+  @override
+  Future<String> root() => _real.root();
+
+  @override
+  Future<String> path() => _real.path();
+
+  @override
+  Future<bool> isSaved() => hooked('isSaved', _real.isSaved);
+
+  @override
+  Future<GridInfo> grid({required String cell}) =>
+      hooked('grid', () => _real.grid(cell: cell));
+
+  @override
+  Future<Report> apply({required Command command}) =>
+      hooked('apply', () => _real.apply(command: command));
+
+  @override
+  Future<Report?> undo() => hooked('undo', _real.undo);
+
+  @override
+  Future<Report?> redo() => hooked('redo', _real.redo);
+
+  @override
+  Future<void> save() => hooked('save', _real.save);
+
+  @override
+  Future<void> overwrite() => hooked('overwrite', _real.overwrite);
+
+  @override
+  Future<void> close() => hooked('close', _real.close);
+
+  @override
+  void dispose() => _real.dispose();
+
+  @override
+  bool get isDisposed => _real.isDisposed;
+}
+
 /// A stand-in for the core, in Dart alone, for tests of what the app does around a
 /// document: it can be made to wait, to fail and to count. It knows `EnterText` and
 /// `SetText`, undo and redo of those, and reading a grid.
 ///
+/// Its file is three switches, and it saves as the real document does (decisions A140,
+/// A142, A143): a save writes when something was done since the last one or the file
+/// is gone, and refuses when another program changed the file; letting go of it
+/// unclosed saves what the real one would; after a panic nothing is written.
+///
 /// The document it starts with: the root "Root" has two columns and two rows, `a` "one",
 /// `b` "=X" (a formula that failed, showing "#NAME?"), `c` "three" (with a grid of one
 /// column: `e` "five", `f` "=1+1" showing "2") and `d` "four".
-class FakeDocument implements OpenDocument {
+class FakeDocument with Hooks implements OpenDocument {
   final Map<String, FakeCell> cells = {
     'root': FakeCell('Root', xs: 2, cells: ['a', 'b', 'c', 'd']),
     'a': FakeCell('one'),
@@ -61,30 +154,52 @@ class FakeDocument implements OpenDocument {
     'f': FakeCell('=1+1', result: '2'),
   };
 
-  /// Runs at the start of every call, with its name: `grid`, `apply`, `undo`, `redo`,
-  /// `save`, `overwrite`, `close`, `isSaved`. The call goes on when it ends, and fails
-  /// with what it throws.
-  FutureOr<void> Function(String call)? before;
-
-  /// Every call, as `name` when it began and `name.` when it ended, well or badly.
-  final List<String> log = [];
-
+  /// How often the file was written by a save, a close or a let-go: writes, not calls.
   int saves = 0;
+
+  /// How often the file was written without looking at it first.
   int overwrites = 0;
+
+  /// Whether nothing was done since the file was read or written.
   bool saved = true;
+
+  /// Another program changed the file.
+  bool fileChanged = false;
+
+  /// The file was removed.
+  bool fileGone = false;
+
+  /// A panic left the document half changed.
+  bool broken = false;
   bool closed = false;
   bool disposed = false;
   final List<(String, String, String)> _done = [];
   final List<(String, String, String)> _undone = [];
 
-  Future<T> _call<T>(String name, T Function() work) async {
-    log.add(name);
-    try {
-      await before?.call(name);
-      return work();
-    } finally {
-      log.add('$name.');
+  @override
+  void broke() => broken = true;
+
+  Future<T> _call<T>(String name, T Function() work) => hooked(name, () {
+    if (broken) {
+      throw const BridgeError(
+        kind: ErrorKind.internal,
+        message: 'a call before this one did not end',
+      );
     }
+    return work();
+  });
+
+  /// What `save` does, and `close` before it gives the document up.
+  void _save() {
+    if (fileChanged) {
+      throw const BridgeError(
+        kind: ErrorKind.changedOnDisk,
+        message: 'the file was changed by another program',
+      );
+    }
+    if (!saved || fileGone) saves++;
+    saved = true;
+    fileGone = false;
   }
 
   CellInfo _info(String id) {
@@ -175,26 +290,31 @@ class FakeDocument implements OpenDocument {
   });
 
   @override
-  Future<void> save() => _call('save', () {
-    saves++;
-    saved = true;
-  });
+  Future<void> save() => _call('save', _save);
 
   @override
   Future<void> overwrite() => _call('overwrite', () {
     overwrites++;
     saved = true;
+    fileChanged = false;
+    fileGone = false;
   });
 
   @override
   Future<void> close() => _call('close', () {
-    saves += saved ? 0 : 1;
-    saved = true;
+    // With nothing unsaved the file is not looked at.
+    if (!saved) _save();
     closed = true;
   });
 
   @override
-  void dispose() => disposed = true;
+  void dispose() {
+    disposed = true;
+    if (!closed && !saved && !broken && !fileChanged) {
+      saves++;
+      saved = true;
+    }
+  }
 
   @override
   bool get isDisposed => disposed;

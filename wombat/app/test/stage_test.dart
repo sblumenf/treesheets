@@ -6,6 +6,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge.dart'
     show PanicException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wombat_app/grid/stage.dart';
+import 'package:wombat_app/keeper.dart';
+import 'package:wombat_app/main.dart' show onStage;
 import 'package:wombat_app/session.dart';
 import 'package:wombat_app/src/rust/api/wire.dart';
 
@@ -23,13 +25,13 @@ void main() {
 
   tearDownAll(() => folder.delete(recursive: true));
 
-  // Every stage is closed at the end of its test, which also stops its clock.
-  final stages = <Stage>[];
+  // Every document is closed at the end of its test, which also stops its clock.
+  final keepers = <Keeper>[];
   tearDown(() async {
-    for (final stage in stages) {
-      await stage.close().catchError((Object _) {});
+    for (final keeper in keepers) {
+      await keeper.close().catchError((Object _) => keeper.letGo());
     }
-    stages.clear();
+    keepers.clear();
   });
 
   const never = Duration(hours: 1);
@@ -37,23 +39,35 @@ void main() {
   /// A stage on a copy of the example. It saves by itself only when told after how long.
   Future<(Stage, Session)> example({Duration saveAfter = never}) async {
     final doc = await openExample(folder, 'stage-${count++}');
-    final stage = await Stage.open(doc, saveAfter: saveAfter);
-    stages.add(stage);
-    return (stage, doc);
+    final keeper = Keeper(doc, saveAfter: saveAfter);
+    keepers.add(keeper);
+    return (await Stage.open(keeper), doc);
   }
 
-  /// A stage on the stand-in for the core.
+  /// The same, with the core under a watcher that tells when a call has ended.
+  Future<(Stage, Session, Watched)> watched({
+    Duration saveAfter = never,
+  }) async {
+    final (doc, watch) = await watchExample(folder, 'stage-${count++}');
+    final keeper = Keeper(doc, saveAfter: saveAfter);
+    keepers.add(keeper);
+    return (await Stage.open(keeper), doc, watch);
+  }
+
+  /// A stage on the stand-in for the core. The file can be read again unless told.
   Future<(Stage, FakeDocument)> standIn({
     Future<Session> Function(String path)? reopen,
+    Future<void> Function(String path)? canBeRead,
   }) async {
     final fake = FakeDocument();
-    final stage = await Stage.open(
+    final keeper = Keeper(
       await Session.over(fake),
       saveAfter: never,
       reopen: reopen ?? Session.open,
+      canBeRead: canBeRead ?? (_) async {},
     );
-    stages.add(stage);
-    return (stage, fake);
+    keepers.add(keeper);
+    return (await Stage.open(keeper), fake);
   }
 
   Matcher refusedAs(ErrorKind kind) =>
@@ -189,6 +203,100 @@ void main() {
     expect(trail(stage), ['Example']);
   });
 
+  // The review's sequence: only the last level of the trail was read again.
+  test('the trail follows an undo that renames a level above', () async {
+    final (stage, doc) = await example();
+    final costs = stage.grid.cells[2].id;
+    await stage.dive(costs);
+    final first = stage.grid.cells[0].id;
+    await doc.apply(Command.createGrid(cell: first, xs: 1, ys: 1));
+    await stage.up();
+    await stage.enterText(costs, 'Renamed');
+    await stage.dive(costs);
+    await stage.dive(first);
+    expect(trail(stage), ['Example', 'Renamed', '3']);
+    expect(await stage.undo(), isTrue);
+    expect(trail(stage), ['Example', 'Costs', '3']);
+    expect(await stage.redo(), isTrue);
+    expect(trail(stage), ['Example', 'Renamed', '3']);
+  });
+
+  group('text entered in place of the command before it', () {
+    test('is one step of the undo history', () async {
+      final (stage, doc) = await example();
+      final cell = stage.grid.cells[1].id;
+      final total = stage.grid.cells[5].id;
+      await stage.enterText(cell, 'half');
+      final report = await stage.enterText(
+        cell,
+        '=SUM(Costs)',
+        insteadOfLast: true,
+      );
+      expect(report.changed, [cell]);
+      expect(texts(stage)[1], '10');
+      // What either of the two commands touched.
+      expect(stage.touched, {cell});
+      expect(await stage.undo(), isTrue);
+      expect(texts(stage)[1], 'what to buy');
+      expect(await stage.undo(), isFalse);
+      expect(await stage.redo(), isTrue);
+      expect(stage.grid.cells[1].text, '=SUM(Costs)');
+      expect(stage.touched, {cell});
+      expect(await doc.isSaved(), isFalse);
+      expect(total, isNot(cell));
+    });
+
+    test('the text the cell had before leaves no step at all', () async {
+      final (stage, _) = await example();
+      final cell = stage.grid.cells[1].id;
+      await stage.enterText(cell, 'half');
+      final report = await stage.enterText(
+        cell,
+        'what to buy',
+        insteadOfLast: true,
+      );
+      expect(report.changed, isEmpty);
+      // The cell was touched all the same: by the undo.
+      expect(stage.touched, {cell});
+      expect(texts(stage)[1], 'what to buy');
+      expect(await stage.undo(), isFalse);
+    });
+
+    test('a text that the core refuses leaves the command before it', () async {
+      final (stage, fake) = await standIn();
+      await stage.enterText('a', 'half');
+      failFirst(fake, 'apply', broken);
+      await expectLater(
+        stage.enterText('a', 'whole', insteadOfLast: true),
+        throwsA(broken),
+      );
+      expect(fake.log.sublist(fake.log.length - 6), [
+        'undo',
+        'undo.',
+        'apply',
+        'apply.',
+        'redo',
+        'redo.',
+      ]);
+      expect(fake.cells['a']!.text, 'half');
+      expect(await stage.undo(), isTrue);
+      expect(fake.cells['a']!.text, 'one');
+    });
+
+    test('with nothing before it, it is entered as it is', () async {
+      final (stage, fake) = await standIn();
+      failFirst(fake, 'apply', broken);
+      await expectLater(
+        stage.enterText('a', 'whole', insteadOfLast: true),
+        throwsA(broken),
+      );
+      // Nothing was undone, so nothing is redone.
+      expect(fake.log.contains('redo'), isFalse);
+      await stage.enterText('a', 'whole', insteadOfLast: true);
+      expect(fake.cells['a']!.text, 'whole');
+    });
+  });
+
   test(
     'a stage that an undo takes away gives way to the level above',
     () async {
@@ -286,6 +394,51 @@ void main() {
       expect(trail(stage), ['Example']);
     });
 
+    test('an edit asked for just before the close is made and saved', () async {
+      final (stage, fake) = await standIn();
+      final edit = stage.enterText('a', 'last words');
+      await stage.keeper.close();
+      expect((await edit).changed, ['a']);
+      expect(
+        (fake.cells['a']!.text, fake.saves, fake.closed),
+        ('last words', 1, true),
+      );
+      expect(fake.log, containsAllInOrder(['apply.', 'close']));
+    });
+
+    test('a save asked of the stage comes after the steps before it', () async {
+      final (stage, fake) = await standIn();
+      final gate = holdFirst(fake, 'apply');
+      final edit = stage.enterText('a', 'first');
+      final save = stage.save();
+      final keep = stage.keepMine();
+      await pumpEventQueue();
+      expect(fake.log, ['grid', 'grid.', 'apply']);
+      gate.complete();
+      await Future.wait([edit, save, keep]);
+      expect(fake.log.where((call) => !call.endsWith('.')), [
+        'grid',
+        'apply',
+        'grid',
+        'save',
+        'overwrite',
+      ]);
+    });
+
+    test('a stage that is done with no longer follows its keeper', () async {
+      final (stage, fake) = await standIn();
+      var told = 0;
+      stage.addListener(() => told++);
+      failFirst(fake, 'save', broken);
+      await stage.keeper.save();
+      expect(told, 1);
+      stage.dispose();
+      await stage.keeper.save();
+      expect(told, 1);
+      // And the keeper does not wait for it any more.
+      await stage.keeper.putAway();
+    });
+
     test('a cell is read after what was asked before it', () async {
       final (stage, _) = await example();
       final cell = stage.grid.cells[1].id;
@@ -300,29 +453,30 @@ void main() {
 
   group('saving by itself', () {
     test('an edit is in the file soon after, without being asked', () async {
-      final (stage, doc) = await example(
+      final (stage, doc, watch) = await watched(
         saveAfter: const Duration(milliseconds: 20),
       );
+      // Not a time to wait for: the save itself, whenever it comes.
+      final saved = watch.next('save');
       await stage.enterText(stage.grid.cells[1].id, 'saved by itself');
-      expect(await doc.isSaved(), isFalse);
-      for (var i = 0; i < 200 && !await doc.isSaved(); i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-      }
+      await saved;
+      expect(watch.log.where((call) => call == 'save').length, 1);
       expect(await doc.isSaved(), isTrue);
       expect(File(doc.path).readAsStringSync(), contains('"saved by itself"'));
       expect(stage.saveError, isNull);
     });
 
     test('undo and redo are saved too', () async {
-      final (stage, doc) = await example(
+      final (stage, doc, watch) = await watched(
         saveAfter: const Duration(milliseconds: 20),
       );
       await stage.enterText(stage.grid.cells[1].id, 'gone again');
       await stage.save();
+      expect(File(doc.path).readAsStringSync(), contains('gone again'));
+      final saved = watch.next('save');
       await stage.undo();
-      for (var i = 0; i < 200 && !await doc.isSaved(); i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-      }
+      await saved;
+      expect(await doc.isSaved(), isTrue);
       expect(File(doc.path).readAsStringSync(), isNot(contains('gone again')));
     });
 
@@ -340,7 +494,8 @@ void main() {
         Session.open(doc.path),
         refusedAs(ErrorKind.alreadyOpen),
       );
-      await stage.close();
+      await stage.keeper.close();
+      expect(stage.ended, 'The document was closed.');
       final again = await Session.open(doc.path);
       expect((await again.grid(again.root)).cells[1].text, 'at the end');
       await again.close();
@@ -395,6 +550,7 @@ void main() {
       'a save that fails is told, and the next one that works too',
       () async {
         final (stage, fake) = await standIn();
+        await stage.enterText('a', 'to save');
         var told = 0;
         stage.addListener(() => told++);
         failFirst(fake, 'save', broken);
@@ -410,13 +566,110 @@ void main() {
       },
     );
 
-    test('a file that cannot be opened again ends the work', () async {
-      final (stage, fake) = await standIn(reopen: (_) => throw broken);
+    // The review's sequence: the edits were gone before the other file was known to
+    // be readable, and the screen was a dead end.
+    test(
+      'open theirs when theirs cannot be read: this document stays',
+      () async {
+        final (stage, doc) = await example();
+        var told = 0;
+        stage.addListener(() => told++);
+        await stage.enterText(stage.grid.cells[1].id, 'an hour of work');
+        const theirs = 'half written by the other program';
+        File(doc.path).writeAsStringSync(theirs);
+        await stage.save();
+        expect(kindOf(stage.saveError), ErrorKind.changedOnDisk);
+        final before = Directory.systemTemp.listSync().length;
+        told = 0;
+
+        await expectLater(stage.openTheirs(), refusedAs(ErrorKind.syntax));
+        expect(stage.ended, isNull);
+        expect(told, 0);
+        // The choice is still to make, and nothing was written or lost.
+        expect(kindOf(stage.saveError), ErrorKind.changedOnDisk);
+        expect(File(doc.path).readAsStringSync(), theirs);
+        expect(await doc.isSaved(), isFalse);
+        expect(texts(stage)[1], 'an hour of work');
+        // The copy that was tried is gone again.
+        expect(Directory.systemTemp.listSync().length, before);
+
+        await stage.keepMine();
+        expect(stage.saveError, isNull);
+        expect(
+          File(doc.path).readAsStringSync(),
+          contains('"an hour of work"'),
+        );
+      },
+    );
+
+    test('open theirs shows the other file when it is done', () async {
+      final (stage, doc) = await example();
+      await stage.dive(stage.grid.cells[2].id);
+      await stage.enterText(stage.grid.cells[0].id, 'mine');
+      final theirs = File(doc.path)
+          .readAsStringSync()
+          .replaceFirst('"Shopping"', '"Theirs"');
+      File(doc.path).writeAsStringSync(theirs);
+      await stage.save();
+      // What a screen would draw each time it is told.
+      final drawn = <(String, Object?)>[];
+      stage.addListener(() => drawn.add((texts(stage).first, stage.saveError)));
       await stage.openTheirs();
-      expect(fake.disposed, isTrue);
-      expect(stage.ended, contains('the disk is gone'));
-      await expectLater(stage.undo(), refusedAs(ErrorKind.closed));
+      expect(drawn.last, ('Theirs', null));
+      expect(stage.keeper.opens, 2);
     });
+
+    test('open theirs comes after the steps asked before it', () async {
+      final theirs = FakeDocument()..cells['a']!.text = 'theirs';
+      final (stage, fake) = await standIn(reopen: (_) => Session.over(theirs));
+      final gate = holdFirst(fake, 'apply');
+      final edit = stage.enterText('a', 'mine');
+      final open = stage.openTheirs();
+      await pumpEventQueue();
+      expect(fake.disposed, isFalse);
+      gate.complete();
+      expect((await edit).changed, ['a']);
+      await open;
+      expect(fake.disposed, isTrue);
+      expect(texts(stage).first, 'theirs');
+    });
+
+    test(
+      'the other file opened but not readable from the root is said',
+      () async {
+        final theirs = FakeDocument();
+        final (stage, fake) = await standIn(
+          reopen: (_) => Session.over(theirs),
+        );
+        await stage.dive('c');
+        failFirst(theirs, 'grid', broken);
+        await stage.openTheirs();
+        expect(stage.ended, isNull);
+        expect(stage.readError, broken);
+        expect(trail(stage).length, 1);
+        await stage.refresh();
+        expect(stage.readError, isNull);
+        expect(texts(stage).first, 'one');
+        expect(fake.disposed, isTrue);
+      },
+    );
+
+    test(
+      'a file that is changed again while it is opened ends the work',
+      () async {
+        // It could be read when it was looked at, and cannot when it is opened.
+        final (stage, fake) = await standIn(reopen: (_) => throw broken);
+        var told = 0;
+        stage.addListener(() => told++);
+        await stage.openTheirs();
+        expect(fake.disposed, isTrue);
+        expect(told, 1);
+        expect(stage.ended, contains('the disk is gone'));
+        // Not a dead end: what to do is said.
+        expect(stage.ended, contains('Close Wombat and open it again'));
+        await expectLater(stage.undo(), refusedAs(ErrorKind.closed));
+      },
+    );
   });
 
   group('when the core fails', () {
@@ -424,9 +677,11 @@ void main() {
       final fake = FakeDocument();
       fake.cells.remove('root');
       await expectLater(
-        Session.over(fake).then(Stage.open),
+        Session.over(fake).then(onStage),
         refusedAs(ErrorKind.notFound),
       );
+      // No stage, so no one to close the document: its file must not stay taken.
+      expect(fake.disposed, isTrue);
     });
 
     test(
@@ -448,6 +703,30 @@ void main() {
         expect(texts(stage), ['typed', '2']);
       },
     );
+
+    test(
+      'going into a grid forgets that the stage could not be read',
+      () async {
+        final (stage, fake) = await standIn();
+        failFirst(fake, 'grid', broken);
+        await stage.enterText('a', 'typed');
+        expect(stage.readError, broken);
+        expect(await stage.dive('c'), isTrue);
+        expect(stage.readError, isNull);
+      },
+    );
+
+    test('a fault while the stage is read again ends the work', () async {
+      final (stage, fake) = await standIn();
+      failFirst(fake, 'grid', PanicException('at /home/builder/core.rs'));
+      await expectLater(
+        stage.enterText('a', 'typed'),
+        throwsA(isA<PanicException>()),
+      );
+      // Not something to try again.
+      expect(stage.readError, isNull);
+      expect(stage.ended, faultSentence);
+    });
 
     test('going into a grid that cannot be read changes nothing', () async {
       final (stage, fake) = await standIn();
@@ -485,12 +764,17 @@ void main() {
         final calls = fake.log.length;
         await expectLater(stage.undo(), refusedAs(ErrorKind.closed));
         await expectLater(stage.dive('c'), refusedAs(ErrorKind.closed));
+        await expectLater(stage.cell('a'), refusedAs(ErrorKind.closed));
         await stage.save();
         await stage.keepMine();
         await stage.openTheirs();
-        await stage.close();
+        await stage.keeper.putAway();
+        await stage.keeper.close();
+        await stage.keeper.letGo();
         expect(fake.log.length, calls);
         expect((fake.saves, fake.overwrites, fake.closed), (0, 0, false));
+        // And nothing more is said or tried.
+        expect((stage.ended, told), (faultSentence, 1));
       },
     );
 

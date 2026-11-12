@@ -1,7 +1,6 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 
+import '../keeper.dart';
 import '../session.dart';
 import '../src/rust/api/wire.dart';
 
@@ -25,15 +24,15 @@ class Level {
 /// stage as it is then: of two taps on the same way into a grid the second finds that
 /// the cell is no longer on the stage and does nothing.
 ///
-/// **The document saves itself** (decision A145): a while after a change, when [save]
-/// is called (the screen does so when the app is no longer in front), and at [close].
-/// A save that failed is in [saveError] until one works.
+/// **The stage does not save.** The document belongs to a [Keeper], which saves it for
+/// every screen that works on it; the stage passes on what the keeper says
+/// ([saveError], [ended]) and asks it ([save], [keepMine], [openTheirs]). Whoever made
+/// the keeper closes it.
 class Stage extends ChangeNotifier {
-  Stage._(this._doc, this._saveAfter, this._reopen);
+  Stage._(this.keeper) : _opens = keeper.opens;
 
-  Session _doc;
-  final Duration _saveAfter;
-  final Future<Session> Function(String path) _reopen;
+  /// What keeps the document of this stage in its file.
+  final Keeper keeper;
   final _turns = InTurn();
 
   /// The IDs of the cells from the root to the cell on the stage.
@@ -41,40 +40,51 @@ class Stage extends ChangeNotifier {
   final List<String> _titles = [];
   late GridInfo _grid;
   Set<String> _touched = const {};
-  Timer? _saveTimer;
-  Object? _saveError;
   Object? _readError;
-  String? _ended;
 
-  /// Starts at the root of an open document, which is the stage's from here on: the
-  /// stage saves it and [close] closes it. A change is in the file `saveAfter` later at
-  /// the latest, as long as the app runs. `reopen` opens the file again for
-  /// [openTheirs]; tests put a stand-in there.
-  static Future<Stage> open(
-    Session doc, {
-    Duration saveAfter = const Duration(seconds: 1),
-    Future<Session> Function(String path) reopen = Session.open,
-  }) async {
-    final stage = Stage._(doc, saveAfter, reopen);
-    try {
-      await stage._start();
-    } catch (_) {
-      // No stage, so no one to close the document: its file must not stay taken.
-      await doc.discard();
-      rethrow;
-    }
+  /// Which document of the keeper the stage shows.
+  int _opens;
+
+  /// Starts at the root of the document that `keeper` keeps. If the root cannot be
+  /// read, the error is thrown and there is no stage.
+  static Future<Stage> open(Keeper keeper) async {
+    final stage = Stage._(keeper);
+    await stage._start();
+    keeper.addListener(stage._kept);
+    keeper.addFinisher(stage._settled);
     return stage;
   }
+
+  /// Ends when every step asked of the stage before now is done.
+  Future<void> _settled() => _turns.run(() async {});
 
   Future<void> _start() async {
     _path
       ..clear()
-      ..add(_doc.root);
+      ..add(keeper.root);
     _titles
       ..clear()
       ..add('');
     _touched = const {};
     await _read();
+  }
+
+  /// The keeper has something new to say. If it has opened the file again, what is on
+  /// the stage is of a document that is gone: the stage starts again at the root.
+  void _kept() {
+    if (keeper.opens != _opens) {
+      _opens = keeper.opens;
+      _turns.run(() async {
+        try {
+          await _start();
+        } catch (error) {
+          // After a fault the keeper has ended the work, and that is what is shown.
+          if (!isFatal(error)) _readError = error;
+        }
+        notifyListeners();
+      });
+    }
+    notifyListeners();
   }
 
   /// The cell on the stage and the cells of its grid.
@@ -91,53 +101,35 @@ class Stage extends ChangeNotifier {
   /// The cells that the last command, undo or redo changed, made or recalculated.
   Set<String> get touched => _touched;
 
-  /// What the last try to save ended with, if it failed: the document is not in its
-  /// file as it is now. A [BridgeError] of kind [ErrorKind.changedOnDisk] means that
-  /// another program changed the file, and the user chooses between [keepMine] and
-  /// [openTheirs]. Null when the last save worked.
-  Object? get saveError => _saveError;
+  /// What the last try to save ended with, if it failed ([Keeper.saveError]).
+  Object? get saveError => keeper.saveError;
 
   /// Why the stage could not be read again after a change, if it could not: what it
   /// shows is then older than the document. [refresh] tries again.
   Object? get readError => _readError;
 
-  /// Why the document is no longer in use, as a sentence for the screen: after a fault
-  /// in the program ([faultSentence]), or when the file could not be opened again.
-  /// Null while the work goes on. Once set, every step throws a [BridgeError] of kind
-  /// [ErrorKind.closed] and nothing more is saved.
-  String? get ended => _ended;
+  /// Why the document is no longer in use, as a sentence for the screen
+  /// ([Keeper.ended]). Null while the work goes on. Once set, every step throws a
+  /// [BridgeError] of kind [ErrorKind.closed].
+  String? get ended => keeper.ended;
 
-  /// Runs one step in its turn. A fault in the program ends the work on the document.
-  Future<T> _step<T>(Future<T> Function() step) => _turns.run(() async {
-    if (_ended != null) {
+  /// Runs one step in its turn.
+  Future<T> _step<T>(Future<T> Function() step) => _turns.run(() {
+    if (keeper.ended != null) {
       throw const BridgeError(
         kind: ErrorKind.closed,
         message: 'the document is no longer in use',
       );
     }
-    try {
-      return await step();
-    } catch (error) {
-      if (isFatal(error)) await _end(faultSentence);
-      rethrow;
-    }
+    return step();
   });
-
-  Future<void> _end(String why) async {
-    _ended = why;
-    _saveTimer?.cancel();
-    // Nothing is saved from a document after a fault, and nothing over a file that
-    // another program changed; the file is free to be opened again.
-    await _doc.discard();
-    notifyListeners();
-  }
 
   /// Reads the stage again. A cell that is no longer there (an undo can take it away)
   /// gives way to the nearest cell above it that is.
   Future<void> _read() async {
     while (true) {
       try {
-        _grid = await _doc.grid(_path.last);
+        _grid = await keeper.grid(_path.last);
         _titles[_titles.length - 1] = _grid.cell.text;
         _readError = null;
         return;
@@ -154,7 +146,7 @@ class Stage extends ChangeNotifier {
   /// read, the error is thrown and the stage stays where it was.
   Future<bool> dive(String cell) => _step(() async {
     if (!_grid.cells.any((c) => c.id == cell && c.hasGrid)) return false;
-    final grid = await _doc.grid(cell);
+    final grid = await keeper.grid(cell);
     _path.add(cell);
     _titles.add(grid.cell.text);
     _grid = grid;
@@ -211,15 +203,24 @@ class Stage extends ChangeNotifier {
     notifyListeners();
   });
 
-  /// After a change that the core made. If the stage cannot be read again, the change
-  /// is no less made: that goes to [readError] and not to the caller.
-  Future<void> _changed(Report report) async {
-    _touched = {...report.changed, ...report.created, ...report.recalculated};
-    // The first change since the last save starts the clock; later ones do not put it
-    // back, so that steady typing cannot keep the file old for ever.
-    _saveTimer ??= Timer(_saveAfter, save);
+  /// After changes that the core made. If the stage cannot be read again, the changes
+  /// are no less made: that goes to [readError] and not to the caller.
+  Future<void> _changed(List<Report> reports) async {
+    final changed = {for (final report in reports) ...report.changed};
+    _touched = {
+      ...changed,
+      for (final report in reports) ...report.created,
+      for (final report in reports) ...report.recalculated,
+    };
     try {
       await _read();
+      // The levels above the stage are read only when they changed: reading one copies
+      // the texts of its whole grid.
+      for (var i = 0; i < _path.length - 1; i++) {
+        if (changed.contains(_path[i])) {
+          _titles[i] = (await keeper.grid(_path[i])).cell.text;
+        }
+      }
     } catch (error) {
       if (isFatal(error)) rethrow;
       _readError = error;
@@ -230,92 +231,69 @@ class Stage extends ChangeNotifier {
   /// Typing into a cell has ended with this text: the core sets it, and makes the cell a
   /// formula cell if the text is a formula. Returns what changed; a text the cell
   /// already has changes nothing.
-  Future<Report> enterText(String cell, String text) => _step(() async {
-    final report = await _doc.apply(Command.enterText(cell: cell, text: text));
-    await _changed(report);
+  ///
+  /// With `insteadOfLast` the latest command is undone first, so that the two are one
+  /// step of the undo history: for an editor whose text went into the document when the
+  /// app was put away, and is now entered for good (decision A157). The caller knows
+  /// that the latest command is that one. If the core refuses the text, the undone
+  /// command is redone and the document is as before.
+  Future<Report> enterText(
+    String cell,
+    String text, {
+    bool insteadOfLast = false,
+  }) => _step(() async {
+    final undone = insteadOfLast ? await keeper.undo() : null;
+    final Report report;
+    try {
+      report = await keeper.apply(Command.enterText(cell: cell, text: text));
+    } catch (_) {
+      if (undone != null) await keeper.redo();
+      rethrow;
+    }
+    await _changed([?undone, report]);
     return report;
   });
 
   /// Undoes the last command. Returns false if there is nothing to undo.
   Future<bool> undo() => _step(() async {
-    final report = await _doc.undo();
+    final report = await keeper.undo();
     if (report == null) return false;
-    await _changed(report);
+    await _changed([report]);
     return true;
   });
 
   /// Redoes the command undone last. Returns false if there is nothing to redo.
   Future<bool> redo() => _step(() async {
-    final report = await _doc.redo();
+    final report = await keeper.redo();
     if (report == null) return false;
-    await _changed(report);
+    await _changed([report]);
     return true;
   });
 
-  /// One try to make the file hold the document. It never throws: how it ended is in
-  /// [saveError], and listeners are told when that changed.
-  Future<void> _write(Future<void> Function() how) => _turns.run(() async {
-    if (_ended != null) return;
-    _saveTimer?.cancel();
-    _saveTimer = null;
-    final before = _saveError;
-    try {
-      await how();
-      _saveError = null;
-    } catch (error) {
-      if (isFatal(error)) return _end(faultSentence);
-      _saveError = error;
-    }
-    if (!identical(before, _saveError)) notifyListeners();
-  });
+  /// Saves the document now, after every step asked before ([Keeper.save]). It does not
+  /// throw: see [saveError].
+  Future<void> save() => _turns.run(keeper.save);
 
-  /// Saves the document to its file now, after every step asked before. Nothing is
-  /// written when nothing was done since the last save, and never over what another
-  /// program put there. It does not throw: see [saveError].
-  Future<void> save() => _write(() => _doc.save());
-
-  /// Writes the document over what another program saved, after [saveError] said
-  /// [ErrorKind.changedOnDisk] and the user chose this document. It does not throw:
-  /// see [saveError].
-  Future<void> keepMine() => _write(() => _doc.overwrite());
+  /// Writes the document over what another program saved ([Keeper.keepMine]). It does
+  /// not throw: see [saveError].
+  Future<void> keepMine() => _turns.run(keeper.keepMine);
 
   /// Lets go of this document and opens the file as the other program left it, after
-  /// [saveError] said [ErrorKind.changedOnDisk] and the user chose the file. The stage
-  /// starts again at the root. What was done here since the last save is lost; that is
-  /// the choice. If the file cannot be opened, the work is [ended].
-  Future<void> openTheirs() => _turns.run(() async {
-    if (_ended != null) return;
-    _saveTimer?.cancel();
-    _saveTimer = null;
-    await _doc.discard();
-    try {
-      _doc = await _reopen(_doc.path);
-      await _start();
-    } catch (error) {
-      return _end(
-        isFatal(error)
-            ? faultSentence
-            : 'The file could not be opened again. ${describeError(error)}',
-      );
-    }
-    _saveError = null;
-    notifyListeners();
-  });
+  /// every step asked before ([Keeper.openTheirs]); the stage then starts again at the
+  /// root. If that file cannot be read, the error is thrown and nothing changed.
+  Future<void> openTheirs() async {
+    // Not inside a step: the keeper tells the stage while it is at it, and the stage
+    // then asks for the step in which it starts again, which this waits for.
+    await _settled();
+    await keeper.openTheirs();
+    await _settled();
+  }
 
-  /// Ends the work: saves what is unsaved and closes the document, after every step
-  /// asked before. If it cannot be saved the error is thrown, and the document is let
-  /// go of as the bridge lets go of one that was not closed (decision A142): nothing is
-  /// written over a file that another program changed. The stage is not used after.
-  Future<void> close() => _turns.run(() async {
-    _saveTimer?.cancel();
-    _saveTimer = null;
-    if (_ended != null) return;
-    _ended = 'The document was closed.';
-    try {
-      await _doc.close();
-    } catch (_) {
-      await _doc.discard();
-      rethrow;
-    }
-  });
+  /// The stage is no longer used: it stops listening to the keeper, which stays open.
+  @override
+  void dispose() {
+    keeper.removeListener(_kept);
+    keeper.removeFinisher(_settled);
+    super.dispose();
+  }
 }

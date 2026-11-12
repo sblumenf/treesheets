@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../session.dart';
 import '../src/rust/api/wire.dart';
@@ -8,8 +9,11 @@ import 'stage.dart';
 const double _target = 48;
 
 /// The simple grid screen: one grid, into a nested grid and back out, and the text of one
-/// cell edited at a time, with undo and redo; the document saves itself. A first step towards the screen that
+/// cell edited at a time, with undo and redo. A first step towards the screen that
 /// `docs/UI_SPEC.md` specifies, with none of its previews, gestures or animations.
+///
+/// The document belongs to the stage's keeper, which saves it; the screen shows what
+/// the keeper says and never saves by itself.
 class GridScreen extends StatefulWidget {
   const GridScreen({super.key, required this.stage, this.menu = const []});
 
@@ -22,12 +26,37 @@ class GridScreen extends StatefulWidget {
   State<GridScreen> createState() => _GridScreenState();
 }
 
-class _GridScreenState extends State<GridScreen> with WidgetsBindingObserver {
+/// How putting the editor's text into the document ended.
+enum _Entered {
+  /// The document has it, and the editor holds nothing else.
+  yes,
+
+  /// The core refused it; the message line says why.
+  refused,
+
+  /// The document has what was sent, and more was typed while the core worked.
+  typedOn,
+}
+
+class _GridScreenState extends State<GridScreen> {
   final _editor = TextEditingController();
   final _focus = FocusNode();
 
+  /// Everything the user does, one after the other in the order it was done (decision
+  /// A146): each action finds the editor and the stage as the actions before it left
+  /// them, not as they were when the finger came down. An error that an action did
+  /// not expect is shown like the others.
+  late final _actions = InTurn(
+    onUnheard: (error, _) => _say(describeError(error)),
+  );
+
   /// The cell whose text is being edited.
   String? _editing;
+
+  /// What the document holds of this editing that the user has not said yes to: the
+  /// text that was entered because the app was put away, if that changed the cell.
+  /// The cross takes it back, and the next entering takes its place (decision A157).
+  String? _left;
 
   /// What the last action had to say: an error, or that there was nothing to do. It has
   /// a line of its own, so that it never lies over something that can be tapped.
@@ -38,169 +67,268 @@ class _GridScreenState extends State<GridScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    _stage.addListener(_redraw);
-    WidgetsBinding.instance.addObserver(this);
+    _arrive();
+  }
+
+  @override
+  void didUpdateWidget(GridScreen old) {
+    super.didUpdateWidget(old);
+    if (identical(old.stage, _stage)) return;
+    _leave(old.stage);
+    _arrive();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _stage.removeListener(_redraw);
+    _leave(_stage);
     _editor.dispose();
     _focus.dispose();
     super.dispose();
   }
 
+  void _arrive() {
+    _stage.addListener(_redraw);
+    _stage.keeper.addFinisher(_putAway);
+  }
+
+  /// The screen stops showing `stage`. What is in the editor is entered, as by a tap
+  /// elsewhere; the keeper waits for that before it closes the document. There is no
+  /// one left to show a refusal to.
+  void _leave(Stage stage) {
+    stage.removeListener(_redraw);
+    stage.keeper.removeFinisher(_putAway);
+    final cell = _editing;
+    if (cell != null && _editor.text != _left && stage.ended == null) {
+      stage.keeper.owe(
+        stage
+            .enterText(cell, _editor.text, insteadOfLast: _left != null)
+            .then<void>((_) {}, onError: (Object _) {}),
+      );
+    }
+    _editing = null;
+    _left = null;
+  }
+
   void _redraw() => setState(() {});
 
-  /// The app is no longer in front, and the system may end it without another word:
-  /// what is being typed goes into the document and the document into its file, now.
-  /// The editor stays as it is for when the app comes back.
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed || _stage.ended != null) return;
-    _commit(close: false);
-    _stage.save();
-  }
-
-  /// Runs one action and says whether it did what it was for. Nothing is dropped while
-  /// another runs: the stage takes its steps in the order they were asked for. What
-  /// goes wrong is shown in the message line, and the screen stays as it was.
-  Future<bool> _run(
-    Future<Object?> Function() action, {
-    String? nothing,
-  }) async {
-    if (_message != null) setState(() => _message = null);
-    String? message;
-    var done = false;
-    try {
-      done = await action() != false;
-      if (!done) message = nothing;
-    } catch (error) {
-      message = describeError(error);
-    }
+  void _say(String? message) {
     if (mounted && message != null) setState(() => _message = message);
-    return done;
   }
 
-  /// Opens the editor on a cell of the stage, as it is when everything asked for before
-  /// the tap is done: an undo still under way must not leave the editor with the text
-  /// from before it.
-  Future<void> _edit(String id) => _run(() async {
-    final cell = await _stage.cell(id);
-    if (cell != null && mounted && _editing == null) _show(cell);
-    return true;
-  });
+  /// Takes one action of the user into the queue. What was on the message line was
+  /// said about an action before this one, and goes.
+  void _do(Future<void> Function() action) {
+    if (_message != null) setState(() => _message = null);
+    _actions.run(() async {
+      // After a fault the screen says so in place of the grid, and nothing is done.
+      if (mounted && _stage.ended == null) await action();
+    });
+  }
+
+  /// Asks one thing of the stage and says whether it did what it was for. What goes
+  /// wrong is shown in the message line, and the screen stays as it was.
+  Future<bool> _ask(Future<Object?> Function() step, {String? nothing}) async {
+    try {
+      if (await step() != false) return true;
+      _say(nothing);
+    } catch (error) {
+      _say(describeError(error));
+    }
+    return false;
+  }
 
   void _show(CellInfo cell) {
     setState(() {
       _editing = cell.id;
+      _left = null;
       _editor.text = cell.text;
       _editor.selection = TextSelection.collapsed(offset: cell.text.length);
     });
     _focus.requestFocus();
   }
 
-  void _close() => setState(() => _editing = null);
+  void _close() => setState(() {
+    _editing = null;
+    _left = null;
+  });
 
-  /// Sends what was typed to the core, and then closes the editor, or with `below`
-  /// moves it to the cell under the one edited, if there is one. Returns whether the
-  /// text is in the document and the editor where it was asked to be; with no editor
-  /// open that is so at once.
+  /// Sends what is in the editor to the core, unless the document has it already. The
+  /// editor stays as it is: if the core refuses, with what was typed, and if more was
+  /// typed while the core worked, with that, which closing or moving the editor would
+  /// throw away.
   ///
-  /// If the core refuses, the editor stays open with what was typed. If more was typed
-  /// while the core worked, the editor stays as it is, with that: closing or moving it
-  /// would throw those keys away.
-  Future<bool> _commit({bool close = true, bool below = false}) async {
+  /// `away` says that the app is being put away and the user has not said yes to the
+  /// text: it is remembered in [_left].
+  Future<_Entered> _enter({bool away = false}) async {
     final cell = _editing;
-    if (cell == null) return true;
+    if (cell == null) return _Entered.yes;
     final text = _editor.text;
-    if (!await _run(() => _stage.enterText(cell, text))) return false;
-    if (!mounted || _editing != cell || _editor.text != text) return false;
-    if (!close) return true;
+    var changed = false;
+    if (text != _left) {
+      final entered = await _ask(() async {
+        final report = await _stage.enterText(
+          cell,
+          text,
+          insteadOfLast: _left != null,
+        );
+        changed = report.changed.isNotEmpty;
+        return true;
+      });
+      if (!entered) return _Entered.refused;
+    }
+    _left = away && (changed || text == _left) ? text : null;
+    return _editor.text == text ? _Entered.yes : _Entered.typedOn;
+  }
+
+  /// The app is put away: what is being typed goes into the document, and the editor
+  /// stays as it is for when the app comes back. The keeper asks for this, and saves
+  /// when it is done.
+  Future<void> _putAway() => _actions.run(() async {
+    if (mounted && _stage.ended == null) await _enter(away: true);
+  });
+
+  /// A tap on a cell, on its text or on the way into its grid. While the editor is
+  /// open, a tap outside it only closes the editor (UI_SPEC section 6), keeping what
+  /// was typed; it does not open another cell or go into a grid. A cell that is no
+  /// longer on the stage when the turn of its tap comes is not opened.
+  void _tap(String id, {required bool dive}) => _do(() async {
+    if (_editing != null) {
+      if (await _enter() == _Entered.yes && mounted) _close();
+    } else if (dive) {
+      await _ask(() => _stage.dive(id));
+    } else {
+      // The cell as it is now: an undo before this tap may have changed its text.
+      CellInfo? cell;
+      await _ask(() async => cell = await _stage.cell(id));
+      if (cell != null && mounted) _show(cell!);
+    }
+  });
+
+  /// The tick, and with `below` Return: enters the text and closes the editor, or
+  /// moves it to the cell under the one edited, if there is one.
+  void _confirm({bool below = false}) => _do(() async {
+    final cell = _editing;
+    if (await _enter() != _Entered.yes || !mounted) return;
+    // The stage was read just now, so the cell below is as the document has it.
     final grid = _stage.grid;
     final at = grid.cells.indexWhere((c) => c.id == cell);
     final next = at + grid.xs;
-    if (below && at >= 0 && grid.xs > 0 && next < grid.cells.length) {
-      // The stage was read just now, so the cell below is as the document has it.
+    if (below && at >= 0 && next < grid.cells.length) {
       _show(grid.cells[next]);
     } else {
       _close();
     }
-    return true;
-  }
+  });
 
-  /// A tap on a cell, on its text or on the way into its grid. While the editor is
-  /// open, a tap outside it only closes the editor (UI_SPEC section 6), keeping what
-  /// was typed; it does not open another cell or go into a grid.
-  Future<void> _tap(CellInfo cell, {required bool dive}) async {
-    if (_editing != null) {
-      await _commit();
-    } else if (dive) {
-      await _run(() => _stage.dive(cell.id));
-    } else {
-      await _edit(cell.id);
+  /// The cross: "not this". The cell is as it was before the editor opened, also when
+  /// the text went into the document meanwhile because the app was put away.
+  void _cancel() => _do(() async {
+    if (_left != null && !await _ask(() async => await _stage.undo() || true)) {
+      return;
     }
-  }
+    if (mounted) _close();
+  });
 
   /// An action of the bars. What is being typed is kept first; if that cannot be done,
-  /// the action is not, and the editor stays.
-  Future<void> _act(Future<bool> Function() action, {String? nothing}) async {
-    if (await _commit()) await _run(action, nothing: nothing);
-  }
+  /// the action is not, the editor stays, and the message line says why.
+  void _act(
+    Future<Object?> Function() action, {
+    String? nothing,
+  }) => _do(() async {
+    final entered = await _enter();
+    if (entered == _Entered.typedOn) {
+      _say(
+        'Not done: more was typed in the meantime. It is still in the editor.',
+      );
+    }
+    if (entered != _Entered.yes || !mounted) return;
+    _close();
+    await _ask(action, nothing: nothing);
+  });
+
+  /// The system's back (UI_SPEC section 10): up one level, and out of the app only
+  /// from the root.
+  void _back() => _act(() async {
+    if (!_stage.atRoot) return _stage.up();
+    await SystemNavigator.pop();
+    return true;
+  });
+
+  /// The other program's file is chosen over this document, and what is being typed
+  /// goes with the rest. If that file cannot be read, nothing is given up.
+  void _openTheirs() => _do(() async {
+    try {
+      await _stage.openTheirs();
+    } catch (error) {
+      return _say(
+        'The file as the other program left it cannot be opened, so this '
+        'document is still open, and not saved. '
+        '${isFatal(error) ? 'Reading it ran into a fault.' : describeError(error)}',
+      );
+    }
+    if (mounted) _close();
+  });
 
   @override
   Widget build(BuildContext context) {
     final ended = _stage.ended;
     final grid = _stage.grid;
     final title = grid.cell.text.isEmpty ? 'Wombat' : grid.cell.text;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title, key: const Key('title')),
-        actions: [
-          IconButton(
-            key: const Key('undo'),
-            tooltip: 'Undo',
-            icon: const Icon(Icons.undo),
-            onPressed: ended != null
-                ? null
-                : () => _act(_stage.undo, nothing: 'Nothing to undo'),
-          ),
-          IconButton(
-            key: const Key('redo'),
-            tooltip: 'Redo',
-            icon: const Icon(Icons.redo),
-            onPressed: ended != null
-                ? null
-                : () => _act(_stage.redo, nothing: 'Nothing to redo'),
-          ),
-          // No Save: the document saves itself (UI_SPEC has none either).
-          if (widget.menu.isNotEmpty)
-            PopupMenuButton<VoidCallback>(
-              key: const Key('menu'),
-              onSelected: (action) => action(),
-              itemBuilder: (context) => widget.menu,
+    return PopScope(
+      // Never by itself: the back action decides when its turn comes. After a fault
+      // nothing is left to go up in.
+      canPop: ended != null,
+      onPopInvokedWithResult: (popped, _) {
+        if (!popped) _back();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(title, key: const Key('title')),
+          actions: [
+            IconButton(
+              key: const Key('undo'),
+              tooltip: 'Undo',
+              icon: const Icon(Icons.undo),
+              onPressed: ended != null
+                  ? null
+                  : () => _act(_stage.undo, nothing: 'Nothing to undo'),
             ),
-        ],
-      ),
-      body: SafeArea(
-        child: ended != null
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(ended, key: const Key('ended')),
-                ),
-              )
-            : Column(
-                children: [
-                  Expanded(child: _cells(context, grid)),
-                  ?_trouble(context),
-                  if (_message != null) _messageLine(context, _message!),
-                  const Divider(height: 1),
-                  _trail(context),
-                  if (_editing != null) _editorBar(context),
-                ],
+            IconButton(
+              key: const Key('redo'),
+              tooltip: 'Redo',
+              icon: const Icon(Icons.redo),
+              onPressed: ended != null
+                  ? null
+                  : () => _act(_stage.redo, nothing: 'Nothing to redo'),
+            ),
+            // No Save: the document saves itself (UI_SPEC has none either).
+            if (widget.menu.isNotEmpty)
+              PopupMenuButton<VoidCallback>(
+                key: const Key('menu'),
+                onSelected: (action) => action(),
+                itemBuilder: (context) => widget.menu,
               ),
+          ],
+        ),
+        body: SafeArea(
+          child: ended != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(ended, key: const Key('ended')),
+                  ),
+                )
+              : Column(
+                  children: [
+                    Expanded(child: _cells(context, grid)),
+                    ?_trouble(context),
+                    if (_message != null) _messageLine(context, _message!),
+                    const Divider(height: 1),
+                    _trail(context),
+                    if (_editing != null) _editorBar(context),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -216,23 +344,17 @@ class _GridScreenState extends State<GridScreen> with WidgetsBindingObserver {
     if (saveError is BridgeError && saveError.kind == ErrorKind.changedOnDisk) {
       text = 'Not saved: another program changed the file.';
       ways = [
-        ('keep-mine', 'Keep mine', _stage.keepMine),
-        // The choice is the other file, so what is being typed goes with the rest.
-        (
-          'open-theirs',
-          'Open theirs',
-          () {
-            _close();
-            _stage.openTheirs();
-          },
-        ),
+        ('keep-mine', 'Keep mine', () => _do(_stage.keepMine)),
+        ('open-theirs', 'Open theirs', _openTheirs),
       ];
     } else if (saveError != null) {
       text = 'Not saved. ${describeError(saveError)}';
-      ways = [('save-again', 'Try again', _stage.save)];
+      ways = [('save-again', 'Try again', () => _do(_stage.save))];
     } else if (readError != null) {
       text = 'What is shown may be old. ${describeError(readError)}';
-      ways = [('read-again', 'Try again', () => _run(_stage.refresh))];
+      ways = [
+        ('read-again', 'Try again', () => _do(() => _ask(_stage.refresh))),
+      ];
     } else {
       return null;
     }
@@ -315,7 +437,7 @@ class _GridScreenState extends State<GridScreen> with WidgetsBindingObserver {
         children: [
           InkWell(
             key: Key('cell-$index'),
-            onTap: () => _tap(cell, dive: false),
+            onTap: () => _tap(cell.id, dive: false),
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: _target),
               child: Padding(
@@ -335,7 +457,7 @@ class _GridScreenState extends State<GridScreen> with WidgetsBindingObserver {
           if (cell.hasGrid)
             InkWell(
               key: Key('open-$index'),
-              onTap: () => _tap(cell, dive: true),
+              onTap: () => _tap(cell.id, dive: true),
               child: Container(
                 constraints: const BoxConstraints(minHeight: _target),
                 margin: const EdgeInsets.fromLTRB(6, 0, 6, 6),
@@ -433,21 +555,25 @@ class _GridScreenState extends State<GridScreen> with WidgetsBindingObserver {
                   isDense: true,
                   border: OutlineInputBorder(),
                 ),
-                // Return: save, and on to the cell below.
-                onSubmitted: (_) => _commit(below: true),
+                // Return: enter, and on to the cell below. Saying what Return does
+                // here keeps Flutter from doing what it does otherwise for "next",
+                // moving the focus away: the editor is in use until the core has
+                // answered, and after it if the core refuses.
+                onEditingComplete: _editor.clearComposing,
+                onSubmitted: (_) => _confirm(below: true),
               ),
             ),
             IconButton(
               key: const Key('save'),
               tooltip: 'Save',
               icon: const Icon(Icons.check),
-              onPressed: _commit,
+              onPressed: _confirm,
             ),
             IconButton(
               key: const Key('cancel'),
               tooltip: 'Cancel',
               icon: const Icon(Icons.close),
-              onPressed: _close,
+              onPressed: _cancel,
             ),
           ],
         ),

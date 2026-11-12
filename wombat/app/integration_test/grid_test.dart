@@ -9,7 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:wombat_app/example.dart';
 import 'package:wombat_app/grid/grid_screen.dart';
+import 'package:wombat_app/grid/stage.dart';
 import 'package:wombat_app/main.dart';
 import 'package:wombat_app/src/rust/frb_generated.dart';
 
@@ -43,6 +45,14 @@ void main() {
     expect(done(), isTrue);
   }
 
+  /// Takes the app off the screen and waits until the document of `stage` is closed:
+  /// for that itself, not for a time.
+  Future<void> end(WidgetTester tester, Stage stage) async {
+    await tester.pumpWidget(const SizedBox());
+    await until(tester, () => stage.ended != null);
+    expect(stage.ended, 'The document was closed.');
+  }
+
   testWidgets('into a grid, type, back out, undo; saved without asking', (
     tester,
   ) async {
@@ -65,7 +75,7 @@ void main() {
     // has (decision A28): no ID of the example is in the copy's file, and the stage
     // shows the cells of that file.
     final example = utf8.decode(
-      (await rootBundle.load('assets/example.wombat')).buffer.asUint8List(),
+      bytesOf(await rootBundle.load('assets/example.wombat')),
     );
     final ids = RegExp(r'"id": "([0-9a-f-]{36})"');
     final theirs = ids.allMatches(example).map((m) => m[1]!).toSet();
@@ -148,22 +158,42 @@ void main() {
     await press(tester, 'up');
     expect(title(tester), 'Example');
 
+    // The system's back goes up one level too, and at the root it is left alone
+    // here: it would end the app under the test.
+    await press(tester, 'open-2');
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(title(tester), 'Example');
+
     // The app goes out of sight with something half typed: that is in the file at
-    // once, and the editor is as it was when the app comes back.
+    // once, and the editor is as it was when the app comes back. The cross then
+    // still means "not this": the cell and the file are as before.
     await press(tester, 'cell-1');
-    await tester.enterText(key('editor'), 'typed and left');
+    await tester.enterText(key('editor'), 'not this');
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     await until(
       tester,
-      () => file.readAsStringSync().contains('"text": "typed and left"'),
+      () => file.readAsStringSync().contains('"text": "not this"'),
     );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
     expect(
       tester.widget<TextField>(key('editor')).controller!.text,
-      'typed and left',
+      'not this',
     );
     await press(tester, 'cancel');
+    expect(shown(tester, 1), 'what to buy');
+    await until(
+      tester,
+      () => !file.readAsStringSync().contains('"text": "not this"'),
+    );
+
+    // Once more, and this time the app is ended with the editor open: the text is
+    // entered and saved as the screen goes.
+    await press(tester, 'cell-1');
+    await tester.enterText(key('editor'), 'typed and left');
 
     // The plain-text check of the bridge is behind the menu, and there is no Save.
     await press(tester, 'menu');
@@ -172,9 +202,8 @@ void main() {
     expect(find.text('Press Open.'), findsOneWidget);
 
     // The app ends and starts again: the document is as it was left.
-    await tester.pumpWidget(const SizedBox());
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(milliseconds: 500));
+    await end(tester, stage);
+    expect(file.readAsStringSync(), contains('"text": "typed and left"'));
     await tester.pumpWidget(WombatApp(folder: folder));
     await tester.pumpAndSettle();
     expect(key('start-error'), findsNothing);
@@ -184,9 +213,7 @@ void main() {
     await press(tester, 'open-2');
     expect([for (var i = 0; i < 3; i++) shown(tester, i)], ['30', '2', '5']);
 
-    await tester.pumpWidget(const SizedBox());
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(milliseconds: 500));
+    await end(tester, tester.widget<GridScreen>(find.byType(GridScreen)).stage);
     await folder.delete(recursive: true);
   });
 }
