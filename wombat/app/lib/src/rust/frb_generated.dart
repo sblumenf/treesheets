@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1493078975;
+  int get rustContentHash => 971812213;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -87,6 +87,14 @@ abstract class RustLibApi extends BaseApi {
     required Command command,
   });
 
+  Future<void> crateApiDocumentOpenDocumentBeginGroup({
+    required OpenDocument that,
+  });
+
+  Future<Report> crateApiDocumentOpenDocumentCancelGroup({
+    required OpenDocument that,
+  });
+
   Future<CellLook> crateApiDocumentOpenDocumentCell({
     required OpenDocument that,
     required String cell,
@@ -98,12 +106,20 @@ abstract class RustLibApi extends BaseApi {
     required String path,
   });
 
+  Future<Report> crateApiDocumentOpenDocumentEndGroup({
+    required OpenDocument that,
+  });
+
   Future<GridInfo> crateApiDocumentOpenDocumentGrid({
     required OpenDocument that,
     required String cell,
   });
 
   Future<String> crateApiDocumentOpenDocumentId({required OpenDocument that});
+
+  Future<bool> crateApiDocumentOpenDocumentInGroup({
+    required OpenDocument that,
+  });
 
   Future<bool> crateApiDocumentOpenDocumentIsSaved({
     required OpenDocument that,
@@ -124,6 +140,12 @@ abstract class RustLibApi extends BaseApi {
 
   Future<Report?> crateApiDocumentOpenDocumentRedo({
     required OpenDocument that,
+  });
+
+  Future<Report> crateApiDocumentOpenDocumentRetype({
+    required OpenDocument that,
+    required String cell,
+    required String text,
   });
 
   Future<String> crateApiDocumentOpenDocumentRoot({required OpenDocument that});
@@ -202,6 +224,78 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiDocumentOpenDocumentBeginGroup({
+    required OpenDocument that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentBeginGroupConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentBeginGroupConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_begin_group",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<Report> crateApiDocumentOpenDocumentCancelGroup({
+    required OpenDocument that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_report,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentCancelGroupConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentCancelGroupConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_cancel_group",
+        argNames: ["that"],
+      );
+
+  @override
   Future<CellLook> crateApiDocumentOpenDocumentCell({
     required OpenDocument that,
     required String cell,
@@ -218,7 +312,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 4,
             port: port_,
           );
         },
@@ -252,7 +346,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 5,
             port: port_,
           );
         },
@@ -282,7 +376,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 6,
             port: port_,
           );
         },
@@ -302,6 +396,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "OpenDocument_create", argNames: ["path"]);
 
   @override
+  Future<Report> crateApiDocumentOpenDocumentEndGroup({
+    required OpenDocument that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_report,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentEndGroupConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentEndGroupConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_end_group",
+        argNames: ["that"],
+      );
+
+  @override
   Future<GridInfo> crateApiDocumentOpenDocumentGrid({
     required OpenDocument that,
     required String cell,
@@ -318,7 +448,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 8,
             port: port_,
           );
         },
@@ -352,7 +482,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 9,
             port: port_,
           );
         },
@@ -371,6 +501,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "OpenDocument_id", argNames: ["that"]);
 
   @override
+  Future<bool> crateApiDocumentOpenDocumentInGroup({
+    required OpenDocument that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentInGroupConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentInGroupConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_in_group",
+        argNames: ["that"],
+      );
+
+  @override
   Future<bool> crateApiDocumentOpenDocumentIsSaved({
     required OpenDocument that,
   }) {
@@ -385,7 +551,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 11,
             port: port_,
           );
         },
@@ -418,7 +584,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 12,
             port: port_,
           );
         },
@@ -451,7 +617,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 13,
             port: port_,
           );
         },
@@ -488,7 +654,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 14,
             port: port_,
           );
         },
@@ -524,7 +690,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 15,
             port: port_,
           );
         },
@@ -557,7 +723,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 16,
             port: port_,
           );
         },
@@ -576,6 +742,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "OpenDocument_redo", argNames: ["that"]);
 
   @override
+  Future<Report> crateApiDocumentOpenDocumentRetype({
+    required OpenDocument that,
+    required String cell,
+    required String text,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          sse_encode_String(cell, serializer);
+          sse_encode_String(text, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_report,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentRetypeConstMeta,
+        argValues: [that, cell, text],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentRetypeConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_retype",
+        argNames: ["that", "cell", "text"],
+      );
+
+  @override
   Future<String> crateApiDocumentOpenDocumentRoot({
     required OpenDocument that,
   }) {
@@ -590,7 +796,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 18,
             port: port_,
           );
         },
@@ -621,7 +827,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 19,
             port: port_,
           );
         },
@@ -658,7 +864,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 20,
             port: port_,
           );
         },
@@ -694,7 +900,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 21,
             port: port_,
           );
         },
@@ -721,7 +927,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 22,
             port: port_,
           );
         },
@@ -748,7 +954,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 23,
             port: port_,
           );
         },
@@ -775,7 +981,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 24,
             port: port_,
           );
         },
@@ -3987,12 +4193,56 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   ///   [`ErrorKind::NotFound`]. Whole numbers out of range are refused, never cut.
   ///
   /// A command that changed something is one step of the undo history and empties the
-  /// redo history.
+  /// redo history; inside a group ([`OpenDocument::begin_group`]) it is part of the
+  /// group's step, and the redo history waits for the end of the group.
   ///
   /// Wait for the answer before the next call on this document: calls that overlap are
   /// carried out in either order ([`OpenDocument::open`] says more).
   Future<Report> apply({required Command command}) => RustLib.instance.api
       .crateApiDocumentOpenDocumentApply(that: this, command: command);
+
+  /// Opens a group: the commands carried out until the matching
+  /// [`OpenDocument::end_group`] are one step of the undo history, or none at all if
+  /// the group is cancelled ([`OpenDocument::cancel_group`]). This is what one editing
+  /// of a cell is made of: opened when the first thing of it has to be in the document,
+  /// ended by the tick, cancelled by the cross.
+  ///
+  /// - Each command inside is carried out at once and reports what it changed, as
+  ///   outside a group.
+  /// - Groups may be nested; only the outermost counts.
+  /// - While a group is open, [`OpenDocument::undo`] and [`OpenDocument::redo`] are
+  ///   refused ([`ErrorKind::Refused`]), and what could be redone before stays.
+  /// - A group is a state of the document, not of the caller: every command from
+  ///   anywhere joins it until it is ended or cancelled.
+  /// - Saving does not wait for the end: [`OpenDocument::save`],
+  ///   [`OpenDocument::overwrite`], [`OpenDocument::close`] and disposing of the handle
+  ///   write the document as it is, with what the group did so far, and leave the group
+  ///   as it is (a close that succeeds gives it up with the document; a file never
+  ///   holds a group or a history).
+  ///
+  /// Opening a group changes nothing in the document.
+  Future<void> beginGroup() =>
+      RustLib.instance.api.crateApiDocumentOpenDocumentBeginGroup(that: this);
+
+  /// Abandons the open group, the outermost with every group inside it: every command
+  /// carried out since it was opened is taken back and forgotten. The document, the
+  /// undo history and the redo history are then exactly as when the group was opened,
+  /// and no group is open. Returns what the taking back changed, between the document
+  /// just before this call and the document now (as an undo of the group would report
+  /// it; it may name a cell that is as it was), with the formula cells that show
+  /// something else than just before this call in `recalculated`. Without an open
+  /// group it does nothing and returns an empty report.
+  ///
+  /// The document is then as saved as it was when the group was opened, if its file
+  /// was not written in between: a cancelled editing leaves nothing to save. If the
+  /// file was written while the group was open, it holds what was taken back, and the
+  /// document is unsaved.
+  ///
+  /// Not taken back, as an undo does not take them back: the variables that a `Run`
+  /// inside the group left. And what the view state forgot because a command of the
+  /// group removed a cell stays forgotten.
+  Future<Report> cancelGroup() =>
+      RustLib.instance.api.crateApiDocumentOpenDocumentCancelGroup(that: this);
 
   /// One cell with its whole text, runs and links, nothing cut: what an editor opens
   /// on. The colours are those the cell is drawn in, as in [`OpenDocument::stage`];
@@ -4008,6 +4258,10 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   ///   returned and the document **stays open** exactly as it was, so that nothing is
   ///   lost: the caller can try again, [`OpenDocument::overwrite`] and close, or keep
   ///   working.
+  /// - A group of commands that is open is neither ended nor cancelled: the document
+  ///   is saved as it is, with what the group did so far, and the group is given up
+  ///   with the document. End or cancel it first to have it otherwise. After a close
+  ///   that failed the group is still open.
   /// - If nothing was done since the last save, nothing is written and the file is not
   ///   looked at: closing a document that was only read never fails, never brings back a
   ///   file that was removed, and never complains about a file that someone else changed.
@@ -4017,6 +4271,19 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   /// [`ErrorKind::Closed`]. The handle itself is still Dart's to dispose of.
   Future<void> close() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentClose(that: this);
+
+  /// Closes a group. Closing the outermost group returns what the group changed as a
+  /// whole, between the document before its first command and the document now: a
+  /// cell made and removed again inside the group is not named (one that was changed
+  /// and changed back may be), and `recalculated` has every formula cell that a
+  /// command of the group reported and that still exists. If a command of the group
+  /// changed something, the group is one step of the undo history and the redo history
+  /// is emptied; a group in which nothing changed leaves both as they were.
+  ///
+  /// Closing an inner group, or closing when no group is open, does nothing and
+  /// returns an empty report.
+  Future<Report> endGroup() =>
+      RustLib.instance.api.crateApiDocumentOpenDocumentEndGroup(that: this);
 
   /// The cell `cell` and the cells of its grid, each with its text, what it shows if it
   /// is a formula cell, and whether it has a grid. A cell without a grid gives 0 by 0
@@ -4028,12 +4295,18 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   Future<String> id() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentId(that: this);
 
+  /// Whether a group is open ([`OpenDocument::begin_group`]).
+  Future<bool> inGroup() =>
+      RustLib.instance.api.crateApiDocumentOpenDocumentInGroup(that: this);
+
   /// Whether nothing was done to the document since it was read from or written to its
   /// file. This does not look at the file: that another program removed or changed it
   /// shows when saving. Undoing or redoing after a save makes the document unsaved, also
   /// when the two together lead back to what was saved: any change to the document
   /// clears the flag. What is no change to the document does not: a command that asks
-  /// for nothing new, and formula cells that show something else after `Run`.
+  /// for nothing new, and formula cells that show something else after `Run`. One thing
+  /// sets it again without a save: cancelling a group of commands that was opened on a
+  /// saved document whose file was not written since ([`OpenDocument::cancel_group`]).
   Future<bool> isSaved() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentIsSaved(that: this);
 
@@ -4051,10 +4324,35 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   Future<String> path() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentPath(that: this);
 
-  /// Redoes the command that was undone last and returns what that changed, or `None`
-  /// if there is nothing to redo.
+  /// Redoes the step that was undone last and returns what that changed, or `None`
+  /// if there is nothing to redo. Refused while a group is open
+  /// ([`ErrorKind::Refused`]).
   Future<Report?> redo() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentRedo(that: this);
+
+  /// Makes the text of `cell` this text by replacing only the part that differs, so
+  /// that the styles and links of the rest stay, where `SetText` and `EnterText` drop
+  /// them all. For an interface that has the text of an editor and not the keys that
+  /// made it: `text` is the whole new text.
+  ///
+  /// It is one `ReplaceText` command and everything [`OpenDocument::apply`] says
+  /// holds: one step of the undo history or part of the open group; characters that
+  /// cell text may not hold are changed first; the new part takes the style and link
+  /// of the first replaced character. A text that the cell has already changes
+  /// nothing: the report is empty and nothing is added to the undo history.
+  ///
+  /// The kind of the cell is left alone: a formula cell stays one and is worked out
+  /// again, and text that starts with `=` does not become a formula. To settle that
+  /// as typing does, follow with `EnterText` of the same text, in the same group:
+  /// it finds the text there and keeps the styles.
+  ///
+  /// The difference is one range: after two changes far apart in one editing (a bold
+  /// word deleted, something typed elsewhere) it spans both, and what was typed takes
+  /// the style of the first character of the range.
+  Future<Report> retype({required String cell, required String text}) => RustLib
+      .instance
+      .api
+      .crateApiDocumentOpenDocumentRetype(that: this, cell: cell, text: text);
 
   /// The ID of the root cell.
   Future<String> root() =>
@@ -4102,8 +4400,9 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
         ask: ask,
       );
 
-  /// Undoes the latest command and returns what that changed, or `None` if there is
-  /// nothing to undo.
+  /// Undoes the latest step of the undo history, a command or a group of them, and
+  /// returns what that changed, or `None` if there is nothing to undo. Refused while a
+  /// group is open ([`ErrorKind::Refused`]).
   Future<Report?> undo() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentUndo(that: this);
 }

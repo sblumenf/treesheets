@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use wombat_core::SeededIds;
 
 use crate::api::document::OpenDocument;
-use crate::api::wire::{BridgeError, Command, ErrorKind};
+use crate::api::wire::{BridgeError, Command, ErrorKind, StageAsk};
 
 /// A new document with unsaved work in it: the root has a grid of one cell, the file
 /// does not have it yet.
@@ -28,6 +28,23 @@ fn unsaved(name: &str) -> (OpenDocument, PathBuf) {
     doc.apply(grid).unwrap();
     assert!(!doc.is_saved().unwrap());
     (doc, path)
+}
+
+fn ask() -> StageAsk {
+    StageAsk {
+        x0: 0,
+        y0: 0,
+        cols: 9,
+        rows: 9,
+        full_depth: 1,
+        full_cells: 9,
+        preview_cols: 1,
+        preview_rows: 1,
+        shape_cols: 1,
+        shape_rows: 1,
+        text_cut: 9,
+        preview_cut: 9,
+    }
 }
 
 fn remove(path: &std::path::Path) {
@@ -100,6 +117,8 @@ fn after_a_change_that_did_not_finish_the_document_is_not_used_again() {
         is_internal(doc.is_saved());
         is_internal(doc.grid(root.clone()));
         is_internal(doc.grid("no ID".into()));
+        is_internal(doc.stage(root.clone(), ask()));
+        is_internal(doc.cell(root.clone()));
         is_internal(doc.apply(Command::RemoveGrid { cell: root.clone() }));
         is_internal(doc.undo());
         is_internal(doc.redo());
@@ -121,6 +140,43 @@ fn after_a_change_that_did_not_finish_the_document_is_not_used_again() {
             drop(doc);
             assert_eq!(std::fs::read(&path).unwrap(), file, "{name}");
         }
+        let again = OpenDocument::open_with(&path, SeededIds::from_u64(5)).unwrap();
+        assert_eq!(again.grid(root).unwrap().cell.text, "");
+        drop(again);
+        remove(&path);
+    }
+}
+
+/// A group of commands is no shelter: after a panic inside one, and after a panic in a
+/// call that ends, cancels or enters into one, the document is refused like any other,
+/// its group with it, and nothing is saved from it.
+#[test]
+fn after_a_panic_a_group_is_as_lost_as_its_document() {
+    type Change = fn(&mut OpenDocument);
+    let retype: Change = |doc| drop(doc.retype(doc.root().unwrap(), "half done".into()));
+    let end: Change = |doc| drop(doc.end_group());
+    let cancel: Change = |doc| drop(doc.cancel_group());
+    for (name, change) in [("retype", retype), ("end", end), ("cancel", cancel)] {
+        let (mut doc, path) = unsaved(&format!("group-{name}"));
+        doc.save().unwrap();
+        let root = doc.root().unwrap();
+        doc.begin_group().unwrap();
+        doc.retype(root.clone(), "typed".into()).unwrap();
+        let file = std::fs::read(&path).unwrap();
+        doc.panic_in_change();
+        assert!(catch_unwind(AssertUnwindSafe(|| change(&mut doc))).is_err());
+
+        is_internal(doc.in_group());
+        is_internal(doc.begin_group());
+        is_internal(doc.end_group());
+        is_internal(doc.cancel_group());
+        is_internal(doc.retype(root.clone(), "more".into()));
+        is_internal(doc.stage(root.clone(), ask()));
+        is_internal(doc.cell(root.clone()));
+        is_internal(doc.save());
+        is_internal(doc.close());
+        drop(doc);
+        assert_eq!(std::fs::read(&path).unwrap(), file, "{name}");
         let again = OpenDocument::open_with(&path, SeededIds::from_u64(5)).unwrap();
         assert_eq!(again.grid(root).unwrap().cell.text, "");
         drop(again);

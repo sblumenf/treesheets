@@ -58,6 +58,10 @@ struct Session {
     clock: Clock,
     /// Whether nothing was done since the document was read from or written to its file.
     saved: bool,
+    /// Whether the file still holds the document as it was when the open group of
+    /// commands was opened: it did then, and was not written since. Cancelling the group
+    /// then leads back to a document that is saved. Means nothing while no group is open.
+    saved_before_group: bool,
     /// What the file looked like when it was read or last written, to tell at the next
     /// save whether another program changed it since.
     file: FileState,
@@ -109,6 +113,9 @@ impl Session {
         // Every save puts a new file under the name, so the state is noted each time.
         self.file = storage::save_document_with_state(self.editor.document(), &self.path)?;
         self.saved = true;
+        // From here on the file holds the document of this moment, which need not be
+        // the one a cancelled group leads back to.
+        self.saved_before_group = false;
         Ok(())
     }
 
@@ -220,6 +227,7 @@ impl OpenDocument {
                 ids,
                 clock: Clock::System,
                 saved: true,
+                saved_before_group: false,
                 file,
                 unfinished: false,
                 _claim: claim,
@@ -403,7 +411,9 @@ impl OpenDocument {
     /// shows when saving. Undoing or redoing after a save makes the document unsaved, also
     /// when the two together lead back to what was saved: any change to the document
     /// clears the flag. What is no change to the document does not: a command that asks
-    /// for nothing new, and formula cells that show something else after `Run`.
+    /// for nothing new, and formula cells that show something else after `Run`. One thing
+    /// sets it again without a save: cancelling a group of commands that was opened on a
+    /// saved document whose file was not written since ([`OpenDocument::cancel_group`]).
     pub fn is_saved(&self) -> Result<bool, BridgeError> {
         Ok(self.session()?.saved)
     }
@@ -475,7 +485,8 @@ impl OpenDocument {
     ///   [`ErrorKind::NotFound`]. Whole numbers out of range are refused, never cut.
     ///
     /// A command that changed something is one step of the undo history and empties the
-    /// redo history.
+    /// redo history; inside a group ([`OpenDocument::begin_group`]) it is part of the
+    /// group's step, and the redo history waits for the end of the group.
     ///
     /// Wait for the answer before the next call on this document: calls that overlap are
     /// carried out in either order ([`OpenDocument::open`] says more).
@@ -489,8 +500,9 @@ impl OpenDocument {
         })
     }
 
-    /// Undoes the latest command and returns what that changed, or `None` if there is
-    /// nothing to undo.
+    /// Undoes the latest step of the undo history, a command or a group of them, and
+    /// returns what that changed, or `None` if there is nothing to undo. Refused while a
+    /// group is open ([`ErrorKind::Refused`]).
     pub fn undo(&mut self) -> Result<Option<Report>, BridgeError> {
         self.change(|session| {
             let changes = session.editor.undo()?;
@@ -498,13 +510,149 @@ impl OpenDocument {
         })
     }
 
-    /// Redoes the command that was undone last and returns what that changed, or `None`
-    /// if there is nothing to redo.
+    /// Redoes the step that was undone last and returns what that changed, or `None`
+    /// if there is nothing to redo. Refused while a group is open
+    /// ([`ErrorKind::Refused`]).
     pub fn redo(&mut self) -> Result<Option<Report>, BridgeError> {
         self.change(|session| {
             let changes = session.editor.redo()?;
             Ok(changes.map(|changes| session.report(&changes)))
         })
+    }
+
+    /// Opens a group: the commands carried out until the matching
+    /// [`OpenDocument::end_group`] are one step of the undo history, or none at all if
+    /// the group is cancelled ([`OpenDocument::cancel_group`]). This is what one editing
+    /// of a cell is made of: opened when the first thing of it has to be in the document,
+    /// ended by the tick, cancelled by the cross.
+    ///
+    /// - Each command inside is carried out at once and reports what it changed, as
+    ///   outside a group.
+    /// - Groups may be nested; only the outermost counts.
+    /// - While a group is open, [`OpenDocument::undo`] and [`OpenDocument::redo`] are
+    ///   refused ([`ErrorKind::Refused`]), and what could be redone before stays.
+    /// - A group is a state of the document, not of the caller: every command from
+    ///   anywhere joins it until it is ended or cancelled.
+    /// - Saving does not wait for the end: [`OpenDocument::save`],
+    ///   [`OpenDocument::overwrite`], [`OpenDocument::close`] and disposing of the handle
+    ///   write the document as it is, with what the group did so far, and leave the group
+    ///   as it is (a close that succeeds gives it up with the document; a file never
+    ///   holds a group or a history).
+    ///
+    /// Opening a group changes nothing in the document.
+    pub fn begin_group(&mut self) -> Result<(), BridgeError> {
+        let session = self.session_mut()?;
+        // An inner group is no new start: a cancel takes back the outermost.
+        if !session.editor.in_group() {
+            session.saved_before_group = session.saved;
+        }
+        session.editor.begin_group();
+        Ok(())
+    }
+
+    /// Closes a group. Closing the outermost group returns what the group changed as a
+    /// whole, between the document before its first command and the document now: a
+    /// cell made and removed again inside the group is not named (one that was changed
+    /// and changed back may be), and `recalculated` has every formula cell that a
+    /// command of the group reported and that still exists. If a command of the group
+    /// changed something, the group is one step of the undo history and the redo history
+    /// is emptied; a group in which nothing changed leaves both as they were.
+    ///
+    /// Closing an inner group, or closing when no group is open, does nothing and
+    /// returns an empty report.
+    pub fn end_group(&mut self) -> Result<Report, BridgeError> {
+        self.change(|session| {
+            let open = session.editor.in_group();
+            let changes = session.editor.end_group();
+            // Only the end of the outermost group reports. After any other the core
+            // still has the recalculated cells of the command before, which are not
+            // this call's to hand out again.
+            if !open || session.editor.in_group() {
+                return Ok(Report::default());
+            }
+            Ok(session.report(&changes))
+        })
+    }
+
+    /// Abandons the open group, the outermost with every group inside it: every command
+    /// carried out since it was opened is taken back and forgotten. The document, the
+    /// undo history and the redo history are then exactly as when the group was opened,
+    /// and no group is open. Returns what the taking back changed, between the document
+    /// just before this call and the document now (as an undo of the group would report
+    /// it; it may name a cell that is as it was), with the formula cells that show
+    /// something else than just before this call in `recalculated`. Without an open
+    /// group it does nothing and returns an empty report.
+    ///
+    /// The document is then as saved as it was when the group was opened, if its file
+    /// was not written in between: a cancelled editing leaves nothing to save. If the
+    /// file was written while the group was open, it holds what was taken back, and the
+    /// document is unsaved.
+    ///
+    /// Not taken back, as an undo does not take them back: the variables that a `Run`
+    /// inside the group left. And what the view state forgot because a command of the
+    /// group removed a cell stays forgotten.
+    pub fn cancel_group(&mut self) -> Result<Report, BridgeError> {
+        self.change(|session| {
+            // Without a group the core does nothing, and still has the recalculated
+            // cells of the command before.
+            if !session.editor.in_group() {
+                return Ok(Report::default());
+            }
+            // If this fails, which it cannot while the history matches the document,
+            // the commands of the group stay done and the document unsaved.
+            let changes = session.editor.cancel_group()?;
+            let report = session.report(&changes);
+            if session.saved_before_group {
+                session.saved = true;
+            }
+            Ok(report)
+        })
+    }
+
+    /// Whether a group is open ([`OpenDocument::begin_group`]).
+    pub fn in_group(&self) -> Result<bool, BridgeError> {
+        Ok(self.session()?.editor.in_group())
+    }
+
+    /// Makes the text of `cell` this text by replacing only the part that differs, so
+    /// that the styles and links of the rest stay, where `SetText` and `EnterText` drop
+    /// them all. For an interface that has the text of an editor and not the keys that
+    /// made it: `text` is the whole new text.
+    ///
+    /// It is one `ReplaceText` command and everything [`OpenDocument::apply`] says
+    /// holds: one step of the undo history or part of the open group; characters that
+    /// cell text may not hold are changed first; the new part takes the style and link
+    /// of the first replaced character. A text that the cell has already changes
+    /// nothing: the report is empty and nothing is added to the undo history.
+    ///
+    /// The kind of the cell is left alone: a formula cell stays one and is worked out
+    /// again, and text that starts with `=` does not become a formula. To settle that
+    /// as typing does, follow with `EnterText` of the same text, in the same group:
+    /// it finds the text there and keeps the styles.
+    ///
+    /// The difference is one range: after two changes far apart in one editing (a bold
+    /// word deleted, something typed elsewhere) it spans both, and what was typed takes
+    /// the style of the first character of the range.
+    pub fn retype(&mut self, cell: String, text: String) -> Result<Report, BridgeError> {
+        self.change(|session| {
+            let cell = cell_id(&cell)?;
+            let changes =
+                session
+                    .editor
+                    .retype(cell, &text, session.clock.now(), &mut session.ids)?;
+            Ok(session.report(&changes))
+        })
+    }
+
+    /// Counts again what the editor keeps count of as it goes (the IDs its histories
+    /// hold, their memory, the bound on the size of the file); `Err` says what is not as
+    /// counted. For tests: it reads everything.
+    #[frb(ignore)]
+    pub fn audit(&self) -> Result<(), String> {
+        match &self.session {
+            Some(session) => session.editor.audit(),
+            None => Ok(()),
+        }
     }
 
     /// Makes the file hold the document, without ever going over what another program
@@ -539,6 +687,10 @@ impl OpenDocument {
     ///   returned and the document **stays open** exactly as it was, so that nothing is
     ///   lost: the caller can try again, [`OpenDocument::overwrite`] and close, or keep
     ///   working.
+    /// - A group of commands that is open is neither ended nor cancelled: the document
+    ///   is saved as it is, with what the group did so far, and the group is given up
+    ///   with the document. End or cancel it first to have it otherwise. After a close
+    ///   that failed the group is still open.
     /// - If nothing was done since the last save, nothing is written and the file is not
     ///   looked at: closing a document that was only read never fails, never brings back a
     ///   file that was removed, and never complains about a file that someone else changed.
