@@ -359,6 +359,16 @@ void main() {
       });
       await pumpEventQueue();
       expect(await later, 3);
+      // The same after a piece that failed.
+      await expectLater(
+        turns.run<void>(() async {
+          Timer.run(() => later = turns.run(() async => 4));
+          throw StateError('failed');
+        }),
+        throwsStateError,
+      );
+      await pumpEventQueue();
+      expect(await later, 4);
     });
   });
 

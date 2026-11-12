@@ -304,14 +304,11 @@ class Session {
 /// that the core counts in ([Session.apply]). A position between the two halves of a
 /// surrogate pair, where no cursor stands, counts as after the pair.
 ///
-/// `units` is from 0 to `text.length`; anything else is refused with a [RangeError], as
-/// the core refuses a position outside the text and never moves it. That includes -1,
-/// which a `TextSelection` gives when there is no selection: that is no position, so
-/// ask `selection.isValid` first.
-int codePoints(String text, int units) {
-  RangeError.checkValueInInterval(units, 0, text.length, 'units');
-  return text.substring(0, units).runes.length;
-}
+/// `units` is from 0 to `text.length`; anything else is refused with a [RangeError]
+/// (the one `substring` throws), as the core refuses a position outside the text and
+/// never moves it. That includes -1, which a `TextSelection` gives when there is no
+/// selection: that is no position, so ask `selection.isValid` first.
+int codePoints(String text, int units) => text.substring(0, units).runes.length;
 
 /// Whether an error says that the document cannot be used any more: a fault in the
 /// program, as it happened or as every call after it reports it.
