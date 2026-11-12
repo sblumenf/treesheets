@@ -558,6 +558,56 @@ void main() {
       // "Nothing to undo" had nowhere to go, and nothing was thrown for that.
       expect(tester.takeException(), isNull);
     });
+
+    screenTest('actions still waiting when the screen goes are not done', (
+      tester,
+      stage,
+      fake,
+    ) async {
+      await stage.enterText('a', '1');
+      await stage.enterText('d', '4');
+      await tester.pump();
+      final gate = holdFirst(fake, 'undo');
+      await tester.tap(key('undo'));
+      await tester.tap(key('undo'));
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      // The one that was at work ended; the one behind it never began.
+      expect((fake.cells['a']!.text, fake.cells['d']!.text), ('1', 'four'));
+      expect(tester.takeException(), isNull);
+    });
+
+    for (final (name, act) in [
+      ('the tick', (WidgetTester tester) => tester.tap(key('save'))),
+      (
+        'Return',
+        (WidgetTester tester) =>
+            tester.testTextInput.receiveAction(TextInputAction.next),
+      ),
+      ('undo', (WidgetTester tester) => tester.tap(key('undo'))),
+    ]) {
+      screenTest(
+        'the screen goes while $name enters the text: no more is done',
+        (tester, stage, fake) async {
+          await press(tester, 'cell-0');
+          type(tester, 'typed');
+          final gate = holdFirst(fake, 'apply');
+          await act(tester);
+          await tester.pump();
+          await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+          gate.complete();
+          await tester.pump();
+          await tester.pump();
+          // The text is in the document; the editor that is gone is not closed or
+          // moved, and what was typed is not undone behind the user's back.
+          expect(fake.cells['a']!.text, 'typed');
+          expect(fake.log.contains('undo'), isFalse);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
   });
 
   group('what was typed is not thrown away', () {

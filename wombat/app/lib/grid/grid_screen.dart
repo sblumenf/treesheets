@@ -43,7 +43,7 @@ class _GridScreenState extends State<GridScreen> {
   final _focus = FocusNode();
 
   /// Everything the user does, one after the other in the order it was done (decision
-  /// A146): each action finds the editor and the stage as the actions before it left
+  /// A158): each action finds the editor and the stage as the actions before it left
   /// them, not as they were when the finger came down. An error that an action did
   /// not expect is shown like the others.
   late final _actions = InTurn(
@@ -98,7 +98,7 @@ class _GridScreenState extends State<GridScreen> {
     stage.removeListener(_redraw);
     stage.keeper.removeFinisher(_putAway);
     final cell = _editing;
-    if (cell != null && _editor.text != _left && stage.ended == null) {
+    if (cell != null && _editor.text != _left) {
       stage.keeper.owe(
         stage
             .enterText(cell, _editor.text, insteadOfLast: _left != null)
@@ -120,8 +120,9 @@ class _GridScreenState extends State<GridScreen> {
   void _do(Future<void> Function() action) {
     if (_message != null) setState(() => _message = null);
     _actions.run(() async {
-      // After a fault the screen says so in place of the grid, and nothing is done.
-      if (mounted && _stage.ended == null) await action();
+      // A screen that has gone does nothing more. (After a fault the stage refuses
+      // every step, and the screen says so in place of the grid.)
+      if (mounted) await action();
     });
   }
 
@@ -137,7 +138,10 @@ class _GridScreenState extends State<GridScreen> {
     return false;
   }
 
+  /// Opens the editor on a cell, or moves it there. Like [_close] it does nothing on
+  /// a screen that went while the action was at work.
   void _show(CellInfo cell) {
+    if (!mounted) return;
     setState(() {
       _editing = cell.id;
       _left = null;
@@ -147,10 +151,13 @@ class _GridScreenState extends State<GridScreen> {
     _focus.requestFocus();
   }
 
-  void _close() => setState(() {
-    _editing = null;
-    _left = null;
-  });
+  void _close() {
+    if (!mounted) return;
+    setState(() {
+      _editing = null;
+      _left = null;
+    });
+  }
 
   /// Sends what is in the editor to the core, unless the document has it already. The
   /// editor stays as it is: if the core refuses, with what was typed, and if more was
@@ -183,9 +190,7 @@ class _GridScreenState extends State<GridScreen> {
   /// The app is put away: what is being typed goes into the document, and the editor
   /// stays as it is for when the app comes back. The keeper asks for this, and saves
   /// when it is done.
-  Future<void> _putAway() => _actions.run(() async {
-    if (mounted && _stage.ended == null) await _enter(away: true);
-  });
+  Future<void> _putAway() => _actions.run(() => _enter(away: true));
 
   /// A tap on a cell, on its text or on the way into its grid. While the editor is
   /// open, a tap outside it only closes the editor (UI_SPEC section 6), keeping what
@@ -193,14 +198,14 @@ class _GridScreenState extends State<GridScreen> {
   /// longer on the stage when the turn of its tap comes is not opened.
   void _tap(String id, {required bool dive}) => _do(() async {
     if (_editing != null) {
-      if (await _enter() == _Entered.yes && mounted) _close();
+      if (await _enter() == _Entered.yes) _close();
     } else if (dive) {
       await _ask(() => _stage.dive(id));
     } else {
       // The cell as it is now: an undo before this tap may have changed its text.
       CellInfo? cell;
       await _ask(() async => cell = await _stage.cell(id));
-      if (cell != null && mounted) _show(cell!);
+      if (cell != null) _show(cell!);
     }
   });
 
@@ -208,7 +213,7 @@ class _GridScreenState extends State<GridScreen> {
   /// moves it to the cell under the one edited, if there is one.
   void _confirm({bool below = false}) => _do(() async {
     final cell = _editing;
-    if (await _enter() != _Entered.yes || !mounted) return;
+    if (await _enter() != _Entered.yes) return;
     // The stage was read just now, so the cell below is as the document has it.
     final grid = _stage.grid;
     final at = grid.cells.indexWhere((c) => c.id == cell);
@@ -226,7 +231,7 @@ class _GridScreenState extends State<GridScreen> {
     if (_left != null && !await _ask(() async => await _stage.undo() || true)) {
       return;
     }
-    if (mounted) _close();
+    _close();
   });
 
   /// An action of the bars. What is being typed is kept first; if that cannot be done,
@@ -241,6 +246,7 @@ class _GridScreenState extends State<GridScreen> {
         'Not done: more was typed in the meantime. It is still in the editor.',
       );
     }
+    // Nor is it done on a screen that went while the text was entered.
     if (entered != _Entered.yes || !mounted) return;
     _close();
     await _ask(action, nothing: nothing);
@@ -266,7 +272,7 @@ class _GridScreenState extends State<GridScreen> {
         '${isFatal(error) ? 'Reading it ran into a fault.' : describeError(error)}',
       );
     }
-    if (mounted) _close();
+    _close();
   });
 
   @override

@@ -75,14 +75,10 @@ class Keeper extends ChangeNotifier {
   String? get ended => _ended;
 
   /// One call to the document, in its turn. A fault in the program ends the work.
+  /// Once the work is ended the session is closed or let go of, and refuses every
+  /// call itself ([ErrorKind.closed]).
   Future<T> _use<T>(Future<T> Function(Session doc) call) =>
       _turns.run(() async {
-        if (_ended != null) {
-          throw const BridgeError(
-            kind: ErrorKind.closed,
-            message: 'the document is no longer in use',
-          );
-        }
         try {
           return await call(_doc);
         } catch (error) {
