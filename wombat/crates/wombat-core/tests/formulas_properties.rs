@@ -422,6 +422,8 @@ proptest! {
         // when the group is cancelled, as they stay when a run is undone.
         let mut group_ran = false;
         let mut group_bytes = original.clone();
+        // What each command of the open group reported as recalculated.
+        let mut group_said: Vec<CellId> = Vec::new();
         for (n, (step_seed, kind, op)) in steps.iter().enumerate() {
             let before = results(editor.calc());
             let mut r = Rng(*step_seed | 1);
@@ -440,6 +442,7 @@ proptest! {
                     grouped = true;
                     group_before = before;
                     group_ran = false;
+                    group_said.clear();
                     group_bytes = format::to_string(editor.document()).unwrap();
                     continue;
                 }
@@ -463,6 +466,12 @@ proptest! {
                     editor.end_group();
                     grouped = false;
                     check(&editor, &group_before, true, &format!("step {n}: end of group"));
+                    // Everything that a command of this group reported and that still
+                    // exists, by ID, and nothing from before the group.
+                    group_said.retain(|id| editor.document().cell(*id).is_some());
+                    group_said.sort();
+                    group_said.dedup();
+                    prop_assert_eq!(editor.recalculated(), group_said.clone(), "end of group");
                     continue;
                 }
                 _ => {
@@ -487,6 +496,7 @@ proptest! {
             }
             editor.document().validate().unwrap();
             check(&editor, &before, false, &what);
+            group_said.extend(editor.recalculated());
         }
         if grouped {
             editor.end_group();

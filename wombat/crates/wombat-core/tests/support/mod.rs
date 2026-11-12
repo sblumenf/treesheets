@@ -1059,6 +1059,7 @@ pub fn run_walk(original: Document, acts: &[Act], whole_clusters: bool) {
                 }
             }
             Act::Group(ops) | Act::Cancelled(ops) => {
+                let cancelled = matches!(act, Act::Cancelled(_));
                 let counted = (editor.history_bytes(), editor.size_bound());
                 let shown = results(&editor);
                 editor.begin_group();
@@ -1080,12 +1081,14 @@ pub fn run_walk(original: Document, acts: &[Act], whole_clusters: bool) {
                         (past.len(), future.len()),
                         "inside a group"
                     );
-                    if n == 2 || (n == 1 && ops.len() == 2) {
+                    // (Half of the cancelled groups keep their inner group open.)
+                    let ends = n == 2 || (n == 1 && ops.len() == 2);
+                    if ends && (!cancelled || ops.len() % 2 == 1) {
                         assert!(editor.end_group().is_empty(), "an inner group reports");
                     }
                 }
-                if matches!(act, Act::Cancelled(_)) {
-                    // Also with the inner group still open (four commands or more).
+                if cancelled {
+                    // With every group inside it, open or not.
                     let inside = editor.document().clone();
                     let changes = editor.cancel_group().unwrap();
                     check_report_loose(&inside, editor.document(), &changes);
