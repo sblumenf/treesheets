@@ -69,4 +69,52 @@ void main() {
     expect((await rows()).sublist(0, 2), before);
     expect((await doc.grid(cell: root)).ys, 3);
   });
+
+  test('a table is a flat list, and one nested too deep is refused', () async {
+    final doc = await OpenDocument.create(path: '${folder.path}/table.wombat');
+    final root = await doc.root();
+    Future<Report> import(List<EntryData> cells) => doc.apply(
+      command: Command.import_(
+        cell: root,
+        table: TableData(xs: 1, cells: cells),
+        replace: true,
+      ),
+    );
+    const inside = EntryData(
+      text: 'x',
+      formula: false,
+      grid: GridSize(xs: 1, cells: 1),
+    );
+    const last = EntryData(text: 'x', formula: false);
+
+    // A hundred thousand grids, each inside the one before: an error, not a crash.
+    try {
+      await import([...List.filled(100000, inside), last]);
+      fail('imported a table nested 100,000 deep');
+    } on BridgeError catch (error) {
+      expect(error.kind, ErrorKind.limit);
+    }
+    // A grid that says it has more cells than follow.
+    try {
+      await import([inside]);
+      fail('imported a table with a grid that has no cells');
+    } on BridgeError catch (error) {
+      expect(error.kind, ErrorKind.badRequest);
+    }
+    expect((await doc.grid(cell: root)).cell.hasGrid, false);
+
+    // a, with a grid of c and d inside, and b.
+    await import(const [
+      EntryData(text: 'a', formula: false, grid: GridSize(xs: 2, cells: 2)),
+      EntryData(text: 'c', formula: false),
+      EntryData(text: 'd', formula: false),
+      EntryData(text: 'b', formula: false),
+    ]);
+    final outer = await doc.grid(cell: root);
+    expect(outer.cells.map((cell) => cell.text), ['a', 'b']);
+    expect((outer.xs, outer.ys), (1, 2));
+    final inner = await doc.grid(cell: outer.cells[0].id);
+    expect(inner.cells.map((cell) => cell.text), ['c', 'd']);
+    expect((inner.xs, inner.ys), (2, 1));
+  });
 }

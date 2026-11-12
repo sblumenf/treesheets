@@ -270,6 +270,7 @@ fn clip() -> impl Strategy<Value = Clip> {
     )
 }
 
+/// A table with tables inside its cells, up to three levels.
 fn table() -> impl Strategy<Value = Table> {
     let entry = |(text, formula): (String, bool)| {
         let entry = Entry::new(&text);
@@ -279,22 +280,29 @@ fn table() -> impl Strategy<Value = Table> {
             entry
         }
     };
-    let texts = || {
-        let text = prop_oneof![text(), Just("=1+1".to_string())];
-        proptest::collection::vec((text, any::<bool>()), 1..5)
-    };
-    (1..3u32, texts(), proptest::option::of(texts())).prop_map(move |(xs, outer, inner)| {
-        let mut cells: Vec<Entry> = outer.into_iter().map(entry).collect();
-        if let Some(inner) = inner {
-            let inner = Table::new(1, inner.into_iter().map(entry).collect()).unwrap();
-            cells[0] = cells[0].clone().with_grid(inner);
-        }
-        let xs = if cells.len().is_multiple_of(xs as usize) {
-            xs
-        } else {
-            1
-        };
-        Table::new(xs, cells).unwrap()
+    let text = prop_oneof![text(), Just("=1+1".to_string())];
+    let leaf = proptest::collection::vec((text, any::<bool>()), 1..5).prop_map(move |texts| {
+        let cells: Vec<Entry> = texts.into_iter().map(entry).collect();
+        Table::new(1, cells).unwrap()
+    });
+    leaf.prop_recursive(2, 24, 4, |inner| {
+        let cells = proptest::collection::vec(proptest::option::of(inner), 1..5);
+        (1..3u32, cells).prop_map(|(xs, grids)| {
+            let cell = |(n, grid): (usize, Option<Table>)| {
+                let cell = Entry::new(&n.to_string());
+                match grid {
+                    Some(grid) => cell.with_grid(grid),
+                    None => cell,
+                }
+            };
+            let cells: Vec<Entry> = grids.into_iter().enumerate().map(cell).collect();
+            let xs = if cells.len().is_multiple_of(xs as usize) {
+                xs
+            } else {
+                1
+            };
+            Table::new(xs, cells).unwrap()
+        })
     })
 }
 

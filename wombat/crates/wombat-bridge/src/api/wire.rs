@@ -176,23 +176,43 @@ pub struct ClipData {
     pub document: String,
 }
 
+/// The size of the grid inside one cell of a [`TableData`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct GridSize {
+    /// The number of columns, at least 1.
+    pub xs: i64,
+    /// The number of cells, whole rows of them and at least one. Cells of grids further
+    /// inside are not counted.
+    pub cells: i64,
+}
+
 /// One cell of a [`TableData`].
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct EntryData {
-    /// The text.
+    /// The text. Characters that cell text cannot hold become spaces.
     pub text: String,
     /// Whether the cell becomes a formula cell; only a text that is a formula does.
     pub formula: bool,
-    /// The grid inside.
-    pub grid: Option<TableData>,
+    /// The size of the grid inside, or `None` for a cell without one. The cells of that
+    /// grid are the next `cells` cells of the list that are not inside one of them.
+    pub grid: Option<GridSize>,
 }
 
-/// A grid of texts to import.
+/// A grid of texts to import, which may have grids inside its cells.
+///
+/// It is one flat list, not a table within a table: each cell is followed at once by the
+/// cells of the grid inside it, row by row, and each of those by the cells of its own
+/// grid. A table of two cells `a` and `b`, where `a` holds a grid of `c` and `d`, is the
+/// list `a` (with a grid of 2 cells), `c`, `d`, `b`. The form is flat so that a table
+/// nested however deep is read and refused without the depth costing anything: nothing
+/// that handles it calls itself (decision A135). A list where a grid says it has more
+/// cells than follow is refused, and so is a table nested deeper than a document may be.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct TableData {
-    /// The number of columns, from 1 to 4294967295.
+    /// The number of columns of the outermost grid, from 1 to 4294967295.
     pub xs: i64,
-    /// The cells row by row: whole rows, at least one cell.
+    /// The cells in the order described: the outermost grid has whole rows and at least
+    /// one cell.
     pub cells: Vec<EntryData>,
 }
 

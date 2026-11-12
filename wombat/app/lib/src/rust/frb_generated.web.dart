@@ -65,6 +65,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Command dco_decode_box_autoadd_command(dynamic raw);
 
   @protected
+  GridSize dco_decode_box_autoadd_grid_size(dynamic raw);
+
+  @protected
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
 
   @protected
@@ -116,6 +119,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GridInfo dco_decode_grid_info(dynamic raw);
 
   @protected
+  GridSize dco_decode_grid_size(dynamic raw);
+
+  @protected
   HorizAlign dco_decode_horiz_align(dynamic raw);
 
   @protected
@@ -149,6 +155,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  GridSize? dco_decode_opt_box_autoadd_grid_size(dynamic raw);
+
+  @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
 
   @protected
@@ -162,9 +171,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Rgb? dco_decode_opt_box_autoadd_rgb(dynamic raw);
-
-  @protected
-  TableData? dco_decode_opt_box_autoadd_table_data(dynamic raw);
 
   @protected
   Prop dco_decode_prop(dynamic raw);
@@ -233,6 +239,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Command sse_decode_box_autoadd_command(SseDeserializer deserializer);
 
   @protected
+  GridSize sse_decode_box_autoadd_grid_size(SseDeserializer deserializer);
+
+  @protected
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
@@ -284,6 +293,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GridInfo sse_decode_grid_info(SseDeserializer deserializer);
 
   @protected
+  GridSize sse_decode_grid_size(SseDeserializer deserializer);
+
+  @protected
   HorizAlign sse_decode_horiz_align(SseDeserializer deserializer);
 
   @protected
@@ -317,6 +329,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  GridSize? sse_decode_opt_box_autoadd_grid_size(SseDeserializer deserializer);
+
+  @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
@@ -332,11 +347,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Rgb? sse_decode_opt_box_autoadd_rgb(SseDeserializer deserializer);
-
-  @protected
-  TableData? sse_decode_opt_box_autoadd_table_data(
-    SseDeserializer deserializer,
-  );
 
   @protected
   Prop sse_decode_prop(SseDeserializer deserializer);
@@ -412,6 +422,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_command(Command self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_grid_size(
+    GridSize self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_i_64(
     PlatformInt64 self,
     SseSerializer serializer,
@@ -475,6 +491,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_grid_info(GridInfo self, SseSerializer serializer);
 
   @protected
+  void sse_encode_grid_size(GridSize self, SseSerializer serializer);
+
+  @protected
   void sse_encode_horiz_align(HorizAlign self, SseSerializer serializer);
 
   @protected
@@ -514,6 +533,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_grid_size(
+    GridSize? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_i_64(
     PlatformInt64? self,
     SseSerializer serializer,
@@ -539,12 +564,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_rgb(Rgb? self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_opt_box_autoadd_table_data(
-    TableData? self,
-    SseSerializer serializer,
-  );
 
   @protected
   void sse_encode_prop(Prop self, SseSerializer serializer);

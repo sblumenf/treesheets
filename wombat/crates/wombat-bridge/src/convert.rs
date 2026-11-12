@@ -14,7 +14,7 @@ use wombat_core::{CellId, Clip, DocId};
 
 use crate::api::wire::{
     BridgeError, CellInfo, CellKind, ClipData, Command, DrawStyle, EntryData, ErrorKind, GridInfo,
-    HorizAlign, ImageRef, LinkTarget, Prop, Report, Rgb, Style, TableData, VertAlign,
+    GridSize, HorizAlign, ImageRef, LinkTarget, Prop, Report, Rgb, Style, TableData, VertAlign,
 };
 
 impl BridgeError {
@@ -293,30 +293,92 @@ pub fn clip_out(clip: &Clip) -> In<ClipData> {
     })
 }
 
+/// A grid of a table that is being put together from the flat list.
+struct Open {
+    xs: u32,
+    cells: Vec<Entry>,
+    /// The cell it is the grid of, and how many cells are still to come; `None` for the
+    /// outermost grid, which takes whatever is in no other.
+    inside: Option<(Entry, u32)>,
+}
+
+impl Open {
+    fn add(&mut self, cell: Entry) {
+        self.cells.push(cell);
+        if let Some((_, left)) = &mut self.inside {
+            *left = left.saturating_sub(1);
+        }
+    }
+}
+
+/// The table that a flat list stands for. It is put together with a list of the grids
+/// that are open, not by a function that calls itself: the list comes from outside and
+/// may say that it is nested deeper than the stack is. The core refuses a table that is
+/// too deep the moment one is made of it, so no more than that is ever built.
 fn table_in(table: TableData) -> In<Table> {
-    let mut cells = Vec::with_capacity(table.cells.len());
+    let mut outer: Vec<Open> = Vec::new();
+    let mut now = Open {
+        xs: unsigned(table.xs)?,
+        cells: Vec::new(),
+        inside: None,
+    };
     for entry in table.cells {
         let mut cell = Entry::new(&entry.text);
         if entry.formula {
             cell = cell.as_formula();
         }
-        if let Some(grid) = entry.grid {
-            cell = cell.with_grid(table_in(grid)?);
+        match entry.grid {
+            Some(grid) => {
+                let inner = Open {
+                    xs: unsigned(grid.xs)?,
+                    cells: Vec::new(),
+                    inside: Some((cell, unsigned(grid.cells)?)),
+                };
+                outer.push(std::mem::replace(&mut now, inner));
+            }
+            None => now.add(cell),
         }
-        cells.push(cell);
+        // A grid that has all its cells goes into its cell, which may complete the next.
+        while matches!(now.inside, Some((_, 0))) {
+            let Some(around) = outer.pop() else { break };
+            let done = std::mem::replace(&mut now, around);
+            if let Some((cell, _)) = done.inside {
+                now.add(cell.with_grid(Table::new(done.xs, done.cells)?));
+            }
+        }
     }
-    Ok(Table::new(unsigned(table.xs)?, cells)?)
+    if let Some((_, left)) = now.inside {
+        return Err(BridgeError::bad_request(format!(
+            "a grid inside the table is {left} cells short"
+        )));
+    }
+    Ok(Table::new(now.xs, now.cells)?)
 }
 
+/// The flat list for a table. This one may call itself: a table of the core is never
+/// nested deeper than a document may be.
 fn table_out(table: &Table) -> TableData {
-    let entry = |entry: &Entry| EntryData {
-        text: entry.text().to_string(),
-        formula: entry.is_formula(),
-        grid: entry.grid().map(table_out),
-    };
+    fn list(table: &Table, cells: &mut Vec<EntryData>) {
+        for entry in table.cells() {
+            let size = |grid: &Table| GridSize {
+                xs: grid.xs().into(),
+                cells: i64::try_from(grid.cells().len()).unwrap_or(i64::MAX),
+            };
+            cells.push(EntryData {
+                text: entry.text().to_string(),
+                formula: entry.is_formula(),
+                grid: entry.grid().map(size),
+            });
+            if let Some(grid) = entry.grid() {
+                list(grid, cells);
+            }
+        }
+    }
+    let mut cells = Vec::new();
+    list(table, &mut cells);
     TableData {
         xs: table.xs().into(),
-        cells: table.cells().iter().map(entry).collect(),
+        cells,
     }
 }
 

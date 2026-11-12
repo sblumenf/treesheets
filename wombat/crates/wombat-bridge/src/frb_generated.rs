@@ -1227,7 +1227,7 @@ impl SseDecode for crate::api::wire::EntryData {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_text = <String>::sse_decode(deserializer);
         let mut var_formula = <bool>::sse_decode(deserializer);
-        let mut var_grid = <Option<crate::api::wire::TableData>>::sse_decode(deserializer);
+        let mut var_grid = <Option<crate::api::wire::GridSize>>::sse_decode(deserializer);
         return crate::api::wire::EntryData {
             text: var_text,
             formula: var_formula,
@@ -1275,6 +1275,18 @@ impl SseDecode for crate::api::wire::GridInfo {
             cell: var_cell,
             xs: var_xs,
             ys: var_ys,
+            cells: var_cells,
+        };
+    }
+}
+
+impl SseDecode for crate::api::wire::GridSize {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_xs = <i64>::sse_decode(deserializer);
+        let mut var_cells = <i64>::sse_decode(deserializer);
+        return crate::api::wire::GridSize {
+            xs: var_xs,
             cells: var_cells,
         };
     }
@@ -1420,6 +1432,17 @@ impl SseDecode for Option<String> {
     }
 }
 
+impl SseDecode for Option<crate::api::wire::GridSize> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::wire::GridSize>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<i64> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1469,17 +1492,6 @@ impl SseDecode for Option<crate::api::wire::Rgb> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::wire::Rgb>::sse_decode(deserializer));
-        } else {
-            return None;
-        }
-    }
-}
-
-impl SseDecode for Option<crate::api::wire::TableData> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::wire::TableData>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -2235,6 +2247,22 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::GridInfo> for crate::ap
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wire::GridSize {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.xs.into_into_dart().into_dart(),
+            self.cells.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::wire::GridSize {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wire::GridSize> for crate::api::wire::GridSize {
+    fn into_into_dart(self) -> crate::api::wire::GridSize {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::wire::HorizAlign {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -2879,7 +2907,7 @@ impl SseEncode for crate::api::wire::EntryData {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.text, serializer);
         <bool>::sse_encode(self.formula, serializer);
-        <Option<crate::api::wire::TableData>>::sse_encode(self.grid, serializer);
+        <Option<crate::api::wire::GridSize>>::sse_encode(self.grid, serializer);
     }
 }
 
@@ -2922,6 +2950,14 @@ impl SseEncode for crate::api::wire::GridInfo {
         <u32>::sse_encode(self.xs, serializer);
         <u32>::sse_encode(self.ys, serializer);
         <Vec<crate::api::wire::CellInfo>>::sse_encode(self.cells, serializer);
+    }
+}
+
+impl SseEncode for crate::api::wire::GridSize {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.xs, serializer);
+        <i64>::sse_encode(self.cells, serializer);
     }
 }
 
@@ -3049,6 +3085,16 @@ impl SseEncode for Option<String> {
     }
 }
 
+impl SseEncode for Option<crate::api::wire::GridSize> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::wire::GridSize>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<i64> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3095,16 +3141,6 @@ impl SseEncode for Option<crate::api::wire::Rgb> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::wire::Rgb>::sse_encode(value, serializer);
-        }
-    }
-}
-
-impl SseEncode for Option<crate::api::wire::TableData> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::api::wire::TableData>::sse_encode(value, serializer);
         }
     }
 }

@@ -700,6 +700,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GridSize dco_decode_box_autoadd_grid_size(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_grid_size(raw);
+  }
+
+  @protected
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_i_64(raw);
@@ -1042,7 +1048,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return EntryData(
       text: dco_decode_String(arr[0]),
       formula: dco_decode_bool(arr[1]),
-      grid: dco_decode_opt_box_autoadd_table_data(arr[2]),
+      grid: dco_decode_opt_box_autoadd_grid_size(arr[2]),
     );
   }
 
@@ -1069,6 +1075,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       xs: dco_decode_u_32(arr[1]),
       ys: dco_decode_u_32(arr[2]),
       cells: dco_decode_list_cell_info(arr[3]),
+    );
+  }
+
+  @protected
+  GridSize dco_decode_grid_size(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return GridSize(
+      xs: dco_decode_i_64(arr[0]),
+      cells: dco_decode_i_64(arr[1]),
     );
   }
 
@@ -1158,6 +1176,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GridSize? dco_decode_opt_box_autoadd_grid_size(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_grid_size(raw);
+  }
+
+  @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_i_64(raw);
@@ -1185,12 +1209,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Rgb? dco_decode_opt_box_autoadd_rgb(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_rgb(raw);
-  }
-
-  @protected
-  TableData? dco_decode_opt_box_autoadd_table_data(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null ? null : dco_decode_box_autoadd_table_data(raw);
   }
 
   @protected
@@ -1387,6 +1405,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Command sse_decode_box_autoadd_command(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_command(deserializer));
+  }
+
+  @protected
+  GridSize sse_decode_box_autoadd_grid_size(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_grid_size(deserializer));
   }
 
   @protected
@@ -1802,7 +1826,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_text = sse_decode_String(deserializer);
     var var_formula = sse_decode_bool(deserializer);
-    var var_grid = sse_decode_opt_box_autoadd_table_data(deserializer);
+    var var_grid = sse_decode_opt_box_autoadd_grid_size(deserializer);
     return EntryData(text: var_text, formula: var_formula, grid: var_grid);
   }
 
@@ -1827,6 +1851,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_ys = sse_decode_u_32(deserializer);
     var var_cells = sse_decode_list_cell_info(deserializer);
     return GridInfo(cell: var_cell, xs: var_xs, ys: var_ys, cells: var_cells);
+  }
+
+  @protected
+  GridSize sse_decode_grid_size(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_xs = sse_decode_i_64(deserializer);
+    var var_cells = sse_decode_i_64(deserializer);
+    return GridSize(xs: var_xs, cells: var_cells);
   }
 
   @protected
@@ -1944,6 +1976,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GridSize? sse_decode_opt_box_autoadd_grid_size(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_grid_size(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1995,19 +2038,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_rgb(deserializer));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
-  TableData? sse_decode_opt_box_autoadd_table_data(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_table_data(deserializer));
     } else {
       return null;
     }
@@ -2226,6 +2256,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_box_autoadd_command(Command self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_command(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_grid_size(
+    GridSize self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_grid_size(self, serializer);
   }
 
   @protected
@@ -2645,7 +2684,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.text, serializer);
     sse_encode_bool(self.formula, serializer);
-    sse_encode_opt_box_autoadd_table_data(self.grid, serializer);
+    sse_encode_opt_box_autoadd_grid_size(self.grid, serializer);
   }
 
   @protected
@@ -2667,6 +2706,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_32(self.xs, serializer);
     sse_encode_u_32(self.ys, serializer);
     sse_encode_list_cell_info(self.cells, serializer);
+  }
+
+  @protected
+  void sse_encode_grid_size(GridSize self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.xs, serializer);
+    sse_encode_i_64(self.cells, serializer);
   }
 
   @protected
@@ -2774,6 +2820,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_grid_size(
+    GridSize? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_grid_size(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_i_64(
     PlatformInt64? self,
     SseSerializer serializer,
@@ -2832,19 +2891,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_rgb(self, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_opt_box_autoadd_table_data(
-    TableData? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_table_data(self, serializer);
     }
   }
 

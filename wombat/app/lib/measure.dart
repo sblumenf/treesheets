@@ -291,26 +291,24 @@ Future<void> _build(File file, int across, int down) async {
   final part = File('${file.path}.part');
   if (part.existsSync()) part.deleteSync();
   final sections = across * down;
+  // A table is one flat list: each section is followed by the cells of its grid.
   final table = TableData(
     xs: across,
     cells: [
-      for (var n = 0; n < sections; n++)
+      for (var n = 0; n < sections; n++) ...[
         EntryData(
           text: 'Section $n',
           formula: false,
-          grid: TableData(
-            xs: 10,
-            cells: [
-              for (var m = 0; m < 100; m++)
-                n == sections - 1 && m == 99
-                    ? const EntryData(text: '=TREESUM(Large)', formula: true)
-                    : EntryData(
-                        text: 'Item $n.$m with some ordinary text in it',
-                        formula: false,
-                      ),
-            ],
-          ),
+          grid: const GridSize(xs: 10, cells: 100),
         ),
+        for (var m = 0; m < 100; m++)
+          n == sections - 1 && m == 99
+              ? const EntryData(text: '=TREESUM(Large)', formula: true)
+              : EntryData(
+                  text: 'Item $n.$m with some ordinary text in it',
+                  formula: false,
+                ),
+      ],
     ],
   );
   final doc = await OpenDocument.create(path: part.path);

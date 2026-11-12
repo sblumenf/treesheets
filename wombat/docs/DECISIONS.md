@@ -1264,6 +1264,7 @@ are where milestones 4, 5 and 6, built apart, meet).
       command still checks the fields when it is applied.
     - A scale that is not a finite number is refused, in both directions: JSON cannot write it.
     - A table to import goes through `Table::new` and `Entry::new`, which check and count.
+      It is carried as a flat list (A135).
     - As JSON (`record.rs`) it is what `serde` writes by default: `{"SetText": {"cell": "...",
       "text": "..."}}`, and `"Run"` for a command without fields.
     This form is independent of the script language of `wombat edit`, which stays what the
@@ -1337,6 +1338,19 @@ are where milestones 4, 5 and 6, built apart, meet).
     Numbers that only go from Rust to Dart (`GridInfo.xs` and `ys`) stay as they are: a
     narrower number always fits a wider one. In the generated Dart the type is written
     `PlatformInt64`, which is `int` on every platform but the web (not a target, A121).
+135. **A table to import crosses as one flat list** (from the evaluation after the review;
+    changes A123). `TableData` was a table whose cells could hold tables. The generated
+    decoder, the conversion and the freeing of such a value all call themselves once per
+    level, and the first two run before any check of ours can: a table nested a few thousand
+    deep overflowed the stack of the thread, which ends the process and is not a panic that
+    anything catches. Now `TableData.cells` is every cell in document order, each followed at
+    once by the cells of the grid inside it, and a cell with a grid says only the size of it
+    (`GridSize`: columns and number of cells). No type in `api/wire.rs` contains itself any
+    more, so nothing generated recurses. `convert.rs` puts the core's `Table` together with a
+    list of the grids that are open; `Table::new` refuses one nested deeper than a document
+    may be (`Limit`) as soon as it is made, so nothing deeper is ever built. A grid that says
+    it has more cells than follow is a `BadRequest`; no cells, no columns and rows that are
+    not whole are the core's to refuse (`Invalid`), as before. JSON has the same flat form.
 
 ## B. Deliberate departures from TreeSheets
 

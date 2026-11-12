@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'wire.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// An error, as a value an interface can show.
 class BridgeError implements FrbException {
@@ -650,14 +650,15 @@ enum DrawStyle {
 
 /// One cell of a [`TableData`].
 class EntryData {
-  /// The text.
+  /// The text. Characters that cell text cannot hold become spaces.
   final String text;
 
   /// Whether the cell becomes a formula cell; only a text that is a formula does.
   final bool formula;
 
-  /// The grid inside.
-  final TableData? grid;
+  /// The size of the grid inside, or `None` for a cell without one. The cells of that
+  /// grid are the next `cells` cells of the list that are not inside one of them.
+  final GridSize? grid;
 
   const EntryData({required this.text, required this.formula, this.grid});
 
@@ -747,6 +748,29 @@ class GridInfo {
           cell == other.cell &&
           xs == other.xs &&
           ys == other.ys &&
+          cells == other.cells;
+}
+
+/// The size of the grid inside one cell of a [`TableData`].
+class GridSize {
+  /// The number of columns, at least 1.
+  final PlatformInt64 xs;
+
+  /// The number of cells, whole rows of them and at least one. Cells of grids further
+  /// inside are not counted.
+  final PlatformInt64 cells;
+
+  const GridSize({required this.xs, required this.cells});
+
+  @override
+  int get hashCode => xs.hashCode ^ cells.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GridSize &&
+          runtimeType == other.runtimeType &&
+          xs == other.xs &&
           cells == other.cells;
 }
 
@@ -997,12 +1021,21 @@ class Style {
           strike == other.strike;
 }
 
-/// A grid of texts to import.
+/// A grid of texts to import, which may have grids inside its cells.
+///
+/// It is one flat list, not a table within a table: each cell is followed at once by the
+/// cells of the grid inside it, row by row, and each of those by the cells of its own
+/// grid. A table of two cells `a` and `b`, where `a` holds a grid of `c` and `d`, is the
+/// list `a` (with a grid of 2 cells), `c`, `d`, `b`. The form is flat so that a table
+/// nested however deep is read and refused without the depth costing anything: nothing
+/// that handles it calls itself (decision A135). A list where a grid says it has more
+/// cells than follow is refused, and so is a table nested deeper than a document may be.
 class TableData {
-  /// The number of columns, from 1 to 4294967295.
+  /// The number of columns of the outermost grid, from 1 to 4294967295.
   final PlatformInt64 xs;
 
-  /// The cells row by row: whole rows, at least one cell.
+  /// The cells in the order described: the outermost grid has whole rows and at least
+  /// one cell.
   final List<EntryData> cells;
 
   const TableData({required this.xs, required this.cells});
