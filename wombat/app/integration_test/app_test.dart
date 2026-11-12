@@ -14,9 +14,17 @@ void main() {
   String output(WidgetTester tester) =>
       tester.widget<SelectableText>(find.byKey(const Key('output'))).data!;
 
+  /// Presses a button and waits for what it puts on the screen: the answer itself,
+  /// for a few seconds at most. The screen draws nothing while the core works, so
+  /// "no frame is due" would not mean that the answer is there.
   Future<void> press(WidgetTester tester, String key) async {
+    final before = output(tester);
     await tester.tap(find.byKey(Key(key)));
+    for (var i = 0; i < 100 && output(tester) == before; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
     await tester.pumpAndSettle();
+    expect(output(tester), isNot(before));
   }
 
   testWidgets('open, change and undo on the screen', (tester) async {
