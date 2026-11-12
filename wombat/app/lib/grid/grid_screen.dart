@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../cell_editor.dart';
 import '../keeper.dart';
 import '../session.dart';
 import '../src/rust/api/wire.dart';
@@ -40,8 +41,8 @@ enum _Entered {
 }
 
 class _GridScreenState extends State<GridScreen> {
-  final _editor = TextEditingController();
-  final _focus = FocusNode();
+  /// The editor, through what the real screen will know of one.
+  final CellEditor _editor = FlutterCellEditor();
 
   /// Everything the user does, one after the other in the order it was done (decision
   /// A158): each action finds the editor and the stage as the actions before it left
@@ -75,6 +76,8 @@ class _GridScreenState extends State<GridScreen> {
   @override
   void initState() {
     super.initState();
+    // Return: enter, and on to the cell below.
+    _editor.onSubmit = () => _confirm(below: true);
     _arrive();
   }
 
@@ -90,7 +93,6 @@ class _GridScreenState extends State<GridScreen> {
   void dispose() {
     _leave(_stage);
     _editor.dispose();
-    _focus.dispose();
     super.dispose();
   }
 
@@ -155,9 +157,9 @@ class _GridScreenState extends State<GridScreen> {
       _editing = editing.cell;
       _edit = editing;
       // The cursor goes to the end of the text when the field gets the focus.
-      _editor.text = editing.start.text;
+      _editor.set(editing.start.text);
     });
-    _focus.requestFocus();
+    _editor.focus();
   }
 
   void _close() {
@@ -566,24 +568,7 @@ class _GridScreenState extends State<GridScreen> {
         padding: const EdgeInsets.fromLTRB(8, 4, 0, 4),
         child: Row(
           children: [
-            Expanded(
-              child: TextField(
-                key: const Key('editor'),
-                controller: _editor,
-                focusNode: _focus,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                // Return: enter, and on to the cell below. Saying what Return does
-                // here keeps Flutter from doing what it does otherwise for "next",
-                // moving the focus away: the editor is in use until the core has
-                // answered, and after it if the core refuses.
-                onEditingComplete: _editor.clearComposing,
-                onSubmitted: (_) => _confirm(below: true),
-              ),
-            ),
+            Expanded(child: _editor.build(context, key: const Key('editor'))),
             IconButton(
               key: const Key('save'),
               tooltip: 'Save',
