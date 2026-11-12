@@ -50,6 +50,10 @@ form that passes both tests:
 The thresholds (minimum text size, preview scale) are settings in the prototype, so they can be
 tuned.
 
+> **Decided since** (not a change of the specification's intent; `DECISIONS.md` A166): the "cell
+> count" of a Badge is the number of cells directly in the child grid, columns times rows, as
+> the figure has it (a 3×4 grid is ▦12). The core keeps no count of the cells further down.
+
 ## 4. Phone screen
 
 ```
@@ -143,6 +147,21 @@ One cell is edited at a time, in a single editor docked above the keyboard.
 - The edited cell stays visible above the keyboard and updates as you type.
 - The editor has no custom gestures. The system's text gestures (cursor dragging, selection, undo)
   work unchanged.
+
+> **Decided since**, by the owner or on the owner's behalf; the table above is as it was written.
+>
+> - **The editor also has a cross (✕): "not this".** It closes the editor and leaves the cell, and
+>   everything that could be undone or redone, exactly as before the editor opened, also when
+>   the app was put away in between (`DECISIONS.md` A147, A177).
+> - **Line breaks are allowed in a cell's text**, so the ↵ key is real (A174). This is a
+>   departure from TreeSheets, whose cells have none.
+> - **Return in the last row is two steps of the undo history**: the text, then the new row.
+> - **"Tag" under Aa is TreeSheets' tag for now**: the whole text of a cell is the name of a tag
+>   of the document, and the cell is drawn in the tag's colours. Tags written inside a longer
+>   text (`#todo`, section 12) are not built.
+> - Nothing is sent to the document while the user types: the edited cell is drawn from the
+>   editor's text, and the document has it at the tick, at Return, and when the app is put away
+>   (A145, A177).
 
 ## 8. Adding rows, columns and grids
 

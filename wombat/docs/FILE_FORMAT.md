@@ -88,6 +88,9 @@ which document, from its first bytes. A reader accepts them anywhere in the top-
   values to existing fields, change meanings or tighten rules; any such change needs a new major
   version.
 - A writer writes the greater of its own minor version and the one the file was loaded with.
+- Version 1.0 of the document format was changed in place twice before any file existed outside
+  the repository: control characters were forbidden in cell text (decision A32), and the line
+  break was allowed again (decision A174). After a first release neither could be done this way.
 
 ### Limits
 
@@ -150,7 +153,8 @@ writing it out shows that it fits.
 | `root` | cell object | required | The root cell. |
 
 **Tag object.** A cell "has" a tag when its text equals the tag's name (as in TreeSheets). A
-tag's name, like a cell's text, has no characters below U+0020.
+tag's name has no characters below U+0020 (a cell's text may have line breaks; a tag's
+name may not, decision A174).
 
 | Field | Type | Default | Meaning |
 | ---- | ---- | ---- | ---- |
@@ -162,7 +166,7 @@ tag's name, like a cell's text, has no characters below U+0020.
 | Field | Type | Default | Meaning |
 | ---- | ---- | ---- | ---- |
 | `id` | ID | required | The cell's ID. |
-| `text` | string | `""` | The text. For a formula cell, the formula (for example `=SUM(Expenses)`). No characters below U+0020: no line breaks, tabs or other control characters (decision A32). |
+| `text` | string | `""` | The text. For a formula cell, the formula (for example `=SUM(Expenses)`). No characters below U+0020 except U+000A, a line break inside the cell: no carriage returns, tabs or other control characters (decisions A32, A174). In the file a line break is the two characters `\n` inside the string. |
 | `kind` | string | `"data"` | `data`, `code` (operation), `var_assign`, `var_read`, `view_h`, `view_v` or `formula`. |
 | `color` | colour | `#ffffff` | Background colour. |
 | `text_color` | colour | `#000000` | Colour of text outside coloured runs. |
@@ -232,8 +236,8 @@ refused.
 A reader refuses the whole file (it does not repair or skip) when: a required field is missing; a
 known field has the wrong type or an unlisted value; an ID is not in canonical form; two cells
 have the same ID, or a cell has the document's ID; `cells` does not hold exactly `xs` × `ys`
-cells; `widths` does not hold `xs` numbers; runs or links break their rules; a cell's text or a
-tag's name has a character below U+0020 (a note may); an image name or
+cells; `widths` does not hold `xs` numbers; runs or links break their rules; a cell's text has
+a character below U+0020 other than U+000A, or a tag's name has any (a note may); an image name or
 scale is invalid (section 5); an object repeats a key; or a limit is exceeded.
 
 ## 4. Canonical form (what Wombat writes)
@@ -284,14 +288,18 @@ A cell's `image` object refers to a file in the document's image folder (section
 
 ## 6. View state
 
-Which grids are folded, the selection and the zoom are not in the document. They are in
-`.wombat-view/<document id>.json`:
+Which grids are folded, the selection, the level that is shown and what each level remembers
+are not in the document. They are in `.wombat-view/<document id>.json`:
 
 ```json
 {
-"format": "wombat-view", "version": 1, "minor": 0, "doc": "0e6c1f0a-5c0e-4c57-9d5a-3b0f6f1f7a11",
+"format": "wombat-view", "version": 1, "minor": 1, "doc": "0e6c1f0a-5c0e-4c57-9d5a-3b0f6f1f7a11",
 "selection": {"cell": "113d7972-8660-403f-a42c-29d1e0b61b42", "xs": 2, "ys": 1, "cursor": [0, 5]},
 "zoom": "e5cc7c31-1e95-442a-92a8-446ee3cf1fda",
+"levels": [
+ {"cell": "5b0c8c0e-4f0e-4c57-8d5a-3b0f6f1f7a12"},
+ {"cell": "e5cc7c31-1e95-442a-92a8-446ee3cf1fda", "x": 1, "y": 12, "selected": "113d7972-8660-403f-a42c-29d1e0b61b42"}
+],
 "folded": [
  "e5cc7c31-1e95-442a-92a8-446ee3cf1fda"
 ]
@@ -301,10 +309,11 @@ Which grids are folded, the selection and the zoom are not in the document. They
 | Field | Type | Default | Meaning |
 | ---- | ---- | ---- | ---- |
 | `format` | string | required | Must be `"wombat-view"`. |
-| `version`, `minor` | whole numbers | required, 0 | As in section 2; the current version is 1.0. |
+| `version`, `minor` | whole numbers | required, 0 | As in section 2; the current version is 1.1. |
 | `doc` | ID | required | The document this belongs to; must match the file name. |
 | `selection` | object | absent | The selection. |
-| `zoom` | ID | absent | The cell that is zoomed into and shown as if it were the root. |
+| `zoom` | ID | absent | The level that is shown: the cell that is zoomed into and shown as if it were the root. Absent means the root. |
+| `levels` | array of objects | empty | What each level remembers (since 1.1), in the order remembered, the last one last. At most 256; no cell twice. |
 | `folded` | array of IDs | empty | The cells whose grid is folded. Written sorted; duplicates are ignored. |
 
 **Selection object**: `cell` (ID, required) is the top-left selected cell; `xs` and `ys` (whole
@@ -312,13 +321,25 @@ numbers 0..2^32-1, required) are how many columns and rows are selected from the
 insertion point before the cell, as in TreeSheets); `cursor` (optional) is `[start, end]`, the
 selected range of the cell's text in code points while it is being edited, with `start` ≤ `end`.
 
-View state can be older than the document, so it may name cells that no longer exist. That is not
-an error; a reader drops those references. Unknown fields are kept as in section 2, and the
-limits of section 2 on file size and on nesting inside unknown fields apply; `folded` holds at
-most 700,000 IDs (the limit on cells). A copy of a document (section 1) gets a copy of the view state under its
-own ID, naming its own cells. The canonical
-layout is as in the example: line 2 the header, then `selection`, `zoom`, unknown fields and
-`folded` (one ID per line), each on its own line.
+**Level object** (since 1.1): `cell` (ID, required) is the cell whose grid is the level; `x` and
+`y` (whole numbers 0..2^32-1, default 0) are the column and row of that grid at the top-left of
+what was last seen on this device; `selected` (ID, optional) is the cell that was selected
+there. A level is a cell with a grid; the position is a column and a row, not a distance, so it
+means the same on another screen or text size.
+
+View state can be older than the document, so it may name cells that no longer exist, a level or
+a zoom cell that has no grid any more, or a position beyond a grid that has shrunk. None of that
+is an error. A reader drops references to cells that are gone and levels without a grid, moves a
+position to the last column or row, and shows, for a zoom cell that is gone or has no grid, the
+nearest cell above it that has one, or the root. Unknown fields are kept as in section 2, also
+in a level, and the limits of section 2 on file size and on nesting inside unknown fields
+apply; `folded` holds at most 700,000 IDs (the limit on cells) and `levels` at most 256 objects;
+a file over either is refused, and so is one that has a level twice. A reader of version 1.0
+keeps `levels` as an unknown field and writes it back as it was. A copy of a document
+(section 1) gets a copy of the view state under its own ID, naming its own cells. The canonical
+layout is as in the example: line 2 the header, then `selection`, `zoom`, `levels` (one level
+per line, `x` and `y` left out when 0), unknown fields and `folded` (one ID per line), each on
+its own line.
 
 ## 7. Index caches
 

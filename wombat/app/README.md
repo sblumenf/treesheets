@@ -4,8 +4,8 @@ The Wombat app as far as it goes: a simple grid screen on one document, which st
 copy of the example, and behind a menu entry the plain-text check of the bridge. It calls
 the Rust core through `../crates/wombat-bridge`. It is not yet the interface that
 `../docs/UI_SPEC.md` specifies: the grid screen (`lib/grid/`) stands in for it, and what is
-under the screen (`lib/session.dart`, `lib/keeper.dart`, `lib/main.dart`) is what that
-interface will be built on. Its application ID is `io.github.sblumenf.burrow`; the name it
+under the screen (`lib/session.dart`, `lib/keeper.dart`, `lib/stage_read.dart`,
+`lib/cell_editor.dart`, `lib/main.dart`) is what that interface will be built on. Its application ID is `io.github.sblumenf.burrow`; the name it
 shows is Wombat.
 
 - The grid screen: `../docs/milestones/UI1.md`.
@@ -13,7 +13,7 @@ shows is Wombat.
   `../docs/milestones/B1.md`.
 - What is generated and how to regenerate it: `../AGENTS.md`.
 
-Five things to know before changing it:
+Seven things to know before changing it:
 
 - **A document is reached through `Session`** (`lib/session.dart`) and nothing else. It
   sends the calls to the core in the order they were made; the generated `OpenDocument`
@@ -24,8 +24,17 @@ Five things to know before changing it:
   is no longer in front and before the app exits when its window is closed (`Kept` in
   `lib/main.dart` tells the keeper), and when the app goes. A screen shows what the keeper
   says (`Keeper.state`) and does not save.
+- **A screen draws from a `StageReader`** (`Keeper.read`): the stage, the trail and every
+  grid nested below it in one read, which the keeper reads again after every change and
+  compares, so that the screen is told which cells to draw again. Where the screen is
+  (level, scroll position, selection, folds) belongs to the device; the reader is told and
+  the keeper writes it. The stand-in grid screen does not use this yet.
+- **A cell's text is edited through an `Editing`** (`Keeper.edit`) and a `CellEditor`
+  (`lib/cell_editor.dart`): nothing is sent while the user types, the tick makes one step
+  to undo, the cross leaves no trace, and Return is the screen's action, not a line
+  break.
 - **A screen attaches itself to the keeper** (`Keeper.attach`) with the queue of its
-  actions and with how to enter what is being typed, and detaches when it goes.
+  actions and with how to hold what is being typed, and detaches when it goes.
   `../AGENTS.md` has the short list of what a screen must do; `test/probe_screen.dart` is
   the least screen that does it.
 - **Everything the user does on the grid screen is one action in one queue**

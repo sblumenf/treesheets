@@ -23,7 +23,8 @@ flatten, hierarchy swap, wrap, merge and split) is not started. All three checks
 - **Text rules** (`text.rs`): what happens to styled ranges and links when text is inserted,
   deleted or replaced, taken from TreeSheets' `src/textruns.h` and checked against that code;
   positions in code points; a command that would cut an emoji, an accented letter, a flag or a
-  Hangul syllable made of several code points is refused; control characters become spaces.
+  Hangul syllable made of several code points is refused; control characters become spaces. (Since A174 a
+  line break is kept.)
 - **Folding** as view state: `ViewState::set_folded`, outside the document and the history,
   and `ViewState::apply_changes`, which drops folds, selection and zoom of cells that are gone.
 - **The construction layer** (`construct.rs`): the old unrestricted `cell_mut` and `add_grid`
@@ -260,7 +261,8 @@ the boundaries of user-perceived characters. `wombat-cli` gained `serde_json` fo
 - **Undo restores cells but not view state** about them (folds, selection): decision A38.
 - **Stricter files**: a `.wombat` file with a line break or tab in a cell's text, valid
   before, is now refused (decision A32, which also says why format 1.0 was tightened in
-  place). `Document::tags` and `Document::extra` are now methods; `cell_mut` and `add_grid`
+  place). (A line break is allowed again since A174; a tab or carriage return is still
+  refused.) `Document::tags` and `Document::extra` are now methods; `cell_mut` and `add_grid`
   need `use wombat_core::construct::Construct`.
 - **Limits of the random tests**: documents are small (the large-document test covers size,
   not variety); the generator never makes unknown fields, images on disk or links across

@@ -60,16 +60,24 @@ can be trusted, and what an interface needs next.
 
 ## Future list
 
-- A minimal bridge between Flutter and the core (`NEXT_BRIDGE.md`): built, run on Linux, built for
-  Android in CI and reviewed three times, with what the reviews found fixed; running it on an
-  Android device and the measurements there are still to do, and what else is open is listed
+- A minimal bridge between Flutter and the core (`NEXT_BRIDGE.md`): built, run on Linux and on an
+  Android emulator in CI, and reviewed four times, with what the reviews found fixed; running it
+  on an Android phone and the measurements there are still to do, and what else is open is listed
   ([summary](milestones/B1.md)).
 - A simple grid screen on the bridge, a first step towards the interface: one grid, into a nested
   grid and back, editing the text of a cell, undo and redo, and a document that saves itself. Run
-  on Linux by tests; not yet seen by a person or tried on a phone
-  ([summary](milestones/UI1.md)).
-- The Flutter interface, starting with a phone sketch on a real iPhone that tests nested grids on
-  a small screen and typing into cells.
+  on Linux by tests; not yet seen by a person or tried on a phone. It is a stand-in, to be
+  replaced by the first slice of the interface ([summary](milestones/UI1.md)).
+- What the first screen of the interface needs under it (step 1 of the way to the first test on
+  the owner's hardware): one read of the stage and everything nested below it, groups of commands
+  that can be cancelled, the view state of the device, line breaks in cell text, and in the app
+  the stage kept up to date for every screen, the editing of a cell, and the editor as a part
+  that can be exchanged. Built and tested without a device; not reviewed, and nothing of it has
+  run on a phone (decisions A166 to A180; [summary](milestones/B1.md)).
+- The Flutter interface (`UI_SPEC.md`), Android first: its first slice is sections 3 to 8 (the
+  depth budget, the phone screen, diving and going up, tapping, the editor with its toolbar,
+  adding rows and columns), then a test by the owner on a phone. A native text editor on iOS
+  is kept possible and not built.
 - Sync between devices.
 - A spreadsheet import/export wizard: a single Excel workbook with linked sheets, ready-made
   XLOOKUP formulas, and flattening of any number of tables.
