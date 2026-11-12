@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -343475436;
+  int get rustContentHash => -1208753817;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -107,6 +107,10 @@ abstract class RustLibApi extends BaseApi {
   Future<OpenDocument> crateApiDocumentOpenDocumentOpenCopy({
     required String from,
     required String to,
+  });
+
+  Future<void> crateApiDocumentOpenDocumentOverwrite({
+    required OpenDocument that,
   });
 
   Future<String> crateApiDocumentOpenDocumentPath({required OpenDocument that});
@@ -388,6 +392,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiDocumentOpenDocumentOverwrite({
+    required OpenDocument that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOpenDocument(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 8,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiDocumentOpenDocumentOverwriteConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDocumentOpenDocumentOverwriteConstMeta =>
+      const TaskConstMeta(
+        debugName: "OpenDocument_overwrite",
+        argNames: ["that"],
+      );
+
+  @override
   Future<String> crateApiDocumentOpenDocumentPath({
     required OpenDocument that,
   }) {
@@ -402,7 +442,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -435,7 +475,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -468,7 +508,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -499,7 +539,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -532,7 +572,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -559,7 +599,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 14,
             port: port_,
           );
         },
@@ -586,7 +626,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -613,7 +653,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -3043,9 +3083,19 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   Future<String> id() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentId(that: this);
 
-  /// Whether the file has everything that was done.
+  /// Whether nothing was done to the document since it was read from or written to its
+  /// file. This does not look at the file: that another program removed or changed it
+  /// shows when saving. Undoing or redoing after a save makes the document unsaved, also
+  /// when the two together lead back to what was saved: any change clears the flag.
   Future<bool> isSaved() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentIsSaved(that: this);
+
+  /// Writes the document to its file whatever is there, replacing what another program
+  /// saved since: for when [`OpenDocument::save`] answered [`ErrorKind::ChangedOnDisk`]
+  /// and the user chose to keep this document. It is a call of its own, not a switch on
+  /// `save`, so that no ordinary save can overwrite by a wrong argument.
+  Future<void> overwrite() =>
+      RustLib.instance.api.crateApiDocumentOpenDocumentOverwrite(that: this);
 
   /// The file the document is saved to.
   Future<String> path() =>
@@ -3060,7 +3110,19 @@ class OpenDocumentImpl extends RustOpaque implements OpenDocument {
   Future<String> root() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentRoot(that: this);
 
-  /// Saves the document to its file, if anything was done since it was saved last.
+  /// Makes the file hold the document, without ever going over what another program
+  /// put there. It looks at the file first:
+  ///
+  /// - the file is as this document read or last wrote it: it is written if anything was
+  ///   done since ([`OpenDocument::is_saved`] is false), and left alone otherwise;
+  /// - the file is gone: it is written, whether anything was done or not;
+  /// - the file was changed or replaced by someone else: nothing is written and the
+  ///   error is [`ErrorKind::ChangedOnDisk`] with the path, whether anything was done or
+  ///   not. [`OpenDocument::overwrite`] is the way to write all the same;
+  /// - the file cannot be looked at, or the path is a link that leads nowhere:
+  ///   [`ErrorKind::Io`].
+  ///
+  /// On an error nothing was written, and the document is as unsaved as it was.
   Future<void> save() =>
       RustLib.instance.api.crateApiDocumentOpenDocumentSave(that: this);
 

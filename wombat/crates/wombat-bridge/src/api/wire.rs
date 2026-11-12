@@ -823,6 +823,9 @@ pub enum ErrorKind {
     AlreadyExists,
     /// Two files were to be saved together and only one was.
     HalfSaved,
+    /// The file of an open document is no longer the one that was read or last written:
+    /// another program changed or replaced it. Nothing was written; `path` is the file.
+    ChangedOnDisk,
 }
 
 /// An error, as a value an interface can show.

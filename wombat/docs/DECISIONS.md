@@ -1369,6 +1369,63 @@ are where milestones 4, 5 and 6, built apart, meet).
     so where a Dart developer reads it, and a Dart test pins it. And because the generator
     does not carry the comment of an enum that holds data (`Command`, `Prop`, `LinkTarget`)
     into Dart, the rules a Dart developer needs are stated on variants, fields and `Report`.
+138. **An open document knows its file by length, time and, on Unix, which file it is** (from
+    the review of the bridge). A program that keeps a document open must know, when it saves,
+    whether another program changed the file. Reading a file of up to 32 MiB at every save to
+    compare it is too dear, so the storage layer notes a `FileState` when it loads, saves or
+    copies a document: the length, the time of modification and, on Unix, the device and the
+    file's number on it. `FileState::check` compares that with what is at the path, following
+    a symbolic link as saving does, and answers unchanged, gone or changed. The state of a
+    saved file is taken from the new file before it is given its name, and that of a loaded
+    file from the open file before its bytes are read, so that a change by someone else in
+    that moment is reported and never remembered as one's own. The file's number matters
+    because most programs save by putting a new file under the old name, which this sees
+    whatever the length and clock say. Not seen: the same file rewritten in place with the
+    same length and the same time of modification (within one tick of the file system's
+    clock, or by a program that puts the old time back), and on Windows, where the standard
+    library does not give the file's number yet, any change that keeps length and time. The
+    time of the last change of permissions, owner and attributes is left out on purpose:
+    backup, search and synchronisation tools change those on files they do not edit, and a
+    false "changed on disk" teaches people to overwrite without looking. Between checking
+    and writing, another program can still save and be overwritten; closing that gap would
+    take locking, which is not attempted (`write_atomic` already says that two programs
+    saving at once are not protected from each other).
+139. **A copy of a document that fails removes what it made** (from the evaluation after the
+    review). `copy_document` copies the images, then the view state, then saves the document,
+    so that a copy that is there is complete. When a later step failed, the image folder with
+    its pictures and the view state of a document that does not exist stayed, and nothing
+    ever removed them. The copy now notes, before it starts, which of those files and folders
+    are not there yet, and removes exactly those when it fails; a folder is removed only if
+    it is empty. What was there before the call is never removed. An image file of the same
+    name that was already in the copy's image folder has been replaced by then, as before
+    this decision, and is not put back.
+140. **Saving an open document never goes over another program's work without being told
+    to** (from the review; uses A138). `OpenDocument` keeps the `FileState` of its file from
+    opening, creating, copying and every save, and `save()` looks at the file first:
+
+    | | The file is as it was | The file is gone | The file was changed | It cannot be looked at |
+    | ---- | ---- | ---- | ---- | ---- |
+    | Something was done since | written | written | refused: `ChangedOnDisk` | `Io` |
+    | Nothing was done since | left alone | written | refused: `ChangedOnDisk` | `Io` |
+
+    Before, `save()` trusted its own flag: after the file was deleted or replaced it answered
+    success and wrote nothing, and with something to save it replaced whatever was there. A
+    file that is gone is written again because the document that is open is the only copy
+    left. A file that was changed is refused also when nothing was done to the document, so
+    that "saved" is never answered about a file that holds something else. A path that is a
+    link leading nowhere is an error as it is for every save of the core (`write_atomic`),
+    and stays one for `overwrite()`.
+    `overwrite()` writes without looking, for when the user chose this document over the
+    file. It is a second call, not an argument of `save`: in Dart every argument is named
+    and required, so an argument would have put `overwrite: false` on every ordinary save
+    and made the dangerous call differ from the safe one by one word; a separate name can be
+    searched for and is never called by a wrong value.
+    `is_saved()` says whether anything was done to the document since its file was read or
+    written. It does not look at the file, so it stays true when the file is deleted; what
+    happened to the file is found by `save()`. It is a flag that every change clears, undo
+    and redo included, not a comparison: undo and then redo after a save lead back to what
+    was saved and the document is still called unsaved; saving then writes the same bytes
+    again. A command that changes nothing (an empty report) leaves it as it is.
 
 ## B. Deliberate departures from TreeSheets
 

@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use flutter_rust_bridge::frb;
-use wombat_core::{storage, Document, Editor, SeededIds};
+use wombat_core::storage::{self, FileCheck, FileState};
+use wombat_core::{Document, Editor, SeededIds};
 
 use super::wire::{BridgeError, Command, ErrorKind, GridInfo, Report};
 use crate::convert::{cell_id, command_in, grid_out, report_out};
@@ -50,17 +51,26 @@ pub struct OpenDocument {
     path: PathBuf,
     ids: SeededIds,
     clock: Clock,
+    /// Whether nothing was done since the document was read from or written to its file.
     saved: bool,
+    /// What the file looked like when it was read or last written, to tell at the next
+    /// save whether another program changed it since.
+    file: FileState,
 }
 
 impl OpenDocument {
-    fn with(doc: Document, path: &Path, ids: SeededIds) -> Result<OpenDocument, BridgeError> {
+    fn with(
+        (doc, file): (Document, FileState),
+        path: &Path,
+        ids: SeededIds,
+    ) -> Result<OpenDocument, BridgeError> {
         Ok(OpenDocument {
             editor: Editor::new(doc)?,
             path: path.to_path_buf(),
             ids,
             clock: Clock::System,
             saved: true,
+            file,
         })
     }
 
@@ -86,7 +96,7 @@ impl OpenDocument {
     /// [`OpenDocument::open`] with the IDs for new cells given, for tests.
     #[frb(ignore)]
     pub fn open_with(path: &Path, ids: SeededIds) -> Result<OpenDocument, BridgeError> {
-        OpenDocument::with(storage::load_document(path)?, path, ids)
+        OpenDocument::with(storage::load_document_with_state(path)?, path, ids)
     }
 
     /// [`OpenDocument::create`] with the IDs given, for tests.
@@ -97,8 +107,8 @@ impl OpenDocument {
             return Err(wombat_core::Error::AlreadyExists(path.to_path_buf()).into());
         }
         let doc = Document::new(&mut ids);
-        storage::save_document(&doc, path)?;
-        OpenDocument::with(doc, path, ids)
+        let file = storage::save_document_with_state(&doc, path)?;
+        OpenDocument::with((doc, file), path, ids)
     }
 
     /// [`OpenDocument::open_copy`] with the IDs given, for tests.
@@ -108,8 +118,8 @@ impl OpenDocument {
         to: &Path,
         mut ids: SeededIds,
     ) -> Result<OpenDocument, BridgeError> {
-        let doc = storage::copy_document(from, to, &mut ids)?;
-        OpenDocument::with(doc, to, ids)
+        let copy = storage::copy_document_with_state(from, to, &mut ids)?;
+        OpenDocument::with(copy, to, ids)
     }
 
     /// Makes edits stamp this time on cells instead of the time of the device's clock
@@ -134,7 +144,10 @@ impl OpenDocument {
         self.path.display().to_string()
     }
 
-    /// Whether the file has everything that was done.
+    /// Whether nothing was done to the document since it was read from or written to its
+    /// file. This does not look at the file: that another program removed or changed it
+    /// shows when saving. Undoing or redoing after a save makes the document unsaved, also
+    /// when the two together lead back to what was saved: any change clears the flag.
     pub fn is_saved(&self) -> bool {
         self.saved
     }
@@ -178,12 +191,46 @@ impl OpenDocument {
         Ok(changes.map(|changes| self.report(&changes)))
     }
 
-    /// Saves the document to its file, if anything was done since it was saved last.
+    /// Makes the file hold the document, without ever going over what another program
+    /// put there. It looks at the file first:
+    ///
+    /// - the file is as this document read or last wrote it: it is written if anything was
+    ///   done since ([`OpenDocument::is_saved`] is false), and left alone otherwise;
+    /// - the file is gone: it is written, whether anything was done or not;
+    /// - the file was changed or replaced by someone else: nothing is written and the
+    ///   error is [`ErrorKind::ChangedOnDisk`] with the path, whether anything was done or
+    ///   not. [`OpenDocument::overwrite`] is the way to write all the same;
+    /// - the file cannot be looked at, or the path is a link that leads nowhere:
+    ///   [`ErrorKind::Io`].
+    ///
+    /// On an error nothing was written, and the document is as unsaved as it was.
     pub fn save(&mut self) -> Result<(), BridgeError> {
-        if !self.saved {
-            storage::save_document(self.editor.document(), &self.path)?;
-            self.saved = true;
+        match self.file.check(&self.path)? {
+            FileCheck::Unchanged if self.saved => Ok(()),
+            FileCheck::Unchanged | FileCheck::Gone => self.write(),
+            FileCheck::Changed => Err(BridgeError {
+                kind: ErrorKind::ChangedOnDisk,
+                message: format!(
+                    "{}: the file was changed by another program since it was read or saved",
+                    self.path.display()
+                ),
+                path: Some(self.path.display().to_string()),
+            }),
         }
+    }
+
+    /// Writes the document to its file whatever is there, replacing what another program
+    /// saved since: for when [`OpenDocument::save`] answered [`ErrorKind::ChangedOnDisk`]
+    /// and the user chose to keep this document. It is a call of its own, not a switch on
+    /// `save`, so that no ordinary save can overwrite by a wrong argument.
+    pub fn overwrite(&mut self) -> Result<(), BridgeError> {
+        self.write()
+    }
+
+    fn write(&mut self) -> Result<(), BridgeError> {
+        // Every save puts a new file under the name, so the state is noted each time.
+        self.file = storage::save_document_with_state(self.editor.document(), &self.path)?;
+        self.saved = true;
         Ok(())
     }
 }

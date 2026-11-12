@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 import 'wire.dart';
 
-// These functions are ignored because they are not marked as `pub`: `now`, `os_ids`, `report`, `with`
+// These functions are ignored because they are not marked as `pub`: `now`, `os_ids`, `report`, `with`, `write`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Clock`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `copy_with`, `create_with`, `open_with`, `set_fixed_time`
 
@@ -32,7 +32,10 @@ abstract class OpenDocument implements RustOpaqueInterface {
   /// The permanent ID of the document.
   Future<String> id();
 
-  /// Whether the file has everything that was done.
+  /// Whether nothing was done to the document since it was read from or written to its
+  /// file. This does not look at the file: that another program removed or changed it
+  /// shows when saving. Undoing or redoing after a save makes the document unsaved, also
+  /// when the two together lead back to what was saved: any change clears the flag.
   Future<bool> isSaved();
 
   /// Opens the document in the file at `path`.
@@ -51,6 +54,12 @@ abstract class OpenDocument implements RustOpaqueInterface {
     to: to,
   );
 
+  /// Writes the document to its file whatever is there, replacing what another program
+  /// saved since: for when [`OpenDocument::save`] answered [`ErrorKind::ChangedOnDisk`]
+  /// and the user chose to keep this document. It is a call of its own, not a switch on
+  /// `save`, so that no ordinary save can overwrite by a wrong argument.
+  Future<void> overwrite();
+
   /// The file the document is saved to.
   Future<String> path();
 
@@ -61,7 +70,19 @@ abstract class OpenDocument implements RustOpaqueInterface {
   /// The ID of the root cell.
   Future<String> root();
 
-  /// Saves the document to its file, if anything was done since it was saved last.
+  /// Makes the file hold the document, without ever going over what another program
+  /// put there. It looks at the file first:
+  ///
+  /// - the file is as this document read or last wrote it: it is written if anything was
+  ///   done since ([`OpenDocument::is_saved`] is false), and left alone otherwise;
+  /// - the file is gone: it is written, whether anything was done or not;
+  /// - the file was changed or replaced by someone else: nothing is written and the
+  ///   error is [`ErrorKind::ChangedOnDisk`] with the path, whether anything was done or
+  ///   not. [`OpenDocument::overwrite`] is the way to write all the same;
+  /// - the file cannot be looked at, or the path is a link that leads nowhere:
+  ///   [`ErrorKind::Io`].
+  ///
+  /// On an error nothing was written, and the document is as unsaved as it was.
   Future<void> save();
 
   /// Undoes the latest command and returns what that changed, or `None` if there is
