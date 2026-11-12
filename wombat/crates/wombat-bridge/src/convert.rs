@@ -14,8 +14,10 @@ use wombat_core::model::Extra;
 use wombat_core::{CellId, Clip, DocId};
 
 use crate::api::wire::{
-    BridgeError, CellInfo, CellKind, ClipData, Command, DrawStyle, EntryData, ErrorKind, GridInfo,
-    GridSize, HorizAlign, ImageRef, LinkTarget, Prop, Report, Rgb, Style, TableData, VertAlign,
+    BridgeError, CellInfo, CellKind, CellLook, ClipData, Command, CutText, DrawStyle, EntryData,
+    ErrorKind, GridInfo, GridPart, GridSize, GridSummary, HorizAlign, ImageRef, LinkInfo,
+    LinkTarget, Prop, Report, Rgb, RunInfo, StageAsk, StageInfo, Style, TableData, TrailStep,
+    VertAlign,
 };
 
 impl BridgeError {
@@ -962,5 +964,116 @@ pub(crate) fn grid_out(view: core::GridView) -> GridInfo {
         xs: view.xs,
         ys: view.ys,
         cells: view.cells.into_iter().map(cell_out).collect(),
+    }
+}
+
+/// The request of a stage read, each number checked against what the core takes.
+pub fn stage_ask_in(ask: StageAsk) -> In<core::StageAsk> {
+    Ok(core::StageAsk {
+        x0: unsigned(ask.x0)?,
+        y0: unsigned(ask.y0)?,
+        cols: unsigned(ask.cols)?,
+        rows: unsigned(ask.rows)?,
+        full_depth: unsigned(ask.full_depth)?,
+        full_cells: unsigned(ask.full_cells)?,
+        preview_cols: unsigned(ask.preview_cols)?,
+        preview_rows: unsigned(ask.preview_rows)?,
+        shape_cols: unsigned(ask.shape_cols)?,
+        shape_rows: unsigned(ask.shape_rows)?,
+        text_cut: unsigned(ask.text_cut)?,
+        preview_cut: unsigned(ask.preview_cut)?,
+    })
+}
+
+fn cut_out(text: core::CutText) -> CutText {
+    CutText {
+        text: text.text,
+        cut: text.cut,
+    }
+}
+
+/// One cell with all that is needed to draw it, to carry. What the core holds in the
+/// unknown fields of a run or a link is not carried: the core gives none here.
+pub fn look_out(look: core::CellLook) -> CellLook {
+    let (result, result_cut) = match look.result {
+        Some(result) => (Some(result.text), result.cut),
+        None => (None, false),
+    };
+    let run = |run: &core::Run| RunInfo {
+        start: run.start,
+        len: run.len,
+        style: run.style.into(),
+        color: run.color.map(Rgb::from),
+    };
+    let link = |link: &core::Link| LinkInfo {
+        start: link.start,
+        len: link.len,
+        target: target_out(&link.target),
+    };
+    CellLook {
+        id: look.id.to_string(),
+        text: look.text.text,
+        text_cut: look.text.cut,
+        kind: look.kind.into(),
+        result,
+        result_cut,
+        failed: look.failed,
+        cell_color: look.cell_color.into(),
+        text_color: look.text_color.into(),
+        is_tag: look.is_tag,
+        style: look.style.into(),
+        rel_size: look.rel_size,
+        text_align: look.text_align.into(),
+        vert_align: look.vert_align.into(),
+        runs: look.runs.iter().map(run).collect(),
+        links: look.links.iter().map(link).collect(),
+        image: look.image,
+        has_note: look.has_note,
+        has_grid: look.has_grid,
+        summary: look.summary,
+        full: look.full,
+    }
+}
+
+/// The stage and what is nested below it, to carry.
+pub fn stage_out(view: core::StageView) -> StageInfo {
+    let step = |step: core::TrailStep| TrailStep {
+        id: step.id.to_string(),
+        shown: cut_out(step.shown),
+        color: step.color.into(),
+    };
+    let grid = |grid: core::GridPart| GridPart {
+        owner: grid.owner.to_string(),
+        level: grid.level,
+        xs: grid.xs,
+        ys: grid.ys,
+        x0: grid.x0,
+        y0: grid.y0,
+        cols: grid.cols,
+        rows: grid.rows,
+        first: grid.first,
+        col_widths: grid.col_widths,
+        border_color: grid.border_color.into(),
+        outer_spacing: grid.outer_spacing,
+        vertical: grid.vertical,
+        draw_style: grid.draw_style.into(),
+    };
+    let summary = |summary: core::GridSummary| GridSummary {
+        owner: summary.owner.to_string(),
+        xs: summary.xs,
+        ys: summary.ys,
+        border_color: summary.border_color.into(),
+        preview_cols: summary.preview_cols,
+        preview_rows: summary.preview_rows,
+        preview: summary.preview.into_iter().map(cut_out).collect(),
+        shape_cols: summary.shape_cols,
+        shape_rows: summary.shape_rows,
+        shape: summary.shape,
+    };
+    StageInfo {
+        trail: view.trail.into_iter().map(step).collect(),
+        grids: view.grids.into_iter().map(grid).collect(),
+        cells: view.cells.into_iter().map(look_out).collect(),
+        summaries: view.summaries.into_iter().map(summary).collect(),
     }
 }

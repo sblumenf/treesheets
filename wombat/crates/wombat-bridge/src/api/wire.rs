@@ -897,3 +897,263 @@ pub struct GridInfo {
     /// The cells of the grid row by row; empty for a cell without a grid.
     pub cells: Vec<CellInfo>,
 }
+
+/// What an interface wants of the stage and of what is nested below it: the request of
+/// `OpenDocument::stage`.
+///
+/// Every number must be from 0 to 4294967295; any other is refused
+/// ([`ErrorKind::BadRequest`]), never cut. Within that any value is safe: a number larger
+/// than what the document has means "all of it", and zero means "none". The core's
+/// starting values for a phone are: the whole stage grid (`x0` 0, `y0` 0, `cols` and
+/// `rows` 4294967295), `full_depth` 1, `full_cells` 24, previews of 3 by 4 cells cut at 40
+/// code points, shapes of 12 by 20 cells, `text_cut` 2000.
+///
+/// A read is not a command and is never recorded, so this and the types of the answer
+/// have no JSON form.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct StageAsk {
+    /// The first column of the stage grid to give, counted from 0.
+    pub x0: i64,
+    /// The first row of the stage grid to give, counted from 0.
+    pub y0: i64,
+    /// How many columns of the stage grid to give, from `x0` on.
+    pub cols: i64,
+    /// How many rows of the stage grid to give, from `y0` on. The window (`x0`, `y0`,
+    /// `cols`, `rows`) is cut to the grid, and a window that lies outside the grid gives
+    /// no cells. Only the stage grid has a window; a nested grid is given whole or not at
+    /// all.
+    pub rows: i64,
+    /// How many levels of nested grids may be given cell by cell, counted from the stage
+    /// grid: 0 none, 1 the grids of the stage grid's cells, 2 also the grids of their
+    /// cells, and so on.
+    pub full_depth: i64,
+    /// A nested grid with more cells than this (columns times rows) is not given cell by
+    /// cell, and neither is anything inside it.
+    pub full_cells: i64,
+    /// The columns of the top-left block whose texts a summary gives.
+    pub preview_cols: i64,
+    /// The rows of that block.
+    pub preview_rows: i64,
+    /// The columns of the top-left block that a summary's shape covers.
+    pub shape_cols: i64,
+    /// The rows of that block.
+    pub shape_rows: i64,
+    /// The most code points of the text and of the result of a [`CellLook`].
+    pub text_cut: i64,
+    /// The most code points of a text in a summary's preview and in the trail.
+    pub preview_cut: i64,
+}
+
+/// A text that may have been cut short.
+///
+/// A text is only ever cut between two user-perceived characters (a letter with its
+/// accents, a flag, an emoji made of several), so what is left is the longest such
+/// beginning of the whole text that has at most the asked number of code points. It can
+/// be shorter than asked, and is empty if the first character alone is too long.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct CutText {
+    /// The beginning of the text that was kept; all of it if `cut` is false.
+    pub text: String,
+    /// Whether anything was left out.
+    pub cut: bool,
+}
+
+/// The stage and what is nested below it, in a flat form: no entry holds another, they
+/// name each other by their place in the lists. The order of everything is fully
+/// determined by the document and the request, so two answers can be compared entry by
+/// entry to find what to redraw.
+///
+/// Only Rust sends this and the types in it, so their numbers are as wide as the core's.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct StageInfo {
+    /// The cells from the root to the stage cell, the root first and the stage cell last.
+    /// Never empty; for the root it is the root alone.
+    pub trail: Vec<TrailStep>,
+    /// The grids given cell by cell. `grids[0]` is the stage cell's own grid (its window);
+    /// if the stage cell has no grid, `grids` is empty. After it come the nested grids
+    /// given whole, in the order in which the cells that own them appear in `cells`; so
+    /// all grids of one level come before any grid of the next.
+    pub grids: Vec<GridPart>,
+    /// The cells of all `grids`: those of `grids[0]` first, then those of `grids[1]`, and
+    /// so on, each grid's cells row by row. `GridPart.first` says where a grid's cells
+    /// start.
+    pub cells: Vec<CellLook>,
+    /// One for each cell in `cells` that has a grid, in the order of those cells, whether
+    /// or not that grid is also in `grids`.
+    pub summaries: Vec<GridSummary>,
+}
+
+/// One cell on the way from the root to the stage: what a title bar and a trail bar show.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct TrailStep {
+    /// The ID of the cell.
+    pub id: String,
+    /// What the cell shows (the result of a formula cell, the text of any other) on one
+    /// line: cut to `StageAsk.preview_cut`, and then every line break, and any other
+    /// character below U+0020, replaced by a space.
+    pub shown: CutText,
+    /// The background colour the cell is drawn in: its tag's if it is a tag (see
+    /// `CellLook.is_tag`), else its own.
+    pub color: Rgb,
+}
+
+/// A grid whose cells are in `StageInfo.cells`.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct GridPart {
+    /// The ID of the cell whose grid this is.
+    pub owner: String,
+    /// How far below the stage: 0 for the stage cell's grid, 1 for the grids of its cells,
+    /// and so on.
+    pub level: u32,
+    /// The columns of the whole grid.
+    pub xs: u32,
+    /// The rows of the whole grid.
+    pub ys: u32,
+    /// The first column given. For the stage grid this is `StageAsk.x0`, or `xs` if that
+    /// is past the end; for a nested grid 0.
+    pub x0: u32,
+    /// The first row given, likewise.
+    pub y0: u32,
+    /// How many columns are given: as many as asked for, or as there are from `x0` on, if
+    /// those are fewer; for a nested grid all `xs`.
+    pub cols: u32,
+    /// How many rows are given, likewise.
+    pub rows: u32,
+    /// Where the cells of this grid start in `StageInfo.cells`. `cols` times `rows` cells
+    /// follow, row by row: the cell in column `x0 + i` of row `y0 + j` is at
+    /// `first + j * cols + i`.
+    pub first: u32,
+    /// The width at which text wraps (TreeSheets' unit; the default is 80) for each column
+    /// that is given: `cols` entries, the first for column `x0`.
+    pub col_widths: Vec<u32>,
+    /// The colour of the grid's border.
+    pub border_color: Rgb,
+    /// The space around the grid.
+    pub outer_spacing: u32,
+    /// Whether the grid is below the owner's text (the default) instead of beside it.
+    pub vertical: bool,
+    /// How the owner wants its grid drawn.
+    pub draw_style: DrawStyle,
+}
+
+/// A range of a cell's text that is styled differently from the rest.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct RunInfo {
+    /// The position of the first character of the range, counted in Unicode code points
+    /// from 0, not in the UTF-16 units of a Dart string: turn it into an offset of the
+    /// string before building spans (count the code points of the string up to it).
+    pub start: u32,
+    /// The length of the range in code points, at least 1.
+    pub len: u32,
+    /// The complete style of the range (not a difference from the cell's).
+    pub style: Style,
+    /// The colour of the range, or `None` for the cell's text colour.
+    pub color: Option<Rgb>,
+}
+
+/// A range of a cell's text that is a link.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct LinkInfo {
+    /// The position of the first character of the range, counted in Unicode code points
+    /// from 0, not in the UTF-16 units of a Dart string.
+    pub start: u32,
+    /// The length of the range in code points, at least 1.
+    pub len: u32,
+    /// Where the link goes. A file may hold a link of a kind this core does not know: it
+    /// is given as `LinkTarget.unknown`.
+    pub target: LinkTarget,
+}
+
+/// One cell with all that is needed to draw it.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct CellLook {
+    /// The ID of the cell.
+    pub id: String,
+    /// The text, cut to `StageAsk.text_cut` as [`CutText`] says (from
+    /// `OpenDocument::cell` it is whole); for a formula cell, the formula. It may hold
+    /// line breaks (U+000A).
+    pub text: String,
+    /// Whether anything of the text was left out.
+    pub text_cut: bool,
+    /// What the cell is to the formula system.
+    pub kind: CellKind,
+    /// What a formula cell shows instead of its text, cut like the text; `None` for every
+    /// other kind.
+    pub result: Option<String>,
+    /// Whether anything of the result was left out.
+    pub result_cut: bool,
+    /// Whether `result` is an error value such as `#NAME?`.
+    pub failed: bool,
+    /// The background colour to draw: the tag's if the cell is a tag, else the cell's own.
+    pub cell_color: Rgb,
+    /// The colour of the text outside of coloured runs: the tag's if the cell is a tag,
+    /// else the cell's own.
+    pub text_color: Rgb,
+    /// Whether the cell is a tag: its whole text (not cut; for a formula cell, the
+    /// formula) is the name of a tag of the document. As in TreeSheets, a tag is drawn in
+    /// the tag's two colours and in no other: `cell_color` and `text_color` are then the
+    /// tag's, and no run has a colour.
+    pub is_tag: bool,
+    /// The base style of the text.
+    pub style: Style,
+    /// The text size relative to the default; as in TreeSheets, positive is smaller.
+    pub rel_size: i32,
+    /// Horizontal alignment.
+    pub text_align: HorizAlign,
+    /// Vertical alignment.
+    pub vert_align: VertAlign,
+    /// The ranges of `text` styled differently from `style`: sorted, not overlapping, and
+    /// inside the text as it is given here (a run that the cut goes through ends at the
+    /// cut; one beyond it is left out). Neighbours of the same style and colour are one
+    /// run, and no run equals `style` without a colour. Positions are in code points.
+    pub runs: Vec<RunInfo>,
+    /// The ranges of `text` that are links: sorted, not overlapping, and cut like the
+    /// runs. Positions are in code points.
+    pub links: Vec<LinkInfo>,
+    /// The file name of the cell's image in the document's image folder, if it has one.
+    pub image: Option<String>,
+    /// Whether the cell has a note.
+    pub has_note: bool,
+    /// Whether the cell has a grid.
+    pub has_grid: bool,
+    /// The place of the cell's entry in `StageInfo.summaries`: there is one exactly if
+    /// the cell has a grid. Always `None` from `OpenDocument::cell`.
+    pub summary: Option<u32>,
+    /// The place of the cell's grid in `StageInfo.grids`, if it is given cell by cell.
+    /// Always `None` from `OpenDocument::cell`.
+    pub full: Option<u32>,
+}
+
+/// A grid in reduced form: what a Preview, a Shape and a Badge are drawn from.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct GridSummary {
+    /// The ID of the cell whose grid this is.
+    pub owner: String,
+    /// The columns of the grid.
+    pub xs: u32,
+    /// The rows of the grid. `xs` times `ys` is the count a Badge shows: the cells of
+    /// this grid, without those further down.
+    pub ys: u32,
+    /// The colour of the grid's border.
+    pub border_color: Rgb,
+    /// The columns of the preview block: `StageAsk.preview_cols`, or `xs` if that is
+    /// fewer.
+    pub preview_cols: u32,
+    /// The rows of the preview block: `StageAsk.preview_rows`, or `ys` if that is fewer.
+    pub preview_rows: u32,
+    /// What the cells of the grid's top-left block of `preview_cols` by `preview_rows`
+    /// show, row by row (`preview_cols` times `preview_rows` entries), each on one line:
+    /// cut to `StageAsk.preview_cut`, and then every line break, and any other character
+    /// below U+0020, replaced by a space.
+    pub preview: Vec<CutText>,
+    /// The columns of the shape block: `StageAsk.shape_cols`, or `xs` if that is fewer.
+    pub shape_cols: u32,
+    /// The rows of the shape block: `StageAsk.shape_rows`, or `ys` if that is fewer.
+    pub shape_rows: u32,
+    /// The grid's top-left block of `shape_cols` by `shape_rows` cells, row by row, four
+    /// bytes a cell: the red, green and blue of the background colour the cell is drawn in
+    /// (its tag's if it is a tag), then how much it holds: 255 if it has a grid; else the
+    /// number of code points it shows, but at most 254; so 0 is a cell that shows nothing.
+    /// In Dart this is a `Uint8List`, one block of memory however large the shape.
+    pub shape: Vec<u8>,
+}
