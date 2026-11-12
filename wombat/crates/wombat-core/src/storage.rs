@@ -225,6 +225,10 @@ fn folder_of(path: &Path) -> &Path {
 /// make links and search ambiguous (decision A28). The images the document shows are copied
 /// to the image folder of `to`, and the view state on this device is copied for the new IDs.
 /// Returns the copy.
+///
+/// If any of this fails, the image files, the view state and the folders for them that
+/// were not there before the call are removed again. What was there is not removed (but an
+/// image file of the same name that was in the folder of `to` has been replaced by then).
 pub fn copy_document(from: &Path, to: &Path, ids: &mut dyn IdSource) -> Result<Document, Error> {
     // Also true for a link that leads nowhere, which `exists` would not see.
     if fs::symlink_metadata(to).is_ok() {
@@ -232,14 +236,40 @@ pub fn copy_document(from: &Path, to: &Path, ids: &mut dyn IdSource) -> Result<D
     }
     let original = load_document(from)?;
     let (copy, fresh) = original.with_fresh_ids(ids)?;
-    // The document goes last, so that a copy that is there is complete.
-    copy_images(&copy, from, to)?;
-    // View state is a convenience: a missing or damaged one is not copied.
-    if let Ok(Some(view)) = load_view_state(folder_of(from), original.id()) {
-        save_view_state(folder_of(to), &view.with_fresh_ids(&fresh))?;
+    // What the copy may make besides the document, and is not there yet: to be removed
+    // again if the copy fails, so that no images or view state stay without a document.
+    let absent = |path: &PathBuf| fs::symlink_metadata(path).is_err();
+    let mut files: Vec<PathBuf> = image_names(&copy)
+        .iter()
+        .filter_map(|name| image_path(to, name).ok())
+        .collect();
+    files.push(view_state_path(folder_of(to), copy.id()));
+    files.retain(absent);
+    let mut folders = vec![images_dir(to), folder_of(to).join(VIEW_DIR)];
+    folders.retain(absent);
+    let done = (|| {
+        // The document goes last, so that a copy that is there is complete.
+        copy_images(&copy, from, to)?;
+        // View state is a convenience: a missing or damaged one is not copied.
+        if let Ok(Some(view)) = load_view_state(folder_of(from), original.id()) {
+            save_view_state(folder_of(to), &view.with_fresh_ids(&fresh))?;
+        }
+        save_document(&copy, to)
+    })();
+    match done {
+        Ok(()) => Ok(copy),
+        Err(error) => {
+            // Best effort: the error to report is the one from copying. A folder that has
+            // got something else in it meanwhile stays, since only an empty one is removed.
+            for file in &files {
+                let _ = fs::remove_file(file);
+            }
+            for folder in &folders {
+                let _ = fs::remove_dir(folder);
+            }
+            Err(error)
+        }
     }
-    save_document(&copy, to)?;
-    Ok(copy)
 }
 
 /// Loads a document from a `.wombat` file.
