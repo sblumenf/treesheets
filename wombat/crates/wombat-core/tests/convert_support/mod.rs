@@ -27,7 +27,7 @@ pub struct Spec {
 }
 
 /// Texts that are awkward somewhere: delimiters, quotes, what a spreadsheet would run,
-/// spaces at the ends, scripts beyond ASCII, a character outside the BMP.
+/// spaces at the ends, line breaks, scripts beyond ASCII, a character outside the BMP.
 pub const AWKWARD: &[&str] = &[
     "",
     "a",
@@ -56,6 +56,13 @@ pub const AWKWARD: &[&str] = &[
     "e\u{301}",
     "row_id",
     "A_id",
+    "two\nlines",
+    "\n",
+    "\nlead",
+    "trail\n",
+    "a\n\nb",
+    "\n=1+1",
+    "say \"hi\",\nand; go",
 ];
 
 /// Any text a cell may have, the awkward ones often.
@@ -63,10 +70,8 @@ pub fn cell_text() -> impl Strategy<Value = String> {
     prop_oneof![
         3 => proptest::sample::select(AWKWARD).prop_map(String::from),
         1 => "[ -~é日\u{1F600}]{0,8}",
-        // Without line breaks until the conversions say what they do with them.
-        1 => vec(any::<char>(), 0..6).prop_map(|c| {
-            wombat_core::text::clean(&c.into_iter().collect::<String>()).replace('\n', " ")
-        }),
+        1 => vec(any::<char>(), 0..6)
+            .prop_map(|c| wombat_core::text::clean(&c.into_iter().collect::<String>())),
     ]
 }
 

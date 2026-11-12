@@ -237,6 +237,14 @@ pub fn error_cells(source: Source, cell: CellId, nested: bool) -> usize {
 /// an image has one space after its text. Lines end in CR LF with `crlf`, as TreeSheets
 /// writes them on Linux and Windows, and in LF without, as it does on macOS.
 ///
+/// A line break inside a text is written as a space, which TreeSheets never has to do (its
+/// cells have none). The format is a line per cell with nothing to quote or escape, so a
+/// break written as it is would read back, here and in TreeSheets, as a second cell,
+/// nested by whatever spaces the next line of the text starts with. A space loses the
+/// break and keeps the outline: as many cells, nested as they were. (An escape such as
+/// `\n` would keep it for Wombat alone and put two stray characters into every other
+/// reader's cell.) The delimited exports keep line breaks.
+///
 /// With `own_line` the text starts with the line of `cell` itself, not indented, and its
 /// grid follows at two spaces: what File > Export > Indented text writes for the whole
 /// document. Without, it is what TreeSheets' script function `ts.get_subtree_text` gives:
@@ -245,7 +253,7 @@ pub fn error_cells(source: Source, cell: CellId, nested: bool) -> usize {
 pub fn outline(source: Source, cell: CellId, own_line: bool, crlf: bool) -> Result<String, Error> {
     let top = cell_of(source.doc, cell)?;
     if !own_line && top.grid().is_none() {
-        return Ok(source.text(cell, false).to_string());
+        return Ok(source.text(cell, false).replace('\n', " "));
     }
     let mut out = String::new();
     // Each cell still to write, with its indentation; the last is next.
@@ -260,7 +268,12 @@ pub fn outline(source: Source, cell: CellId, own_line: bool, crlf: bool) -> Resu
             continue;
         };
         out.extend(std::iter::repeat_n(' ', indent));
-        out.push_str(source.text(id, false));
+        out.extend(
+            source
+                .text(id, false)
+                .chars()
+                .map(|c| if c == '\n' { ' ' } else { c }),
+        );
         if c.image.is_some() {
             out.push(' ');
         }

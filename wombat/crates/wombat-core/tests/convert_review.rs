@@ -394,7 +394,7 @@ proptest! {
             prop_assert!(is_risky(&text));
         }
         // What starts with none of the characters is never touched.
-        if !text.starts_with(['=', '+', '-', '@', '\t', '\r', '\'', '\u{ff1d}', '\u{ff0b}', '\u{ff0d}', '\u{ff20}']) {
+        if !text.starts_with(['=', '+', '-', '@', '\t', '\r', '\n', '\'', '\u{ff1d}', '\u{ff0b}', '\u{ff0d}', '\u{ff20}']) {
             prop_assert_eq!(guarded.as_ref(), text.as_str());
         }
         prop_assert_eq!(unguard(&guarded).unwrap_or(&guarded), text.as_str());

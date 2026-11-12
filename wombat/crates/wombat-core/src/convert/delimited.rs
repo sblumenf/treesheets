@@ -54,7 +54,9 @@ fn could_act(text: &str) -> bool {
 /// something ("CSV injection"; decision A114 has the reasons and a table of examples).
 /// The rule goes by the first character, a full-width form counting as the plain one:
 ///
-/// - **a tab or a carriage return:** always.
+/// - **a tab, a carriage return or a line feed:** always. (Cell text has no tab and no
+///   carriage return, but it may start with a line break. Whether any spreadsheet runs
+///   what follows one was not tried; lists of what to guard name all three.)
 /// - **`=`:** always, except the text `=` alone.
 /// - **`+` or `-`:** unless the text is one of these shapes, which nothing can run:
 ///   only signs, dashes and spaces (`-`, `--`, `+`, `- -`); a sign followed by digits,
@@ -73,7 +75,7 @@ pub fn is_risky(text: &str) -> bool {
     };
     let rest = chars.as_str();
     match first {
-        '\t' | '\r' => true,
+        '\t' | '\r' | '\n' => true,
         '=' | '\u{ff1d}' => !rest.is_empty(),
         '@' | '\u{ff20}' => could_act(rest),
         '+' | '-' => {
@@ -240,11 +242,14 @@ pub struct ParseLimits {
 ///
 /// - Rows end at CR LF, LF or CR. Empty lines are no rows, as in TreeSheets.
 /// - A field that starts with a double quote runs to the closing quote; `""` inside is
-///   one quote; delimiters inside are text. Line breaks inside become one space (a run of
-///   them, one space), as in TreeSheets: cell text has no line breaks.
+///   one quote; delimiters inside are text. Line breaks inside are text too: each CR LF,
+///   CR or LF is given as one LF, so that a cell of several lines that was exported comes
+///   back as it was. (TreeSheets, whose cells have no line breaks, makes one space of a
+///   run of them.)
 /// - Text between a closing quote and the next delimiter is kept as part of the field.
 ///   (TreeSheets drops the one character after the closing quote, whatever it is.)
-/// - A quote that is not closed runs to the end of the file, as in TreeSheets.
+/// - A quote that is not closed runs to the end of the file, as in TreeSheets; the line
+///   ends that the file ends with are then not part of the field.
 /// - A quote inside a field that did not start with one is an ordinary character.
 /// - A delimiter at the end of a row is followed by an empty field, as RFC 4180 says.
 ///   (TreeSheets drops that field; here a table whose last column is empty comes back
@@ -293,14 +298,22 @@ pub fn parse(
                                 break;
                             }
                         }
-                        Some('\r' | '\n') => {
-                            while matches!(chars.peek(), Some('\r' | '\n')) {
-                                chars.next();
+                        Some(c @ ('\r' | '\n')) => {
+                            // The run of line breaks from here on: CR LF is one.
+                            let mut breaks = 1usize;
+                            let mut after_cr = c == '\r';
+                            while let Some(next) = chars.next_if(|n| matches!(n, '\r' | '\n')) {
+                                if !(after_cr && next == '\n') {
+                                    breaks = breaks.saturating_add(1);
+                                }
+                                after_cr = next == '\r';
                             }
                             // The line breaks that end the file inside a quote that was
                             // never closed are the end of the last line, not text.
                             if chars.peek().is_some() {
-                                push(&mut field, &mut length, ' ')?;
+                                for _ in 0..breaks {
+                                    push(&mut field, &mut length, '\n')?;
+                                }
                             }
                         }
                         Some(c) => push(&mut field, &mut length, c)?,

@@ -377,6 +377,9 @@ fn text_that_a_spreadsheet_would_run_gets_a_quote_in_front_and_numbers_do_not() 
         "-.",
         "\tx",
         "\rx",
+        "\nx",
+        "\n=1+1",
+        "\n",
         "-٣",
     ] {
         assert!(is_risky(risky), "{risky:?}");
@@ -384,7 +387,7 @@ fn text_that_a_spreadsheet_would_run_gets_a_quote_in_front_and_numbers_do_not() 
     }
     for safe in [
         "", "a", "1+1", "a=b", "-5", "+5", "-2.5", "-2,5", "-.5", "+1e10", "-1.5E-3", " =1+1",
-        "1-2", "-", "+", "=", "--5", "-5-", "-1.2.3", "-5 ", "- 5", "'x", "'",
+        "1-2", "-", "+", "=", "--5", "-5-", "-1.2.3", "-5 ", "- 5", "'x", "'", "a\n=1+1", "x\n",
     ] {
         assert!(!is_risky(safe), "{safe:?}");
         assert_eq!(guard(safe), safe);
@@ -551,6 +554,89 @@ fn indented_text_is_one_line_per_cell_two_spaces_per_level() {
         .unwrap();
     assert_eq!(outline(s, apple, false, false).unwrap(), "Apple");
     assert_eq!(outline(s, apple, true, false).unwrap(), "Apple\n");
+}
+
+#[test]
+fn indented_text_has_a_space_where_a_text_has_a_line_break() {
+    // A line is a cell there, and nothing can be quoted: a break written as it is would
+    // read back as two cells, the second one nested by whatever spaces it starts with.
+    let spec = grid(
+        "top\nof it",
+        1,
+        vec![
+            grid("Fruit\n", 1, vec![cell("Red\n\napple"), cell("\n")]),
+            formula("='two\nlines'"),
+        ],
+    );
+    let doc = build(&spec, 1);
+    let calc = Calc::new(&doc);
+    let s = source(&doc, &calc);
+    assert_eq!(
+        outline(s, doc.root(), true, false).unwrap(),
+        "top of it\n  Fruit \n    Red  apple\n     \n  two lines\n"
+    );
+    let text = outline(s, doc.root(), false, true).unwrap();
+    assert_eq!(
+        text,
+        "  Fruit \r\n    Red  apple\r\n     \r\n  two lines\r\n"
+    );
+    // The same outline comes back: as many cells, nested as they were.
+    let back = parse_outline(&text, MAX_DEPTH, false).unwrap();
+    assert_eq!((back.xs(), back.ys(), back.cell_count()), (1, 2, 4));
+    assert_eq!(back.cells()[0].text(), "Fruit ");
+    assert_eq!(
+        back.cells()[0].grid().unwrap().cells()[0].text(),
+        "Red  apple"
+    );
+    // A cell without a grid, alone: one line too.
+    let fruit = doc.child(doc.root(), 0, 0).unwrap();
+    let apple = doc.child(fruit, 0, 0).unwrap();
+    assert_eq!(outline(s, apple, false, false).unwrap(), "Red  apple");
+}
+
+#[test]
+fn a_table_with_line_breaks_comes_back_from_delimited_text_as_it_was() {
+    let texts = [
+        "two\nlines",
+        "\n",
+        "\nlead",
+        "trail\n",
+        "a\n\n\nb",
+        "\n=1+1",
+        "say \"hi\",\nand; go",
+        "",
+    ];
+    let doc = build(&grid("", 2, texts.map(cell).to_vec()), 1);
+    let calc = Calc::new(&doc);
+    for delimiter in [Delimiter::Comma, Delimiter::Semicolon, Delimiter::Tab] {
+        for quoting in [Quoting::Minimal, Quoting::Narrow, Quoting::All] {
+            for (crlf, guard) in [(false, false), (true, false), (false, true), (true, true)] {
+                let options = ExportOptions {
+                    delimiter,
+                    quoting,
+                    crlf,
+                    guard,
+                    ..ExportOptions::default()
+                };
+                let text = grid_csv(source(&doc, &calc), doc.root(), &options).unwrap();
+                let mut table = parse_table(&decoded(text.as_bytes()), delimiter, false).unwrap();
+                if guard {
+                    // The break at the start got the quote in front: in the file no field
+                    // starts with one.
+                    let fields = strict_csv(&text, delimiter.as_char(), crlf).concat();
+                    assert!(fields.contains(&"'\n=1+1".to_string()), "{text:?}");
+                    assert!(!fields.iter().any(|f| f.starts_with('\n')), "{text:?}");
+                    table = table.unguarded(false);
+                }
+                assert_eq!(rows(&table).concat(), texts, "{options:?}");
+            }
+        }
+    }
+    // Written by hand: the file a spreadsheet makes of a cell of two lines.
+    assert_eq!(
+        grid_csv(source(&doc, &calc), doc.root(), &plain()).unwrap(),
+        "\"two\nlines\",\"\n\"\n\"\nlead\",\"trail\n\"\n\"a\n\n\nb\",\"\n=1+1\"\n\"say \"\"hi\"\",\nand; go\",\n"
+    );
 }
 
 #[test]
@@ -1035,6 +1121,11 @@ fn hostile_texts_give_harmless_file_names() {
     ));
     for (labels, expected) in [
         (vec!["../../etc/passwd"], "etc-passwd-12345678"),
+        // A line break in a label is one more character that is no letter.
+        (
+            vec!["two\nlines", "\n", "last\n"],
+            "two-lines-last-12345678",
+        ),
         (vec!["/absolute/path"], "absolute-path-12345678"),
         (vec!["C:\\Windows\\System32"], "C-Windows-System32-12345678"),
         (vec!["CON"], "CON-12345678"),
@@ -1093,9 +1184,16 @@ fn delimited_text_is_read_as_rfc_4180_says() {
         [
             ["name", "quote", "empty"],
             ["a,b", "say \"hi\"", ""],
-            ["two lines", "", "last"]
+            ["two\nlines", "", "last"]
         ]
     );
+    // A line break inside quotes is text, and each is one line feed however it is written.
+    let table = parse_table(
+        "\"a\rb\",\"c\n\nd\",\"e\r\n\r\nf\r\"",
+        Delimiter::Comma,
+        false,
+    );
+    assert_eq!(rows(&table.unwrap()), [["a\nb", "c\n\nd", "e\n\nf\n"]]);
     // Short rows are padded to a rectangle; empty lines are no rows; CR alone ends a line.
     let table = parse_table("a\r\rb,c,d\n\n\ne,f", Delimiter::Comma, false).unwrap();
     assert_eq!(
@@ -1123,7 +1221,11 @@ fn what_is_not_valid_csv_is_read_without_complaint() {
     // Text after a closing quote stays with the field.
     assert_eq!(read("\"abc\"x,def"), [["abcx", "def"]]);
     // A quote that is not closed runs to the end.
-    assert_eq!(read("a,\"bc\nd,e\n"), [["a", "bc d,e"]]);
+    assert_eq!(read("a,\"bc\nd,e\n"), [["a", "bc\nd,e"]]);
+    // The line ends that end the file inside it are the end of the last line, not text.
+    assert_eq!(read("a,\"bc\r\n\n\r"), [["a", "bc"]]);
+    assert_eq!(read("a,\"bc\n\nd\n\n"), [["a", "bc\n\nd"]]);
+    assert_eq!(read("a,\"\n"), [["a", ""]]);
     // A delimiter at the end of a line is followed by an empty field.
     assert_eq!(read("a,b,\nc,d,"), [["a", "b", ""], ["c", "d", ""]]);
     // Spaces are part of the field.
@@ -1611,15 +1713,12 @@ fn lines_of(doc: &Document, id: CellId) -> (usize, usize) {
     (place % g.xs() as usize, place / g.xs() as usize)
 }
 
-/// What the importer makes of a field that the strict reader read: line breaks (only notes
-/// have them) become spaces, as every control character.
+/// What the importer makes of a field that the strict reader read: what a cell can hold.
+/// Line breaks stay, each as one line feed (a note may have had CR LF or a lone CR), and
+/// every other control character of a note becomes a space.
 fn as_imported(rows: Vec<Vec<String>>) -> Vec<Vec<String>> {
     rows.into_iter()
-        .map(|row| {
-            row.iter()
-                .map(|f| wombat_core::text::clean(f).replace('\n', " "))
-                .collect()
-        })
+        .map(|row| row.iter().map(|f| wombat_core::text::clean(f)).collect())
         .collect()
 }
 
@@ -1771,20 +1870,29 @@ proptest! {
     }
 
     /// Indented text comes back as the same tree where the format can say it: grids of
-    /// one column, and no text that starts with a space (which would read as indentation).
+    /// one column, and no text that starts with a space (which would read as indentation)
+    /// or has a line break (which is written as a space). Whatever the texts, it has one
+    /// line per cell and reads back as that many cells.
     #[test]
     fn an_outline_comes_back_from_indented_text(spec in spec(1), crlf in any::<bool>()) {
         let doc = build(&spec, 3);
         let calc = Calc::new(&doc);
         let whole = tree(&doc, &calc, doc.root(), false);
         fn sayable(tree: &Tree) -> bool {
-            !tree.text.starts_with([' ', '\t'])
+            !tree.text.starts_with([' ', '\t', '\n'])
                 && tree.grid.iter().flat_map(|(_, cells)| cells).all(sayable)
         }
         let text = outline(source(&doc, &calc), doc.root(), false, crlf).unwrap();
         let table = parse_outline(&text, MAX_DEPTH, false).unwrap();
+        fn spaced(tree: &Tree) -> Tree {
+            Tree {
+                text: tree.text.replace('\n', " "),
+                grid: tree.grid.as_ref().map(|(xs, cells)| (*xs, cells.iter().map(spaced).collect())),
+                ..tree.clone()
+            }
+        }
         if whole.grid.iter().flat_map(|(_, cells)| cells).all(sayable) {
-            prop_assert_eq!(Some(table_tree(&table)), texts(&whole).grid);
+            prop_assert_eq!(Some(table_tree(&table)), spaced(&texts(&whole)).grid);
         }
         prop_assert_eq!(text.lines().count(), doc.cell_count() - 1);
         prop_assert_eq!(table.cell_count(), doc.cell_count() - 1);
