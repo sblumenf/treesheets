@@ -1247,8 +1247,9 @@ are where milestones 4, 5 and 6, built apart, meet).
     Dart needs it, and `flutter_rust_bridge` writes that code (`crates/wombat-bridge/src/
     frb_generated.rs`). So that crate cannot take the workspace's lints, which forbid `unsafe`:
     it writes the same lints out with `unsafe_code` denied instead of forbidden, and lets off
-    only the module `frb_generated`, in `lib.rs`. The generated file also trips `unwrap_used`
-    and `missing_docs`, let off in the same place. Everything written by hand in the crate is
+    only the module `frb_generated`, in `lib.rs`. The generated file also trips
+    `clippy::unwrap_used`, let off in the same place, and no other lint: the list there is
+    those two, each checked to be needed. Everything written by hand in the crate is
     under the same rules as the rest of Wombat. Both generated sides (that file and
     `app/lib/src/rust/`) are committed, so that the three checks pass without the generator.
 123. **The serialised form of commands and reports is a set of mirror types in the bridge crate

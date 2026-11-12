@@ -21,12 +21,5 @@ pub mod api;
 pub mod convert;
 pub mod record;
 
-#[allow(
-    unsafe_code,
-    missing_docs,
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::indexing_slicing
-)]
+#[allow(unsafe_code, clippy::unwrap_used)]
 mod frb_generated;
