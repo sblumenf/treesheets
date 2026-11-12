@@ -758,6 +758,131 @@ fn replace_number(value: &mut Value, which: &mut usize, number: i64) -> bool {
     }
 }
 
+/// The JSON form is strict (decision A136): a command says everything, and nothing else.
+/// A field that may be none is written `null`; leaving it out is not a way to say none.
+#[test]
+fn json_that_leaves_a_field_out_or_adds_one_is_refused() {
+    let id = "00000000-0000-0000-0000-000000000001";
+    let read = |text: &str| command_from_json(&text.replace("ID", id));
+    let cell = CellId(Id::from_u128(1));
+
+    // `null` is none; no field is nothing.
+    let color = read(r#"{"SetRangeColor": {"cell": "ID", "start": 0, "len": 1, "color": null}}"#);
+    let expected = Command::SetRangeColor {
+        cell,
+        start: 0,
+        len: 1,
+        color: None,
+    };
+    assert_eq!(color.unwrap(), expected);
+    let message = bad_request(read(
+        r#"{"SetRangeColor": {"cell": "ID", "start": 0, "len": 1}}"#,
+    ));
+    assert!(message.contains("missing field `color`"), "{message}");
+    read(r#"{"SetLink": {"cell": "ID", "start": 0, "len": 1, "target": null}}"#).unwrap();
+    bad_request(read(r#"{"SetLink": {"cell": "ID", "start": 0, "len": 1}}"#));
+    read(r#"{"RetargetLinks": {"cells": [], "from": null, "to": "ID"}}"#).unwrap();
+    bad_request(read(r#"{"RetargetLinks": {"cells": [], "to": "ID"}}"#));
+    bad_request(read(r#"{"RetargetLinks": {"cells": [], "from": "ID"}}"#));
+    let link = |target: &str| {
+        let text = r#"{"SetLink": {"cell": "ID", "start": 0, "len": 1, "target": TARGET}}"#;
+        read(&text.replace("TARGET", target))
+    };
+    link(r#"{"Cell": {"doc": null, "cell": "ID"}}"#).unwrap();
+    bad_request(link(r#"{"Cell": {"cell": "ID"}}"#));
+    let entry = |entry: &str| {
+        let text = r#"{"Import": {"cell": "ID", "replace": false,
+            "table": {"xs": 1, "cells": [ENTRY]}}}"#;
+        read(&text.replace("ENTRY", entry))
+    };
+    entry(r#"{"text": "x", "formula": false, "grid": null}"#).unwrap();
+    bad_request(entry(r#"{"text": "x", "formula": false}"#));
+    let props = |prop: &str| {
+        read(&format!(
+            r#"{{"SetProps": {{"cells": [], "props": [{prop}]}}}}"#
+        ))
+    };
+    props(r#"{"Image": null}"#).unwrap();
+    props(r#"{"LastEdit": null}"#).unwrap();
+    bad_request(props(r#""Image""#));
+    bad_request(props(r#""LastEdit""#));
+    let paste = |clip: &str| {
+        read(&format!(
+            r#"{{"PasteCells": {{"to": "ID", "clip": {clip}}}}}"#
+        ))
+    };
+    let doc = Document::new(&mut SeededIds::from_u64(8));
+    let carried = clip_out(&Clip::of(&doc, doc.root()).unwrap()).unwrap();
+    let document = serde_json::to_string(&carried.document).unwrap();
+    paste(&format!(r#"{{"parent": null, "document": {document}}}"#)).unwrap();
+    bad_request(paste(&format!(r#"{{"document": {document}}}"#)));
+    // The field of a clip that is no more (decision A132) is as unknown as any.
+    bad_request(paste(&format!(
+        r#"{{"source": "ID", "parent": null, "document": {document}}}"#
+    )));
+
+    // A field that the command does not have: a misspelt one, most likely.
+    read(r#"{"SetText": {"cell": "ID", "text": "a"}}"#).unwrap();
+    let message = bad_request(read(
+        r#"{"SetText": {"cell": "ID", "text": "a", "txet": "b"}}"#,
+    ));
+    assert!(message.contains("unknown field `txet`"), "{message}");
+    bad_request(read(
+        r#"{"SetText": {"cell": "ID", "text": "a", "text": "b"}}"#,
+    ));
+    bad_request(read(
+        r#"{"SetText": {"cell": "ID", "text": "a"}, "Run": null}"#,
+    ));
+    bad_request(props(r#"{"CellColor": {"r": 1, "g": 2, "b": 3, "a": 4}}"#));
+    bad_request(link(r#"{"External": {"target": "x:y", "title": "t"}}"#));
+    bad_request(entry(
+        r#"{"text": "x", "formula": false, "grid": null, "note": ""}"#,
+    ));
+
+    // A command without fields is its name. `{"Run": null}` says the same and is read
+    // too: that is how `serde` reads any variant without fields, and nothing is lost or
+    // guessed by it. Anything else in that place is refused.
+    assert_eq!(read(r#""Run""#).unwrap(), Command::Run);
+    assert_eq!(read(r#"{"Run": null}"#).unwrap(), Command::Run);
+    bad_request(read(r#"{"Run": {}}"#));
+    bad_request(read(r#"{"Run": 0}"#));
+    bad_request(read(r#"{"Run": []}"#));
+    bad_request(read(r#"["Run"]"#));
+
+    // A report and an error are as strict.
+    let full = r#"{"changed": [], "created": [], "removed": [], "grids": [], "tags": [],
+        "recalculated": []}"#;
+    assert_eq!(report_from_json(full).unwrap(), Report::default());
+    bad_request(report_from_json(&full.replace(r#""tags": [],"#, "")));
+    bad_request(report_from_json(&full.replace('{', r#"{"moved": [],"#)));
+    let error = |text: &str| serde_json::from_str::<BridgeError>(text);
+    error(r#"{"kind": "Io", "message": "m", "path": null}"#).unwrap();
+    error(r#"{"kind": "Io", "message": "m"}"#).unwrap_err();
+    error(r#"{"kind": "Io", "message": "m", "path": null, "code": 2}"#).unwrap_err();
+}
+
+/// Takes field `which` out of the JSON objects of a command, counting through all of
+/// them in the order of the text, or with `add` puts a field in that no object has;
+/// says whether there was such an object.
+fn tamper(value: &mut Value, which: &mut usize, add: bool) -> bool {
+    match value {
+        Value::Array(items) => items.iter_mut().any(|item| tamper(item, which, add)),
+        Value::Object(map) => {
+            if *which < map.len() {
+                if add {
+                    map.insert("zz".into(), Value::Null);
+                } else if let Some(key) = map.keys().nth(*which).cloned() {
+                    map.remove(&key);
+                }
+                return true;
+            }
+            *which -= map.len();
+            map.values_mut().any(|item| tamper(item, which, add))
+        }
+        _ => false,
+    }
+}
+
 #[test]
 fn a_clip_that_was_tampered_with_is_refused() {
     let mut ids = SeededIds::from_u64(3);
@@ -858,6 +983,18 @@ proptest! {
             let error = command_in(carried).unwrap_err();
             prop_assert_eq!(error.kind, ErrorKind::BadRequest);
             prop_assert!(error.message.contains(&number.to_string()));
+        }
+    }
+
+    /// No field of any command can be left out of its JSON, and none can be added.
+    #[test]
+    fn every_field_of_a_command_is_needed_and_no_other_is_read(
+        command in command(), which in 0..24usize, add: bool
+    ) {
+        let mut value = serde_json::to_value(command_out(&command).unwrap()).unwrap();
+        if tamper(&mut value, &mut which.clone(), add) {
+            let error = command_from_json(&value.to_string()).unwrap_err();
+            prop_assert_eq!(error.kind, ErrorKind::BadRequest, "{}", value);
         }
     }
 

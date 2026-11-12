@@ -9,14 +9,23 @@
 //! One command of the core is one variant here with the same name and fields; see the
 //! core for what each does.
 //!
+//! As JSON the form is strict (decision A136): an object must have every field of its
+//! type and no other. A field that may be none is written `null`; leaving it out is an
+//! error, so that a misspelt or forgotten field is never read as "none". The attributes
+//! for this (`deny_unknown_fields`, `present`) concern JSON only: between Dart and Rust
+//! the generated code writes every field in order, and has no names to get wrong.
+//!
 //! Whole numbers that Dart sends are 64 bits wide here, as they are in Dart, though the
 //! core takes fewer: a narrower number would lose its high bits on the way without
 //! anyone being told (decision A134). `convert.rs` refuses what is out of range.
 
 use serde::{Deserialize, Serialize};
 
+use crate::record::present;
+
 /// A colour: red, green and blue, each from 0 to 255. Any other number is refused.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Rgb {
     /// Red.
     pub r: i64,
@@ -28,6 +37,7 @@ pub struct Rgb {
 
 /// Text style switches.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Style {
     /// Bold.
     pub bold: bool,
@@ -43,6 +53,7 @@ pub struct Style {
 
 /// What a cell is to the formula system.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum CellKind {
     /// Plain data.
     Data,
@@ -62,6 +73,7 @@ pub enum CellKind {
 
 /// How the grid of a cell is drawn.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum DrawStyle {
     /// A grid with borders.
     Grid,
@@ -73,6 +85,7 @@ pub enum DrawStyle {
 
 /// Horizontal alignment of a cell's content.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum HorizAlign {
     /// Right for right-to-left text, left otherwise.
     Auto,
@@ -86,6 +99,7 @@ pub enum HorizAlign {
 
 /// Vertical alignment of a cell's content.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum VertAlign {
     /// Decided by the draw style.
     Auto,
@@ -99,6 +113,7 @@ pub enum VertAlign {
 
 /// A reference to an image file kept beside the document.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ImageRef {
     /// The file name inside the document's image folder.
     pub file: String,
@@ -110,6 +125,7 @@ pub struct ImageRef {
 
 /// What a link points at.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum LinkTarget {
     /// A URL with a scheme, or else a file path.
     External {
@@ -120,6 +136,7 @@ pub enum LinkTarget {
     Cell {
         /// The ID of the document the cell is in, or `None` for the document that holds
         /// the link.
+        #[serde(deserialize_with = "present")]
         doc: Option<String>,
         /// The ID of the cell.
         cell: String,
@@ -130,6 +147,7 @@ pub enum LinkTarget {
 
 /// A property of a cell with a new value, for [`Command::SetProps`].
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum Prop {
     /// The background colour.
     CellColor(Rgb),
@@ -167,9 +185,11 @@ pub enum Prop {
 /// is the top cell, which the core reads and checks like any file. The ID of that document
 /// is the ID of the document the cells came from; it is said nowhere else.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ClipData {
     /// The ID of the cell whose grid the top cell was in, or `None` if it was the root.
     /// It is not one of the cells carried.
+    #[serde(deserialize_with = "present")]
     pub parent: Option<String>,
     /// The cells, as the text of a document that has the ID of the document they came
     /// from.
@@ -178,6 +198,7 @@ pub struct ClipData {
 
 /// The size of the grid inside one cell of a [`TableData`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GridSize {
     /// The number of columns, at least 1.
     pub xs: i64,
@@ -188,6 +209,7 @@ pub struct GridSize {
 
 /// One cell of a [`TableData`].
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EntryData {
     /// The text. Characters that cell text cannot hold become spaces.
     pub text: String,
@@ -195,6 +217,7 @@ pub struct EntryData {
     pub formula: bool,
     /// The size of the grid inside, or `None` for a cell without one. The cells of that
     /// grid are the next `cells` cells of the list that are not inside one of them.
+    #[serde(deserialize_with = "present")]
     pub grid: Option<GridSize>,
 }
 
@@ -208,6 +231,7 @@ pub struct EntryData {
 /// that handles it calls itself (decision A135). A list where a grid says it has more
 /// cells than follow is refused, and so is a table nested deeper than a document may be.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TableData {
     /// The number of columns of the outermost grid, from 1 to 4294967295.
     pub xs: i64,
@@ -223,6 +247,7 @@ pub struct TableData {
 /// each `delta`, which is from -2147483648 to 2147483647. A number outside its range is
 /// refused with [`ErrorKind::BadRequest`]; it is never cut to fit.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum Command {
     /// Inserts text at a position.
     InsertText {
@@ -282,6 +307,7 @@ pub enum Command {
         /// How many code points.
         len: i64,
         /// The colour.
+        #[serde(deserialize_with = "present")]
         color: Option<Rgb>,
     },
     /// Makes a range of text a link, or with `None` removes the links from it.
@@ -293,6 +319,7 @@ pub enum Command {
         /// How many code points.
         len: i64,
         /// Where the link goes.
+        #[serde(deserialize_with = "present")]
         target: Option<LinkTarget>,
     },
     /// Sets properties of one or more cells, as one undo unit.
@@ -593,8 +620,10 @@ pub enum Command {
         /// The cells that the links point at.
         cells: Vec<String>,
         /// The ID of the document that the links to correct name.
+        #[serde(deserialize_with = "present")]
         from: Option<String>,
         /// The ID of the document that they are to name.
+        #[serde(deserialize_with = "present")]
         to: Option<String>,
     },
 }
@@ -603,6 +632,7 @@ pub enum Command {
 /// formula cells that show something else now. Everything not listed is exactly as it
 /// was. All are IDs of cells, but `tags`.
 #[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Report {
     /// Cells whose own content changed: text, runs, links, any property.
     pub changed: Vec<String>,
@@ -620,6 +650,7 @@ pub struct Report {
 
 /// What went wrong, for an interface to tell apart without reading the message.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum ErrorKind {
     /// A file could not be read or written.
     Io,
@@ -651,17 +682,20 @@ pub enum ErrorKind {
 
 /// An error, as a value an interface can show.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BridgeError {
     /// What went wrong.
     pub kind: ErrorKind,
     /// The whole story in English, as the core tells it.
     pub message: String,
     /// The file concerned, if it is about one.
+    #[serde(deserialize_with = "present")]
     pub path: Option<String>,
 }
 
 /// One cell as an interface lists it.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CellInfo {
     /// The ID of the cell.
     pub id: String,
@@ -670,6 +704,7 @@ pub struct CellInfo {
     /// What the cell is to the formula system.
     pub kind: CellKind,
     /// What a formula cell shows instead of its text; `None` for every other kind.
+    #[serde(deserialize_with = "present")]
     pub result: Option<String>,
     /// Whether `result` is an error value such as `#NAME?`.
     pub failed: bool,
@@ -679,6 +714,7 @@ pub struct CellInfo {
 
 /// A cell and the cells of its grid.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GridInfo {
     /// The cell itself.
     pub cell: CellInfo,

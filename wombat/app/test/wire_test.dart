@@ -117,4 +117,34 @@ void main() {
     expect(inner.cells.map((cell) => cell.text), ['c', 'd']);
     expect((inner.xs, inner.ys), (2, 1));
   });
+
+  // The JSON form refuses a field that is left out; between Dart and Rust there are
+  // no names, and null is none as it always was.
+  test('a field that is none crosses as none', () async {
+    final doc = await twoRows('none');
+    final cell = (await doc.grid(cell: await doc.root())).cells[0].id;
+    await doc.apply(
+      command: Command.setText(cell: cell, text: 'ab'),
+    );
+    Command color(Rgb? color) =>
+        Command.setRangeColor(cell: cell, start: 0, len: 1, color: color);
+    Command link(LinkTarget? target) =>
+        Command.setLink(cell: cell, start: 0, len: 1, target: target);
+
+    expect(
+      (await doc.apply(command: color(const Rgb(r: 255, g: 0, b: 0)))).changed,
+      [cell],
+    );
+    expect((await doc.apply(command: color(null))).changed, [cell]);
+    // No colour is there to remove now: nothing changes.
+    expect((await doc.apply(command: color(null))).changed, isEmpty);
+
+    final other = (await doc.grid(cell: await doc.root())).cells[1].id;
+    expect(
+      (await doc.apply(command: link(LinkTarget.cell(cell: other)))).changed,
+      [cell],
+    );
+    expect((await doc.apply(command: link(null))).changed, [cell]);
+    expect((await doc.apply(command: link(null))).changed, isEmpty);
+  });
 }

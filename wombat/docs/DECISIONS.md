@@ -1352,6 +1352,16 @@ are where milestones 4, 5 and 6, built apart, meet).
     may be (`Limit`) as soon as it is made, so nothing deeper is ever built. A grid that says
     it has more cells than follow is a `BadRequest`; no cells, no columns and rows that are
     not whole are the core's to refuse (`Invalid`), as before. JSON has the same flat form.
+136. **The JSON form is strict** (from the review; adds to A123). As `serde` reads by default,
+    a field that may be none was none when left out, and unknown fields were passed over: a
+    recorded `SetRangeColor` without its `color` removed the colour, and a misspelt field
+    was read as if it were not there. Now every type of `api/wire.rs` refuses unknown fields,
+    and a field that may be none must be there, as `null`. One thing is still read that is
+    never written: `{"Run": null}` for `"Run"`, and the same for every other name without
+    fields. `serde` reads such a name from either form; both say the same thing, so nothing
+    is lost or guessed, and refusing one would take a reader written by hand for each of
+    seven types. A test pins it. None of this touches what crosses between Dart and Rust:
+    the generated code writes every field in order, without names.
 
 ## B. Deliberate departures from TreeSheets
 
