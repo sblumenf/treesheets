@@ -82,8 +82,8 @@ app says so and offers to try again or to put the file aside and start with the 
 - `app/lib/grid/grid_screen.dart`: the widgets, and one queue for everything the user does
   (A158). It tells the keeper how to enter what is in the editor when the app is put away.
 - `app/lib/main.dart`: where the document is (`documentFolder`), opening it, the start
-  screen with its way out, and `Kept`, which watches the app's lifecycle for the keeper
-  and closes the document when the screen goes. `app/lib/example.dart` makes the copy of
+  screen with its way out, and `Kept`, which watches the app's lifecycle for the keeper; the start screen
+  closes the document when it goes. `app/lib/example.dart` makes the copy of
   the example; `app/lib/demo_screen.dart` is the screen of milestone B1, moved.
 
 **The bridge grew by what the reviews asked for**, not by what the screen needs to draw:
