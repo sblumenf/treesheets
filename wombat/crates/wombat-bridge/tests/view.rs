@@ -208,6 +208,26 @@ fn nothing_is_written_when_nothing_changed() {
     assert_eq!(file_number(&view_file(&path)), written);
 }
 
+/// What a level remembers is something to write also when nothing else changed: the app
+/// is put away on the level it was opened on, or a level is left for the one the view
+/// state has as shown already.
+#[test]
+fn what_is_remembered_is_written_when_nothing_else_changed() {
+    let (mut doc, path) = open_example("remember-alone");
+    let c = cells(&doc);
+    doc.view_remember(level(&c.root, 1, 2, None)).unwrap();
+    assert!(!doc.is_view_saved().unwrap());
+    doc.close().unwrap();
+    let mut doc = open(&path);
+    assert_eq!(remembered(&doc, &c.root), Some(level(&c.root, 1, 2, None)));
+    assert!(doc.is_view_saved().unwrap());
+    let left = level(&c.costs, 0, 1, None);
+    doc.view_go(c.root.clone(), Some(left.clone())).unwrap();
+    assert!(!doc.is_view_saved().unwrap());
+    doc.close().unwrap();
+    assert_eq!(remembered(&open(&path), &c.costs), Some(left));
+}
+
 #[test]
 fn saving_the_view_state_writes_it_at_once() {
     let (mut doc, path) = open_example("save-view");
