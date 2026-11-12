@@ -187,6 +187,45 @@ fn a_document_opened_through_a_link_holds_both_names() {
     drop(OpenDocument::create_with(&link, ids()).unwrap());
 }
 
+/// The folder of an open document is removed, and made again: the document is still open
+/// and will write its file there, so the name is not free at any moment of that, however
+/// it is spelt.
+#[cfg(unix)]
+#[test]
+fn a_document_holds_its_name_while_its_folder_is_gone_and_when_it_is_back() {
+    let dir = folder("open_files", "folder-gone");
+    let sub = dir.join("sub");
+    std::fs::create_dir(&sub).unwrap();
+    std::os::unix::fs::symlink(&dir, dir.join("link")).unwrap();
+    let real = sub.join("x.wombat");
+    let through = dir.join("link/sub/x.wombat");
+    let refused = |path: &Path| {
+        already_open(OpenDocument::create_with(path, ids()), path);
+        already_open(OpenDocument::copy_with(&example(), path, ids()), path);
+        already_open(OpenDocument::open_with(path, ids()), path);
+    };
+    for (opened, other) in [(&real, &through), (&through, &real)] {
+        let mut doc = OpenDocument::copy_with(&example(), opened, ids()).unwrap();
+        doc.apply(set_text(&doc, "ours")).unwrap();
+        // The folder is gone: nothing could be made there, but "it is open" is the answer.
+        std::fs::remove_dir_all(&sub).unwrap();
+        refused(opened);
+        refused(other);
+        assert_eq!(doc.save().unwrap_err().kind, ErrorKind::Io);
+        // The folder is back, empty.
+        std::fs::create_dir(&sub).unwrap();
+        refused(opened);
+        refused(other);
+        assert!(!real.exists());
+        doc.save().unwrap();
+        assert_eq!(text_in_file(&real), "ours");
+        drop(doc);
+        std::fs::remove_file(&real).unwrap();
+        drop(OpenDocument::create_with(other, ids()).unwrap());
+        std::fs::remove_file(&real).unwrap();
+    }
+}
+
 /// Two files of the same name in different folders are different files.
 #[test]
 fn another_file_of_the_same_name_is_not_refused() {

@@ -31,9 +31,11 @@ fn open() -> MutexGuard<'static, BTreeSet<PathBuf>> {
 /// - The name in its real folder, without following a link that the name itself is. A
 ///   file that is not there yet has only this one, which is what it gets once it is
 ///   there; and it stays the document's when the link it was opened through is removed
-///   or made to lead elsewhere, since the document goes on saving to that name.
-/// - The path as it was asked for, which is what there is when the folder is not there
-///   either, and what stays when a link on the way to the folder changes.
+///   or made to lead elsewhere, since the document goes on saving to that name. If the
+///   folder is not there either (it was removed under an open document, and may be made
+///   again), it is the name below the nearest folder above that is there.
+/// - The path as it was asked for, which stays when a link on the way to the folder
+///   changes.
 ///
 /// Two names that the file system itself takes for one are not seen to be the same: a
 /// second hard link to a file, and a name that differs only by case, or by the way an
@@ -41,12 +43,25 @@ fn open() -> MutexGuard<'static, BTreeSet<PathBuf>> {
 /// there yet.
 fn names(asked: &Path) -> BTreeSet<PathBuf> {
     let real = std::fs::canonicalize(asked).ok();
-    let in_folder = match (asked.parent().map(std::fs::canonicalize), asked.file_name()) {
-        (Some(Ok(folder)), Some(name)) => Some(folder.join(name)),
-        _ => None,
-    };
-    let asked = Some(asked.to_path_buf());
-    [real, in_folder, asked].into_iter().flatten().collect()
+    let spelt = Some(asked.to_path_buf());
+    [real, in_folder(asked), spelt]
+        .into_iter()
+        .flatten()
+        .collect()
+}
+
+/// `path` with the real name of its folder, or of the nearest folder above it that is
+/// there, and the names below that as they are spelt; `None` if one of those is `..`.
+fn in_folder(path: &Path) -> Option<PathBuf> {
+    let mut below = Vec::new();
+    let mut folder = path;
+    loop {
+        below.push(folder.file_name()?);
+        folder = folder.parent()?;
+        if let Ok(real) = std::fs::canonicalize(folder) {
+            return Some(below.iter().rev().fold(real, |path, name| path.join(name)));
+        }
+    }
 }
 
 /// The right of one open document to its file. Dropping it gives the file up.
