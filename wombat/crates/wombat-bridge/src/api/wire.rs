@@ -25,7 +25,9 @@
 //! type and no other. A field that may be none is written `null`; leaving it out is an
 //! error, so that a misspelt or forgotten field is never read as "none". The attributes
 //! for this (`deny_unknown_fields`, `present`) concern JSON only: between Dart and Rust
-//! the generated code writes every field in order, and has no names to get wrong.
+//! the generated code writes every field in order, and has no names to get wrong. They
+//! are not all of it: `serde` would still read an object from a list of its values, and
+//! `record.rs`, the one reader of the JSON form, refuses any form that is not written.
 //!
 //! Whole numbers that Dart sends are 64 bits wide here, as they are in Dart, though the
 //! core takes fewer: a narrower number would lose its high bits on the way without

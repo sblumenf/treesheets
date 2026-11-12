@@ -791,15 +791,19 @@ fn json_that_leaves_a_field_out_or_adds_one_is_refused() {
     ));
     bad_request(props(r#"{"CellColor": {"r": 1, "g": 2, "b": 3, "a": 4}}"#));
     bad_request(link(r#"{"External": {"target": "x:y", "title": "t"}}"#));
+    props(r#"{"Image": {"file": "a.png", "scale": 1.5, "extra": ""}}"#).unwrap();
+    let message = bad_request(props(
+        r#"{"Image": {"file": "a.png", "scale": 1.5, "extra": "", "alt": ""}}"#,
+    ));
+    assert!(message.contains("unknown field `alt`"), "{message}");
+    bad_request(props(r#"{"Image": {"file": "a.png", "scale": 1.5}}"#));
     bad_request(entry(
         r#"{"text": "x", "formula": false, "grid": null, "note": ""}"#,
     ));
 
-    // A command without fields is its name. `{"Run": null}` says the same and is read
-    // too: that is how `serde` reads any variant without fields, and nothing is lost or
-    // guessed by it. Anything else in that place is refused.
+    // A command without fields is its name, and nothing else.
     assert_eq!(read(r#""Run""#).unwrap(), Command::Run);
-    assert_eq!(read(r#"{"Run": null}"#).unwrap(), Command::Run);
+    bad_request(read(r#"{"Run": null}"#));
     bad_request(read(r#"{"Run": {}}"#));
     bad_request(read(r#"{"Run": 0}"#));
     bad_request(read(r#"{"Run": []}"#));
@@ -815,6 +819,185 @@ fn json_that_leaves_a_field_out_or_adds_one_is_refused() {
     error(r#"{"kind": "Io", "message": "m", "path": null}"#).unwrap();
     error(r#"{"kind": "Io", "message": "m"}"#).unwrap_err();
     error(r#"{"kind": "Io", "message": "m", "path": null, "code": 2}"#).unwrap_err();
+}
+
+/// Only the form that is written is read (decision A136). `serde` would read an object
+/// from a list of its values too, where no name says which value is which, and a name
+/// without fields from `{"Name": null}`.
+#[test]
+fn json_in_a_form_that_is_never_written_is_refused() {
+    let id = "00000000-0000-0000-0000-000000000001";
+    let fill = |text: &str| text.replace("ID", id);
+    let doc = Document::new(&mut SeededIds::from_u64(8));
+    let carried = clip_out(&Clip::of(&doc, doc.root()).unwrap()).unwrap();
+    let document = serde_json::to_string(&carried.document).unwrap();
+    let rgb = r#"{"r": 1, "g": 2, "b": 3}"#;
+    let style =
+        r#"{"bold": true, "italic": false, "fixed": false, "underline": false, "strike": true}"#;
+    let entry = r#"{"text": "x", "formula": false, "grid": {"xs": 1, "cells": 1}}"#;
+    let plain = r#"{"text": "y", "formula": false, "grid": null}"#;
+    // A command as it is written, and the same with a list in the place of one object.
+    let pairs: Vec<(String, String, String)> = [
+        (
+            r#"{"InsertText": OBJECT}"#,
+            r#"{"cell": "ID", "at": 1, "text": "x"}"#,
+            r#"["ID", 1, "x"]"#,
+        ),
+        (
+            r#"{"MoveRows": OBJECT}"#,
+            r#"{"cell": "ID", "from": 1, "count": 2, "to": 3}"#,
+            r#"["ID", 1, 2, 3]"#,
+        ),
+        (
+            r#"{"SetRangeColor": OBJECT}"#,
+            r#"{"cell": "ID", "start": 1, "len": 2, "color": null}"#,
+            r#"["ID", 1, 2, null]"#,
+        ),
+        (
+            r#"{"SetRangeColor": {"cell": "ID", "start": 1, "len": 2, "color": OBJECT}}"#,
+            rgb,
+            "[1, 2, 3]",
+        ),
+        (
+            r#"{"SetTag": {"name": "t", "cell_color": {"r": 4, "g": 5, "b": 6},
+                "text_color": OBJECT}}"#,
+            rgb,
+            "[1, 2, 3]",
+        ),
+        (
+            r#"{"SetStyle": {"cells": [], "set": OBJECT, "clear": STYLE}}"#,
+            style,
+            "[true, false, false, false, true]",
+        ),
+        (
+            r#"{"SetLink": {"cell": "ID", "start": 1, "len": 2, "target": {"External": OBJECT}}}"#,
+            r#"{"target": "x:y"}"#,
+            r#"["x:y"]"#,
+        ),
+        (
+            r#"{"SetLink": {"cell": "ID", "start": 1, "len": 2, "target": {"Cell": OBJECT}}}"#,
+            r#"{"doc": null, "cell": "ID"}"#,
+            r#"[null, "ID"]"#,
+        ),
+        (
+            r#"{"SetProps": {"cells": [], "props": [{"Image": OBJECT}]}}"#,
+            r#"{"file": "a.png", "scale": 1.5, "extra": ""}"#,
+            r#"["a.png", 1.5, ""]"#,
+        ),
+        (
+            r#"{"Import": {"cell": "ID", "replace": false, "table": OBJECT}}"#,
+            r#"{"xs": 1, "cells": [ENTRY, PLAIN]}"#,
+            "[1, [ENTRY, PLAIN]]",
+        ),
+        (
+            r#"{"Import": {"cell": "ID", "replace": false,
+                "table": {"xs": 1, "cells": [ENTRY, OBJECT]}}}"#,
+            plain,
+            r#"["y", false, null]"#,
+        ),
+        (
+            r#"{"Import": {"cell": "ID", "replace": false, "table": {"xs": 1, "cells": [
+                {"text": "x", "formula": false, "grid": OBJECT}, PLAIN]}}}"#,
+            r#"{"xs": 1, "cells": 1}"#,
+            "[1, 1]",
+        ),
+        (
+            r#"{"PasteCells": {"to": "ID", "clip": OBJECT}}"#,
+            r#"{"parent": null, "document": DOCUMENT}"#,
+            "[null, DOCUMENT]",
+        ),
+    ]
+    .into_iter()
+    .map(|(around, object, list)| {
+        let fill = |text: &str| {
+            fill(text)
+                .replace("STYLE", style)
+                .replace("ENTRY", entry)
+                .replace("PLAIN", plain)
+                .replace("DOCUMENT", &document)
+        };
+        (fill(around), fill(object), fill(list))
+    })
+    .collect();
+    for (around, object, list) in &pairs {
+        let written = command_from_json(&around.replace("OBJECT", object));
+        assert!(written.is_ok(), "{around} {object}: {written:?}");
+        let message = bad_request(command_from_json(&around.replace("OBJECT", list)));
+        assert!(
+            message.contains("a list where an object"),
+            "{list}: {message}"
+        );
+        // `serde` alone reads the list as the same command: this refusal is the bridge's.
+        let read = |text: &str| serde_json::from_str::<wire::Command>(text).unwrap();
+        assert_eq!(
+            read(&around.replace("OBJECT", list)),
+            read(&around.replace("OBJECT", object))
+        );
+    }
+    // A list of the wrong length was never read.
+    let short = bad_request(command_from_json(&fill(r#"{"InsertText": ["ID", 1]}"#)));
+    assert!(!short.contains("a list where an object"), "{short}");
+    bad_request(command_from_json(&fill(
+        r#"{"InsertText": ["ID", 1, "x", 2]}"#,
+    )));
+
+    // A report.
+    let report = Report {
+        changed: vec![id.into()],
+        tags: vec!["t".into()],
+        ..Report::default()
+    };
+    let lists = fill(r#"[["ID"], [], [], [], ["t"], []]"#);
+    assert_eq!(serde_json::from_str::<Report>(&lists).unwrap(), report);
+    bad_request(report_from_json(&lists));
+    let named = fill(
+        r#"{"changed": ["ID"], "created": [], "removed": [], "grids": [], "tags": ["t"],
+        "recalculated": []}"#,
+    );
+    assert_eq!(report_from_json(&named).unwrap(), report);
+
+    // A name without fields, of a command and of what a command holds.
+    let kind = |kind: &str| {
+        let text = r#"{"SetProps": {"cells": [], "props": [{"Kind": KIND}]}}"#;
+        command_from_json(&text.replace("KIND", kind))
+    };
+    kind(r#""Formula""#).unwrap();
+    bad_request(kind(r#"{"Formula": null}"#));
+    let unknown = |target: &str| {
+        let text = r#"{"SetLink": {"cell": "ID", "start": 1, "len": 2, "target": TARGET}}"#;
+        command_from_json(&fill(&text.replace("TARGET", target)))
+    };
+    unknown(r#""Unknown""#).unwrap();
+    bad_request(unknown(r#"{"Unknown": null}"#));
+
+    // What JSON itself takes for the same is read: the order of fields, spaces and line
+    // ends, and a whole number where a fraction may stand.
+    let image = |image: &str| {
+        let text = r#"{"SetProps": {"cells": [], "props": [{"Image": IMAGE}]}}"#;
+        command_from_json(&text.replace("IMAGE", image)).unwrap()
+    };
+    let half = image(r#"{"file": "a.png", "scale": 2.0, "extra": ""}"#);
+    assert_eq!(image(r#"{"file": "a.png", "scale": 2, "extra": ""}"#), half);
+    assert_eq!(
+        image(r#"{"file": "a.png", "scale": 2e0, "extra": ""}"#),
+        half
+    );
+    let spaced = "{ \"extra\" : \"\",\n\t\"scale\" : 2.00 , \"file\" : \"a.png\" }";
+    assert_eq!(image(spaced), half);
+    let moved = command_from_json(&fill(
+        r#"{"MoveRows": {"to": 3, "count": 2, "cell": "ID", "from": 1}}"#,
+    ));
+    let expected = Command::MoveRows {
+        cell: CellId(Id::from_u128(1)),
+        from: 1,
+        count: 2,
+        to: 3,
+    };
+    assert_eq!(moved.unwrap(), expected);
+    // But a whole number is not written as a fraction.
+    bad_request(command_from_json(&fill(
+        r#"{"MoveRows": {"cell": "ID", "from": 1.0, "count": 2, "to": 3}}"#,
+    )));
 }
 
 /// Takes field `which` out of the JSON objects of a command, counting through all of
