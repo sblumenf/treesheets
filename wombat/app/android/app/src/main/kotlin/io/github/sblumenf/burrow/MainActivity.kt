@@ -1,4 +1,4 @@
-package com.example.wombat_app
+package io.github.sblumenf.burrow
 
 import io.flutter.embedding.android.FlutterActivity
 
