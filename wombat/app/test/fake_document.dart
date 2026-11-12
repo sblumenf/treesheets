@@ -124,6 +124,22 @@ class Watched with Hooks implements OpenDocument {
       hooked('apply', () => _real.apply(command: command));
 
   @override
+  Future<void> beginGroup() => hooked('beginGroup', _real.beginGroup);
+
+  @override
+  Future<Report> endGroup() => hooked('endGroup', _real.endGroup);
+
+  @override
+  Future<Report> cancelGroup() => hooked('cancelGroup', _real.cancelGroup);
+
+  @override
+  Future<bool> inGroup() => hooked('inGroup', _real.inGroup);
+
+  @override
+  Future<Report> retype({required String cell, required String text}) =>
+      hooked('retype', () => _real.retype(cell: cell, text: text));
+
+  @override
   Future<Report?> undo() => hooked('undo', _real.undo);
 
   @override
@@ -283,6 +299,22 @@ class FakeDocument with Hooks implements OpenDocument {
   @override
   Future<CellLook> cell({required String cell}) =>
       throw UnimplementedError('cell');
+
+  @override
+  Future<void> beginGroup() => throw UnimplementedError('beginGroup');
+
+  @override
+  Future<Report> endGroup() => throw UnimplementedError('endGroup');
+
+  @override
+  Future<Report> cancelGroup() => throw UnimplementedError('cancelGroup');
+
+  @override
+  Future<bool> inGroup() => throw UnimplementedError('inGroup');
+
+  @override
+  Future<Report> retype({required String cell, required String text}) =>
+      throw UnimplementedError('retype');
 
   @override
   Future<Report> apply({required Command command}) => _call('apply', () {
