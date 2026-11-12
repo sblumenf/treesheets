@@ -178,6 +178,68 @@ proptest! {
 /// are refused, for every kind of command. Prints how often each kind was carried out, did
 /// nothing or was refused, and fails if a kind falls below what it reached when this was
 /// last tuned, so that a change to the generator or to a command that makes one rare shows.
+/// The property tests above hold for any rule of what a text may be, as long as the rule
+/// agrees with itself; this says that they meet line breaks at all.
+#[test]
+fn the_random_documents_and_commands_have_line_breaks() {
+    use proptest::strategy::ValueTree;
+    use proptest::test_runner::TestRunner;
+    let mut runner = TestRunner::deterministic();
+    // Documents with a break in a text; commands that bring a line feed, a CR LF, a lone
+    // carriage return; documents that have a break after such a command.
+    let (mut built, mut feeds, mut pairs, mut returns, mut kept) = (0, 0, 0, 0, 0);
+    for _ in 0..200 {
+        let spec = spec().new_tree(&mut runner).unwrap().current();
+        let ops = proptest::collection::vec(op(), 30)
+            .new_tree(&mut runner)
+            .unwrap()
+            .current();
+        let mut editor = Editor::new(document(&spec)).unwrap();
+        let mut ids = SeededIds::from_u64(spec.seed);
+        let broken = |doc: &Document| {
+            let texts = doc.cells_in_order().into_iter();
+            texts
+                .filter(|c| doc.cell(*c).unwrap().text.contains('\n'))
+                .count()
+        };
+        built += usize::from(broken(editor.document()) > 0);
+        for op in &ops {
+            let command = support::command(editor.document(), op);
+            let had = broken(editor.document());
+            let text = match &command {
+                Command::InsertText { text, .. }
+                | Command::ReplaceText { text, .. }
+                | Command::SetText { text, .. }
+                | Command::EnterText { text, .. } => text.clone(),
+                _ => String::new(),
+            };
+            if editor.apply(command, None, &mut ids).is_err() {
+                continue;
+            }
+            feeds += usize::from(text.replace("\r\n", "").contains('\n'));
+            pairs += usize::from(text.contains("\r\n"));
+            returns += usize::from(text.replace("\r\n", "").contains('\r'));
+            kept += usize::from(broken(editor.document()) > had);
+            // No carriage return ever arrives.
+            let doc = editor.document();
+            assert!(doc.cells_in_order().iter().all(|c| !doc
+                .cell(*c)
+                .unwrap()
+                .text
+                .contains('\r')));
+        }
+    }
+    for (what, count) in [
+        ("documents built with a break", built),
+        ("commands with a line feed", feeds),
+        ("commands with CR LF", pairs),
+        ("commands with a lone CR", returns),
+        ("commands that added a cell with a break", kept),
+    ] {
+        assert!(count >= 10, "{what}: {count}");
+    }
+}
+
 #[test]
 fn the_random_commands_reach_every_kind_both_ways() {
     use proptest::strategy::ValueTree;

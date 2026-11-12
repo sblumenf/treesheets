@@ -255,7 +255,7 @@ pub fn command(doc: &Document, op: &Op) -> Command {
     let new_text = || {
         let mut text = text_of(&op.clusters);
         // Now and then a line end as it comes from elsewhere, which becomes a line feed.
-        if n4 % 9 == 0 {
+        if n4 % 5 == 0 {
             text.push_str(["\r\n", "\r", "\t"][n3 as usize % 3]);
         }
         text
