@@ -886,21 +886,24 @@ class _PhoneScreenState extends State<PhoneScreen> {
     final ended = _keeper.ended;
     final reader = _reader;
     final startError = _startError;
-    final Widget body;
-    if (ended != null) {
-      body = _alone(Text(ended, key: const Key('ended')));
-    } else if (reader != null) {
-      body = _stage(context, reader);
-    } else if (startError != null) {
-      body = _alone(
-        Text(
-          Words.notRead(describeError(startError)),
-          key: const Key('stage-error'),
-        ),
-      );
-    } else {
-      body = _alone(const CircularProgressIndicator(key: Key('reading')));
+    final bar = _barHeight(context);
+    // What a screen of `room` pixels in height is filled with.
+    Widget body(double room) {
+      if (ended != null) return _alone(Text(ended, key: const Key('ended')));
+      if (reader != null) {
+        return _stage(context, reader, short: _short(room, bar), room: room);
+      }
+      if (startError != null) {
+        return _alone(
+          Text(
+            Words.notRead(describeError(startError)),
+            key: const Key('stage-error'),
+          ),
+        );
+      }
+      return _alone(const CircularProgressIndicator(key: Key('reading')));
     }
+
     return PopScope(
       // Never by itself: the back action decides when its turn comes. After the
       // end, and while there is no stage to show, nothing is left to go up in.
@@ -910,17 +913,27 @@ class _PhoneScreenState extends State<PhoneScreen> {
       },
       child: Scaffold(
         body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _titleBar(context, ended == null ? reader?.stage : null),
-              Expanded(child: body),
-            ],
+          child: LayoutBuilder(
+            builder: (context, box) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (ended != null ||
+                    reader == null ||
+                    !_short(box.maxHeight, bar))
+                  _titleBar(context, ended == null ? reader?.stage : null),
+                Expanded(child: body(box.maxHeight)),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  /// Whether the editor is open on a screen with so little height left (a phone on
+  /// its side with the keyboard up) that the title bar and the trail give way to
+  /// the grid and the field: with them, less than a cell's height would be left.
+  bool _short(double room, double bar) => _editCell != null && room < 6.5 * bar;
 
   Widget _alone(Widget child) => Center(
     child: Padding(padding: const EdgeInsets.all(24), child: child),
@@ -1004,7 +1017,14 @@ class _PhoneScreenState extends State<PhoneScreen> {
     );
   }
 
-  Widget _stage(BuildContext context, StageReader reader) {
+  /// The grid with the lines and bars under it. `room` is the height of the whole
+  /// screen and `short` what [_short] says of it.
+  Widget _stage(
+    BuildContext context,
+    StageReader reader, {
+    required bool short,
+    required double room,
+  }) {
     final stage = reader.stage;
     final viewError = _keeper.viewError;
     final message = _message;
@@ -1043,10 +1063,17 @@ class _PhoneScreenState extends State<PhoneScreen> {
           ),
         if (message != null) _messageLine(context, message),
         const Divider(height: 1),
-        _trail(context, stage),
+        if (!short) _trail(context, stage),
         if (editing != null)
           EditorBar(
             editor: _editor,
+            // On a short screen the buttons are one row, and none where the
+            // field and one cell of the grid are all that fits.
+            rows: !short
+                ? 2
+                : room < 3.2 * _barHeight(context)
+                ? 0
+                : 1,
             stylesShown: _styles,
             onStyles: () => setState(() => _styles = !_styles),
             onBold: () => _bit('bold', bold, (style) => style.bold),
@@ -1104,9 +1131,14 @@ class _PhoneScreenState extends State<PhoneScreen> {
           ),
           // On a small screen with large text the lines and bars can be taller
           // than the screen: they scroll then, the editor staying in sight, and
-          // the grid keeps a quarter of the height.
+          // the grid keeps a quarter of the height, or on a short screen the
+          // height of one cell.
           ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: box.maxHeight * 0.75),
+            constraints: BoxConstraints(
+              maxHeight: short
+                  ? (box.maxHeight - target).clamp(0, box.maxHeight)
+                  : box.maxHeight * 0.75,
+            ),
             child: SingleChildScrollView(reverse: true, child: bars),
           ),
         ],

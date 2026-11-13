@@ -637,6 +637,85 @@ void main() {
       },
     );
 
+    // The fifth review, finding 4: on its side with the keyboard up a phone has
+    // about 170 pixels under the status bar. The title, the trail and the first
+    // row kept in view give way then, and on a smaller phone the toolbar too.
+    for (final (name, size, keyboard, styles, short, tools) in [
+      ('on its side', const Size(915, 412), 220.0, false, true, true),
+      (
+        'on its side, the styles shown',
+        const Size(915, 412),
+        220.0,
+        true,
+        true,
+        true,
+      ),
+      ('small and on its side', const Size(640, 360), 220.0, true, true, false),
+      ('small and upright', const Size(360, 640), 290.0, true, false, true),
+    ]) {
+      screenTest(
+        'a phone $name, the keyboard up: the field and the edited cell are seen',
+        (tester, keeper, fake) async {
+          tester.view.physicalSize = size;
+          tester.view.padding = const FakeViewPadding(top: 24);
+          tester.view.viewPadding = const FakeViewPadding(top: 24);
+          await tester.pumpAndSettle();
+          await press(tester, 'cell-0-3');
+          type(tester, 'half a sentence');
+          if (styles) await press(tester, 'tool-styles');
+          tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          final above = size.height - keyboard;
+          final bars = tester.getRect(
+            find
+                .ancestor(
+                  of: key('editor'),
+                  matching: find.byType(SingleChildScrollView),
+                )
+                .last,
+          );
+          // The field, the cross and the tick, whole above the keyboard.
+          for (final name in ['editor', 'cancel', 'save']) {
+            final rect = tester.getRect(key(name));
+            expect(
+              rect.top,
+              greaterThanOrEqualTo(bars.top - 0.5),
+              reason: name,
+            );
+            expect(rect.bottom, lessThanOrEqualTo(above + 0.5), reason: name);
+          }
+          // The edited cell, whole in what is left of the grid.
+          final grid = tester.getRect(key('stage-across'));
+          final cell = tester.getRect(key('cell-0-3'));
+          expect(grid.height, greaterThanOrEqualTo(48));
+          expect(cell.top, greaterThanOrEqualTo(grid.top - 0.5));
+          expect(cell.bottom, lessThanOrEqualTo(grid.bottom + 0.5));
+          expect(shown(tester, '0-3'), 'half a sentence');
+          // What gives way, and what does not. (The first row is not kept in
+          // view in any of these: the grid has less than three cells' height.)
+          expect((there('title'), there('up')), (!short, !short));
+          expect(there('stage-first-row'), isFalse);
+          expect((there('tool-right'), there('tool-styles')), (tools, tools));
+          expect(there('style-bold'), tools && styles);
+          if (tools) {
+            final tool = tester.getRect(key('tool-styles'));
+            expect(tool.top, greaterThanOrEqualTo(bars.top - 0.5));
+            expect(tool.bottom, lessThanOrEqualTo(above + 0.5));
+          }
+          // With the editor closed everything is back.
+          await press(tester, 'save');
+          await tester.pumpAndSettle();
+          expect(fake.cells['r3']!.text, 'half a sentence');
+          expect(
+            (there('title'), there('up'), there('bar-edit')),
+            (true, true, true),
+          );
+        },
+        before: (fake) => tallRoot(fake, 30),
+      );
+    }
+
     screenTest(
       'turned while a cell is edited: the text stays, the cell is seen',
       (tester, keeper, fake) async {

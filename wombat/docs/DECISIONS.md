@@ -3180,6 +3180,24 @@ are where milestones 4, 5 and 6, built apart, meet).
       that grow, behind the screen, into the range that is given cell by cell are
       read until the next time it asks. *Better, and not done because it changes the
       bridge:* a request that names the grids to give cell by cell.
+195. **With little height, the editor's surroundings give way to the grid and the field**
+    (the fifth review, finding 4; `phone_screen.dart` `_short`, `editor_bar.dart`
+    `rows`, `stage_view.dart`). A phone on its side with the keyboard up has about 170
+    logical pixels under the status bar. The title bar, the trail, the field and two
+    rows of buttons need more than that, so the grid got 25 pixels and the bars
+    scrolled, the field out of sight.
+    - While the editor is open on a screen of less than six and a half bars in height
+      (312 pixels at the usual text size), the title bar and the trail are not shown,
+      the buttons under the field are one row (the styles, when Aa shows them, follow
+      the others in that row, which scrolls sideways), and the grid keeps at least the
+      height of one cell. Under 3.2 bars (about 154 pixels) the buttons go too: the
+      field with the cross and the tick, and the edited cell, are what is left.
+    - The first row is not kept in view when the grid has less than three cells of
+      height, with or without an editor: its share would hide the edited cell.
+    - *The cost:* undo, redo, the menu and the way up are out of reach there until the
+      editor is closed, and on the smallest screens Return is the keyboard's only.
+      *Not verified:* any of it on a phone; the sizes are those of the review's probe
+      (915 by 412 and 640 by 360 with a keyboard of 220, 360 by 640 with one of 290).
 
 
 ## B. Deliberate departures from TreeSheets

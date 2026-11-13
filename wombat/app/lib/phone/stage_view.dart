@@ -261,7 +261,9 @@ class _StageViewState extends State<StageView> {
       }
       _lefts = lefts;
       final total = lefts.last;
-      _pinRow = _scene.variants.pin && grid.ys > 1;
+      // (Not where it would leave less than two cells' height for the rest.)
+      _pinRow =
+          _scene.variants.pin && grid.ys > 1 && box.maxHeight >= 3 * target;
       _pinColumn = _scene.variants.pin && widths[0] <= box.maxWidth * 0.4;
       // The first time, where the level was left.
       _across ??= ScrollController(

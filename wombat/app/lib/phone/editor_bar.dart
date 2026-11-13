@@ -19,6 +19,7 @@ class EditorBar extends StatelessWidget {
   const EditorBar({
     super.key,
     required this.editor,
+    this.rows = 2,
     required this.stylesShown,
     required this.onStyles,
     required this.onBold,
@@ -35,6 +36,11 @@ class EditorBar extends StatelessWidget {
   });
 
   final CellEditor editor;
+
+  /// How many rows of buttons there is room for under the field: 2 as a rule; with
+  /// 1 the styles are shown in the row of the other buttons, and with 0 the field,
+  /// the cross and the tick are all there is.
+  final int rows;
 
   /// Whether the row of styles is shown.
   final bool stylesShown;
@@ -82,6 +88,13 @@ class EditorBar extends StatelessWidget {
     child: Row(children: children),
   );
 
+  List<Widget> _styles() => [
+    _word('style-bold', Words.bold, onBold),
+    _word('style-italic', Words.italic, onItalic),
+    _word('style-link', Words.link, onLink),
+    _word('style-tag', Words.tag, onTag),
+  ];
+
   @override
   Widget build(BuildContext context) => Material(
     elevation: 8,
@@ -108,30 +121,24 @@ class EditorBar extends StatelessWidget {
               ],
             ),
           ),
-          if (stylesShown)
+          if (stylesShown && rows > 1) ExcludeFocus(child: _strip(_styles())),
+          if (rows > 0)
             ExcludeFocus(
               child: _strip([
-                _word('style-bold', Words.bold, onBold),
-                _word('style-italic', Words.italic, onItalic),
-                _word('style-link', Words.link, onLink),
-                _word('style-tag', Words.tag, onTag),
+                _word('tool-styles', Words.styles, onStyles, Words.stylesTip),
+                _icon(
+                  'tool-break',
+                  Icons.keyboard_return,
+                  Words.lineBreak,
+                  onBreak,
+                ),
+                _icon('tool-right', Icons.arrow_forward, Words.right, onRight),
+                _word('tool-row', Words.rowBelow, onRow),
+                _word('tool-col', Words.columnRight, onColumn),
+                _word('tool-open', Words.open, onOpen),
+                if (stylesShown && rows == 1) ..._styles(),
               ]),
             ),
-          ExcludeFocus(
-            child: _strip([
-              _word('tool-styles', Words.styles, onStyles, Words.stylesTip),
-              _icon(
-                'tool-break',
-                Icons.keyboard_return,
-                Words.lineBreak,
-                onBreak,
-              ),
-              _icon('tool-right', Icons.arrow_forward, Words.right, onRight),
-              _word('tool-row', Words.rowBelow, onRow),
-              _word('tool-col', Words.columnRight, onColumn),
-              _word('tool-open', Words.open, onOpen),
-            ]),
-          ),
         ],
       ),
     ),

@@ -61,7 +61,12 @@ phone's own back button or back swipe. Back at the top, the phone's back leaves 
 - Pull the notification shade down and up while typing: nothing should change.
 
 **6. Rotate.** Turn the phone on its side with the editor open, and back. The text you were
-typing stays, and the cell you were typing in is still in sight above the keyboard.
+typing stays, and the cell you were typing in is still in sight above the keyboard. On its
+side there is little room: the title bar and the line with **‹** are gone while the editor
+is open, and Bold, Italic, Link and Tag follow the other buttons in one row that scrolls
+sideways. They come back when you press ✓ or ✕. Say if the field you type in, ✓ or ✕ is
+ever out of sight, or the cell you type in. (A cell of more lines than fit above the
+keyboard cannot be seen whole there.)
 
 **7. The large documents.** Tap **⋮** at the top right, and under the line choose "Six
 levels (12×20)". The first time it takes a few seconds to make. Then:
