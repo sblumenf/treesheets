@@ -689,6 +689,8 @@ void main() {
       log.add('one more', const Variants());
       expect(log.lines.length, ProtoLog.most);
       expect(log.lines.first, '{"n":11}');
+      // The folder is deleted after the test: the write must not still be at work then.
+      await log.written();
     });
 
     test('is exported as a file of its own, named by the time', () async {
