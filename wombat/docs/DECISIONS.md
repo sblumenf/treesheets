@@ -3128,7 +3128,6 @@ are where milestones 4, 5 and 6, built apart, meet).
       run there.
     - *Not done:* a macOS desktop app (`flutter create --platforms=macos`). It would be a
       second untested system with its own sandbox settings, and was not asked for.
-
 193. **What is typed after Return belongs to the next cell** (the fifth review, findings
     1 and 2; `phone_screen.dart`). It replaces, for the actions that move the editor
     (Return, →, +Row, +Col), the rule of A147 and A186 that keys typed while the text

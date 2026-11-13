@@ -396,7 +396,7 @@ class _PhoneScreenState extends State<PhoneScreen> {
       // the editor has that very text.
       _held = editing.start;
       _selected = id;
-      if (moved) _taken.removeAt(0);
+      if (moved && _taken.isNotEmpty) _taken.removeAt(0);
       if (_taken.isEmpty) {
         // The cursor goes to the end of the text.
         _editor.set(editing.start.text + (moved ? _editor.text : ''));
@@ -633,7 +633,8 @@ class _PhoneScreenState extends State<PhoneScreen> {
       _log('enter', _where(cell));
       if (!mounted) return;
       if (await _next(cell, down: down, insert: insert, moved: true)) return;
-      if (!mounted) return;
+      // (Nor is anything left to do when the editor closed with its document.)
+      if (!mounted || _editCell != cell) return;
       if (_taken.length == 1 && _editor.text.isEmpty) return _close();
       // The editor stays, with what was typed meanwhile, and has an editing
       // again as after a tick that more was typed behind.

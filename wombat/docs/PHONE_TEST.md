@@ -50,12 +50,16 @@ phone's own back button or back swipe. Back at the top, the phone's back leaves 
 - Tap a cell in the middle, then **+Row** above the keyboard: a row appears below it, with
   the editor in it. The same with **+Col**.
 - Tap the last cell of a column and press Return: a row is added and the editor is in it.
+  Do it once more and start typing the moment you have pressed Return, without waiting
+  for the row: every letter should be in the new row, none in the cell above and none
+  missing.
 - Undo takes these back one at a time. (Nothing deletes a row yet; undo is the way.)
 
 **5. Put the app away in the middle of typing.**
 - Tap a cell, type half a sentence, and do not press ✓. Go to the phone's home screen,
-  wait a few seconds, and come back. The editor should be as you left it. Press **✕**: the
-  cell should have the text from before you started.
+  wait a few seconds, and come back. The editor should be as you left it. Say whether the
+  keyboard came back by itself or you had to tap the field. Press **✕**: the cell should
+  have the text from before you started.
 - Do it again, but this time swipe the app away in the list of recent apps and start it
   again. The half sentence should be in the cell.
 - Pull the notification shade down and up while typing: nothing should change.
@@ -102,7 +106,7 @@ word in the editor and tap Bold; the cell above shows it. ✓ keeps it, ✕ take
 - Every time you went into a grid when you meant to edit, or the other way round.
 - Anything too small to hit, or covered by the keyboard.
 - Where the keyboard's Return did not move to the cell below, or its key says something
-  other than "next".
+  other than "next" (look at the key itself: an arrow, "Next", or a bent Return arrow).
 - What the phone's back did when the keyboard was up.
 - Any red or yellow-and-black striped area on the screen, and any message that starts with
   "Error".

@@ -80,7 +80,7 @@ can be trusted, and what an interface needs next.
   documents. Tested without a device, in the built Linux app and by its test on an Android
   emulator in CI, and looked at in pictures of the Linux app at the size of a phone; nobody has
   used it, and nothing of it has run on a phone, under an on-screen keyboard or on iOS
-  (decisions A181 to A192; [summary](milestones/UI2.md)). Next is a test by the owner on a phone
+  (decisions A181 to A195; [summary](milestones/UI2.md)). Next is a test by the owner on a phone
   ([what to try](PHONE_TEST.md); for an iPhone, [how to build it](IOS.md)). A native text
   editor on iOS is kept possible and not built.
 - Sync between devices.

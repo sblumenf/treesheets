@@ -8,8 +8,9 @@ iOS.** It is step 5 of the way to the first test on the owner's hardware
 tapping, the editor with its toolbar, adding rows and columns), with the prototype's
 variant switches, its log and its test documents, covering flows 1, 2, 3, 7, 9 and 10 of
 section 17. It replaces the stand-in grid screen (`UI1.md`), which is deleted. Decisions
-A181 to A192 (A191 is what the screen's first run on the emulator showed of its test,
-A192 the iOS project). Nothing of it was reviewed independently. `PHONE_TEST.md` is the list for
+A181 to A195 (A191 is what the screen's first run on the emulator showed of its test,
+A192 the iOS project, A193 to A195 what the fifth review led to). It was reviewed
+independently once, by the fifth review ("After the fifth review" below). `PHONE_TEST.md` is the list for
 the owner's test.
 
 ## What it does
@@ -133,24 +134,26 @@ Counts are of test cases as `flutter test` reports them.
   the direction of a text, the pieces a styled text is drawn in and a cell's base style,
   the switches and their ranges, the log (its file, a file that cannot be written, too
   many entries, the export).
-- `app/test/phone_screen_test.dart` (134, no device, on the stand-in for the core,
+- `app/test/phone_screen_test.dart` (151 since the fifth review, no device, on the stand-in for the core,
   which can be held up and made to fail): what is shown (the level, the state, formulas,
   names where there are none, right-to-left text, several lines, a root of one cell, a
   root without a grid); each depth form on the screen; five sizes of screen with text at
-  the usual size and twice that, and the screen turned while a cell is edited; taps (the
+  the usual size and twice that, and the screen turned while a cell is edited (without
+  a keyboard: until the fifth review only one test, upright, gave the screen a
+  keyboard's inset; four more do now, three of them on its side); taps (the
   editor, a Full grid's cell, a dive and the three ways back, a tap outside the editor in
   five places, both variant switches, the bottom bar, the first row and column kept in
   view); each level where it was left, and the flash; editing (drawn from the editor,
   the tick and the cross, messages, Return and →, text the core refuses, the line break,
-  Aa, Open ›, the bars); more typed while the core is at work on the tick, on Return and
-  on four actions of the bars; actions held up behind one another; taps that come close
+  Aa, Open ›, the bars); more typed while the core is at work on the tick and on four
+  actions of the bars; what is typed while the editor moves on (A193); actions held up behind one another; taps that come close
   together, on every button in a row, and a screen that goes while an action runs;
   saving after a second, when the app is no longer in front, hidden, paused and
   detached; the cross, the tick and the screen going after the app was away; every line
   for a save that failed, for a file another program changed, for a stage that could not
   be read and for a view state that could not be written; a fault; a root that cannot be
   read; the log's entries; the settings sheet.
-- `app/test/phone_screen_real_test.dart` (30, no device, on the real core): **flows
+- `app/test/phone_screen_real_test.dart` (36 since the fifth review, no device, on the real core): **flows
   1, 2, 3, 7, 9 and 10** (1 and 9 on the generated six-level document, 2, 3 and 7 on a
   small nested one, 10 on the example); Return in the last row as two steps to undo; →
   in the last column; +Row and +Col; the "+" bars; "+ Add"; a row added to an unfolded
@@ -226,8 +229,11 @@ driver and its logs are not in the repository.
     bar with the editor open, a remembered column that the grid no longer has (the core
     keeps it inside the grid), and the screen being keyed by its keeper in `main.dart`.
   - *Depends on timing that a test here cannot fix* (4): the keeper's question being run
-    in the turn of the screen's queue (the keeper's own order gives the same result in
-    every case that was built); the log being read before entries made meanwhile are
+    in the turn of the screen's queue (said here to give the same result as the
+    keeper's own order "in every case that was built". **That was wrong**: the fifth
+    review put the app away while Return was at work, and without the queue the text
+    of the next cell was held in the cell that was left. The queue is needed, and the
+    test "the app put away while Return is at work" now notices its removal); the log being read before entries made meanwhile are
     written; the document put away before another is shown (the close that follows
     wrote the place too, in every run); a second tap on "Add the first cell".
   - *Not tested* (4): the editor given back a text that the core kept differently (it
@@ -336,6 +342,42 @@ cannot do; anything on a phone.
 - macOS and Windows: not built anywhere. iOS: built in CI for a simulator (A192), with
   this screen never shown there.
 
+## After the fifth review
+
+The fifth review (independent; the Dart wiring of the wider bridge and this screen) found
+five things, each fixed with a test that failed first:
+
+- **Keys typed while the editor moved to the next cell were lost, or joined the cell that
+  was left** (high). What is typed after Return, →, +Row or +Col is now the next cell's
+  (A193). Tests: the group "typed while the editor moves on" in `phone_screen_test.dart`
+  (each of the two moments of Return and of →, two Returns in a row, text the core
+  refuses, no cell to move to, the app put away, the cross, a tick before it), and three
+  on the real core in "rows and columns" (typed while the new row is made, two Returns
+  in the last row without waiting, typed right after +Row and +Col).
+- **One grid unfolded in place made every read of the large document 101,000 cells**
+  (medium). Not unfolded where the read would grow by more than 500 cells (A194); two
+  tests on the real core, one on the large test document.
+- **On its side with the keyboard up the grid had 25 pixels and the field scrolled out
+  of sight** (medium-low). The title bar, the trail, a row of buttons and the first row
+  kept in view give way (A195); four tests at the review's sizes.
+- **Two test documents chosen one right after the other** left one open unseen and
+  refused the other (low). They are shown one after the other (`main_test.dart`).
+- Small: a comment that named a file that does not exist; a test for what a making of
+  "Depth forms" that was stopped half-way leaves behind.
+
+Its random taps on the real core (`rv5_monkey_test.dart` in the review's scratch folder,
+12 runs of 140 actions) were run three times on the fixed screen and passed each time.
+They are not part of the suite: they wait on real time and take about 70 seconds.
+
+Run on the tree with these fixes, on the same machine as above: the format check and
+`flutter analyze` clean; `flutter test` four times, 464 tests: three runs passed, and
+one had a single failure, in `phone_parts_test.dart` "the prototype log keeps the newest
+entries when there are too many", which did not fail again in six runs of that file
+alone (that test does not wait for the log's last write before its folder is deleted,
+which is the likely cause; it is not changed here); each of the three files of
+`integration_test/` under `xvfb-run -a … -d linux`, passed. No Rust changed. Nothing of it has run on a phone, an emulator or iOS: CI will say for the
+emulator when the branch is pushed.
+
 ## Still open
 
 - **Deleting**: rows, columns, grids, cells. The commands exist; the cell menu that
@@ -357,4 +399,26 @@ cannot do; anything on a phone.
 - **A list anchored at its last rows** (after the edited cell was scrolled into view by
   starting the list there) shows empty space below them until it is scrolled.
 - The messages of the core and of `StateError`s are English and not in `words.dart`.
+- **A request that names the grids to give cell by cell.** The bridge's request has one
+  bound for all grids of a stage, which is why unfolding in place is refused where many
+  grids are near the size of the one unfolded (A194). It needs a change to the bridge.
+- **For the owner to judge** (the fifth review concluded these by reading; none is
+  changed):
+  - A double tap on a cell opens the editor and closes it again, and so does a second
+    tap on "Add the first cell": each tap is judged when its turn comes (section 6 as
+    written).
+  - Undo and redo act on the whole document while the screen shows one level: a step
+    that changed another level is undone with nothing to see and nothing said.
+  - Undo with something typed in the open editor enters it and undoes that. Redo with
+    something typed enters it, which empties the redo history, and then says "Nothing
+    to redo".
+  - An action that takes more than two seconds keeps the app's leaving from holding the
+    editor's text in time (B1, "given two seconds"); switching the test document then
+    can lose it.
+- **Not noticed by any test** (the fifth review's sample): the input method's text under
+  way not being made final before the text is read (no test types with one); the
+  document not being put away before another is shown; `CellEditor.selection` with no
+  selection at all.
+- **A screen taken away in the middle of a move of the editor** enters the text of the
+  cell that is left; what was typed for the next cell is lost with the screen (A193).
 - Everything `B1.md` lists under "Still open after the fixes" that is not a screen's.
