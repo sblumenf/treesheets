@@ -114,7 +114,9 @@ class _PhoneScreenState extends State<PhoneScreen> {
   /// one then opens another.
   Editing? _editing;
 
-  /// The edited cell as the document holds it, after a style was put on it.
+  /// The edited cell as the document holds it: when the editor opened on it, and
+  /// after its text was held there or a style put on it. Of use only while the
+  /// editor is open.
   CellLook? _held;
 
   /// Whether the row of styles is shown in the toolbar.
@@ -179,7 +181,8 @@ class _PhoneScreenState extends State<PhoneScreen> {
     widget.variants.removeListener(_redraw);
     _attachment.detach();
     final editing = _editing;
-    if (_editCell != null && editing != null && editing.open) {
+    if (_editCell != null && editing != null) {
+      // (An editing that ended with its document refuses, which is nothing new.)
       editing.enter(_editor.text).then<void>((_) {}, onError: (Object _) {});
     }
     _reader?.removeListener(_changed);
@@ -210,12 +213,9 @@ class _PhoneScreenState extends State<PhoneScreen> {
   /// Another level is shown: the screen is where that level was left.
   void _arrived(StageRead stage) {
     final level = stage.level;
-    final selected = level?.selected;
     _arrival++;
     _at = (x: level?.x ?? 0, y: level?.y ?? 0);
-    _selected = selected != null && stage.look(selected) != null
-        ? selected
-        : null;
+    _selected = level?.selected;
     _unfolded.clear();
     _flash = null;
   }
@@ -245,7 +245,6 @@ class _PhoneScreenState extends State<PhoneScreen> {
         _opens = _keeper.opens;
         _editCell = null;
         _editing = null;
-        _held = null;
       }
     });
   }
@@ -276,8 +275,9 @@ class _PhoneScreenState extends State<PhoneScreen> {
   void _do(Future<void> Function() action) {
     if (_message != null) setState(() => _message = null);
     _actions.post(() async {
-      // A screen that has gone, or has nothing to show yet, does nothing.
-      if (mounted && _reader != null) await action();
+      // A screen that has gone does nothing. (Without a stage nothing is on the
+      // screen that asks for an action.)
+      if (mounted) await action();
     });
   }
 
@@ -304,13 +304,14 @@ class _PhoneScreenState extends State<PhoneScreen> {
       return _Entered.refused;
     }
     _editing = null;
-    _held = null;
     _log('enter', _where(cell));
     if (_editor.text == text) return _Entered.yes;
     // The editor stays, with what was typed meanwhile: it has an editing again at
     // once, so that a screen that goes can enter that text with one call.
     try {
-      _editing = await _keeper.edit(cell);
+      final again = await _keeper.edit(cell);
+      _editing = again;
+      _held = again.start;
     } catch (error) {
       _say(describeError(error));
     }
@@ -349,7 +350,9 @@ class _PhoneScreenState extends State<PhoneScreen> {
     setState(() {
       _editCell = id;
       _editing = editing;
-      _held = null;
+      // The cell as the document has it: its styles are drawn for as long as
+      // the editor has that very text.
+      _held = editing.start;
       _selected = id;
       // The cursor goes to the end of the text.
       _editor.set(editing.start.text);
@@ -365,7 +368,6 @@ class _PhoneScreenState extends State<PhoneScreen> {
     setState(() {
       _editCell = null;
       _editing = null;
-      _held = null;
       _styles = false;
     });
   }
@@ -388,7 +390,6 @@ class _PhoneScreenState extends State<PhoneScreen> {
   void _tapText(String id) => _do(() async {
     if (await _onlyCloses()) return;
     if (_variants.tapTextSelects && _selected != id) {
-      if (_reader!.stage.look(id) == null) return;
       setState(() => _selected = id);
       _note();
       return _log('select', _where(id));
@@ -446,7 +447,6 @@ class _PhoneScreenState extends State<PhoneScreen> {
   Future<bool> _go(String cell, String what) async {
     final reader = _reader!;
     final before = reader.stage;
-    _note();
     try {
       if (before.ask.fullCells != phoneAsk.fullCells) {
         _unfolded.clear();
@@ -794,8 +794,8 @@ class _PhoneScreenState extends State<PhoneScreen> {
     }
     return PopScope(
       // Never by itself: the back action decides when its turn comes. After the
-      // end nothing is left to go up in.
-      canPop: ended != null,
+      // end, and while there is no stage to show, nothing is left to go up in.
+      canPop: ended != null || reader == null,
       onPopInvokedWithResult: (popped, _) {
         if (!popped) _back();
       },

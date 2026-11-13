@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/scheduler.dart';
 
 import '../src/rust/api/wire.dart';
 import 'budget.dart';
@@ -105,8 +104,7 @@ class _StageViewState extends State<StageView> {
   double get _shift {
     final across = _across;
     if (across == null || !across.hasClients) return 0;
-    final pixels = across.position.pixels;
-    return pixels > 0 ? pixels : 0;
+    return across.position.pixels;
   }
 
   int _columnAt(double offset) {
@@ -255,8 +253,7 @@ class _StageViewState extends State<StageView> {
       _lefts = lefts;
       final total = lefts.last;
       _pinRow = _scene.variants.pin && grid.ys > 1;
-      _pinColumn =
-          _scene.variants.pin && grid.xs > 1 && widths[0] <= box.maxWidth * 0.4;
+      _pinColumn = _scene.variants.pin && widths[0] <= box.maxWidth * 0.4;
       // The first time, where the level was left.
       _across ??= ScrollController(
         initialScrollOffset:
@@ -276,9 +273,9 @@ class _StageViewState extends State<StageView> {
         onNotification: (_) {
           // Scrolling comes to rest before the rows are laid out where it
           // ended, and sometimes in the middle of a layout, where nothing may
-          // be measured: the place is read when the next frame is done.
+          // be measured: the place is read when the frame is done that the
+          // scrolling itself has asked for.
           WidgetsBinding.instance.addPostFrameCallback((_) => _tellPlace());
-          SchedulerBinding.instance.ensureVisualUpdate();
           return false;
         },
         child: SingleChildScrollView(

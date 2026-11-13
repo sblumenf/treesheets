@@ -40,7 +40,7 @@ class ProtoLog extends ChangeNotifier {
     if (file == null) return Future.value();
     return _written = _written.then((_) async {
       try {
-        if (!await file.exists()) return;
+        // No file yet is one of the things that cannot be read.
         final old = const LineSplitter()
             .convert(await file.readAsString())
             .where((line) => line.isNotEmpty)

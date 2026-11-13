@@ -119,7 +119,7 @@ class CellView extends StatelessWidget {
     final summary = scene.stage.summary(look);
     final edited = scene.editing == look.id;
     final selected = scene.selected == look.id;
-    Widget text = Padding(
+    final text = Padding(
       padding: const EdgeInsets.all(6),
       child: edited
           ? ListenableBuilder(
@@ -136,13 +136,15 @@ class CellView extends StatelessWidget {
             )
           : CellText(look: look, maxLines: 8),
     );
-    if (edited) text = KeyedSubtree(key: scene.editedKey, child: text);
+
     final mark = edited
         ? colors.primary
         : selected
         ? colors.tertiary
         : null;
     return DecoratedBox(
+      // The whole cell is what is scrolled into view while it is edited.
+      key: edited ? scene.editedKey : null,
       decoration: BoxDecoration(color: colorOf(look.cellColor)),
       child: DecoratedBox(
         position: DecorationPosition.foreground,

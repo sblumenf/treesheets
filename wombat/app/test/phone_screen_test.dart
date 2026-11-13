@@ -34,15 +34,31 @@ void bigChild(FakeDocument fake) {
     ..cells = ids;
 }
 
+/// Makes the grid of 5 by 6 of [bigChild] the root's own; its cell `g7` (column
+/// 2, row 1) holds a grid of one cell, `in`.
+void wideRoot(FakeDocument fake) {
+  bigChild(fake);
+  fake.cells['root']!
+    ..xs = 5
+    ..cells = fake.cells['c']!.cells;
+  fake.cells['c']!
+    ..xs = 0
+    ..cells = [];
+  fake.cells['in'] = FakeCell('inside');
+  fake.cells['g7']!
+    ..xs = 1
+    ..cells = ['in'];
+}
+
 /// Makes the root of the stand-in one column of `rows` cells, `r0` and so on, of
-/// which `r5` has a grid of one cell `in`.
-void tallRoot(FakeDocument fake, int rows) {
+/// which the one in row `holder` has a grid of one cell `in`.
+void tallRoot(FakeDocument fake, int rows, {int holder = 5}) {
   final ids = [for (var i = 0; i < rows; i++) 'r$i'];
   for (final id in ids) {
     fake.cells[id] = FakeCell('row $id');
   }
   fake.cells['in'] = FakeCell('inside');
-  fake.cells['r5']!
+  fake.cells['r$holder']!
     ..xs = 1
     ..cells = ['in'];
   fake.cells['root']!
@@ -381,6 +397,96 @@ void main() {
     );
   });
 
+  group('what a form is drawn with', () {
+    screenTest(
+      'a grid two levels below the stage is not given cell by cell: a Preview',
+      (tester, keeper, fake) async {
+        // "three" is Full; its cell "five" holds a grid that would fit cell by
+        // cell, if the read gave it so.
+        expect(key('full-0-1'), findsOneWidget);
+        expect(key('preview-0-1/0-0'), findsOneWidget);
+        expect(key('full-0-1/0-0'), findsNothing);
+        expect(key('badge-0-1/0-0'), findsNothing);
+        // One target: into the grid, two levels down at once.
+        await press(tester, 'child-0-1/0-0');
+        await arrive(tester);
+        expect(line(tester, 'title'), 'five');
+        expect(key('trail-2'), findsOneWidget);
+        expect(shown(tester, '0-0'), 'deep');
+      },
+      before: (fake) {
+        fake.cells['h'] = FakeCell('deep');
+        fake.cells['e']!
+          ..xs = 1
+          ..cells = ['h'];
+      },
+    );
+
+    screenTest(
+      'a Preview says where a text was cut; a Badge is a whole target',
+      (tester, keeper, fake) async {
+        final texts = [
+          for (final text in tester.widgetList<Text>(
+            find.descendant(
+              of: key('preview-0-1'),
+              matching: find.byType(Text),
+            ),
+          ))
+            text.data,
+        ];
+        // Forty characters of it, and the sign that there is more.
+        expect(texts.first, '${'long ' * 8}…');
+        expect(texts[1], 'g1');
+        await choose(tester, 'menu', 'menu-settings');
+        await press(tester, 'min-text-more');
+        await press(tester, 'settings-close');
+        await tester.pumpAndSettle();
+        expect(key('shape-0-1'), findsOneWidget);
+        expect(
+          tester.getSize(key('child-0-1')).height,
+          greaterThanOrEqualTo(48),
+        );
+      },
+      before: (fake) {
+        bigChild(fake);
+        fake.cells['g0']!.text = 'long ' * 20;
+      },
+    );
+
+    screenTest(
+      'a folded grid\'s Badge is a target tall, however little it shows',
+      (tester, keeper, fake) async {
+        expect(key('badge-0-1'), findsOneWidget);
+        expect(
+          tester.getSize(key('child-0-1')).height,
+          greaterThanOrEqualTo(48),
+        );
+        expect(tester.getSize(key('badge-0-1')).height, lessThan(40));
+      },
+      before: (fake) {
+        bigChild(fake);
+        fake.folded.add('c');
+      },
+    );
+
+    screenTest(
+      'a long text is cut at eight lines, until it is edited',
+      (tester, keeper, fake) async {
+        expect(cellText(tester, '0-0').maxLines, 8);
+        expect(cellText(tester, '0-0').overflow, TextOverflow.ellipsis);
+        final cut = tester.getSize(key('cell-0-0')).height;
+        await press(tester, 'cell-0-0');
+        expect(cellText(tester, '0-0').maxLines, isNull);
+        expect(tester.getSize(key('cell-0-0')).height, greaterThan(cut));
+        await press(tester, 'cancel');
+        expect(tester.getSize(key('cell-0-0')).height, cut);
+      },
+      before: (fake) =>
+          fake.cells['a']!.text = [for (var i = 0; i < 20; i++) 'line $i']
+              .join('\n'),
+    );
+  });
+
   group('sizes', () {
     for (final (name, size, scale) in [
       ('a small phone', const Size(320, 480), 1.0),
@@ -480,6 +586,23 @@ void main() {
           'cancel',
         ]) {
           expect(key(tool), findsOneWidget, reason: tool);
+        }
+        // Nothing of the toolbar can take the keyboard from the field.
+        for (final tool in ['tool-right', 'save', 'cancel']) {
+          expect(
+            tester
+                .widget<ExcludeFocus>(
+                  find
+                      .ancestor(
+                        of: key(tool),
+                        matching: find.byType(ExcludeFocus),
+                      )
+                      .first,
+                )
+                .excluding,
+            isTrue,
+            reason: tool,
+          );
         }
         // One read of the cell, and nothing sent.
         expect((calls(fake, 'cell'), calls(fake, 'beginGroup')), (1, 0));
@@ -664,16 +787,29 @@ void main() {
         await press(tester, 'save');
         expect(fake.cells['g0']!.text, 'typed inside');
         expect(key('full-0-1'), findsOneWidget);
-        // Folded again by its bar.
+        // With the editor open, a tap on its bar only closes the editor.
+        await press(tester, 'cell-0-0');
+        type(tester, 'kept');
+        await press(tester, 'fold-0-1');
+        expect(key('editor'), findsNothing);
+        expect(fake.cells['a']!.text, 'kept');
+        expect(key('full-0-1'), findsOneWidget);
+        // Folded again by its bar; the read is asked for less again.
+        final reads = calls(fake, 'stage');
         await press(tester, 'fold-0-1');
         expect(key('full-0-1'), findsNothing);
         expect(key('preview-0-1'), findsOneWidget);
+        expect(calls(fake, 'stage'), reads + 1);
         expect(tester.getTopLeft(key('add-row')).dy, below);
         // Unfolded, then "Open ›": the dive is still there, and the way back
         // finds the grid folded.
         await press(tester, 'child-0-1');
         await press(tester, 'cell-0-1');
+        final before = calls(fake, 'stage');
         await press(tester, 'tool-open');
+        // Two reads: the stage asked for no more than usual again, and the
+        // level gone to.
+        expect(calls(fake, 'stage'), before + 2);
         await arrive(tester);
         expect(line(tester, 'title'), 'three');
         expect(shown(tester, '0-0'), 'typed inside');
@@ -682,6 +818,55 @@ void main() {
         expect(key('preview-0-1'), findsOneWidget);
       },
       before: bigChild,
+      variants: const Variants(tapChildUnfolds: true),
+    );
+
+    screenTest(
+      'a grid inside a Full grid is gone into, also where grids unfold',
+      (tester, keeper, fake) async {
+        expect(key('preview-0-1/0-0'), findsOneWidget);
+        final reads = calls(fake, 'stage');
+        await press(tester, 'child-0-1/0-0');
+        await arrive(tester);
+        expect(line(tester, 'title'), 'five');
+        expect(calls(fake, 'stage'), reads + 1);
+      },
+      before: (fake) {
+        fake.cells['h'] = FakeCell('deep');
+        fake.cells['e']!
+          ..xs = 1
+          ..cells = ['h'];
+      },
+      variants: const Variants(tapChildUnfolds: true),
+    );
+
+    screenTest(
+      'what was unfolded is folded again when the level is left',
+      (tester, keeper, fake) async {
+        // A grid of three columns: given cell by cell, and too wide to be Full.
+        expect(key('preview-0-1'), findsOneWidget);
+        await press(tester, 'child-0-1');
+        expect(key('full-0-1'), findsOneWidget);
+        expect(key('fold-0-1'), findsOneWidget);
+        // Nothing more was asked of the read for it.
+        expect(calls(fake, 'stage'), 1);
+        await press(tester, 'cell-0-1');
+        await press(tester, 'tool-open');
+        await arrive(tester);
+        expect(line(tester, 'title'), 'three');
+        await press(tester, 'up');
+        await arrive(tester);
+        expect(key('preview-0-1'), findsOneWidget);
+        expect(key('full-0-1'), findsNothing);
+      },
+      before: (fake) {
+        for (final id in ['g0', 'g1', 'g2', 'g3']) {
+          fake.cells[id] = FakeCell(id);
+        }
+        fake.cells['c']!
+          ..xs = 3
+          ..cells = ['e', 'f', 'g0', 'g1', 'g2', 'g3'];
+      },
       variants: const Variants(tapChildUnfolds: true),
     );
 
@@ -726,6 +911,192 @@ void main() {
           ..cells = [];
       },
     );
+  });
+
+  group('the edited cell is kept in sight', () {
+    /// Whether the cell is inside what is seen of the grid, top to bottom.
+    void inSight(WidgetTester tester, String cell) {
+      final at = tester.getRect(key('cell-$cell'));
+      final grid = tester.getRect(key('stage-across'));
+      expect(at.top, greaterThanOrEqualTo(grid.top - 0.5), reason: 'top');
+      expect(at.bottom, lessThanOrEqualTo(grid.bottom + 0.5), reason: 'bottom');
+    }
+
+    screenTest('a cell at the bottom, which the editor would cover', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      // The last row that is seen whole.
+      final grid = tester.getRect(key('stage-across'));
+      var last = 1;
+      while (tester.getRect(key('cell-0-${last + 1}')).bottom <= grid.bottom) {
+        last++;
+      }
+      await tester.tap(key('cell-0-$last'));
+      await tester.pump();
+      await tester.pump();
+      // The editor is taller than the bar it took the place of.
+      expect(tester.getRect(key('stage-across')).bottom, lessThan(grid.bottom));
+      inSight(tester, '0-$last');
+      expect(editor(tester), 'row r$last');
+      await press(tester, 'cancel');
+    }, before: (fake) => tallRoot(fake, 40));
+
+    screenTest('a cell half under the top edge', (tester, keeper, fake) async {
+      // (A drag begins after the first 18 pixels of it.)
+      await tester.drag(key('stage-down-0'), const Offset(0, -42));
+      await tester.pumpAndSettle();
+      final top = tester.getRect(key('stage-first-row')).bottom;
+      expect(tester.getRect(key('cell-0-1')).top, lessThan(top - 20));
+      // Its lower half is there to be tapped.
+      await tester.tapAt(Offset(60, top + 12));
+      await tester.pump();
+      await tester.pump();
+      expect(editor(tester), 'row r1');
+      expect(tester.getRect(key('cell-0-1')).top, top);
+      await press(tester, 'cancel');
+    }, before: (fake) => tallRoot(fake, 40));
+
+    screenTest(
+      'a cell of a Full grid, whose own place in that grid says nothing',
+      (tester, keeper, fake) async {
+        // The cell inside row 11 is seen whole, and low enough for the editor
+        // to cover it.
+        final grid = tester.getRect(key('stage-across'));
+        expect(
+          tester.getRect(key('cell-0-11/0-0')).bottom,
+          lessThan(grid.bottom),
+        );
+        await tester.tap(key('cell-0-11/0-0'));
+        await tester.pump();
+        await tester.pump();
+        expect(editor(tester), 'inside');
+        final now = tester.getRect(key('stage-across'));
+        expect(now.bottom, lessThan(grid.bottom));
+        expect(
+          tester.getRect(key('cell-0-11/0-0')).bottom,
+          lessThanOrEqualTo(now.bottom + 0.5),
+        );
+        await press(tester, 'cancel');
+      },
+      before: (fake) => tallRoot(fake, 40, holder: 11),
+    );
+
+    screenTest(
+      'sideways: a cell past the right edge, and one under the first column',
+      (tester, keeper, fake) async {
+        const width = 400.0;
+        // → from the third column to the fourth, which is half out of sight.
+        await press(tester, 'cell-2-2');
+        expect(tester.getRect(key('cell-3-2')).right, greaterThan(width));
+        await press(tester, 'tool-right');
+        await tester.pump();
+        await tester.pump();
+        expect(editor(tester), 'g13');
+        expect(tester.getRect(key('cell-3-2')).right, width);
+        await press(tester, 'cancel');
+        // A cell of the first column, which stays in view: nothing moves.
+        final before = tester.getTopLeft(key('cell-4-2')).dx;
+        await tester.tapAt(tester.getCenter(key('cell-0-2')));
+        await tester.pump();
+        await tester.pump();
+        expect(editor(tester), 'g10');
+        expect(tester.getTopLeft(key('cell-4-2')).dx, before);
+        await press(tester, 'cancel');
+        // "Edit" on a selected cell that lies under the first column: it comes
+        // out to the right of it.
+        await press(tester, 'cell-1-2');
+        await press(tester, 'cancel');
+        await tester.drag(key('stage-across'), const Offset(-300, 0));
+        await tester.pumpAndSettle();
+        final first = tester.getRect(key('cell-0-2'));
+        expect(first.left, 0);
+        expect(
+          tester.getRect(key('cell-1-2')).left,
+          lessThan(first.right - 50),
+        );
+        await press(tester, 'bar-edit');
+        await tester.pump();
+        await tester.pump();
+        expect(editor(tester), 'g11');
+        expect(tester.getRect(key('cell-1-2')).left, first.right);
+        await press(tester, 'cancel');
+      },
+      before: wideRoot,
+    );
+  });
+
+  group('three levels', () {
+    void deep(FakeDocument fake) {
+      bigChild(fake);
+      fake.cells['h'] = FakeCell('deepest');
+      fake.cells['g0']!
+        ..xs = 1
+        ..cells = ['h'];
+    }
+
+    Future<void> down(WidgetTester tester) async {
+      await press(tester, 'child-0-1');
+      await arrive(tester);
+      await press(tester, 'cell-0-0');
+      await press(tester, 'tool-open');
+      await arrive(tester);
+    }
+
+    /// Whether the cell with this name is the one that flashes.
+    bool flashes(String cell) => find
+        .descendant(of: key('flash'), matching: key('cell-$cell'))
+        .evaluate()
+        .isNotEmpty;
+
+    screenTest('up goes one level, a name of the trail to its level', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await down(tester);
+      expect(line(tester, 'title'), 'g0');
+      expect(shown(tester, '0-0'), 'deepest');
+      await press(tester, 'up');
+      await tester.pump();
+      expect(line(tester, 'title'), 'three');
+      // The cell come up out of flashes, and no other.
+      expect(flashes('0-0'), isTrue);
+      expect(find.byKey(const Key('flash')), findsOneWidget);
+      await arrive(tester);
+      await press(tester, 'cell-0-0');
+      await press(tester, 'tool-open');
+      await arrive(tester);
+      await press(tester, 'trail-1');
+      await arrive(tester);
+      expect(line(tester, 'title'), 'three');
+      await press(tester, 'cell-0-0');
+      await press(tester, 'tool-open');
+      await arrive(tester);
+      // Two levels at once: the cell of the level arrived at that leads to
+      // where the screen was, not the cell it was in.
+      await press(tester, 'trail-0');
+      await tester.pump();
+      expect(line(tester, 'title'), 'Root');
+      expect(flashes('0-1'), isTrue);
+      expect(find.byKey(const Key('flash')), findsOneWidget);
+    }, before: deep);
+
+    screenTest('two taps on the arrow one level down go up once', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await dive(tester);
+      final went = calls(fake, 'viewGo');
+      await tester.tap(key('up'));
+      await tester.tap(key('up'), warnIfMissed: false);
+      await tester.pump();
+      await tester.pump();
+      expect(line(tester, 'title'), 'Root');
+      expect(calls(fake, 'viewGo'), went + 1);
+    }, before: bigChild);
   });
 
   group('each level remembers where it was', () {
@@ -788,6 +1159,73 @@ void main() {
       await dive(tester);
       expect(key('flash'), findsNothing);
     }, before: bigChild);
+
+    screenTest('the column too', (tester, keeper, fake) async {
+      await tester.drag(key('stage-across'), const Offset(-150, 0));
+      await tester.pumpAndSettle();
+      // The second column is the first of which something is seen beside the
+      // first, which stays in view. Into the grid of the third.
+      await tester.tapAt(
+        tester.getCenter(key('cell-2-1')) + const Offset(20, 0),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(editor(tester), 'g7');
+      await press(tester, 'tool-open');
+      await arrive(tester);
+      expect(line(tester, 'title'), 'g7');
+      expect((fake.levels['root']!.x, fake.levels['root']!.y), (1, 1));
+      await press(tester, 'up');
+      await arrive(tester);
+      // The second column at the left edge again, under the first.
+      final first = tester.getRect(key('cell-0-0'));
+      expect(tester.getRect(key('cell-1-0')).left, first.left);
+      expect(tester.getRect(key('cell-2-0')).left, first.right);
+    }, before: wideRoot);
+
+    screenTest(
+      'a row that is out of sight, and still there for a tap\'s ripple, is not '
+      'taken for the top one',
+      (tester, keeper, fake) async {
+        await tester.tap(key('cell-0-3'));
+        await tester.pump();
+        await tester.drag(key('stage-down-0'), const Offset(0, -600));
+        // The frame in which the rows are where the drag left them, and the
+        // place is read; the ripple of the tap has not run out.
+        await tester.pump();
+        await tester.pump();
+        await keeper.save();
+        final top = tester.getRect(key('stage-first-row')).bottom;
+        var first = 1;
+        while (!there('cell-0-$first') ||
+            tester.getRect(key('cell-0-$first')).bottom <= top + 1) {
+          first++;
+        }
+        expect(first, greaterThan(10));
+        expect(fake.levels['root']!.y, first);
+        expect(fake.levels['root']!.selected, 'r3');
+      },
+      before: (fake) => tallRoot(fake, 40),
+      variants: const Variants(tapTextSelects: true),
+    );
+
+    for (final selects in [false, true]) {
+      screenTest('the selected cell is told with the next save, '
+          '${selects ? 'selected by a tap' : 'selected by being edited'}', (
+        tester,
+        keeper,
+        fake,
+      ) async {
+        await enterBehind(keeper, 'a', 'changed');
+        await tester.pump();
+        await press(tester, 'cell-1-1');
+        if (!selects) await press(tester, 'cancel');
+        // No level was left: the save hands it on.
+        await keeper.save();
+        expect(fake.levels['root']!.selected, 'd');
+        expect((fake.viewSaves, fake.viewSaved), (1, true));
+      }, variants: Variants(tapTextSelects: selects));
+    }
 
     screenTest('a screen that starts shows the level the device showed last', (
       tester,
@@ -1428,6 +1866,8 @@ void main() {
       expect(find.text('› three'), findsOneWidget);
       expect(key('trail-2'), findsNothing);
       expect(line(tester, 'message'), isNull);
+      // Gone to once, not twice to the same place.
+      expect(calls(fake, 'viewGo'), 1);
     }, before: bigChild);
 
     screenTest('two taps on undo undo twice', (tester, keeper, fake) async {
@@ -1958,6 +2398,157 @@ void main() {
     });
   });
 
+  group('what goes wrong is said, and nothing else happens', () {
+    screenTest('a grid that cannot be read is not gone into', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      failFirst(fake, 'stage', broken);
+      await press(tester, 'child-0-1');
+      expect(line(tester, 'message'), 'Error (io): the disk is gone');
+      expect(line(tester, 'title'), 'Root');
+      expect(fake.zoom, 'root');
+      await dive(tester);
+      expect(line(tester, 'title'), 'three');
+      expect(line(tester, 'message'), isNull);
+    }, before: bigChild);
+
+    screenTest('an undo that fails is said', (tester, keeper, fake) async {
+      await enterBehind(keeper, 'a', 'typed');
+      await tester.pump();
+      failFirst(fake, 'undo', broken);
+      await press(tester, 'undo');
+      expect(line(tester, 'message'), 'Error (io): the disk is gone');
+      expect(shown(tester, '0-0'), 'typed');
+      await press(tester, 'undo');
+      expect(shown(tester, '0-0'), 'one');
+    });
+
+    screenTest('a cell that cannot be read is not opened', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      failFirst(fake, 'cell', broken);
+      await press(tester, 'cell-0-0');
+      expect(line(tester, 'message'), 'Error (io): the disk is gone');
+      expect(key('editor'), findsNothing);
+      await press(tester, 'cell-0-0');
+      expect(editor(tester), 'one');
+      await press(tester, 'cancel');
+    });
+
+    screenTest('the screen goes while the editor is opening: nothing thrown', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      final gate = holdFirst(fake, 'cell');
+      await tester.tap(key('cell-0-0'));
+      await tester.pump();
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(fake.log.contains('beginGroup'), isFalse);
+    });
+
+    screenTest('an editing that something else ended gives way to a new one', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await press(tester, 'cell-0-0');
+      type(tester, 'typed');
+      // Behind the screen, as a second screen could: its editing takes the
+      // place of this one, which held nothing.
+      await enterBehind(keeper, 'd', 'theirs');
+      await tester.pump();
+      expect(shown(tester, '0-0'), 'typed');
+      await press(tester, 'save');
+      expect(key('editor'), findsNothing);
+      expect(line(tester, 'message'), isNull);
+      expect(
+        (fake.cells['a']!.text, fake.cells['d']!.text),
+        ('typed', 'theirs'),
+      );
+    });
+  });
+
+  group('the screen and its keeper', () {
+    testWidgets(
+      'a screen that goes before its first read leaves nothing behind',
+      (tester) async {
+        final fake = FakeDocument();
+        final keeper = Keeper(await Session.over(fake));
+        final gate = holdFirst(fake, 'viewStage');
+        await tester.pumpWidget(phoneApp(keeper));
+        await tester.pump();
+        expect(key('reading'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+        gate.complete();
+        await tester.pump();
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        // The stage that was read for it is no longer kept up to date.
+        final stages = fake.log.where((call) => call == 'stage').length;
+        await (await keeper.edit('a')).enter('typed');
+        expect(fake.log.where((call) => call == 'stage').length, stages);
+        await keeper.close();
+      },
+    );
+
+    screenTest(
+      'what the keeper asks when the app is put away takes its turn among the '
+      'screen\'s actions',
+      (tester, keeper, fake) async {
+        await press(tester, 'cell-0-0');
+        type(tester, 'typed');
+        // The tick is at work when the app is put away: the screen's answer to
+        // that comes after it, and finds no editor left.
+        final gate = holdFirst(fake, 'retype');
+        await tester.tap(key('save'));
+        await tester.pump();
+        final away = keeper.putAway();
+        await tester.pump();
+        gate.complete();
+        expect(await away, isEmpty);
+        await tester.pump();
+        expect(key('editor'), findsNothing);
+        expect(line(tester, 'message'), isNull);
+        expect(fake.cells['a']!.text, 'typed');
+        expect(calls(fake, 'beginGroup'), 1);
+        expect((fake.saves, fake.saved), (1, true));
+      },
+    );
+
+    screenTest(
+      'the flash of the level come up to is not shown again for another document',
+      (tester, keeper, fake) async {
+        await dive(tester);
+        await press(tester, 'up');
+        await tester.pump();
+        expect(key('flash'), findsOneWidget);
+        await enterBehind(keeper, 'a', 'mine');
+        fake.fileChanged = true;
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pump();
+        await press(tester, 'open-theirs');
+        await tester.pump();
+        expect(shown(tester, '0-0'), 'one');
+        expect(key('flash'), findsNothing);
+      },
+      before: bigChild,
+      reopen: (_) async {
+        final theirs = FakeDocument();
+        bigChild(theirs);
+        return Session.over(theirs);
+      },
+    );
+  });
+
   group('a save that did not work is shown', () {
     screenTest('with the way to try again', (tester, keeper, fake) async {
       await enterBehind(keeper, 'a', 'typed');
@@ -2027,6 +2618,15 @@ void main() {
         type(tester, 'on theirs');
         await press(tester, 'save');
         expect(theirs.cells['a']!.text, 'on theirs');
+        // What the keeper has to say after that (the save that comes by
+        // itself) is no reason to close an editor: the document is the same.
+        await press(tester, 'cell-1-1');
+        type(tester, 'typed while it saves');
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pump();
+        expect(theirs.saves, 1);
+        expect(editor(tester), 'typed while it saves');
+        await press(tester, 'cancel');
       },
       before: bigChild,
       reopen: (path) {
@@ -2215,6 +2815,10 @@ void main() {
         );
         expect(key('stage-across'), findsNothing);
         expect(tester.widget<IconButton>(key('undo')).onPressed, isNull);
+        // With nothing to go up in, the system's back is the system's.
+        expect(await back(tester), ['SystemNavigator.pop']);
+        expect(tester.takeException(), isNull);
+        expect(line(tester, 'message'), isNull);
         // The keeper is its owner's to close as before, and the screen leaves
         // nothing with it when it goes.
         await tester.pumpWidget(const SizedBox());
@@ -2364,13 +2968,44 @@ void main() {
         tester.widget<IconButton>(key('preview-scale-less')).onPressed,
         isNull,
       );
+      for (var i = 0; i < 5; i++) {
+        await tester.tap(key('preview-scale-more'));
+        await tester.pump();
+      }
+      // In steps of a tenth that add up to exactly one.
+      expect(variants.value.previewScale, 1.0);
+      expect(line(tester, 'preview-scale'), 'Preview text: 100% of full size');
+      expect(
+        tester.widget<IconButton>(key('preview-scale-more')).onPressed,
+        isNull,
+      );
+      for (var i = 0; i < 5; i++) {
+        await tester.tap(key('preview-scale-less'));
+        await tester.pump();
+      }
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(key('min-text-less'));
+        await tester.pump();
+      }
+      expect(variants.value.minText, 8);
+      expect(tester.widget<IconButton>(key('min-text-less')).onPressed, isNull);
+      for (var i = 0; i < 8; i++) {
+        await tester.tap(key('min-text-more'));
+        await tester.pump();
+      }
+      expect(variants.value.minText, 16);
+      expect(tester.widget<IconButton>(key('min-text-more')).onPressed, isNull);
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(key('min-text-less'));
+        await tester.pump();
+      }
       await tester.tap(key('min-text-less'));
       await tester.tap(key('preview-scale-more'));
       await tester.tap(key('preview-scale-more'));
       await tester.pump();
       expect((variants.value.minText, variants.value.previewScale), (11, 0.7));
       // Every change is in the log, with the settings as they then were.
-      expect(line(tester, 'log-count'), 'Prototype log: 9 entries');
+      expect(line(tester, 'log-count'), 'Prototype log: 35 entries');
       final first = jsonDecode(log.lines.first) as Map<String, Object?>;
       expect(first['what'], 'variant');
       expect((first['variants']! as Map)['tapText'], 'select');

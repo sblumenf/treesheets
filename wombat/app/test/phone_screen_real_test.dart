@@ -438,7 +438,11 @@ void main() {
       ]);
       // The text of the new cell, the row, and the text before it.
       await tap(tester, 'undo', () => shown(tester, '0-3') == '');
+      // The new cell is the selected one, which "Edit" would open.
+      expect(tester.widget<TextButton>(key('bar-edit')).onPressed, isNotNull);
       await tap(tester, 'undo', () => !there('cell-0-3'));
+      // It went with its row, and so did the selection.
+      expect(tester.widget<TextButton>(key('bar-edit')).onPressed, isNull);
       expect(shown(tester, '0-2'), 'Sum');
       await tap(tester, 'undo', () => shown(tester, '0-2') == 'Total');
     });
@@ -689,6 +693,11 @@ void main() {
       type(tester, 'what to buy now');
       await tester.pump();
       expect(shown(tester, '1-0'), 'what to buy now');
+      // In one piece: the ranges the document holds are of the text it holds.
+      expect(
+        (cellText(tester, '1-0').textSpan! as TextSpan).children!.length,
+        1,
+      );
       editorField(tester).selection = const TextSelection(
         baseOffset: 0,
         extentOffset: 4,
@@ -720,6 +729,31 @@ void main() {
         'redo',
         () => shown(tester, '1-0') == 'what to buy now',
       );
+
+      // The editor opens on a cell that has styles: they are drawn for as long
+      // as the text is the document's, and come back when it is held there.
+      await edit(tester, '1-0', 'what to buy now');
+      expect(
+        (cellText(tester, '1-0').textSpan! as TextSpan).children!.length,
+        4,
+      );
+      type(tester, 'what to buy now!');
+      await tester.pump();
+      expect(
+        (cellText(tester, '1-0').textSpan! as TextSpan).children!.length,
+        1,
+      );
+      await life(tester, lifeOut);
+      await until(tester, () => keeper.editing?.held ?? false);
+      await life(tester, lifeBack);
+      await until(
+        tester,
+        () =>
+            (cellText(tester, '1-0').textSpan! as TextSpan).children!.length ==
+            4,
+      );
+      await closed(tester, 'cancel');
+      expect(shown(tester, '1-0'), 'what to buy now');
 
       // Bold on a range that is bold switches it off.
       await edit(tester, '1-0', 'what to buy now');

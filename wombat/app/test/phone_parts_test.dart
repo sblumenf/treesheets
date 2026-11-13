@@ -427,6 +427,42 @@ void main() {
       expect((spans[0] as TextSpan).style!.fontWeight, isNull);
     });
 
+    testWidgets('the ranges are of the text, not of what a formula shows', (
+      tester,
+    ) async {
+      // A formula cell whose text has a bold range: its result is one piece.
+      final formula = look(
+        '=1+2+3',
+        runs: [const RunInfo(start: 0, len: 2, style: bold)],
+      ).copyWith(result: '6');
+      await tester.pumpWidget(MaterialApp(home: CellText(look: formula)));
+      final text = tester.widget<Text>(find.byType(Text));
+      final spans = (text.textSpan! as TextSpan).children!;
+      expect(spans.length, 1);
+      expect((spans.single as TextSpan).text, '6');
+      expect((spans.single as TextSpan).style, isNull);
+    });
+
+    testWidgets('a Shape is at least a target tall and never taller than 160', (
+      tester,
+    ) async {
+      Future<Size> drawn(GridSummary of, double width) async {
+        await tester.pumpWidget(
+          Center(
+            child: ShapeView(summary: of, width: width),
+          ),
+        );
+        return tester.getSize(find.byType(CustomPaint).last);
+      }
+
+      // Twenty rows of twelve each would be 240.
+      expect(await drawn(summary(12, 20), 300), const Size(300, 160));
+      // One row of four would be 4.
+      expect(await drawn(summary(12, 1), 96), const Size(96, 40));
+      // In between, half as tall as its columns are wide.
+      expect(await drawn(summary(5, 10), 100), const Size(100, 100));
+    });
+
     test('ranges that are not in the text give the text plain', () {
       final wrong = look(
         'ab',
@@ -586,11 +622,13 @@ void main() {
     late Directory folder;
     setUp(() => folder = Directory.systemTemp.createTempSync('wombat-log'));
     tearDown(() => folder.deleteSync(recursive: true));
-    final at = DateTime(2026, 11, 12, 10, 30, 5).toUtc();
+    // The clock of the device, which is not on universal time.
+    final local = DateTime(2026, 11, 12, 10, 30, 5);
+    final at = local.toUtc();
 
     test('one line of JSON for each entry, added to its file as it is made', () async {
       final file = File('${folder.path}/log.jsonl');
-      final log = ProtoLog(file: file, now: () => at);
+      final log = ProtoLog(file: file, now: () => local);
       var told = 0;
       log.addListener(() => told++);
       log.add('dive', const Variants(), {'depth': 2});
@@ -608,6 +646,8 @@ void main() {
       expect((jsonDecode(log.lines.last) as Map)['variants']['pin'], isFalse);
       expect(log.text, '${log.lines[0]}\n${log.lines[1]}\n');
       // The next run finds them, and goes on after them.
+      // A line left empty by something else is passed over.
+      file.writeAsStringSync('\n', mode: FileMode.append);
       final next = ProtoLog(file: file, now: () => at);
       final loading = next.load();
       // Added while the file is read: after what was there, and not read twice.
@@ -616,7 +656,7 @@ void main() {
       expect(next.lines.length, 3);
       expect(next.lines.take(2), log.lines);
       await next.written();
-      expect(file.readAsLinesSync().length, 3);
+      expect(file.readAsLinesSync().where((line) => line.isNotEmpty).length, 3);
     });
 
     test('in memory alone without a file, or with one that cannot be written', () async {

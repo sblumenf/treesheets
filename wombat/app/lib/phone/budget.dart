@@ -92,7 +92,6 @@ List<double> columnWidths(
   required double viewport,
   required double textScale,
 }) {
-  if (units.isEmpty) return const [];
   final room = viewport - plusBar;
   // Larger text gets wider columns, up to half as wide again.
   final least = 110 * textScale.clamp(1.0, 1.5);

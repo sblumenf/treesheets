@@ -42,7 +42,6 @@ class _SettingsSheetState extends State<SettingsSheet> {
   /// as they were when the sheet was last drawn.
   void _set(Variants Function(Variants now) change) {
     final to = change(widget.variants.value);
-    if (to == widget.variants.value) return;
     widget.variants.value = to;
     widget.log.add('variant', to);
   }
@@ -93,7 +92,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
   Widget build(BuildContext context) => SafeArea(
     child: SingleChildScrollView(
       child: ListenableBuilder(
-        listenable: Listenable.merge([widget.variants, widget.log]),
+        // Every entry the log gets while the sheet is open is a change made here.
+        listenable: widget.variants,
         builder: (context, _) {
           final v = widget.variants.value;
           final export = widget.exportFolder;
