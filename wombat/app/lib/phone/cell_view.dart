@@ -39,6 +39,7 @@ class Scene {
     required this.selected,
     required this.editing,
     required this.editor,
+    this.leaving,
     required this.held,
     required this.unfolded,
     required this.flash,
@@ -65,6 +66,10 @@ class Scene {
   /// [editor], not from the read.
   final String? editing;
   final CellEditor editor;
+
+  /// The text of the edited cell while the editor is on its way to another cell,
+  /// when the field holds what is typed for that one already.
+  final String? leaving;
 
   /// The edited cell as the document holds it meanwhile (after a style was put on
   /// it), if it does: its runs are drawn while the editor has the same text.
@@ -125,7 +130,7 @@ class CellView extends StatelessWidget {
           ? ListenableBuilder(
               listenable: scene.editor,
               builder: (context, _) {
-                final typed = scene.editor.text;
+                final typed = scene.leaving ?? scene.editor.text;
                 final held = scene.held;
                 return CellText(
                   look: look,

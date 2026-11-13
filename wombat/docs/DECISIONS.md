@@ -1665,8 +1665,10 @@ are where milestones 4, 5 and 6, built apart, meet).
       the message line says so; A158.)
     - if the core refuses the text, the editor stays open with it and the action is not
       done;
-    - if keys were typed while the core worked on Return or the tick, the editor stays
-      where it is with those keys, and is not moved or closed over them;
+    - if keys were typed while the core worked on the tick, the editor stays where it
+      is with those keys, and is not closed over them. (For Return this held only until
+      the text was entered: keys typed after that, while the next cell was made and
+      read, were lost, as the fifth review found. A193 is the rule since.)
     - the cross (cancel), which the spec does not have, stays for now: it is the one way
       to say "not this", and it is asked for by name. (After the app had been put away
       the text was in the document already and the cross kept it; A157 makes the cross
@@ -3018,8 +3020,9 @@ are where milestones 4, 5 and 6, built apart, meet).
       stays with all of it, and a new editing of the same cell is opened at once, inside
       the same action. So there is always an open editing behind an open editor, and a
       screen that goes can enter its text with the one call the rule asks for. Under
-      Return or an action of the bars, the action is not done and a line says so, as on
-      the stand-in.
+      undo, redo, up or the trail, the action is not done and a line says so, as on
+      the stand-in. (Under Return, →, +Row and +Col no line was said, though this entry
+      said so until the fifth review; what they do is A193.)
     - *Not verified, and it needs a phone:* everything A180 lists about the keyboard.
 187. **The prototype's switches are this run's; its log is a file of the app** (UI_SPEC
     sections 3, 6 and 16; `variants.dart`, `log.dart`, `settings_sheet.dart`).
@@ -3125,6 +3128,41 @@ are where milestones 4, 5 and 6, built apart, meet).
       run there.
     - *Not done:* a macOS desktop app (`flutter create --platforms=macos`). It would be a
       second untested system with its own sandbox settings, and was not asked for.
+
+193. **What is typed after Return belongs to the next cell** (the fifth review, findings
+    1 and 2; `phone_screen.dart`). It replaces, for the actions that move the editor
+    (Return, →, +Row, +Col), the rule of A147 and A186 that keys typed while the text
+    is entered keep the editor on its cell. That rule lost keys typed after the text
+    was entered and before the next cell was open (up to half a second here on the
+    large documents, longer on a phone), and before that it left "Apples", Return,
+    "Bread" as "ApplesBread" in the first cell without a word.
+    - **The rule.** The text as it is at the moment of the press is the text of the
+      cell that is left. The field is emptied at that moment (after the input method's
+      text under way is made final), and what is typed from then on is typed for the
+      cell the editor moves to. When the editor is on that cell, the field shows the
+      cell's text with what was typed added at the end, the cursor behind it; it is
+      typed text like any other, which the tick enters, the cross drops and the app
+      put away holds in that cell. Until then the cell that is left is drawn with the
+      text it was left with.
+    - **Several presses in a row** (Return, a word, Return, a word, faster than the
+      core) each take what was typed since the one before, for the cell that one
+      moves to. Each cell is still a step of its own in the undo history.
+    - **If the editor does not get there** (the core refuses the text, or the row, or
+      there is no cell to be on), everything taken is put back into the field, each
+      piece behind the one it followed, the editor stays on the cell it was on, and
+      the message line says why, or that more was typed when nothing else was said.
+      Moves asked for behind the one that failed are not done. With nothing typed
+      meanwhile, a move that finds no cell closes the editor as before.
+    - **Other actions** (the tick, undo, a tap elsewhere, the app put away) wait their
+      turn as before. One that was asked for before a press and has not begun finds
+      the text back in the field; one that was already at work sees the taken text as
+      "more was typed" and leaves the editor open, and the move then goes on.
+    - *The cost:* for the moment of the move the field is empty although the editor's
+      mark is still on the cell that is left. *Not verified, and it needs a phone:*
+      what a keyboard that suggests words does when the field is emptied under it.
+      *Left:* a screen that is taken away in the middle of a move (which the app does
+      not do: it lets the queue finish first) enters the text of the cell that is
+      left, and what was typed for the next cell has no cell to go to.
 
 
 ## B. Deliberate departures from TreeSheets

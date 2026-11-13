@@ -1722,7 +1722,9 @@ void main() {
       final gate = holdFirst(fake, 'retype');
       await pressReturn(tester);
       expect(focused(tester), isTrue);
-      expect(editor(tester), 'typed');
+      // The field is empty for what is typed for the next cell (decision A193).
+      expect(editor(tester), '');
+      expect(shown(tester, '0-0'), 'typed');
       gate.complete();
       await tester.pump();
       await tester.pump();
@@ -1768,31 +1770,6 @@ void main() {
       expect(fake.cells['a']!.text, 'first');
       await press(tester, 'undo');
       expect(fake.cells['a']!.text, 'one');
-    });
-
-    screenTest('on Return: the editor stays on the cell it was typed in', (
-      tester,
-      keeper,
-      fake,
-    ) async {
-      await press(tester, 'cell-0-0');
-      type(tester, 'first');
-      final gate = holdFirst(fake, 'retype');
-      await pressReturn(tester);
-      type(tester, 'first and more');
-      gate.complete();
-      await tester.pump();
-      await tester.pump();
-      expect(
-        (fake.cells['a']!.text, editor(tester)),
-        ('first', 'first and more'),
-      );
-      expect(shown(tester, '0-0'), 'first and more');
-      expect(shown(tester, '0-1'), 'three');
-      await pressReturn(tester);
-      expect(fake.cells['a']!.text, 'first and more');
-      expect(editor(tester), 'three');
-      await press(tester, 'cancel');
     });
 
     for (final (name, tap) in [
@@ -1872,6 +1849,272 @@ void main() {
       expect(fake.cells['a']!.text, 'first and more');
       expect(fake.log, containsAllInOrder(['endGroup', 'endGroup', 'close']));
       expect((fake.saves, fake.closed), (1, true));
+    });
+  });
+
+  // Decision A193: the text as it is when Return, →, +Row or +Col is pressed is
+  // the text of the cell that is left; what is typed from then on is for the cell
+  // the editor moves to.
+  group('typed while the editor moves on', () {
+    for (final (name, tap, held, next, text) in [
+      ('Return, while the text is entered', null, 'retype', 'c', 'three'),
+      ('Return, while the next cell is read', null, 'cell', 'c', 'three'),
+      ('→, while the text is entered', 'tool-right', 'retype', 'b', '=X'),
+      ('→, while the next cell is read', 'tool-right', 'cell', 'b', '=X'),
+    ]) {
+      screenTest('$name: it is the next cell\'s', (tester, keeper, fake) async {
+        await press(tester, 'cell-0-0');
+        type(tester, 'first');
+        final gate = holdFirst(fake, held);
+        tap == null ? await pressReturn(tester) : await press(tester, tap);
+        await tester.pump();
+        // The field is empty for what comes; the cell that is left shows the
+        // text it was left with, and the field keeps the keyboard.
+        expect(editor(tester), '');
+        expect(shown(tester, '0-0'), 'first');
+        expect(focused(tester), isTrue);
+        type(tester, ' more');
+        await tester.pump();
+        expect(shown(tester, '0-0'), 'first');
+        gate.complete();
+        await tester.pump();
+        await tester.pump();
+        expect(fake.cells['a']!.text, 'first');
+        expect(shown(tester, '0-0'), 'first');
+        // On the next cell, behind the text it has; not in the document yet.
+        expect(editor(tester), '$text more');
+        expect(editorField(tester).selection.baseOffset, '$text more'.length);
+        expect(fake.cells[next]!.text, text);
+        expect(line(tester, 'message'), isNull);
+        // It is typed text: the tick enters it.
+        await press(tester, 'save');
+        expect(key('editor'), findsNothing);
+        expect(fake.cells[next]!.text, '$text more');
+      });
+    }
+
+    screenTest('two Returns, typing all the while: each text in its cell', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await press(tester, 'cell-0-0');
+      type(tester, 'A');
+      final gate = holdFirst(fake, 'retype');
+      await pressReturn(tester);
+      type(tester, 'B');
+      await pressReturn(tester);
+      type(tester, 'C');
+      await tester.pump();
+      expect(shown(tester, '0-0'), 'A');
+      gate.complete();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(
+        (fake.cells['r0']!.text, fake.cells['r1']!.text),
+        ('A', 'row r1B'),
+      );
+      expect(editor(tester), 'row r2C');
+      expect(fake.cells['r2']!.text, 'row r2');
+      expect(line(tester, 'message'), isNull);
+      await press(tester, 'save');
+      expect(fake.cells['r2']!.text, 'row r2C');
+      // Each cell was a step of its own.
+      await press(tester, 'undo');
+      await press(tester, 'undo');
+      expect(
+        (fake.cells['r1']!.text, fake.cells['r2']!.text),
+        ('row r1', 'row r2'),
+      );
+    }, before: (fake) => tallRoot(fake, 8));
+
+    screenTest('text that the core refuses: all of it back in the field', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await press(tester, 'cell-0-0');
+      type(tester, 'too long');
+      final gate = holdFirst(fake, 'retype');
+      await pressReturn(tester);
+      type(tester, ' by far');
+      // A second Return, which is not done either.
+      await pressReturn(tester);
+      type(tester, '!');
+      gate.completeError(broken);
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(editor(tester), 'too long by far!');
+      expect(line(tester, 'message'), 'Error (io): the disk is gone');
+      expect(shown(tester, '0-0'), 'too long by far!');
+      expect((fake.cells['a']!.text, fake.cells['c']!.text), ('one', 'three'));
+      expect(focused(tester), isTrue);
+      await press(tester, 'save');
+      expect(key('editor'), findsNothing);
+      expect(fake.cells['a']!.text, 'too long by far!');
+    });
+
+    screenTest('no cell to move to: back in the field, and said', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      // The last row: the stand-in refuses to add one.
+      await press(tester, 'cell-1-1');
+      type(tester, 'last');
+      final gate = holdFirst(fake, 'endGroup');
+      await pressReturn(tester);
+      type(tester, ' and more');
+      gate.complete();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(fake.cells['d']!.text, 'last');
+      expect(editor(tester), 'last and more');
+      expect(
+        line(tester, 'message'),
+        'Error (refused): the stand-in does not know this command',
+      );
+      expect((keeper.editing!.open, keeper.editing!.held), (true, false));
+      await press(tester, 'save');
+      expect(key('editor'), findsNothing);
+      expect(fake.cells['d']!.text, 'last and more');
+    });
+
+    screenTest('no cell to move to and nothing typed: the editor closes', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await press(tester, 'cell-1-1');
+      type(tester, 'last');
+      await pressReturn(tester);
+      await tester.pump();
+      expect(fake.cells['d']!.text, 'last');
+      expect(key('editor'), findsNothing);
+      expect(keeper.editing, isNull);
+    });
+
+    // What the queue given to the keeper is for: the app's leaving waits its
+    // turn behind the move, and holds the text of the cell the editor is on then.
+    screenTest('the app put away while Return is at work', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await press(tester, 'cell-0-0');
+      type(tester, 'typed');
+      final gate = holdFirst(fake, 'retype');
+      await pressReturn(tester);
+      await lifecycle(tester, AppLifecycleState.inactive);
+      await lifecycle(tester, AppLifecycleState.hidden);
+      gate.complete();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await lifecycle(tester, AppLifecycleState.inactive);
+      await lifecycle(tester, AppLifecycleState.resumed);
+      expect(fake.cells['a']!.text, 'typed');
+      expect(line(tester, 'message'), isNull);
+      expect(editor(tester), 'three');
+      await press(tester, 'cancel');
+      expect(keeper.editing?.held ?? false, isFalse);
+      // The document can still be changed.
+      await enterBehind(keeper, 'd', 'after');
+      expect(fake.cells['d']!.text, 'after');
+    });
+
+    screenTest('typed, and the app put away, while Return is at work: held in '
+        'the next cell', (tester, keeper, fake) async {
+      await press(tester, 'cell-0-0');
+      type(tester, 'typed');
+      final gate = holdFirst(fake, 'retype');
+      await pressReturn(tester);
+      type(tester, ' more');
+      await lifecycle(tester, AppLifecycleState.inactive);
+      await lifecycle(tester, AppLifecycleState.hidden);
+      gate.complete();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(
+        (fake.cells['a']!.text, fake.cells['c']!.text),
+        ('typed', 'three more'),
+      );
+      expect(keeper.editing!.held, isTrue);
+      await lifecycle(tester, AppLifecycleState.inactive);
+      await lifecycle(tester, AppLifecycleState.resumed);
+      expect(editor(tester), 'three more');
+      // The cross takes back what was held, and not the cell that was left.
+      await press(tester, 'cancel');
+      expect(
+        (fake.cells['a']!.text, fake.cells['c']!.text),
+        ('typed', 'three'),
+      );
+    });
+
+    screenTest('the cross while Return is at work: the next cell as it was', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await press(tester, 'cell-0-0');
+      type(tester, 'first');
+      final gate = holdFirst(fake, 'cell');
+      await pressReturn(tester);
+      type(tester, ' more');
+      await press(tester, 'cancel');
+      gate.complete();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(key('editor'), findsNothing);
+      expect(
+        (fake.cells['a']!.text, fake.cells['c']!.text),
+        ('first', 'three'),
+      );
+      expect(keeper.editing, isNull);
+      expect(line(tester, 'message'), isNull);
+    });
+
+    screenTest('a tick, then Return before the tick is done: the Return is', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      await press(tester, 'cell-0-0');
+      type(tester, 'first');
+      final gate = holdFirst(fake, 'retype');
+      await press(tester, 'save');
+      await pressReturn(tester);
+      type(tester, ' more');
+      gate.complete();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(fake.cells['a']!.text, 'first');
+      expect(editor(tester), 'three more');
+      await press(tester, 'cancel');
+    });
+
+    screenTest('an action that waits its turn when Return takes the text finds '
+        'the text in the field', (tester, keeper, fake) async {
+      await press(tester, 'cell-0-0');
+      type(tester, 'first');
+      final gate = holdFirst(fake, 'retype');
+      // The first tick is at work, the second waits; then Return.
+      await press(tester, 'save');
+      await press(tester, 'save');
+      await pressReturn(tester);
+      gate.complete();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(fake.cells['a']!.text, 'first');
+      expect(key('editor'), findsNothing);
+      expect(line(tester, 'message'), isNull);
     });
   });
 

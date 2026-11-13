@@ -335,8 +335,8 @@ void main() {
           () => shown(tester, '1-1/0-2') == 'first' && editor(tester) == '',
         );
         type(tester, 'second');
-        await tester.pump();
-        expect(shown(tester, '1-1/1-2'), 'second');
+        // (The field is empty from the press on: wait for the editor itself.)
+        await until(tester, () => shown(tester, '1-1/1-2') == 'second');
         await closed(tester, 'save');
         expect(await texts(tester, keeper, owner), [
           'Level 1 cell 0.0 text',
@@ -447,6 +447,92 @@ void main() {
       await tap(tester, 'undo', () => shown(tester, '0-2') == 'Total');
     });
 
+    // Decision A193, on the real core: what is typed after Return is the next
+    // cell's, also while that cell's row is still being made.
+    realTest('typed while Return in the last row adds the row: in the new row', (
+      tester,
+      keeper,
+      doc,
+      watch,
+    ) async {
+      await edit(tester, '0-2', 'Total');
+      type(tester, 'Sum');
+      // Held where the new cell is read: the text is in, and the row is there.
+      final gate = holdFirst(watch, 'cell');
+      await pressReturn(tester);
+      await until(tester, () => watch.log.last == 'cell');
+      expect(shown(tester, '0-2'), 'Sum');
+      expect(there('cell-0-3'), isTrue);
+      expect((editor(tester), focused(tester)), ('', true));
+      type(tester, 'of it all');
+      await tester.pump();
+      expect(shown(tester, '0-2'), 'Sum');
+      gate.complete();
+      await until(tester, () => shown(tester, '0-3') == 'of it all');
+      expect(editor(tester), 'of it all');
+      expect(line(tester, 'message'), isNull);
+      await closed(tester, 'save');
+      expect((await texts(tester, keeper, keeper.root)).sublist(4), [
+        'Sum',
+        '=SUM(Costs)',
+        'of it all',
+        '',
+      ]);
+    });
+
+    realTest(
+      'two Returns in the last row, typed without waiting for the core',
+      (tester, keeper, doc, watch) async {
+        await edit(tester, '0-2', 'Total');
+        type(tester, 'Sum');
+        await pressReturn(tester);
+        type(tester, 'x');
+        await pressReturn(tester);
+        type(tester, 'y');
+        await until(
+          tester,
+          () => there('cell-0-4') && shown(tester, '0-4') == 'y',
+        );
+        expect((shown(tester, '0-2'), shown(tester, '0-3')), ('Sum', 'x'));
+        expect(editor(tester), 'y');
+        await closed(tester, 'save');
+        expect((await texts(tester, keeper, keeper.root)).sublist(4), [
+          'Sum',
+          '=SUM(Costs)',
+          'x',
+          '',
+          'y',
+          '',
+        ]);
+      },
+    );
+
+    realTest('typed right after +Row and +Col: in the new cells', (
+      tester,
+      keeper,
+      doc,
+      watch,
+    ) async {
+      await edit(tester, '0-0', 'Shopping');
+      await press(tester, 'tool-row');
+      type(tester, 'new row');
+      await press(tester, 'tool-col');
+      type(tester, 'new column');
+      await until(
+        tester,
+        () => there('cell-2-1') && shown(tester, '1-1') == 'new column',
+      );
+      await closed(tester, 'save');
+      expect((await texts(tester, keeper, keeper.root)).sublist(0, 6), [
+        'Shopping',
+        '',
+        'what to buy',
+        'new row',
+        'new column',
+        '',
+      ]);
+    });
+
     realTest(
       'the screen goes while Return in the last row enters the text: the '
       'text is kept, and no row is added behind it',
@@ -506,7 +592,7 @@ void main() {
       await tap(
         tester,
         'tool-col',
-        () => editor(tester) == '' && shown(tester, '2-0') == 'what to buy',
+        () => there('cell-2-0') && shown(tester, '2-0') == 'what to buy',
       );
       type(tester, 'new column');
       await closed(tester, 'save');
@@ -624,9 +710,12 @@ void main() {
         type(tester, 'kept');
         await press(tester, 'tool-row');
         // 27 cells now, and still cell by cell, with the editor on the new row.
-        await until(tester, () => there('editor') && editor(tester) == '');
+        await until(
+          tester,
+          () => there('cell-0-0/0-8') && shown(tester, '0-0/1-1') == '',
+        );
+        expect((there('editor'), editor(tester)), (true, ''));
         expect(shown(tester, '0-0/1-0'), 'kept');
-        expect(shown(tester, '0-0/1-1'), '');
         await closed(tester, 'save');
         expect((await texts(tester, keeper, owner)).length, 27);
         // An undo that makes it smaller, and a redo that makes it larger again.

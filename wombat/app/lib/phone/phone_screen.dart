@@ -119,6 +119,17 @@ class _PhoneScreenState extends State<PhoneScreen> {
   /// editor is open.
   CellLook? _held;
 
+  /// What was in the field each time Return, →, +Row or +Col was pressed and the
+  /// editor has not yet moved on from: the first is the whole text of the edited
+  /// cell, each one after it what was typed for the cell the move before it goes
+  /// to. While there is one, the field holds what was typed since the last press,
+  /// which belongs to the cell the editor is on its way to (decision A193).
+  final _taken = <String>[];
+
+  /// Counts the moves of the editor that were not done: one asked for before
+  /// that is not done either, since what it took is back in the field.
+  int _stops = 0;
+
   /// Whether the row of styles is shown in the toolbar.
   bool _styles = false;
   String? _selected;
@@ -183,7 +194,9 @@ class _PhoneScreenState extends State<PhoneScreen> {
     final editing = _editing;
     if (_editCell != null && editing != null) {
       // (An editing that ended with its document refuses, which is nothing new.)
-      editing.enter(_editor.text).then<void>((_) {}, onError: (Object _) {});
+      editing
+          .enter(_taken.join() + _editor.text)
+          .then<void>((_) {}, onError: (Object _) {});
     }
     _reader?.removeListener(_changed);
     _reader?.close();
@@ -244,6 +257,8 @@ class _PhoneScreenState extends State<PhoneScreen> {
         _opens = _keeper.opens;
         _editCell = null;
         _editing = null;
+        _taken.clear();
+        _stops++;
       }
     });
   }
@@ -271,13 +286,37 @@ class _PhoneScreenState extends State<PhoneScreen> {
 
   /// Takes one action of the user into the queue. What was on the message line
   /// was said about an action before this one, and goes.
-  void _do(Future<void> Function() action) {
+  void _do(Future<void> Function() action, {bool moves = false}) {
     if (_message != null) setState(() => _message = null);
     _actions.post(() async {
       // A screen that has gone does nothing. (Without a stage nothing is on the
       // screen that asks for an action.)
-      if (mounted) await action();
+      if (!mounted) return;
+      // Asked for before a move of the editor that has taken the text since: it
+      // finds the text in the field, as when it was asked for.
+      if (!moves) _putBack();
+      await action();
     });
+  }
+
+  /// Takes what is in the field as the text of the cell that the editor leaves:
+  /// what is typed from now on is for the cell it moves to.
+  void _take() {
+    _editor.finishComposing();
+    setState(() {
+      _taken.add(_editor.text);
+      _editor.set('');
+    });
+  }
+
+  /// Puts what was taken for moves that are not done back into the field, before
+  /// what was typed since.
+  void _putBack() {
+    if (_taken.isEmpty) return;
+    final text = _taken.join() + _editor.text;
+    _taken.clear();
+    _editor.set(text);
+    if (mounted) setState(() {});
   }
 
   /// The editing to put the editor's text into the document with: the one that is
@@ -304,7 +343,8 @@ class _PhoneScreenState extends State<PhoneScreen> {
     }
     _editing = null;
     _log('enter', _where(cell));
-    if (_editor.text == text) return _Entered.yes;
+    // (Text that a move of the editor took meanwhile was typed meanwhile.)
+    if (_taken.isEmpty && _editor.text == text) return _Entered.yes;
     // The editor stays, with what was typed meanwhile: it has an editing again at
     // once, so that a screen that goes can enter that text with one call.
     try {
@@ -324,6 +364,7 @@ class _PhoneScreenState extends State<PhoneScreen> {
   Future<void> _finish() async {
     final cell = _editCell;
     if (cell == null) return;
+    _putBack();
     _editor.finishComposing();
     try {
       final held = await (await _open(cell)).hold(_editor.text);
@@ -336,7 +377,9 @@ class _PhoneScreenState extends State<PhoneScreen> {
 
   /// Opens the editor on a cell, or moves it there: on the cell as it is when the
   /// turn of this comes, and only if the stage still has it. Says whether it did.
-  Future<bool> _edit(String id) async {
+  /// `moved` says that the editor comes from another cell, whose text was taken:
+  /// what was typed since is added to this cell's text, as typed text.
+  Future<bool> _edit(String id, {bool moved = false}) async {
     if (_reader!.stage.look(id) == null) return false;
     final Editing editing;
     try {
@@ -353,8 +396,15 @@ class _PhoneScreenState extends State<PhoneScreen> {
       // the editor has that very text.
       _held = editing.start;
       _selected = id;
-      // The cursor goes to the end of the text.
-      _editor.set(editing.start.text);
+      if (moved) _taken.removeAt(0);
+      if (_taken.isEmpty) {
+        // The cursor goes to the end of the text.
+        _editor.set(editing.start.text + (moved ? _editor.text : ''));
+      } else {
+        // Another move was asked for meanwhile: what it took was typed for
+        // this cell, and the field holds what was typed for the one after.
+        _taken[0] = editing.start.text + _taken[0];
+      }
     });
     _editor.focus();
     // (The grid tells where it is, and with that which cell is selected, when
@@ -363,12 +413,15 @@ class _PhoneScreenState extends State<PhoneScreen> {
     return true;
   }
 
+  /// Closes the editor. A move of it that still waits its turn is not done.
   void _close() {
     if (!mounted) return;
     setState(() {
       _editCell = null;
       _editing = null;
       _styles = false;
+      _taken.clear();
+      _stops++;
     });
   }
 
@@ -532,23 +585,58 @@ class _PhoneScreenState extends State<PhoneScreen> {
   /// at the edge a row or a column is added first, which is a step of the undo
   /// history after the text's (UI_SPEC section 7). `insert` adds one in any case
   /// (+Row, +Col).
-  void _move({required bool down, bool insert = false}) => _do(() async {
-    final cell = _editCell;
-    if (cell == null) return;
-    final entered = await _enter();
-    // What was typed meanwhile stays in the editor, on the cell it was typed in.
-    if (entered != _Entered.yes || !mounted) return;
-    if (await _next(cell, down: down, insert: insert)) return;
-    _close();
-  });
+  ///
+  /// The text is the edited cell's as it is when this is asked for; what is typed
+  /// from then on is for the cell the editor moves to, and is added to that
+  /// cell's text when the editor is there. If the editor does not get there,
+  /// that is back in the field behind the text it followed, and a line says so.
+  void _move({required bool down, bool insert = false}) {
+    if (_editCell == null) return;
+    _take();
+    final stops = _stops;
+    _do(moves: true, () async {
+      final cell = _editCell;
+      if (cell == null || stops != _stops) return;
+      // Put back for an action that was asked for before this one.
+      if (_taken.isEmpty) _take();
+      final text = _taken.first;
+      try {
+        await (await _open(cell)).enter(text);
+      } catch (error) {
+        if (!mounted) return;
+        _stops++;
+        _putBack();
+        return _say(describeError(error));
+      }
+      _editing = null;
+      _log('enter', _where(cell));
+      if (!mounted) return;
+      if (await _next(cell, down: down, insert: insert, moved: true)) return;
+      if (!mounted) return;
+      if (_taken.length == 1 && _editor.text.isEmpty) return _close();
+      // The editor stays, with what was typed meanwhile, and has an editing
+      // again as after a tick that more was typed behind.
+      _stops++;
+      _putBack();
+      if (_message == null) _say(Words.typedOn);
+      try {
+        final again = await _keeper.edit(cell);
+        _editing = again;
+        _held = again.start;
+      } catch (error) {
+        _say(describeError(error));
+      }
+    });
+  }
 
   /// Moves the editor from `cell` one cell down or to the right, adding a row or
   /// column if there is none or `insert` says so. Says whether the editor is on
-  /// the next cell.
+  /// the next cell. `moved` is for [_edit].
   Future<bool> _next(
     String cell, {
     required bool down,
     required bool insert,
+    bool moved = false,
   }) async {
     var place = placeOf(_reader!.stage, cell);
     if (place == null) return false;
@@ -572,7 +660,7 @@ class _PhoneScreenState extends State<PhoneScreen> {
     final stage = _reader!.stage;
     final now = partOf(stage, part.owner);
     final next = now == null ? null : stage.at(now, x, y);
-    return next != null && await _edit(next.id);
+    return next != null && await _edit(next.id, moved: moved);
   }
 
   /// The bars after the last row and the last column, and "+ Add" without a cell
@@ -909,6 +997,7 @@ class _PhoneScreenState extends State<PhoneScreen> {
       selected: _selected,
       editing: editing,
       editor: _editor,
+      leaving: _taken.firstOrNull,
       held: _held,
       unfolded: _unfolded,
       flash: _flash,
