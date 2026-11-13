@@ -11,6 +11,10 @@ Wombat.
 
 - The phone screen, what it does and does not do yet, and how it was tested:
   `../docs/milestones/UI2.md`. Trying it on a phone: `../docs/PHONE_TEST.md`.
+- The systems it has a project for: Linux, Android (`../docs/ANDROID.md`) and iOS
+  (`ios/`, made without a Mac; CI builds it for a simulator and runs the bridge check
+  there, and nothing has run on an iPhone: `../docs/IOS.md`). Not macOS, Windows or the
+  web.
 - The bridge, how to run and test, what is left to do and what is still open:
   `../docs/milestones/B1.md`.
 - What is generated and how to regenerate it: `../AGENTS.md`.
@@ -48,7 +52,8 @@ Seven things to know before changing it:
   on every system, which the `path_provider` plugin finds (`documentFolder` in
   `lib/main.dart`, decision A165). On Linux that is
   `~/.local/share/io.github.sblumenf.burrow/documents/` unless `XDG_DATA_HOME` says
-  otherwise; on Android the app's `files` folder. The test documents of the prototype
+  otherwise; on Android the app's `files` folder; on iOS `Library/Application Support`
+  in the app's container, by the plugin's code (nobody has looked). The test documents of the prototype
   and its log are files in the same folder. Tests give the app a folder of their own
   (`WombatApp(folder:)`), so none writes there. Choosing, making and sharing documents is
   not designed.

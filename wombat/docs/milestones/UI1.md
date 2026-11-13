@@ -222,12 +222,15 @@ over the trail bar and swallowed taps on it. Both are fixed, and the test checks
   gave an empty image; `xvfb-run -a -s '-screen 0 1400x900x24'` and `import -window root`
   give one.) Nobody has used the screen. The tests find widgets and read their text; they
   do not judge layout, sizes or colours.
-- Anything on a phone or on iOS; the on-screen keyboard; touch; what a phone really does
+- Anything on a phone or a real iPhone (on an iOS simulator only the bridge check has
+  run, `docs/IOS.md`, and this screen was deleted before the iOS job first ran); the
+  on-screen keyboard; touch; what a phone really does
   when the app is put away or ended (the saving was tried with the lifecycle events of
   the test binding); Android's back button and edge swipe (the test sends what Flutter
   makes of them); whether "next" on a phone's keyboard behaves as Return does here. The
   integration test of this screen has passed on an Android emulator in CI, as the app was
-  before A160 to A165 (`B1.md`); `docs/ANDROID.md` says how to run it on a phone.
+  before A160 to A165 (`B1.md`); `docs/ANDROID.md` says how to run the app on a phone, and
+  `docs/IOS.md` on an iPhone.
 - macOS and Windows: not built, not run; where the document is kept there is the
   plugin's business (A165), and whether Windows asks before the window closes is not
   known (A162).

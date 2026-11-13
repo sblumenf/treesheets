@@ -167,6 +167,14 @@ stands in for the keyboard, so **the on-screen keyboard does not come up while
 `grid_test.dart` runs**, and nothing in CI tries it. A person's typing goes through the
 keyboard and is not affected.
 
+With that the phone screen passed there (CI run 43352269035, commit `4af64c7`, all five
+jobs green): the bridge check, `grid_test.dart` and the measurement twice, on the same
+image as above, in 12 minutes for the whole job. It is the first time the phone screen ran
+on Android. What it does not show is what the earlier run did not, and the keyboard: on a
+phone, typing into a cell with the real keyboard up is the first thing to try. The
+measurement of that run, which now also times the read the screen draws from, is in
+`milestones/B1.md` ("Measurement reports"; a debug build's numbers).
+
 The measuring keeps its large document in the app's data folder on a phone
 (`files/wombat-measure/`), so the second of two runs opens what the first built, if the app
 was not removed in between (`flutter test --no-uninstall` for the first).

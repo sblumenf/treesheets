@@ -1772,7 +1772,8 @@ are where milestones 4, 5 and 6, built apart, meet).
     deleted; run over the files in place, such a file was neither changed nor new and
     stayed unseen. The generator runs without them (tried with 2.13.0: no difference on the
     committed code; a stale file committed under `app/lib/src/rust/api/` passes the old
-    check and fails the new one). Still as it was: the bridge is never built for iOS, and
+    check and fails the new one). Still as it was: the bridge is never built for iOS
+    (it is since A192, for a simulator), and
     for Android only with rustup's `stable` (A131); actions are pinned by tag, not by commit.
 154. **The queue of calls loses no error and does not wait for itself** (from the third
     review, of the Dart side; adds to A144; **changed by A160**, which says what "inside a
@@ -2136,7 +2137,8 @@ are where milestones 4, 5 and 6, built apart, meet).
     said `wombat_app` and say "Wombat". Not changed: the Dart package and the name of the
     Linux executable (`wombat_app`), which nobody sees and every import and script uses;
     signing (the release build is still signed with the debug key); `allowBackup`. iOS,
-    macOS and Windows have no project folder yet.
+    macOS and Windows have no project folder yet. (iOS has one since A192, with the
+    same identifier and name.)
 165. **Documents are in the app's own data folder, on every system by one rule** (the owner's
     decision; replaces A148 and the folder of A156). The folder is `documents` in what
     `path_provider`'s `getApplicationSupportDirectory` gives (`documentFolder` in
@@ -3091,6 +3093,38 @@ are where milestones 4, 5 and 6, built apart, meet).
       inset (`phone_screen_test.dart`), and is a phone's to show.
     - *Not a fault of the app:* a person types through the keyboard, which then has what
       the field has.
+192. **The app has an iOS project, made without a Mac and proven only by CI** (the owner
+    wants to test on several systems). `app/ios` is what `flutter create --platforms=ios`
+    of Flutter 3.47.9 writes, with two changes by hand, both for A164: the bundle
+    identifier is `io.github.sblumenf.burrow` in place of the generator's
+    `io.github.sblumenf.wombatApp` (it makes the identifier from the organisation and the
+    Dart package's name, and the package keeps its name), for the app and its test target;
+    and the name on the home screen is "Wombat" in place of "Wombat App".
+    - **Nothing else was added, on purpose.** The document's folder (A165) is
+      `Library/Application Support/documents` in the app's container, which needs no key
+      in `Info.plist`; the app asks for no permission. The lowest iOS version stays the
+      generator's 15.0. The build glue for the bridge (`app/rust_builder/ios`, cargokit)
+      was already there from `flutter_rust_bridge` 2.13.0 and is unchanged; it compiles
+      the bridge with rustup's `stable` as on Android (A131).
+    - **No `Podfile` is committed.** Flutter writes it from its template at the first
+      `flutter pub get` on a machine with Xcode, and CocoaPods then changes the project
+      file and writes `Podfile.lock`. Writing those by hand on Linux would be a guess at
+      what the tools write; the first person with a Mac commits them (`docs/IOS.md`).
+      Until then CI's pods are not locked. There are two, both local: Flutter's own and
+      the bridge's.
+    - **CI builds for a simulator and signs nothing** (the fifth job). A simulator takes
+      an unsigned app; a real iPhone needs an Apple account, which is the owner's and is
+      not put into CI. So signing, installing and everything a real iPhone does are
+      untried, and `docs/IOS.md` says how the owner does them.
+    - **What CI has shown** (`docs/IOS.md` has the figures): the job's first run was
+      cancelled without having been given a Mac; the second (CI run 43347537203) built
+      the app, found the bridge's library in it and passed the bridge check on a
+      simulator, and so did the third (43352269035: the library for both processors of
+      a simulator, on an iPhone 16 with iOS 18.5). That is all that has run on iOS: one
+      test of one screen, the plain-text check of the bridge. The phone screen has not
+      run there.
+    - *Not done:* a macOS desktop app (`flutter create --platforms=macos`). It would be a
+      second untested system with its own sandbox settings, and was not asked for.
 
 
 ## B. Deliberate departures from TreeSheets

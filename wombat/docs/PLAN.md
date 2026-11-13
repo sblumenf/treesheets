@@ -60,10 +60,10 @@ can be trusted, and what an interface needs next.
 
 ## Future list
 
-- A minimal bridge between Flutter and the core (`NEXT_BRIDGE.md`): built, run on Linux and on an
-  Android emulator in CI, and reviewed four times, with what the reviews found fixed; running it
-  on an Android phone and the measurements there are still to do, and what else is open is listed
-  ([summary](milestones/B1.md)).
+- A minimal bridge between Flutter and the core (`NEXT_BRIDGE.md`): built, run on Linux, on an
+  Android emulator and (its plain-text check alone) on an iOS simulator in CI, and reviewed four
+  times, with what the reviews found fixed; running it on an Android phone and the measurements
+  there are still to do, and what else is open is listed ([summary](milestones/B1.md)).
 - A simple grid screen on the bridge, a first step towards the interface: one grid, into a nested
   grid and back, editing the text of a cell, undo and redo, and a document that saves itself. It
   was a stand-in, and the first slice of the interface has replaced it; its page says how it was
@@ -77,10 +77,12 @@ can be trusted, and what an interface needs next.
 - The Flutter interface (`UI_SPEC.md`), Android first. Its first slice is built: sections 3 to 8
   (the depth budget, the phone screen, diving and going up, tapping, the editor with its toolbar,
   adding rows and columns), with the prototype's variant switches, its log and its test
-  documents. Tested without a device and in the built Linux app, and looked at in pictures of
-  that app at the size of a phone; nobody has used it, and nothing of it has run on a phone
-  (decisions A181 to A190; [summary](milestones/UI2.md)). Next is a test by the owner on a phone
-  ([what to try](PHONE_TEST.md)). A native text editor on iOS is kept possible and not built.
+  documents. Tested without a device, in the built Linux app and by its test on an Android
+  emulator in CI, and looked at in pictures of the Linux app at the size of a phone; nobody has
+  used it, and nothing of it has run on a phone, under an on-screen keyboard or on iOS
+  (decisions A181 to A192; [summary](milestones/UI2.md)). Next is a test by the owner on a phone
+  ([what to try](PHONE_TEST.md); for an iPhone, [how to build it](IOS.md)). A native text
+  editor on iOS is kept possible and not built.
 - Sync between devices.
 - A spreadsheet import/export wizard: a single Excel workbook with linked sheets, ready-made
   XLOOKUP formulas, and flattening of any number of tables.

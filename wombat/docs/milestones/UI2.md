@@ -1,13 +1,15 @@
 # The first slice of the interface: the phone screen (UI2)
 
-Status: **built; run by tests without a device and in the built Linux app; looked at in
-pictures of that app at the size of a phone; never used by a person, and nothing of it has
-run on a phone.** It is step 5 of the way to the first test on the owner's hardware
+Status: **built; run by tests without a device, in the built Linux app and, by its test
+of the built app, on an Android emulator in CI; looked at in pictures of the Linux app at
+the size of a phone; never used by a person, and nothing of it has run on a phone or on
+iOS.** It is step 5 of the way to the first test on the owner's hardware
 (`PLAN.md`): `UI_SPEC.md` sections 3 to 8 (the depth budget, the phone screen, dive and up,
 tapping, the editor with its toolbar, adding rows and columns), with the prototype's
 variant switches, its log and its test documents, covering flows 1, 2, 3, 7, 9 and 10 of
 section 17. It replaces the stand-in grid screen (`UI1.md`), which is deleted. Decisions
-A181 to A190. Nothing of it was reviewed independently. `PHONE_TEST.md` is the list for
+A181 to A192 (A191 is what the screen's first run on the emulator showed of its test,
+A192 the iOS project). Nothing of it was reviewed independently. `PHONE_TEST.md` is the list for
 the owner's test.
 
 ## What it does
@@ -258,7 +260,7 @@ processors, Flutter 3.47.9, no Android SDK, no Mac), on the commits of this work
   warnings`, `cargo test --locked --workspace --no-fail-fast`: passed (no Rust changed).
 - `dart format --output=none --set-exit-if-changed lib/*.dart lib/phone test
   integration_test test_driver`, `flutter analyze`: clean.
-- `flutter test`: 440 tests, passed.
+- `flutter test`: 441 tests, passed (440 before the test of the fourth fault above).
 - Each of the three files of `integration_test/` under `xvfb-run -a … -d linux`: passed.
   `grid_test.dart` was also run once with the app's window made 412 by 915, the size of
   the emulator's screen in CI, which is how a drag that started outside what a phone
@@ -277,8 +279,36 @@ processors, Flutter 3.47.9, no Android SDK, no Mac), on the commits of this work
   48 dp broke every text after a few letters (A182). No overflow stripes and no clipped
   bars were seen in the last set.
 
-**Not run:** the Android build, the emulator job and the iOS job (CI will run them on the
-push); anything on a phone.
+**Not run there:** the Android build, the emulator and anything of iOS, which that machine
+cannot do; anything on a phone.
+
+**In CI** (`B1.md`, "What was run, and where", has the runs in full):
+
+- *Run 53* (43347537203, commit `009486b`), the first with this screen: the Linux job
+  passed, and the Android package built. The emulator job failed in `grid_test.dart`
+  after seven seconds, at the third cell of flow 10: the cell showed "Cheese" where
+  "Butter" had been typed and ticked. The cause was the test and Android's keyboard, not
+  the screen (A191). In the same run a random test of the core failed
+  (`sorting_is_a_stable_permutation_of_rows`): the test compared stored text where the
+  sort compares what cells show (A66). The test was corrected (`dcff413`); the core is
+  unchanged, and nothing of it touches this screen.
+- *Run 54* (43352269035, commit `4af64c7`): **all five jobs passed.** 441 tests without a
+  device; the three files of `integration_test/` on the built Linux app; and on the
+  Android emulator (job 131645914091: x86-64, Android 14, 1080 by 2400, debug build)
+  `app_test.dart`, **`grid_test.dart`, which is this screen's first pass on Android**,
+  and the measurement twice. `grid_test.dart` took 2 min 9 s there with building and
+  installing. The emulator's times for the read the screen draws from are in `B1.md`
+  ("Measurement reports"): about 265 ms for the whole stage of the 1,000-cell root of
+  the large document, in a debug build.
+- **What the emulator run does not show.** The test is its own keyboard there (A191),
+  so the on-screen keyboard never came up: what it covers, its Return key and what the
+  back gesture does with it up are as untried as before. The test presses inside
+  Flutter; nobody looked at the emulator's screen, and no picture of it was taken.
+- **iOS**: the job builds the app, with this screen in it, for a simulator and runs only
+  the bridge check there (`app_test.dart`; `docs/IOS.md`). The phone screen has never
+  run on iOS, on a simulator either.
+- The Android job keeps the package of every run as the artifact
+  `wombat-android-arm64-debug`, which is what `PHONE_TEST.md` has the owner install.
 
 ## Not verified
 
@@ -287,14 +317,13 @@ push); anything on a phone.
   and the back gesture with the keyboard up, what Android does to the app out of sight,
   how fast a debug build scrolls and reads on a phone's processor, the 100,000-cell
   document there, the export folder (A187), the phone's own text size and display size.
-- **`integration_test/grid_test.dart` on the Android emulator.** It was written to run
-  there (no sizes, no wait for a still screen) and was run at the emulator's screen size
-  on Linux. Its first run on the emulator (CI run 43347537203) failed after seven
-  seconds, at the third cell of flow 10: the cell showed "Cheese" where "Butter" had
-  been typed and ticked. The cause was the test and Android's keyboard, not the screen
-  (A191), and the test is its own keyboard since; it has not been seen to pass there
-  yet, and everything after that line has never run on Android. It takes about 80
-  seconds on Linux in a debug build; the job gives the file 15 minutes.
+- **The on-screen keyboard, on the emulator too.** `integration_test/grid_test.dart`
+  failed in its first run there and has passed since ("In CI" above), but as its own
+  keyboard (A191): the emulator's keyboard is not connected while it runs. So that the
+  edited cell stays in sight above a keyboard is known only from the test without a
+  device that gives the screen a keyboard's inset.
+- **iOS**: the screen has not run there at all; only the bridge check has, on a
+  simulator (`docs/IOS.md`).
 - **How it feels.** Nobody has used it. The pictures show layout, not whether a tap lands
   where it was meant, nor how the dive looks in motion.
 - **The read of a very large stage on a phone.** The screen reads the whole grid of the
@@ -304,7 +333,8 @@ push); anything on a phone.
   colours on a light theme; nothing was checked against WCAG.
 - **A screen reader**: buttons have labels and a nested grid says "contains a … by …
   grid"; nothing was run with TalkBack.
-- macOS, Windows and iOS: not built here.
+- macOS and Windows: not built anywhere. iOS: built in CI for a simulator (A192), with
+  this screen never shown there.
 
 ## Still open
 
