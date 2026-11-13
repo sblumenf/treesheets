@@ -3074,6 +3074,23 @@ are where milestones 4, 5 and 6, built apart, meet).
     the screen's own in `phone_screen_test.dart` and `phone_screen_real_test.dart`
     (`docs/milestones/UI2.md` has the list). `integration_test/grid_test.dart` keeps its
     name, because the emulator job names it, and now runs the flows of the first slice.
+191. **A test of the built app is its own keyboard** (`integration_test/grid_test.dart`).
+    Flutter's binding for tests on a device leaves the device's keyboard connected to
+    the text field, and what a test "types" goes to the field alone: the keyboard never
+    hears of it. On Android the keyboard still had the text the editor opened on and
+    gave it back a moment later, which put "Cheese" back over the "Butter" the test had
+    typed: the first run of the phone screen on the emulator failed that way (CI run
+    43347537203), and only where the test did something else between typing and the
+    tick. That it was the keyboard is read from the run and from Flutter's own warning
+    on `TestTextInput`, not seen: there is no emulator where this was written. The test
+    now registers Flutter's stand-in for the keyboard
+    (`tester.testTextInput.register()`), as a test without a device has it by itself.
+    - *The cost:* the on-screen keyboard does not come up during that test, on the
+      emulator either, so the test says nothing about the room the keyboard takes. That
+      is tested without a device, with the screen of the emulator and a keyboard's
+      inset (`phone_screen_test.dart`), and is a phone's to show.
+    - *Not a fault of the app:* a person types through the keyboard, which then has what
+      the field has.
 
 
 ## B. Deliberate departures from TreeSheets

@@ -4,7 +4,8 @@
 // without anyone saving it, also what was half typed when the app went out of sight;
 // and that it is there again at the next start. Nothing here depends on the size of
 // the screen: a grid is gone into by its cell and "Open ›", whatever form it is
-// drawn in, and a cell is scrolled to before it is tapped.
+// drawn in, and a cell is scrolled to before it is tapped. Nor on the keyboard of
+// the device: what is typed here is typed into the test's own stand-in for it.
 // Run with: flutter test integration_test/grid_test.dart -d linux   (or -d <a device>)
 import 'dart:convert';
 import 'dart:io';
@@ -183,6 +184,12 @@ void main() {
   testWidgets('the flows of the first slice; saved without asking', (
     tester,
   ) async {
+    // The test is the keyboard. On a device a test is not that by itself, the
+    // device's own keyboard is: it never hears of what a test types, still has the
+    // text the field opened on, and says so a moment later, which put "Cheese"
+    // back over "Butter" on Android.
+    tester.testTextInput.register();
+    addTearDown(tester.testTextInput.unregister);
     // A folder of this run's own: the app keeps its documents between starts.
     final folder = await Directory.systemTemp.createTemp('wombat-grid-test');
     final file = File('${folder.path}/example.wombat');

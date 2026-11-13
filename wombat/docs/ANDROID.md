@@ -159,6 +159,14 @@ emulator's times are of an unoptimised build: open 2.0 s, save 0.65 s, one edit 
 whole-document formula 0.14 s for 101,001 cells; peak memory about 550 MiB with the
 document built in the same process). `milestones/B1.md` has the whole report.
 
+The first run of the phone screen there (CI run 43347537203) failed: `grid_test.dart`
+typed "Butter" into a cell and found "Cheese" after the tick. The emulator's on-screen
+keyboard was connected to the editor, knew nothing of what the test had put into the
+field, and gave the field back the text it had itself (decision A191). The test now
+stands in for the keyboard, so **the on-screen keyboard does not come up while
+`grid_test.dart` runs**, and nothing in CI tries it. A person's typing goes through the
+keyboard and is not affected.
+
 The measuring keeps its large document in the app's data folder on a phone
 (`files/wombat-measure/`), so the second of two runs opens what the first built, if the app
 was not removed in between (`flutter test --no-uninstall` for the first).

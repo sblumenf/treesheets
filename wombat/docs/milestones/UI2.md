@@ -280,8 +280,12 @@ push); anything on a phone.
   document there, the export folder (A187), the phone's own text size and display size.
 - **`integration_test/grid_test.dart` on the Android emulator.** It was written to run
   there (no sizes, no wait for a still screen) and was run at the emulator's screen size
-  on Linux, but not on an emulator. It takes about 80 seconds on Linux in a debug build;
-  the emulator is slower, and the job gives the file 15 minutes.
+  on Linux. Its first run on the emulator (CI run 43347537203) failed after seven
+  seconds, at the third cell of flow 10: the cell showed "Cheese" where "Butter" had
+  been typed and ticked. The cause was the test and Android's keyboard, not the screen
+  (A191), and the test is its own keyboard since; it has not been seen to pass there
+  yet, and everything after that line has never run on Android. It takes about 80
+  seconds on Linux in a debug build; the job gives the file 15 minutes.
 - **How it feels.** Nobody has used it. The pictures show layout, not whether a tap lands
   where it was meant, nor how the dive looks in motion.
 - **The read of a very large stage on a phone.** The screen reads the whole grid of the

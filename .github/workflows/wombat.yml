@@ -313,6 +313,8 @@ jobs:
         emulator -accel-check
     # A phone of an ordinary size. No keyboard of the computer's, so that the one on the
     # screen comes up as on a phone, and room for the app and the 100,000-cell document.
+    # (The test of the grid screen stands in for the keyboard itself, and the one on the
+    # screen stays away while it runs: decision A191.)
     - name: Make the emulator
       run: |
         echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force --name wombat --package "$SYSTEM_IMAGE" --device pixel_6
