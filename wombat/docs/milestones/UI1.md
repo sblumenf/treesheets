@@ -1,23 +1,27 @@
 # A simple grid screen (UI1)
 
-Status: **built, and run as a Linux desktop app by a test; nobody has looked at it or
-touched it.** This is not a milestone of `PLAN.md` and not the screen that `UI_SPEC.md`
-specifies. It is a first, small step towards that screen, built so that the bridge is used
-by something that draws a grid, and so that the Android build and the measurements have
-something real to run. It was built before the independent review of the bridge
-(`NEXT_REVIEW.md`) was done. Three reviews and an evaluation changed it: it reaches the
-document through `Session` and a `Keeper` that saves, keeps what is typed, and takes its
-actions one at a time (decisions A144 to A148 and A154 to A159; `B1.md`, "Fixes after
-review", has each finding with its test). A fourth review was of what is under it
-(`Session`, `InTurn`, `Keeper`, `main.dart`; A160 to A163), which the real interface keeps
-when this screen, a stand-in, is replaced: `lib/grid/`, `GridOnKeeper` in `main.dart`, and
-the tests named below as the screen's go then. For the first screen of the real interface
+Status: **removed.** This screen was a stand-in, built so that the bridge was used by
+something that drew a grid, and so that the Android build and the measurements had
+something real to run. The first slice of the real interface has taken its place
+(`UI2.md`, decision A190): `app/lib/grid/`, `GridOnKeeper` in `main.dart` and the three
+test files named below as the screen's are gone, and what those tests alone said of the
+layers underneath is said elsewhere (`UI2.md` has the list). **This page says how the
+screen was when it was removed**; it is kept because `B1.md` and the decisions A144 to
+A163 refer to it, and because much of what it settled (what is typed is kept, one action
+at a time, no Save, the lines for a save that failed) the phone screen does the same way.
+
+It was never a milestone of `PLAN.md` and not the screen that `UI_SPEC.md` specifies. It
+was built before the independent review of the bridge (`NEXT_REVIEW.md`) was done. Three
+reviews and an evaluation changed it: it reached the document through `Session` and a
+`Keeper` that saves, kept what is typed, and took its actions one at a time (decisions A144
+to A148 and A154 to A159; `B1.md`, "Fixes after review", has each finding with its test). A
+fourth review was of what was under it (`Session`, `InTurn`, `Keeper`, `main.dart`; A160 to
+A163), which every later screen is built on. For the first screen of the real interface
 those layers then gained the stage read, the editing of a cell and the view state (plan
-step 1, A175 to A180; `B1.md`). Of that the stand-in uses two things, so that they have a
-user before the real screen exists: it edits through the keeper's `Editing`, in place of
-its own workaround for the cross (A157, replaced by A177), and its text field is the
-`CellEditor` (A180). It still reads one grid at a time and keeps its own trail. This page
-says how it is now.
+step 1, A175 to A180; `B1.md`). Of that the stand-in used two things, so that they had a
+user before the real screen existed: it edited through the keeper's `Editing`, in place of
+its own workaround for the cross (A157, replaced by A177), and its text field was the
+`CellEditor` (A180). It read one grid at a time and kept its own trail.
 
 ## What it does
 
@@ -140,7 +144,10 @@ choosing, making or naming a document; Android's animation that shows where back
 
 ## Tests
 
-What is kept when this screen is replaced:
+(As they were when the screen was removed. The counts of the kept files have changed
+since; `UI2.md` has them as they are.)
+
+What was kept when this screen was replaced:
 
 - `app/test/session_test.dart` (33 tests, no device): the session, and the
   queue by itself (`B1.md` lists them).
@@ -164,7 +171,9 @@ What is kept when this screen is replaced:
   to exit (all in the file first; held back once; never longer than five seconds), and
   the lifecycle. Its last group, three tests, is of the app with this screen.
 
-What goes with this screen:
+What went with this screen (`stage_test.dart`, `grid_screen_test.dart` and
+`grid_screen_real_test.dart` are deleted; `integration_test/grid_test.dart` keeps its name
+and now runs the flows of the phone screen):
 
 - `app/test/stage_test.dart` (45 tests, no device): on the real core, the root,
   into a grid and out, jumping along the trail, typing with the report and the
@@ -197,7 +206,7 @@ What goes with this screen:
   when the answer comes), and the app started again on the document as it was left. Each
   press waits until the screen shows what the test expects next.
 
-CI runs all of them.
+CI ran all of them.
 
 The on-screen test found two faults that the logic tests could not, when the screen was
 first built: Return saved but did not move the editor down (the move was dropped because

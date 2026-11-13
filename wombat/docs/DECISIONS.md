@@ -2855,6 +2855,226 @@ are where milestones 4, 5 and 6, built apart, meet).
       which never passes through the system's own text input). A keyboard that sends
       "new line" all the same gets neither a break nor the action: Flutter takes it that a
       field of several lines has its break already. A test pins that as it is.
+181. **The first slice of the interface is the phone screen, `app/lib/phone/`, on the
+    layers made for it** (plan step 5; UI_SPEC sections 3 to 8, flows 1, 2, 3, 7, 9 and
+    10 of section 17). It replaces the stand-in grid screen, which is deleted (A190).
+    - **Nothing of the document is in Dart.** The screen draws from the keeper's
+      `StageReader` (A176), edits through `Editing` and a `CellEditor` (A177, A180), and
+      does everything else by commands that the bridge had already: `InsertRows`,
+      `InsertColumns`, `CreateGrid`, `SetStyle`, `SetRangeStyle`, `SetLink`, `TagCells`,
+      `UntagCells`. Where a cell is in its grid is read out of the stage read
+      (`placeOf` in `place.dart`: the grid given cell by cell that holds it, and its
+      column and row). No Rust was changed and nothing was missing from the bridge for
+      this slice.
+    - **The reader asks `phoneAsk`: the whole grid of the stage, one level cell by cell**,
+      not a window of rows. No need for the window was measured: the grids the interface
+      is specified for (12 by 20) are read in 11 to 14 ms (A176), and the screen builds
+      only the rows near what is seen, so the cost of a long grid is the read alone. The
+      root of the 100,000-cell test document (1,000 cells that all hold grids) is the
+      case a window would help: its read was 54 to 78 ms in a profile build on a desktop
+      and about 250 ms in a debug build here, after every change. That is left as it is
+      until it is seen on a phone.
+    - **One queue for everything the user does** (`InTurn`, A158), as the stand-in had:
+      each action finds the editor and the stage as the ones before left them. A tap on
+      a cell that the stage no longer has when its turn comes does nothing.
+    - **Every text the screen shows is in one file**, `words.dart`, to be translated
+      later. What the core says when it refuses something is English and comes through
+      `describeError`.
+    - **Every part has a key that says what it is**, for tests and for reports of
+      faults: a cell's text is `cell-<x>-<y>`, counted from 0 in the stage's grid, and
+      `cell-<x>-<y>/<i>-<j>` for a cell of the grid drawn inside that one; its grid as one
+      target is `child-…`, with `preview-…`, `shape-…` or `badge-…` inside saying the
+      form, and a grid drawn cell by cell is `full-…`. The class comments list the rest.
+182. **The depth budget as built** (UI_SPEC section 3; `app/lib/phone/budget.dart`). The
+    form of a nested grid is decided from the width its cell gives it, the system's
+    text size, and two settings.
+    - **Full**: the read gives the grid cell by cell (at most 24 cells, one level below
+      the stage: `phoneAsk`), and each of its columns gets at least four and a half
+      times the size of a cell's text, 72 pixels at the usual size and never less than a
+      target of 48. The specification's two tests alone (text of 11 pt, targets of 48)
+      would allow columns of 48 pixels, which was built first and seen in the running
+      app: every text broke after three or four letters and the rows were several times
+      as tall as the same grid's Preview. So "near-full size" was taken to mean that a
+      column holds a short word.
+    - **Preview**: its text, 70% of a cell's 16 (a setting), is no smaller than the
+      smallest readable text, 11 (a setting; both before the system's text size is
+      applied), and there is room for a few letters of each of its up to three columns
+      (two and a half times its text size each) and for a target.
+    - **Shape**: a target's width, and three pixels for each of its columns.
+    - **Badge**: otherwise, and always for a grid that is folded on this device (the
+      core's fold state, which a TreeSheets file can bring with it). Its count is
+      columns times rows (A166). With columns of 72 pixels no cell of a Full grid is
+      narrow enough for a Badge, so on a phone a Badge is seen only for folded grids.
+    - **Larger text of the system** widens what Full and Preview need, so grids step
+      down sooner (UI_SPEC section 14); it also widens the stage's columns, up to half
+      as wide again.
+    - **A cell that holds a grid is always two targets**, its text and its grid, each at
+      least 48 tall. The specification's "a cell too small for both parts is one target"
+      does not come about: a row grows to hold its tallest cell.
+    - **The stage's columns** keep the proportions the document gives them (TreeSheets'
+      widths, 80 the usual one). A grid of few columns fills the width; of many, each is
+      110 pixels, so that a phone shows three to four and the rest scrolls.
+    - *Not built:* images in cells (a cell with one shows its text alone), notes,
+      vertical alignment, the draw styles of a grid (bubbles, lines), a grid beside its
+      owner's text instead of below it.
+183. **The stage's grid: rows built as they come into view, the first row and column
+    kept in view, and each level where it was left** (UI_SPEC sections 4 and 5;
+    `stage_view.dart`).
+    - A row is a strip as tall as its tallest cell. The rows are a lazy list inside one
+      sideways scroll, so only the rows near what is seen are built; all columns of
+      those rows are.
+    - **The first row stays at the top** as a strip of its own above the list, and **the
+      first column stays at the left** by being drawn moved by as much as the grid is
+      scrolled. A first row that is taller than two fifths of the height scrolls inside
+      that much, so that the rows below always have room; a first column wider than two
+      fifths of the width is not kept in view. Keeping them in view is a third switch
+      of the prototype, on to start with, because a first row that is no heading (the
+      example's is not) takes room for nothing.
+    - **A level remembers a column and a row**, as the core has it (A173), not a
+      distance: coming back, that row is at the top from its first line. The list is
+      laid out from the remembered row in both directions, so that it can start there
+      without knowing how tall the rows above are. The selected cell is remembered too.
+    - **The place is handed to the view state while the screen is there**: when
+      scrolling comes to rest and has been drawn, before a level is left, and so with
+      every save and when the app is put away (A178). A screen that is taken away
+      first takes its reader with it; the start screen therefore puts the document away
+      before it shows another (A188).
+    - **The level is drawn growing into place after a dive and shrinking into place
+      after a way up**, in 300 ms, and the cell the screen came up out of flashes once.
+      It does not grow out of the tapped cell's own rectangle. Where the system asks for
+      no animations there is none.
+184. **Taps, the selected cell and the bars** (UI_SPEC sections 4 and 6;
+    `phone_screen.dart`).
+    - A tap on a cell's text opens the editor on it; with the other variant it selects
+      the cell first, and a tap on the selected cell edits. A cell of a Full grid is
+      edited in place. A Preview, Shape or Badge is one target: a dive.
+    - **While the editor is open, a tap outside it only closes it, and that enters the
+      text** (A147 stands): on a cell, on a grid, on the bar that folds a grid.
+    - **The system's back with the editor open closes the editor and nothing else**,
+      like a tap outside it. The stand-in entered the text and went up one level as
+      well; on a phone the first back mostly only puts the keyboard away, and a second
+      one that then left the level was one too many. Without an editor, back goes up
+      one level, and leaves the app only from the root. While the screen has no stage to
+      show (it is still reading, could not read, or the work has ended), back is the
+      system's.
+    - **A grid that is drawn Full is gone into by "Open ›"**: of the toolbar, for the
+      cell that is edited, or of the bottom bar, for the selected cell. A cell is
+      selected by being edited (or tapped, with the other variant), and stays so.
+    - **The bottom bar has "+ Add", "Edit" and "Open ›"**, which act on the selected
+      cell; "+ Add" offers a row below it or a column to the right, and without a
+      selection adds at the end. **Undo, redo and one ⋯ are in the title bar.** There is
+      no "Find" (section 12) and no second ⋯.
+    - **The title bar** has the text and the colour of the level's cell, and under it a
+      word for how the document stands with its file (Saved, Not saved yet, Saving…,
+      Not saved, File changed, Closed). What stays wrong has a line of its own with the
+      ways out, as on the stand-in (A155, A159); that the view state could not be
+      written is one quiet line that says nothing of the document (A178).
+    - **A document whose root has no grid** says so and offers "Add the first cell",
+      which makes a grid of one cell (`CreateGrid`) and opens the editor on it.
+    - *Not built:* the long press and the cell menu (section 9), so no "New grid
+      inside", no inserting above or to the left, no deleting; the dots of the trail
+      and its list of the whole way (a level is tapped by its name).
+185. **"Unfold in place" goes one level, and is this screen's alone** (UI_SPEC section 6,
+    the second variant switch). A tap on the grid of a cell of the stage draws that
+    grid cell by cell inside its cell; a bar above it folds it again.
+    - The read gives grids of at most 24 cells cell by cell, so the screen asks the
+      reader for more (`StageReader.ask` with `fullCells` as large as the largest
+      unfolded grid) and asks again when such a grid has grown.
+    - An unfolded grid keeps columns of the width a Full grid needs and scrolls
+      sideways inside its cell when it has more of them than fit.
+    - A grid inside an unfolded or Full grid is two levels below the stage, which the
+      read does not give cell by cell: a tap on it dives, also with this variant.
+    - Which grids are unfolded is not the core's fold state and is not kept: it is
+      forgotten when the level is left.
+186. **The editor and its toolbar** (UI_SPEC section 7; `editor_bar.dart`).
+    - The field has the cross and the tick beside it, where they are always in sight;
+      under it are Aa, the line break, →, +Row, +Col and Open ›, in a strip that scrolls
+      sideways on a narrow screen. Aa shows a second row with Bold, Italic, Link and
+      Tag, and hides it again: a row and not a menu, because a menu takes the keyboard
+      away from the field.
+    - **Return and → enter the text and move the editor**; at the edge a row or a
+      column is added first, as a step of the undo history after the text's. **+Row and
+      +Col insert below or to the right of the edited cell and move the editor into the
+      new cell beside it.** All of that happens in the grid the cell is in, which can
+      be a Full grid inside a cell of the stage.
+    - The editor moves only to a cell that the read gives. A Full grid of 24 cells
+      that gets a row is a Preview afterwards: the editor closes then, with the text
+      entered and the row added.
+    - **A style is put on through the editing** (A177): the text is held, and the
+      command carried out in the same group, so that the tick makes one step of it all
+      and the cross takes it all back. Bold and Italic act on what is selected, or on
+      the whole cell without a selection, and switch the style off where all of it has
+      it. Link asks for the target in a dialog, outside the queue of actions (the user
+      may take any time over it), and nothing typed removes the link. Tag is
+      TreeSheets' (`TagCells`, `UntagCells`): on a tag cell it takes the tag away.
+    - **The cell that is edited is drawn from the editor's text**, and in the styles
+      the document holds for it while the editor has the very text the document holds:
+      from the moment the editor opens until the text is changed, and again after the
+      text was held (a style put on, the app put away). It is the whole cell, not its
+      text alone, that is scrolled into view while it is edited.
+    - **More typed while the tick was at work**: what was sent is entered, the editor
+      stays with all of it, and a new editing of the same cell is opened at once, inside
+      the same action. So there is always an open editing behind an open editor, and a
+      screen that goes can enter its text with the one call the rule asks for. Under
+      Return or an action of the bars, the action is not done and a line says so, as on
+      the stand-in.
+    - *Not verified, and it needs a phone:* everything A180 lists about the keyboard.
+187. **The prototype's switches are this run's; its log is a file of the app** (UI_SPEC
+    sections 3, 6 and 16; `variants.dart`, `log.dart`, `settings_sheet.dart`).
+    - **Three switches and two thresholds**, in a sheet behind the menu: "Tap text"
+      (edit, or select first), "Tap child grid" (dive, or unfold in place), keeping the
+      first row and column in view (A183), the smallest readable text and the scale of
+      a Preview's text. They start as the specification has them at every start of the
+      app: nothing writes them down.
+    - **The log** is one line of JSON for each dive, way up, jump, back, edit, entering,
+      cross, undo, redo, row or column added, fold, unfold, selection, style and change
+      of a switch, with the time, the settings then, how deep the level is and at which
+      column and row. **It holds no text of any cell and no cell ID.** It is
+      `prototype-log.jsonl` in the folder of the app's documents, added to as entries
+      are made, read again at the next start, and cut to the newest 5,000 in memory. A
+      log that cannot be written costs nothing but its entries on disk.
+    - **It leaves the device only when the user sends it**: "Export the log as a file"
+      writes a copy into the folder the system shares with the user (on Android the
+      app's folder on the storage a computer sees when the phone is plugged in, elsewhere
+      the folder for downloads; the app's own where there is neither) and says where;
+      "Copy the log" puts it on the clipboard. No package was added for sharing.
+    - *Not verified:* the export folder on a real Android phone.
+188. **The start screen opens the prototype's test documents** (UI_SPEC section 17;
+    `app/lib/test_documents.dart`, `main.dart`). The menu of the phone screen lists
+    five: the example (the app's own document, A165), "Depth forms" (made by hand: one
+    row for each form of the depth budget at the width of a phone, and text of several
+    lines, from right to left, long, styled and coloured), "Six levels" (generated, 12
+    by 20 at the root, 68,749 cells) and "Large" (10 by 100 cells that each hold 10 by
+    10; 101,001 cells), which are the documents of the measurement, and "Empty".
+    - Each is a file in the folder of the app's documents, **made the first time it is
+      asked for** and after that kept as it was left. "Depth forms" is made by one
+      import and a few commands for what a table cannot say, and its folded grid by
+      the view state.
+    - **Showing another document puts the open one away first, then closes it**: what
+      is typed on its screen is entered and where its screen is goes into the view
+      state, while the screen is still there (A183).
+    - **Every start of the app begins with the example.** Which document was shown
+      last is not kept.
+    - A test document that cannot be opened is said, with the way back to the example;
+      only the app's own document is put aside (A163).
+    - The banner of a debug build is switched off: it lay over the menu.
+189. **What the phone screen does not have a way to do yet, and what happens instead.**
+    Listed so that a tester does not take it for a fault: nothing deletes a row, a
+    column or a grid (undo takes back what was added); a new grid inside a cell cannot
+    be made, except the first of an empty document; a Full grid of two levels below
+    the stage is never shown (the read gives one level); the edited cell is drawn
+    plain from the moment its text is changed until that text is held in the document; pinch, spread, swipes and drag (section
+    10) are not built; nothing is announced to a screen reader beyond the labels of
+    buttons and "contains a … by … grid" on a nested grid.
+190. **The stand-in grid screen is deleted, with its tests** (`app/lib/grid/`,
+    `stage_test.dart`, `grid_screen_test.dart`, `grid_screen_real_test.dart`). The
+    fourth review named the tests there that were the only ones of something in the
+    kept layers; each of those assertions has a home, most of them since A161 and A176
+    to A178 in `keeper_test.dart`, `keeper_stage_test.dart` and `main_test.dart`, and
+    the screen's own in `phone_screen_test.dart` and `phone_screen_real_test.dart`
+    (`docs/milestones/UI2.md` has the list). `integration_test/grid_test.dart` keeps its
+    name, because the emulator job names it, and now runs the flows of the first slice.
+
 
 ## B. Deliberate departures from TreeSheets
 

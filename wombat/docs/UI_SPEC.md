@@ -53,6 +53,17 @@ tuned.
 > **Decided since** (not a change of the specification's intent; `DECISIONS.md` A166): the "cell
 > count" of a Badge is the number of cells directly in the child grid, columns times rows, as
 > the figure has it (a 3×4 grid is ▦12). The core keeps no count of the cells further down.
+>
+> **Decided when the first slice was built** (A182):
+>
+> - **"Near-full size" means that a column holds a short word.** The two tests alone would
+>   let a Full grid have columns of 48 dp, in which every text breaks after a few letters.
+>   A Full grid's columns are at least four and a half times the size of a cell's text (72
+>   dp at the usual text size), and the grid has at most 24 cells and is one level below
+>   the stage. Otherwise it steps down.
+> - A Preview needs room for a few letters of each of its columns, a Shape a target's
+>   width. A Badge is what is left, and what a grid folded on this device shows.
+> - The prototype's settings are the smallest readable text and the scale of a Preview.
 
 ## 4. Phone screen
 
@@ -76,6 +87,16 @@ tuned.
 - The grid scrolls in both directions. Phones show 3–4 columns.
 - A cell holding a grid draws its own text on top and the child grid in a frame below. Each part is
   at least 44 pt / 48 dp tall. A cell too small for both parts is one target.
+
+> **Decided when the first slice was built** (A183, A184):
+>
+> - A row grows to hold its tallest cell, so no cell is too small for both parts: a cell
+>   that holds a grid is always two targets.
+> - The bottom bar has "+ Add", "Edit" and "Open ›", which act on the selected cell. Undo,
+>   redo and the one ⋯ are in the title bar, with a word under the title for how the
+>   document stands with its file. "Find" comes with section 12.
+> - Keeping the first row and column in view is a third switch of the prototype, on to
+>   start with. A first row taller than two fifths of the screen scrolls inside that much.
 
 ## 5. Navigation
 
@@ -107,6 +128,12 @@ The animation reverses: the screen shrinks into its cell, and that cell flashes 
 - **Jumps** (search results, links, backlinks) open the level that shows the target readably,
   update the trail bar, and pulse the target cell once.
 
+> **Decided when the first slice was built** (A183): a level remembers the column and the
+> row at the top left of what was seen, not a distance, so it comes back with that row at
+> the top from its first line. The level grows or shrinks into place as a whole, not out
+> of the tapped cell's own rectangle. Each level of the trail is tapped by its name; the
+> dots, the list of the whole way and "recent places" are not built.
+
 ## 6. Tapping cells
 
 | Tap on | Result |
@@ -121,6 +148,16 @@ The animation reverses: the screen shrinks into its cell, and that cell flashes 
   - "Tap text" = **Edit** (default) or **Select first, tap again to edit**.
   - "Tap child grid" = **Dive** (default) or **Unfold in place** (the child is drawn Full inside
     its cell and the rows below move down; diving then uses Open › or a gesture).
+
+> **Decided when the first slice was built** (A184, A185):
+>
+> - Closing the editor by a tap outside it enters what was typed (A147).
+> - The system's back with the editor open closes the editor, as a tap outside does, and
+>   does not also go up a level.
+> - A grid that is drawn Full is gone into by "Open ›", of the toolbar or of the bottom bar.
+> - "Unfold in place" goes one level: a grid inside an unfolded grid is dived into. An
+>   unfolded grid scrolls sideways inside its cell, and a bar above it folds it again.
+> - The long press and the cell menu (section 9) are not built yet.
 
 ## 7. Editing
 
@@ -162,6 +199,16 @@ One cell is edited at a time, in a single editor docked above the keyboard.
 > - Nothing is sent to the document while the user types: the edited cell is drawn from the
 >   editor's text, and the document has it at the tick, at Return, and when the app is put away
 >   (A145, A177).
+>
+> **Decided when the first slice was built** (A186):
+>
+> - The tick and the cross are beside the field, always in sight; the other keys are a
+>   strip under it that scrolls sideways on a narrow screen. Aa shows a second row with
+>   Bold, Italic, Link and Tag: a row and not a menu, which would take the keyboard away.
+> - +Row and +Col move the editor into the new cell beside the edited one.
+> - Bold and Italic act on what is selected, or on the whole cell without a selection.
+> - The editor moves only to a cell that is drawn cell by cell: where a row makes a Full
+>   grid too large to stay Full, the row is added and the editor closes.
 
 ## 8. Adding rows, columns and grids
 
@@ -181,6 +228,11 @@ One cell is edited at a time, in a single editor docked above the keyboard.
 
 - Cell menu: Insert row above/below, Insert column left/right, New grid inside (creates an empty
   grid, dives into it, and opens the editor), Delete row/column.
+
+> **Decided when the first slice was built** (A184): the cell menu comes with section 9, so
+> nothing deletes a row or a column yet (undo takes back what was added) and no grid can
+> be made inside a cell, except the first cell of an empty document, which the screen
+> offers in place of the grid.
 
 ## 9. Cell menu and restructuring
 
@@ -284,6 +336,11 @@ Same model. The larger screen raises the depth budget, so more levels show as Fu
 Log every dive, up, jump, edit, gesture and undo with a timestamp and the variant settings. This
 is used to count accidental dives and gesture use. The data stays on the device and can be
 exported as a file.
+
+> **Decided when the first slice was built** (A187): an entry says what was done, when,
+> under which settings, how deep the level is and at which column and row. It holds no
+> text of any cell and no cell ID. The log is exported as a file or copied to the
+> clipboard from the prototype's settings.
 
 ## 17. Flows the prototype must support
 

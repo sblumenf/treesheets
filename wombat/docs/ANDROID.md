@@ -2,7 +2,8 @@
 
 For a person at a machine with an Android phone or emulator. The app builds for Android (it
 was built on a Linux cloud machine that could not run it); **nothing has been seen to run
-on Android yet.** What you find goes into `milestones/B1.md` and `milestones/UI1.md`.
+on a real Android phone yet** (the integration tests run on an emulator in CI). What you
+find goes into `milestones/B1.md` and `milestones/UI2.md`.
 
 ## Once: set up the machine
 
@@ -47,28 +48,22 @@ the commands below take as `<device>`.
 flutter run -d <device>
 ```
 
-The grid screen opens on the example. Try: tap a cell and type; the tick; Return (it should
-move to the cell below); "Open ›" under "Costs"; the arrow and the names in the bar at the
-bottom; undo and redo at the top; the menu, and "Bridge check" in it with its three buttons.
-Nobody has seen this screen yet, on any device: say what looks wrong, what is too small to
-tap, and what the on-screen keyboard covers.
+The phone screen opens on the example. `PHONE_TEST.md` is the list of what to try, written
+for someone with a phone and nothing else; it covers the screen, typing and cancelling,
+rows and columns, the app put away in the middle of typing, rotating, the large test
+documents and the prototype log. Nobody has seen this screen on a phone yet: say what
+looks wrong, what is too small to tap, and what the on-screen keyboard covers.
 
-There is no Save: the app saves by itself (`milestones/UI1.md`). **This has never run on a
-phone, so try it on purpose:**
+There is no Save: the app saves by itself (`milestones/UI2.md`). **This has never run on a
+phone, so try on purpose** what `PHONE_TEST.md` has under "Put the app away in the middle
+of typing", and besides:
 
-- Type into a cell and, without pressing the tick, go to the home screen, then swipe the
-  app away and start it again. What was typed should be in the cell.
-- Type into a cell, go to the home screen and come back: the editor should be as it was.
-  Then press the cross: the cell should have the text from before the editor opened
-  (decision A157). Do it again with the tick, and then press Undo once: the same.
-- Pull down the notification shade, or open the list of apps and come straight back, while
-  typing: that makes the app `inactive` but not hidden, and the text should stay in the
-  editor only.
 - The back button and the back swipe: with a nested grid open they should go up one level,
-  with the editor open they should keep what was typed first, and at the root they should
-  leave the app (A158). Say what the keyboard's own back does.
+  with the editor open they should close the editor, keeping what was typed, and nothing
+  else (A184), and at the root they should leave the app. Say what the keyboard's own back
+  does.
 - Return on the on-screen keyboard (it is shown as "next"): the editor should move to the
-  cell below and keep the keyboard.
+  cell below and keep the keyboard (A180).
 - Turn the phone off and on while typing.
 
 The document is kept in the app's own data folder (decision A165):
@@ -76,7 +71,7 @@ The document is kept in the app's own data folder (decision A165):
 code; nobody has looked. (`adb shell run-as io.github.sblumenf.burrow ls -lR files` should
 show it for a debug build.) It should still be there after the app is installed again over
 itself; before A165 it was in the app's `code_cache` folder, which Android emptied then.
-Say in `milestones/UI1.md` where it really was. If the app ever starts with "The document
+Say in `milestones/UI2.md` where it really was. If the app ever starts with "The document
 could not be opened", it offers to put the file aside: say what led to it.
 
 ## 2. Let the tests press the buttons
