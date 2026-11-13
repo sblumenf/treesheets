@@ -1,0 +1,20 @@
+{
+"format": "wombat", "version": 1, "minor": 0, "id": "4e61d471-0d5e-409d-ba95-3427e8178eaf",
+"root": {"id": "1e80d6a5-9fab-44a5-9f30-5fbbaf38a5ca", "text": "Example", "grid": {"xs": 2, "ys": 3, "cells": [
+ {"id": "098e4307-2f1d-446f-b795-0af08932a0cf", "text": "Shopping", "grid": {"xs": 1, "ys": 4, "cells": [
+  {"id": "7f2e86e7-ac35-48ac-87bc-3df4bb3ec505", "text": "Item"},
+  {"id": "1e62abbb-9b1a-482b-b33e-b115d8ac3f81", "text": "Apples"},
+  {"id": "6f81956d-ee58-4237-8074-8fdf89252b48", "text": "Bread"},
+  {"id": "bd8d8fbe-945f-49e7-aaee-35a8036741be", "text": "Cheese"}
+ ]}},
+ {"id": "39846a5b-9b78-461d-adea-effb77a1ca57", "text": "what to buy"},
+ {"id": "cd0ebb75-035f-4c4f-ac07-14b19d25ded5", "text": "Costs", "grid": {"xs": 1, "ys": 3, "cells": [
+  {"id": "14de49a1-7c74-4a3e-a680-d9e07862d6f2", "text": "3"},
+  {"id": "9ce98cfc-7714-4cc0-bddc-ebce9fb44069", "text": "2"},
+  {"id": "45e1009f-3f96-4fe4-bb82-eb307d15f5cf", "text": "5"}
+ ]}},
+ {"id": "85916816-d366-466f-a689-c605de3320f4", "text": "what it costs"},
+ {"id": "bbf33e08-e366-4214-b759-2c006bbbeddc", "text": "Total"},
+ {"id": "378ca038-69ba-4a6e-8ba9-3ac94f1a8894", "text": "=SUM(Costs)", "kind": "formula"}
+]}}
+}

@@ -26,7 +26,10 @@ Numbers: columns and rows count from 1, as in the places above. Positions in tex
 characters before the place, from 0 (0 is the start of the text), and lengths are numbers
 of characters; a character here is a Unicode code point, and a range that would cut an
 emoji or an accented letter made of several code points is refused.
-Text is written in double quotes; inside them \\\" \\\\ \\n \\t and \\u{1F600} are understood.
+Text is written in double quotes; inside them \\\" \\\\ \\n (a line break) \\r \\t \\0 and
+\\u{1F600} are understood, which is also how `show` prints a text, so that every cell is
+one line there. A cell's text may have line breaks: \\r\\n and \\r become \\n in it, and
+every other control character (a tab too) becomes a space. A note is kept as written.
 Colours are written #rrggbb.
 
 Text
@@ -193,6 +196,9 @@ fn words(line: &str) -> Result<Vec<(String, bool)>, String> {
 fn escape(chars: &mut std::str::Chars) -> Result<char, String> {
     match chars.next() {
         Some('n') => Ok('\n'),
+        // These two so that whatever `show` prints of a note can be written back.
+        Some('r') => Ok('\r'),
+        Some('0') => Ok('\0'),
         Some('t') => Ok('\t'),
         Some('"') => Ok('"'),
         Some('\\') => Ok('\\'),

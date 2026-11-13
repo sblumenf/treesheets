@@ -1,1 +1,5 @@
-text /1,1 "two\nlines\tand a tab"
+# The real TreeSheets was given "two\nlines\tand a tab" (the .lobster file) and made a
+# space of the line break and of the tab. Wombat keeps a line break in a cell's text, a
+# deliberate difference, so it is given the space here: what is still compared with the
+# real app is that the tab becomes a space.
+text /1,1 "two lines\tand a tab"

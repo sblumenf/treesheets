@@ -1,11 +1,13 @@
 //! The rules of cell text: which characters it may hold, where it may be cut, and what
 //! happens to runs and links when it is edited.
 //!
-//! **Characters** (decision A32). Cell text and tag names hold no character below U+0020 (no
-//! line breaks, tabs or other control characters), as in TreeSheets, where a cell's lines
-//! come from wrapping. Editing commands turn such characters into spaces ([`clean`]), as
-//! TreeSheets does, and [`crate::Document::validate`] refuses a document that has one.
-//! Notes may hold any text.
+//! **Characters** (decision A32). Cell text holds no character below U+0020 except the line
+//! feed, U+000A, which is a line break inside the cell. (TreeSheets has none: there a cell's
+//! lines come only from wrapping. This is a deliberate difference.) Editing commands make
+//! one line feed of each CR LF and of each lone carriage return, and turn every other such
+//! character (tabs among them) into a space ([`clean`]); [`crate::Document::validate`]
+//! refuses a document whose text has one. A tag's name has no character below U+0020 at
+//! all ([`is_name`]), so a text with a line break names no tag. Notes may hold any text.
 //!
 //! **Cuts** (decisions A11, A33). Positions are counted in Unicode code points, and a command
 //! may only cut the text between two user-perceived characters (extended grapheme clusters,
@@ -34,9 +36,10 @@ use unicode_segmentation::GraphemeCursor;
 
 use crate::model::{Color, Extra, Link, LinkTarget, Run, Style};
 
-/// Whether cell text may contain `c` (decision A32): anything from U+0020 up.
+/// Whether cell text may contain `c` (decision A32): anything from U+0020 up, and the line
+/// feed.
 pub fn is_allowed(c: char) -> bool {
-    c >= ' '
+    c >= ' ' || c == '\n'
 }
 
 /// Whether `text` holds only characters that cell text may contain.
@@ -44,12 +47,31 @@ pub fn is_clean(text: &str) -> bool {
     text.chars().all(is_allowed)
 }
 
-/// `text` with every character that cell text may not contain turned into a space, as
-/// TreeSheets does. The number of code points stays the same.
+/// `text` as a cell may hold it: every line end is one line feed (CR LF, which is one
+/// user-perceived character, becomes one code point; a carriage return alone becomes one
+/// too), and every other character that cell text may not contain becomes a space. So the
+/// result can be shorter than `text`, by one code point for each CR LF.
 pub fn clean(text: &str) -> String {
-    text.chars()
-        .map(|c| if is_allowed(c) { c } else { ' ' })
-        .collect()
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\r' => {
+                chars.next_if_eq(&'\n');
+                out.push('\n');
+            }
+            c if is_allowed(c) => out.push(c),
+            _ => out.push(' '),
+        }
+    }
+    out
+}
+
+/// Whether `text` can be the name of a tag as far as its characters go: none below U+0020,
+/// so no line break either. (A tag is drawn in one line, and TreeSheets, where tags come
+/// from, has no cell text with a line break to name one.)
+pub fn is_name(text: &str) -> bool {
+    text.chars().all(|c| c >= ' ')
 }
 
 /// The byte offset in `text` of the code point position `pos`; `None` if `pos` is past the
@@ -367,6 +389,98 @@ pub(crate) fn links_set(links: &mut Vec<Link>, from: u32, to: u32, target: Optio
     *links = out;
 }
 
+/// The last place at or before the byte offset `at` (which must be between two code
+/// points) where `text` may be cut.
+fn floor_byte(text: &str, at: usize) -> usize {
+    if boundary_at_byte(text, at) {
+        return at;
+    }
+    GraphemeCursor::new(at, text.len(), true)
+        .prev_boundary(text, 0)
+        .ok()
+        .flatten()
+        .unwrap_or(0)
+}
+
+/// The smallest edit that turns `old` into `new`: replace `len` code points at `start`
+/// by the returned text (what [`crate::edit::Command::ReplaceText`] takes). `None` if the
+/// two are equal.
+///
+/// Neither end of the replaced range cuts a user-perceived character of `old`, and neither
+/// end of the returned text cuts one of `new`; call a replacement that keeps to that
+/// *allowed*. "Smallest" then means exactly this: no allowed replacement starts later, and
+/// of the allowed replacements that start there none replaces fewer code points (nor,
+/// which is the same, puts fewer in). So the text before `start` is the longest that the
+/// two have in common and that may be cut off in both, and after it the same holds for
+/// the text behind the replaced range. Where the same character repeats, the start is kept
+/// long before the end is: from "aa" to "aaa" the third "a" is the new one.
+///
+/// It is not always the allowed replacement of the fewest code points: where the common
+/// start and the common end overlap (texts that repeat themselves), a shorter common
+/// start could leave room for a longer common end that fits the characters better.
+///
+/// Line breaks need no care of their own: a line feed is a user-perceived character by
+/// itself (and a carriage return with a line feed is one together). The time taken is in
+/// proportion to the two texts.
+pub fn difference(old: &str, new: &str) -> Option<(u32, u32, String)> {
+    if old == new {
+        return None;
+    }
+    let count = |text: &str| u32::try_from(text.chars().count()).unwrap_or(u32::MAX);
+    let same = |(a, b): &(char, char)| a == b;
+    let mut start: usize = old
+        .chars()
+        .zip(new.chars())
+        .take_while(same)
+        .map(|(c, _)| c.len_utf8())
+        .sum();
+    // Whether a text may be cut at a place depends on what follows there, and that is
+    // where the two differ: go back until both may be cut at the same place.
+    loop {
+        let back = floor_byte(new, floor_byte(old, start));
+        if back == start {
+            break;
+        }
+        start = back;
+    }
+    let (old_rest, new_rest) = (old.get(start..)?, new.get(start..)?);
+    let common: usize = old_rest
+        .chars()
+        .rev()
+        .zip(new_rest.chars().rev())
+        .take_while(same)
+        .map(|(c, _)| c.len_utf8())
+        .sum();
+    // From `start` on, walk both texts from one allowed cut to the next, each a step
+    // behind the other, until both stand as far from their ends, inside what they have in
+    // common there. (Looking backwards from the end instead would have to find its place
+    // among the characters anew at every step.)
+    let mut cuts = [
+        (old, GraphemeCursor::new(start, old.len(), true)),
+        (new, GraphemeCursor::new(start, new.len(), true)),
+    ];
+    let mut tails = [old_rest.len(), new_rest.len()];
+    let tail = loop {
+        let [a, b] = tails;
+        if a == b && a <= common {
+            break a;
+        }
+        let n = usize::from(a < b);
+        let (Some((text, cursor)), Some(tail)) = (cuts.get_mut(n), tails.get_mut(n)) else {
+            break 0;
+        };
+        let next = cursor.next_boundary(text, 0).ok().flatten();
+        // Nearer to the end every time, so that this ends whatever the cursor says.
+        *tail = next
+            .map(|at| text.len().saturating_sub(at))
+            .filter(|left| *left < *tail)
+            .unwrap_or(0);
+    };
+    let replaced = old_rest.get(..old_rest.len().checked_sub(tail)?)?;
+    let put = new_rest.get(..new_rest.len().checked_sub(tail)?)?;
+    Some((count(old.get(..start)?), count(replaced), put.to_string()))
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -378,11 +492,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn control_characters_become_spaces() {
-        assert_eq!(clean("a\nb\tc\u{0}d\u{1f}e f"), "a b c d e f");
-        assert!(is_clean("a b\u{7f}\u{85}é😀"));
-        assert!(!is_clean("a\rb"));
-        assert_eq!(clean("\r\n").chars().count(), 2);
+    fn control_characters_become_spaces_and_line_ends_one_line_feed() {
+        assert_eq!(clean("a\nb\tc\u{0}d\u{1f}e f"), "a\nb c d e f");
+        assert_eq!(clean("\u{b}\u{c}\u{1b}"), "   ");
+        assert!(is_clean("a b\u{7f}\u{85}\u{2028}é😀\n"));
+        for bad in ["a\rb", "a\tb", "\u{0}", "\u{1f}"] {
+            assert!(!is_clean(bad), "{bad:?}");
+        }
+        // Every way a line can end is one line feed; none is lost and none is doubled.
+        assert_eq!(clean("\r\n"), "\n");
+        assert_eq!(clean("\r"), "\n");
+        assert_eq!(clean("\n\r"), "\n\n");
+        assert_eq!(clean("a\r\r\nb\n\nc\r"), "a\n\nb\n\nc\n");
+        assert_eq!(clean(""), "");
+        // Cleaning what is clean changes nothing.
+        for text in ["a\nb", "\n\n", "plain", "a\r\nb\rc\td"] {
+            let once = clean(text);
+            assert!(is_clean(&once));
+            assert_eq!(clean(&once), once);
+        }
+    }
+
+    #[test]
+    fn a_name_has_no_control_character_at_all() {
+        assert!(is_name("a b\u{7f}é😀"));
+        assert!(is_name(""));
+        for bad in ["a\nb", "\n", "a\rb", "a\tb", "\u{0}"] {
+            assert!(!is_name(bad), "{bad:?}");
+        }
     }
 
     #[test]

@@ -152,16 +152,16 @@ TreeSheets.
     the trait, and a document inside an editor cannot be reached by them, so no document with
     a history can be changed behind the history's back. `Editor::new` validates what it is
     given. Tags and unknown document fields are read through `tags()` and `extra()`.
-32. **Cell text holds no control characters** (replaces B12). A cell's text and a tag's name
-    have no character below U+0020: no line breaks or tabs. This is TreeSheets' rule (the lines
-    of a cell come from wrapping), the importer already produced only such text, and it keeps
-    "one cell, one line of text" true for search and export. Editing commands turn such
-    characters into spaces, one for one, as TreeSheets does on load and on `set_text`;
-    `validate`, and so loading and saving, refuses a document that has one. Notes may hold any
-    text. U+007F and the C1 controls are left alone, as in TreeSheets. This tightens format
-    version 1.0 in place instead of making a version 2 (which A18 would ask for), because no
-    Wombat files exist outside this repository yet; after a first release it could not be
-    done this way.
+32. **Cell text holds no control characters except line breaks** (replaces B12; changed by
+    A174, which allowed the line break). A cell's text has no character below U+0020 except
+    U+000A, a line break inside the cell. A tag's name has none at all. Editing commands make
+    one U+000A of each CR LF and of each lone carriage return, and turn every other such
+    character (a tab too) into a space; `validate`, and so loading and saving, refuses a
+    document whose text has one, or whose tag name has any. Notes may hold any text. U+007F
+    and the C1 controls are left alone, as in TreeSheets. This rule was put on format version
+    1.0 in place instead of making a version 2 (which A18 would ask for), because no Wombat
+    files exist outside this repository yet; after a first release it could not be done this
+    way.
 33. **A command that would cut a user-perceived character is refused, not adjusted**
     (carries out A11). Every position and range end of a text command must be on a boundary
     between extended grapheme clusters (Unicode Annex 29, crate `unicode-segmentation`), or
@@ -182,7 +182,8 @@ TreeSheets.
     cells necessarily holds the removed cells (that is the only place they still exist), a
     text step holds the text it took out, and so on; nothing proportional to the rest of the
     document. One command is one unit of undo; `begin_group`/`end_group` make several
-    commands one unit; a new command empties the redo history; `set_history_limit` bounds
+    commands one unit; a new command empties the redo history (inside a group: the end of
+    the group does, A170); `set_history_limit` bounds
     the number of units (older ones are forgotten, their effects stay). A command that fails
     part-way has its applied steps undone before the error is returned, so a refusal
     (`Error::Refused`, `NotFound`, `Limit`) never leaves a trace. A command that asks for
@@ -212,8 +213,10 @@ TreeSheets.
 38. **Folding is outside the document and its history** (carries out A8).
     `ViewState::set_folded` folds and unfolds; it is not a command and cannot be undone.
     After every command, undo and redo the interface calls `ViewState::apply_changes` with
-    the report, which drops folds, selection and zoom that name removed cells, and the fold
-    of a cell that lost its grid, at a cost that depends on the size of the change only. An
+    the report, which drops folds and the selection that name removed cells, and the fold
+    of a cell that lost its grid, at a cost that depends on the size of the change only (and,
+    since A172, on the number of levels remembered, at most 256). A zoom on a removed cell
+    was dropped too; since A172 it moves to the nearest level above. An
     undo that brings a cell or grid back does not bring its fold back: it returns unfolded.
     Keeping a memory of dropped view state was judged not worth the extra state.
 39. **Moving is trading places; copying is the only thing that makes new IDs.** `MoveCell`
@@ -318,7 +321,9 @@ TreeSheets.
     its first command and after its last. A cell made and removed again inside the group
     is not named at all. A cell that was changed and changed back may still be named (the
     report is complete, not tight; making it tight would need a copy of every touched
-    cell). Closing an inner group returns an empty report.
+    cell). Closing an inner group returns an empty report. A group that is cancelled
+    (`cancel_group`, A170) reports the way back instead: what differs from the document
+    just before the cancel.
 46. **The cost of the history** (changes A34, which had no bound; found in review).
     - *Bounds by default:* the undo history keeps at most 1,000 units (TreeSheets' number)
       and about 64 MiB (`Editor::set_history_limit`, `set_history_budget`,
@@ -960,9 +965,9 @@ are where milestones 4, 5 and 6, built apart, meet).
     command.**
     - Delimited text is read as RFC 4180 says, and where a file is not valid, as
       TreeSheets reads it (B82 has the two exceptions). Rows are padded to a rectangle.
-      Line breaks inside a quoted field become one space and other control characters
-      spaces, since cell text has none (A32). Indented text is read exactly as TreeSheets
-      does.
+      A line break inside a quoted field is kept, each CR LF, CR or LF as one line break of
+      the cell's text (A174, B100); other control characters become spaces (A32).
+      Indented text is read exactly as TreeSheets does.
     - Bytes are taken as UTF-8 (with or without a mark), as UTF-16 if they start with
       its mark, and otherwise as Windows-1252, which is what Excel on Windows writes as
       plain "CSV" and cannot fail.
@@ -1144,7 +1149,9 @@ are where milestones 4, 5 and 6, built apart, meet).
     quote as "this is text" was false: LibreOffice (verified) and Excel (documented) show
     it as a character when they open a CSV file. The rule now, by the first character
     (a full-width `＝ ＋ － ＠` counts as the plain one):
-    - a tab or carriage return: guarded;
+    - a tab, a carriage return or a line feed: guarded (the line feed since A174: cell
+      text may start with one; whether a spreadsheet would run what follows it was not
+      tried, and the rule says yes where it is not sure);
     - `=`: guarded, except the text `=` alone (LibreOffice evaluates `==` and
       `= in prose` to an error);
     - `+` or `-`: guarded unless the text is only signs, dashes and spaces; or a sign
@@ -1243,6 +1250,1954 @@ are where milestones 4, 5 and 6, built apart, meet).
     the two branches were merged. The core is still checked for WebAssembly in CI because it
     costs nothing and catches file or thread use creeping into the pure core; it is no longer a
     requirement and can be dropped if it gets in the way.)
+122. **The bridge crate may hold `unsafe` in one generated file.** Calling between Rust and
+    Dart needs it, and `flutter_rust_bridge` writes that code (`crates/wombat-bridge/src/
+    frb_generated.rs`). So that crate cannot take the workspace's lints, which forbid `unsafe`:
+    it writes the same lints out with `unsafe_code` denied instead of forbidden, and lets off
+    only the module `frb_generated`, in `lib.rs`. The generated file also trips
+    `clippy::unwrap_used`, let off in the same place, and no other lint: the list there is
+    those two, each checked to be needed. Everything written by hand in the crate is
+    under the same rules as the rest of Wombat. Both generated sides (that file and
+    `app/lib/src/rust/`) are committed, so that the three checks pass without the generator.
+123. **The serialised form of commands and reports is a set of mirror types in the bridge crate
+    with `serde`** (`api/wire.rs`), not a `serde` derive on the core's types. One command of the
+    core is one variant with the same name and fields; `flutter_rust_bridge` generates the Dart
+    classes from the same types, so Dart, the bridge and JSON share one form. The core gains no
+    dependency (it still uses `serde_core` only), and a derive on it would have let a caller
+    state what the core computes (the height of a clip, the cell count of a table). What
+    differs from the core's types:
+    - IDs are their canonical text; anything else is refused.
+    - Unknown fields of an image are the text of a JSON object (empty for none). It is read with
+      `serde_json`, which keeps the last of a repeated key where the file reader refuses; the
+      command still checks the fields when it is applied.
+    - A scale that is not a finite number is refused, in both directions: JSON cannot write it.
+    - A table to import goes through `Table::new` and `Entry::new`, which check and count.
+      It is carried as a flat list (A135).
+    - As JSON (`record.rs`) it is what `serde` writes by default: `{"SetText": {"cell": "...",
+      "text": "..."}}`, and `"Run"` for a command without fields.
+    This form is independent of the script language of `wombat edit`, which stays what the
+    referee cases are written in.
+    (Since A167: the generated Dart classes have `==`, but it compares a list inside by
+    asking whether it is the very same object, so two equal reports are not `==`. Only
+    `CellLook`, `GridPart` and `GridSummary`, which are generated as freezed classes,
+    compare their lists by what is in them.)
+124. **A clip crosses a boundary as a document.** `Clip::as_document` gives the cells as a
+    document whose root is the top cell, and `Clip::from_document` makes the clip again, checked
+    as `Clip::of` checks. The bridge carries the text of that document and the cell the top
+    cell was in (A132: the ID of the document says where the cells came from). So the two paste commands are
+    in the serialised form like the other 43, and there is still no way to make a clip of cells
+    that break the model's rules. (The bridge has no call yet that gives Dart a clip; that comes
+    with copy and paste in the interface.)
+125. **Reading one grid is a query of the core**, `Editor::grid_view`: a cell and the cells of
+    its grid, each with its text, kind, what a formula cell shows, whether that is an error
+    value, and whether it has a grid. A cell without a grid gives 0 by 0 cells, so a new
+    document, whose root has no grid, reads without an error. The bridge only converts it.
+126. **What crosses the bridge after a command is the change report with the recalculated
+    cells in it** (`Report.recalculated`). The core's `Changes` stays as decision A90 left it;
+    the bridge adds `Editor::recalculated()`, because an interface that redraws only what a
+    report names would otherwise show old results of formulas.
+127. **An open document is an opaque handle** (`OpenDocument`: editor, file and what it looked
+    like when last read or written, ID source, clock, whether saved), not something looked up
+    by document ID: two files can have the same ID (A28). Every call is asynchronous on the
+    Dart side, and the core's work runs off the thread that draws. (Not all of a call does:
+    Dart writes the arguments and reads the answer on its own thread, and the arguments are
+    read on the Rust side inside the call itself, before the work is handed over. For an
+    import of 100,000 cells the evaluation after the review measured 34 to 130 ms of the
+    caller's time, of 464 to 736 ms in all; so much data belongs in a call that takes a
+    path or bytes.)
+    `flutter_rust_bridge` keeps two calls on one document from running at the same moment,
+    with a lock. It does not keep them in order: each call goes to a pool of threads, and of
+    two that wait either may go first. The review saw 40 insertions into one cell, made
+    without waiting, end with the wrong text in 6 of 20 rounds. So the caller sends one call
+    at a time and waits for its answer before the next; the comment of `OpenDocument` says
+    so, and the app is to do it in one place on the Dart side, where the order of calls is
+    known. A test in the core asserts that `Editor` can move between threads. Only plain
+    `apply` is bridged; joining typing into one undo unit and groups come with the real
+    interface.
+128. **The bridge supplies what the core takes as arguments:** new IDs from a generator seeded
+    from the operating system once per open document (`getrandom`), and the time from the
+    device's clock. Tests give both.
+129. **Errors cross as `{kind, message, path}`; a panic is caught, and what it leaves is not
+    used.** The kind mirrors the variants of the core's error, for the interface to switch
+    on; the message is the core's English text. The bridge adds kinds of its own:
+    `BadRequest` for what is wrong with something sent over it (A133), `ChangedOnDisk`
+    (A140), `AlreadyOpen` (A141), `Closed` (A142) and `Internal` (A143).
+    A panic is a fault in the program; the core is written not to have any. What happens
+    if there is one all the same was tried by the evaluation after the review, in a copy
+    of the bridge with a function that panics on purpose:
+    - In a call, the panic is caught by `flutter_rust_bridge` where the work runs
+      (`catch_unwind`), and Dart gets a `PanicException`, not a crash. Its text can hold a
+      backtrace with the paths of the machine that built the app, so an interface shows a
+      sentence of its own and not that text.
+    - The lock around a document is not poisoned by a panic (it is tokio's, which has no
+      poisoning). After a panic in a call that changes a document, the document was still
+      there, half changed, readable, called saved, with the command in its history.
+      Decision A143 is about that.
+    - A panic while a handle is dropped is not caught: the generated function that drops
+      it is a plain `extern "C"` function, and a panic that reaches the end of one ends the
+      process. What the bridge does in a drop is therefore guarded by itself (A142).
+    - All of this needs panics to unwind. Nothing in the workspace sets `panic = "abort"`;
+      a comment at the end of the workspace's `Cargo.toml` says that nothing may, and
+      `crates/wombat-bridge/src/lib.rs` does not compile if something does (tried once with
+      `CARGO_PROFILE_DEV_PANIC=abort`).
+    - No test in the repository sends a panic across to Dart: that would need a function
+      that Dart can call and that panics, in the library that ships. The tests of what the
+      document does after a panic are inside the crate (`src/panic_tests.rs`) and use
+      switches that exist only in its test build.
+    The library is started with `PanicBacktrace::setup()` only, not with
+    `flutter_rust_bridge`'s `setup_default_user_utils`. That also set `RUST_BACKTRACE` in
+    the environment of the process, while other threads of the app run and may read the
+    environment, which C does not make safe; and on Android, iOS and macOS it sent whatever
+    any library logs, down to the finest level, to the system's log, in release builds too.
+    Nothing in Wombat logs. The price is that a panic is reported with a backtrace only
+    when the app was started with `RUST_BACKTRACE=1`. A test holds that starting the
+    library leaves that variable alone.
+130. **The app opens the example through a copy with fresh IDs** (`OpenDocument::open_copy`,
+    which is `storage::copy_document_with_state`): every install has the same example file,
+    and A28 says a copy gets its own IDs. A copy that fails leaves nothing behind (A139), and
+    the editor that is made of the copy afterwards cannot fail, because it refuses only what
+    the save, which has just written that very document, refuses too; so there is never a
+    file of a copy without an open document for it. The same holds for a new document. A new document is saved where it is created, as `Workspace::create`
+    does. The bare app writes into the system's temporary folder; where documents live, opening
+    from bytes, and Android's picked documents (which are not paths) are for the real
+    interface.
+131. **Three things the build tools decide.** The package is named `wombat_bridge`, with an
+    underscore unlike the other crates, because the app's build (cargokit, in
+    `app/rust_builder`) looks for a library with the package's name. That build compiles the
+    bridge with rustup's `stable` toolchain, not the version pinned in `rust-toolchain.toml`:
+    cargokit knows only stable, beta and nightly. The checks and CI use the pin. And the crate,
+    the Dart package and the generator must be the same version of `flutter_rust_bridge`
+    (2.13.0), pinned exactly in all three places.
+132. **A clip says once where its cells came from** (from the review of the bridge; changes
+    A124). The carried form had the ID of the source document twice, as a field `source` and
+    as the ID of the document that carries the cells, and when the two differed the field won
+    without a word. `ClipData` has no `source` now, and `Clip::from_document(doc, parent)`
+    takes the source from the ID of `doc`, which is what `Clip::as_document` writes there.
+    The check in `as_document` stays: a document under construction is not checked, and a
+    clip of one can break rules that only a whole document has (a test builds two such).
+133. **What the bridge itself refuses has its own kind of error, `BadRequest`** (from the
+    review; changes A129). `Invalid` meant both "the file is broken", which a user can be told,
+    and "what the interface sent is malformed", which is a mistake in the interface. Now
+    `BadRequest` is everything the bridge refuses before the core is asked: text that is no ID,
+    a number out of range or not finite, unknown fields that are no JSON object, JSON text
+    that is no command. `Invalid` is only what the core means by it, which includes the
+    document that carries a clip, since the core checks that. (A table to import that is
+    malformed was `Invalid` too; since the second review it is `BadRequest`, A153.)
+134. **Whole numbers that Dart sends cross in 64 bits and are checked on arrival** (from the
+    review; adds to A123). A Dart `int` has 64 bits. The mirror types had the core's widths
+    (`u32`, `i32`, `u8`), and the generated Dart wrote only that many bits, so row 4294967296
+    arrived as row 0 and a relative size of 4294967299 as 3, with no error. Every whole number
+    in `Command` and what it holds (`Prop`, `Rgb`, `TableData`) is now `i64` in `api/wire.rs`,
+    and `convert.rs` turns each into the core's type with a checked conversion, refusing
+    what does not fit as `BadRequest`. JSON follows the same rule, since it is the same types.
+    Numbers that only go from Rust to Dart (`GridInfo.xs` and `ys`) stay as they are: a
+    narrower number always fits a wider one. (Since A167 and A173 the request of a stage
+    read, `StageAsk`, and what a level remembers, `LevelInfo`, are sent by Dart too and
+    checked the same way.) In Dart these numbers are plain `int`:
+    `app/flutter_rust_bridge.yaml` sets `type_64bit_int`. Without it the generator writes
+    `PlatformInt64`, a name that is `int` on phones and desktops and a big-number type on
+    the web, so that every signature shows a type that means nothing where the app runs.
+    With it, phones and desktops send exactly the same eight bytes as before (the generated
+    conversion is the identity there; the tests of numbers that do not fit still pass); on
+    the web, which is not a target (A121), numbers beyond 2 to the 53rd would lose
+    precision, where before they would have been exact.
+135. **A table to import crosses as one flat list** (from the evaluation after the review;
+    changes A123). `TableData` was a table whose cells could hold tables. The generated decoder,
+    the conversion and the freeing of such a value all call themselves once per level, and the
+    first two run before any check of ours can: a table nested a few thousand deep overflowed
+    the stack of the thread, which ends the process and is not a panic that anything catches.
+    Now `TableData.cells` is every cell in document order, each followed at once by the cells of
+    the grid inside it, and a cell with a grid says only the size of it (`GridSize`: columns and
+    number of cells). No type in `api/wire.rs` contains itself any more, so nothing generated
+    recurses. `convert.rs` puts the core's `Table` together with a list of the grids that are
+    open; `Table::new` refuses one nested deeper than a document may be (`Limit`) as soon as it
+    is made, so nothing deeper is ever built. A list that is no table is a `BadRequest`, refused
+    by the bridge before the core sees it: a grid that says it has more cells than follow, and a
+    grid, the outermost or one inside, with no cells, no columns or a row that is not whole
+    (A153). `Limit` stays for a table nested too deep, with too many cells or with a text too
+    long. JSON has the same flat form.
+136. **The JSON form is strict** (from the review; adds to A123). As `serde` reads by default, a
+    field that may be none was none when left out, and unknown fields were passed over: a
+    recorded `SetRangeColor` without its `color` removed the colour, and a misspelt field was
+    read as if it were not there. Now every type of `api/wire.rs` refuses unknown fields, and a
+    field that may be none must be there, as `null`. Unknown and missing fields were not all
+    that `serde` reads and never writes: it also reads an object from a list of its values, and
+    `{"Run": null}` for `"Run"`. Both are refused since A152, which compares what was read with
+    what is written. None of this touches what crosses between Dart and Rust: the generated code
+    writes every field in order, without names.
+137. **Half a surrogate pair in a Dart string is documented, not refused** (from the review).
+    A Dart string may hold one, which is no character; Dart's encoder writes U+FFFD in its
+    place before Rust sees the string, so the bridge cannot tell it from a U+FFFD that was
+    meant. Refusing would need a check of every string on the Dart side. `api/wire.rs` says
+    so where a Dart developer reads it, and a Dart test pins it. And because the generator
+    does not carry the comment of an enum that holds data (`Command`, `Prop`, `LinkTarget`)
+    into Dart, the rules a Dart developer needs are stated on variants, fields and `Report`.
+    The comment of the handle `OpenDocument` is not carried over either; what it says is
+    repeated on `open`, and the rules for every command are on `apply`.
+138. **An open document knows its file by length, time and, on Unix, which file it is** (from
+    the review of the bridge). A program that keeps a document open must know, when it saves,
+    whether another program changed the file. Reading a file of up to 32 MiB at every save to
+    compare it is too dear, so the storage layer notes a `FileState` when it loads, saves or
+    copies a document: the length, the time of modification and, on Unix, the device and the
+    file's number on it. `FileState::check` compares that with what is at the path, following
+    a symbolic link as saving does, and answers unchanged, gone or changed. The state of a
+    saved file is taken from the new file before it is given its name, and that of a loaded
+    file from the open file before its bytes are read, so that a change by someone else in
+    that moment is reported and never remembered as one's own. The file's number matters
+    because most programs save by putting a new file under the old name, which this sees
+    whatever the length and clock say. Not seen: the same file rewritten in place with the
+    same length and the same time of modification (within one tick of the file system's
+    clock, or by a program that puts the old time back), and on Windows, where the standard
+    library does not give the file's number yet, any change that keeps length and time. The
+    time of the last change of permissions, owner and attributes is left out on purpose:
+    backup, search and synchronisation tools change those on files they do not edit, and a
+    false "changed on disk" teaches people to overwrite without looking. Between checking
+    and writing, another program can still save and be overwritten; closing that gap would
+    take locking, which is not attempted (`write_atomic` already says that two programs
+    saving at once are not protected from each other). The same gap is in creating: `create`
+    looks whether a file is there and then writes, and a file that another program makes at
+    the path between the two is replaced unseen; so is the file that a copy makes. The
+    comment of `create` says so (from the second review).
+139. **A copy of a document that fails removes what it made** (from the evaluation after the
+    review). `copy_document` copies the images, then the view state, then saves the document,
+    so that a copy that is there is complete. When a later step failed, the image folder with
+    its pictures and the view state of a document that does not exist stayed, and nothing
+    ever removed them. The copy now notes, before it starts, which of those files and folders
+    are not there yet, and removes exactly those when it fails; a folder is removed only if
+    it is empty. What was there before the call is never removed. An image file of the same
+    name that was already in the copy's image folder has been replaced by then, as before
+    this decision, and is not put back.
+140. **Saving an open document never goes over another program's work without being told
+    to** (from the review; uses A138). `OpenDocument` keeps the `FileState` of its file from
+    opening, creating, copying and every save, and `save()` looks at the file first:
+
+    | | The file is as it was | The file is gone | The file was changed | It cannot be looked at |
+    | ---- | ---- | ---- | ---- | ---- |
+    | Something was done since | written | written | refused: `ChangedOnDisk` | `Io` |
+    | Nothing was done since | left alone | written | refused: `ChangedOnDisk` | `Io` |
+
+    Before, `save()` trusted its own flag: after the file was deleted or replaced it answered
+    success and wrote nothing, and with something to save it replaced whatever was there. A
+    file that is gone is written again because the document that is open is the only copy
+    left. A file that was changed is refused also when nothing was done to the document, so
+    that "saved" is never answered about a file that holds something else. A path that is a
+    link leading nowhere is an error as it is for every save of the core (`write_atomic`),
+    and stays one for `overwrite()`.
+    `overwrite()` writes without looking, for when the user chose this document over the
+    file. It is a second call, not an argument of `save`: in Dart every argument is named
+    and required, so an argument would have put `overwrite: false` on every ordinary save
+    and made the dangerous call differ from the safe one by one word; a separate name can be
+    searched for and is never called by a wrong value.
+    `is_saved()` says whether anything was done to the document since its file was read or
+    written. It does not look at the file, so it stays true when the file is deleted; what
+    happened to the file is found by `save()`. It is a flag that every change clears, undo
+    and redo included, not a comparison: undo and then redo after a save lead back to what
+    was saved and the document is still called unsaved; saving then writes the same bytes
+    again. A command that changes nothing in the document leaves it as it is: one that asks
+    for nothing new (an empty report), and a `Run` after which formula cells show something
+    else but no cell is different (a report with only `recalculated`; A151).
+    One thing sets the flag again without a save: cancelling a group of commands that was
+    opened on a saved document whose file was not written since (A171).
+141. **A file is open in one document at a time** (from the review). Two `OpenDocument`s on one
+    file each saved over the other's work without a word. The bridge keeps a set of the files
+    that documents of this process have open (`open_files.rs`); `open`, `create` and `open_copy`
+    (for the file it makes) first claim the file and are refused with `AlreadyOpen`, with the
+    path as it was asked for, when a document has it. The claim is part of the document and is
+    given up when the document is closed or dropped, and with it when opening fails half-way, so
+    a file is never held by a document that does not exist. Checking and claiming are one step
+    under one lock, so of two opens at the same moment one is refused. What is copied from may
+    be open: a copy only reads it. A file is known by up to three names, however the path is
+    spelt, and is open if a document holds any of them (A150): the real name of the file that a
+    save would replace (`fs::canonicalize`), the name below its real folder (or below the
+    nearest folder above that is there), and the path as asked, from the root. A file that is
+    not there yet (`create`, the target of a copy, a file removed while it was open) has the
+    last two. A path through a link that leads nowhere has them too and no real name; nothing is
+    opened or made through such a link anyway. Not seen to be the same file: a second hard link
+    to it, and, for a file that is not there yet, a name that differs only in a way the file
+    system ignores (case on macOS and Windows). A claim stays on the names the document had when
+    it was opened: on the file that the path named then, and on the path itself. If a link on
+    the way is changed while the document is open, saving follows the new link; the path is
+    still held, so nothing else is opened or made through it, but the file the link now leads to
+    is not held under its own name. The set is the bridge's one piece of state shared by the
+    whole process; it is not in the core, which has none. It knows nothing of other processes:
+    what another program does to the file is seen at saving (A140). A lock that a panicking
+    thread left poisoned is used all the same, since no step on the set can leave it half done.
+142. **An open document is ended by closing it, and saved when it is dropped unclosed** (from
+    the review). There was no close: a handle that Dart let go of took its unsaved edits with
+    it. The interface has no notion of throwing edits away (`UI_SPEC.md` has no Save, Close
+    or Discard at all, which this does not contradict), so:
+    - `close()` saves what is unsaved, as `save()` does and with the same refusals, and then
+      gives the document up: the file may be opened again, the memory is freed, and every
+      later call on the handle, a second `close` included, is refused with `Closed`. If the
+      save fails, the error is returned and the document stays open exactly as it was, so
+      nothing is lost; from there `overwrite()` and `close()` keep this document, and
+      disposing of the handle keeps the other program's file.
+    - With nothing unsaved, `close()` writes nothing and does not look at the file; that
+      includes a document on which only a `Run` that changed no cell was carried out (A151). So a
+      document that was only read always closes; a file that was removed meanwhile is not
+      brought back, and one that someone else changed is not complained about. (`save()`
+      does both, A140: it is asked to make the file hold the document. `close()` is asked
+      to lose nothing.)
+    - A document that is dropped without having been closed, unsaved, is saved if its file
+      is as it was or gone. If someone else changed the file, or it cannot be looked at,
+      nothing is written: a drop has no one to ask and no one to tell. This is a safety
+      net, not the way to save. It runs when Dart disposes of the handle or collects it, on
+      the thread that does so, which it blocks for the time of the save (about 0.2 s for
+      100,000 cells); it can report nothing; and when the system kills the app it does not
+      run. The interface saves by calling `save` and `close`.
+    - The generated function that drops a handle has no guard, and a panic that leaves an
+      `extern "C"` function ends the process (A129). So the save in the drop is inside
+      `catch_unwind`, the payload of a caught panic is forgotten and not dropped, and
+      giving up the claim on the file cannot panic (A141).
+    After `close()` the handle holds nothing; it is still Dart's to dispose of. `id()`,
+    `root()`, `path()` and `is_saved()` can now fail, with `Closed`.
+    (Since A173: "writes nothing" is said of the document's file. The view state is written
+    then if it changed, to its own file, after the document and without reporting. And a
+    group of commands that is open is neither ended nor cancelled by `close()`, A171.)
+143. **A document that a panic may have left half changed is not used again** (from the
+    evaluation after the review; see A129 for what a panic does). The open document notes
+    that a call which changes it (`apply`, `undo`, `redo`) is under way, from before the
+    core is asked until the report is made, and clears the note when the call ends, with a
+    value or with an error (the core leaves the document as it was when it refuses). If a
+    call finds the note set, an earlier one never ended: a panic unwound through it. Then
+    every call, reads and `is_saved()` included, is refused with `Internal`; `save`,
+    `overwrite` and `close` write nothing, and neither does the drop of the handle, which
+    still gives up the file. So the file stays as it was last saved, and the way on is to
+    dispose of the handle and open the file again; what was not saved is lost, which is
+    better than saving half a command over what was whole. Calls that only read, and
+    saving, set no note: they do not change the document, and a save that panics has not
+    replaced the file (the new file gets its name in one last step).
+144. **The app reaches a document through one Dart class that sends its calls in order** (from
+    the review; the Dart part of A127). `Session` (`app/lib/session.dart`) holds the handle
+    `OpenDocument` and is the only thing the app and its tests use. Each call starts when the
+    one made before it has ended, well or badly, whether or not the caller waited: a chain of
+    futures, on the Dart side because that is where the order of calls is known. An error goes
+    to the caller of its own call and the calls after it are carried out all the same. (An error
+    that no caller waited for was dropped; A154.) The review's test (40 insertions into one cell
+    without waiting, 20 rounds) was wrong in 2 of 20 rounds on the bare handle when it was run
+    again here, and is right through the class. What else the class decides:
+    - `id`, `root` and `path` are read once when the document is opened and are plain
+      values from then on: they never change, and so nothing has to wait for them.
+    - `close()` saves, and on success disposes of the handle at once: nothing is left in
+      it to save then, so letting go costs the thread that draws nothing (A142). After
+      it every call throws a `BridgeError` of kind `Closed`, made on the Dart side, since
+      the handle is gone; a call made while the close was still under way comes after it
+      and is refused the same way.
+    - `discard()` lets go of the handle without a close, for when a save was refused
+      with `ChangedOnDisk` and the user chose the other program's file, and for after a
+      fault. It is not a way to throw edits away: the bridge's safety net still saves
+      what it may (A142).
+    - `isFatal`, `describeError` and `faultSentence` are there too: after a panic
+      (`PanicException`, then `Internal` on every call) the screen shows one fixed
+      sentence and never the text of the exception (A129).
+    - `codePoints(text, units)` turns a position in a Dart string, counted in UTF-16
+      units, into the code points the core counts (A11), and refuses a position outside
+      the text (A154). Nothing sends a position yet.
+    - The class carries the comments a Dart developer needs, because the generator drops
+      those of the handle's type and of `Command` (A137).
+    `InTurn`, the few lines that do the ordering, is a class of its own because the grid
+    screen's logic uses the same thing for its own steps (A146), and since the third review
+    the keeper of the document and the screen's actions do too (A155, A158).
+145. **The app saves the document by itself; there is no Save** (from the evaluation after the
+    review; `UI_SPEC.md` has no Save, Close or Discard for documents). The simple grid screen
+    had a menu entry "Save" and nothing else, so the back button, swiping the app away or the
+    system ending it lost every edit. Now the document is saved without being asked. (As first
+    built, by `Stage`, `app/lib/grid/stage.dart`; since A155 by `Keeper`, `app/lib/keeper.dart`,
+    which owns the document for every screen on it. What follows is as it is now.) It is saved:
+    - **one second after the first change that is not saved yet.** Later changes do not put
+      the clock back, so steady typing cannot keep the file old; a change is in the file
+      a second later at the latest, plus the time of the save, while the app runs and the
+      save works (one that fails is tried again by itself, A155). Not
+      after every command: on the 100,000-cell document of `measure.dart` (profile build,
+      Linux desktop, measured again for this decision) a save takes 213 ms (worst of five
+      302 ms) and an edit that no formula depends on 1.2 ms. Saving after each command
+      would make such an edit about 170 times dearer, and every next edit would wait for
+      the save before it, since calls go one at a time (A144).
+    - **at once when the app is no longer in front**, because after that the system may end
+      the app without another word. When it is out of sight (`AppLifecycleState` hidden,
+      paused or detached), what is in the editor is entered into the cell first (the editor
+      stays open), so that half a sentence is not lost either. When it is only `inactive` (a
+      window that lost the focus, a dialog of the system), what is in the document is saved
+      and the editor is left alone. As first built, every state but `resumed` entered the
+      editor's text, from an observer in the grid screen; the third review showed what that
+      did to the cross (A157). The observer is now where the app owns its document (A155). A
+      save with nothing to save only looks at the file.
+    - **when the screen goes** (`Keeper.close`, which is `Session.close` after what is in the
+      editor was entered; A155). A save that fails is not swallowed: `Keeper.saveError` (which
+      `Stage` passes on) holds it until a save works, and the screen shows it in a line that
+      stays, with "Try again". For `ChangedOnDisk` (A140) the line offers the choice: "Keep
+      mine" (`overwrite`) or "Open theirs" (let go of this document, open the file again, start
+      at the root; what was not saved here is lost, which is the choice; since A159 only once
+      that file is known to be readable). After a fault in the program (`PanicException`, or
+      `Internal` on any call; A143) the keeper lets go of the document, nothing more is saved,
+      every control that reaches the document is gone and the screen shows one fixed sentence.
+      The bridge's own saving when a handle is dropped (A142) stays what it was, a safety net.
+      Not done: nothing is written while the user types into the editor (typing is not bridged
+      as commands yet, A127), so an app that is killed outright, without being moved out of
+      sight first, loses what is in the editor and at most the last second of entered changes.
+146. **The steps of the grid screen are taken in order, and none is dropped** (from the
+    evaluation after the review). The screen dropped every action that came while another
+    ran, a second tap on Undo as well as, before A145, Save. And nothing kept two steps of
+    `Stage` apart: two taps on the way into a grid in one frame put the cell on the trail
+    twice. `Stage` now takes its steps one at a time in the order they were asked for
+    (`InTurn`, as `Session` does for calls), and judges each by the stage as it is when
+    its turn comes: the second of those two taps finds the cell no longer on the stage and
+    does nothing, two taps on Undo undo twice, and a cell tapped while an undo runs opens
+    the editor on the text the undo left (`Stage.cell`). The screen has no "busy" flag
+    any more. Also: going into a grid or up reads first and moves the trail after, so an
+    error leaves the stage where it was; and an edit that the core made is not reported as
+    failed when reading the stage again fails (`Stage.readError`, shown with "Try again").
+    The third review found that "judges each by the stage as it is when its turn comes" was
+    true of `Stage` and not of the screen, which still decided when the finger came down
+    whether an editor was open, and that "none is dropped" did not hold with the editor
+    open. A158 gives the screen's actions a queue of their own.
+147. **Text in the editor is never thrown away by a tap elsewhere.** The simple grid screen
+    closed the editor without a word when one went into a grid, up, along the trail, or
+    tapped another cell. `UI_SPEC.md` section 6 says that a tap outside the editor only
+    closes it and never dives or selects, and section 7 has a tick that closes the editor
+    and no cancel, so closing means keeping. Hence:
+    - a tap on a cell or on the way into a grid, while the editor is open, enters the text
+      and closes the editor, and does nothing else (section 6);
+    - the up arrow, the trail, Undo and Redo enter the text, close the editor and then do
+      what they are for. The spec does not say; they are bars, not the grid, and doing
+      nothing would make them need two taps. Undo therefore first undoes what was just
+      entered. (If more was typed while the text was entered, the action is not done and
+      the message line says so; A158.)
+    - if the core refuses the text, the editor stays open with it and the action is not
+      done;
+    - if keys were typed while the core worked on the tick, the editor stays where it
+      is with those keys, and is not closed over them. (For Return this held only until
+      the text was entered: keys typed after that, while the next cell was made and
+      read, were lost, as the fifth review found. A193 is the rule since.)
+    - the cross (cancel), which the spec does not have, stays for now: it is the one way
+      to say "not this", and it is asked for by name. (After the app had been put away
+      the text was in the document already and the cross kept it; A157 makes the cross
+      take it back.)
+148. **Where the app keeps its document is still temporary** (changes the last sentence of A130;
+    **replaced by A165**: the document is in the app's own data folder on every system, found
+    with `path_provider`. What follows is how it was). The app made a new folder in the system's
+    temporary folder at every start and the bridge check at every press of Open, and removed
+    none. Now the app has one document, `wombat/example.wombat` in the system's temporary
+    folder: the copy of the example at the first start, and the same file, with everything done
+    to it, at every later start, which is what makes saving mean something. The bridge check has
+    one folder per visit of its screen and removes it when the screen goes. A place that the
+    system does not clear needs the `path_provider` plugin (there is no way to ask Android or
+    iOS for the app's own folder from Dart alone). A dry run of adding it (2.1.6) showed 15 new
+    packages in `pubspec.lock`, among them `jni` and build hooks that compile native code for
+    Android, and registration code generated into `android/` and `linux/`; the Android build
+    could not be run on the machine this was written on (no SDK). It was not added; it belongs
+    with the decision where documents live (also Android's picked documents, which are not
+    paths). Until then the system may clear the folder: on Linux at a restart, and on Android,
+    where it should be the app's cache folder (not tried), when storage is short. If it does so
+    under an open document, the next save writes the file again when the folder is still there
+    (A140) and is shown as failed when it is not.
+149. **An open document knows its file by the path from the root that it had when it was
+    opened** (from the second review, R1; adds to A140 and A141). `OpenDocument` kept the
+    path as it was given and worked it out again at every save, while the claim on the file
+    (A141) was made absolute once. After the program's working folder changed, a document
+    opened as `rel.wombat` saved to a new `rel.wombat` in the new folder and answered
+    success; the first file kept its old content, and the new one could be opened beside the
+    document that had just written it. Now the path is made absolute when the document is
+    opened (`std::path::absolute`: against the working folder of that moment, `.` taken
+    out, `..` and links left as they are) and that one path is what is read, saved to,
+    checked and answered by `path()`. Links are deliberately not followed for it: saving
+    through a link goes where the link leads at the time of the save, which is the storage
+    layer's rule (`write_atomic`). A path that cannot be made absolute (the empty path) is an
+    `Io` error with the path as asked. The test changes the working folder, which belongs to
+    the whole process, so it is alone in its test file (`tests/working_folder.rs`).
+150. **A claim holds every name the document's file has** (from the second review, R3, and a
+    case the Dart side reported; changes A141). A claim held one name: where links lead. But
+    an open document is two things that can come apart: the file it read, and the name it
+    saves to. A document opened through a link `L` to `T` held `T`; when `L` was removed,
+    `create(L)` succeeded while the first document went on saving to `L`. A claim now holds
+    up to three names, and a file is open if any name of the newcomer is held by a document:
+    1. the real name of the file that a save would replace (links followed, no `.` or `..`),
+       if there is such a file: a second open through another link, or of the file itself,
+       meets this one;
+    2. the name below its real folder, without following a link that the name itself is. If
+       the folder is not there (it was removed under the open document and may be made
+       again), it is the name below the nearest folder above that is there;
+    3. the path as asked, from the root, which stays when a link on the way to the folder is
+       changed.
+
+    So nothing is opened or made at the name of an open document when its link was removed
+    or made to lead elsewhere, when its file is gone, or when its folder is gone or was
+    removed and made again, however the path is spelt. Opening the link's target directly,
+    or through a second link, is refused as before. All names are given up together when the
+    document is closed or dropped; checking and claiming are still one step under one lock.
+    Still not seen to be the same file: a second hard link, and for a file that is not there
+    yet a name that differs only in a way the file system ignores. Still possible: a link is
+    made to lead to a file that a second document already has open by its real name;
+    `overwrite()` on the first then writes into the second's file (`save()` refuses with
+    `ChangedOnDisk`).
+151. **Only a change to the document makes it unsaved** (from the second review, R4; changes
+    the last sentences of A140). The flag "saved" was cleared by every report that was not
+    empty, and a report also lists the formula cells that show something else
+    (`recalculated`). Program > Run on a saved document whose program changes no cell gives
+    a report with only that list: nothing joins the undo history and a save would write the
+    same bytes, but the document counted as unsaved, and `close()` then answered
+    `ChangedOnDisk` if another program had changed the file, although a document with
+    nothing unsaved always closes (A142). The flag now follows the core's `Changes`
+    (changed, created, removed, grids, tags): what formula cells show is worked out from the
+    document and is in no file.
+152. **Only the form of JSON that is written is read** (from the second review, R5; replaces
+    the exception in A136). `serde` reads more forms than it writes. Besides `{"Run": null}`
+    for `"Run"`, which A136 allowed, it reads any object from a list of its values in order:
+    `{"InsertText": ["<id>", 1, "x"]}`, a colour as `[1, 2, 3]`, a report as six lists. A
+    list has no names, so a value in the wrong place is read as another field, which is what
+    strict reading is there to prevent. `record.rs` now reads the text a second time as JSON
+    of any kind and compares it with what is written for the value it read; text in any
+    other form is a `BadRequest`. What may differ is what JSON itself takes for the same:
+    spaces and line ends, the order of the fields of an object, and a whole number where a
+    fraction may stand (`1` for `1.0`). `{"Run": null}` is refused with the rest. The other
+    way, a deserializer that hands `serde` only maps for objects, has to wrap the
+    deserializer, the visitor, the seed and the accesses to lists, maps, enums and variants
+    for the rule to reach nested values: an estimated 180 lines of forwarding (it was not
+    written) against 35 here. The price is time: a text is read twice and written once,
+    about three times the cost of reading, which a record that is played back can afford.
+    Nothing of this touches what crosses between Dart and Rust.
+153. **A list that is no table is a bad request, never `Invalid`** (from the second review,
+    R8; changes the end of A135 and completes A133). A malformed table got two kinds: a grid
+    short of cells or a number out of range was `BadRequest`; no cells, no columns and rows
+    that are not whole were `Invalid`, the core's word for a file that breaks a rule of the
+    format. A caller could not read `Invalid` as "the file is broken", which is what A133
+    made `BadRequest` for. `convert.rs` now checks the shape of every grid of the flat list,
+    the outermost and each one inside, before the core is asked: at least one column, at
+    least one cell, only whole rows, and as many cells as it says. What is left for the core
+    to refuse is a table past a limit of documents, and that stays `Limit`: nested too deep,
+    too many cells, a text too long. This is a deliberate change of behaviour: lists that
+    were answered `Invalid` are answered `BadRequest`.
+
+    Also from the second review, about CI (R12): the check that the generated bridge code is
+    fresh removes the generated Dart folder (`app/lib/src/rust`) and `frb_generated.rs`
+    before it runs the generator, so that a file the generator writes no more shows as
+    deleted; run over the files in place, such a file was neither changed nor new and
+    stayed unseen. The generator runs without them (tried with 2.13.0: no difference on the
+    committed code; a stale file committed under `app/lib/src/rust/api/` passes the old
+    check and fails the new one). Still as it was: the bridge is never built for iOS
+    (it is since A192, for a simulator), and
+    for Android only with rustup's `stable` (A131); actions are pinned by tag, not by commit.
+154. **The queue of calls loses no error and does not wait for itself** (from the third
+    review, of the Dart side; adds to A144; **changed by A160**, which says what "inside a
+    piece" is, sets timers apart and sees two queues that wait for each other). `InTurn` chained every piece of work to the one
+    before, and so that one failure would not end the chain, the chain took every error;
+    for Dart that counted as the error having been handled, so the error of a call that
+    nobody awaited vanished. And a piece that awaited another piece of its own queue waited
+    for ever, since that one comes after it. Now:
+    - The answer that `run` gives knows whether anyone has taken it (`await`, `then`,
+      `catchError`, `whenComplete`, `timeout`, `asStream`). If someone has when the piece
+      fails, the error goes to that caller alone. If no one has, it goes once to the
+      handler the owner of the queue gave (`onUnheard`; the grid screen shows it on its
+      message line), or without one to the zone as an error nobody caught, which is where
+      Dart sends such errors and what fails a test. "At the moment it fails" is the rule
+      Dart itself has for futures: someone who takes the answer only afterwards finds the
+      error in it as well.
+    - Each piece runs in a zone that carries a mark of its own, and the queue remembers the
+      mark of the piece that runs. `run` called from inside that piece fails at once with a
+      `StateError` that says so, and runs nothing; waited for or not, since the two cannot
+      be told apart. Something a piece left behind (a timer, a listener) that runs after it
+      may ask the queue again. The mark is taken off just after
+      the piece has ended (in the next microtask), so in that instant such a call is refused
+      too; nothing in the app does that.
+    - The chain is made of plain callbacks. With `whenComplete` or an `async` closure in
+      it, 16,000 queued pieces took 90 seconds in a test (each one a little longer than
+      the one before); as it is they take about a quarter of a second.
+
+    Three smaller things from the same review. `Session.over` lets go of the handle when
+    the handle cannot say its ID, root or path, instead of leaving a file taken by
+    something nobody holds. `codePoints` refuses a position below 0 or beyond the text with
+    a `RangeError`, as the core refuses a position and never moves it (A11); that includes
+    -1, which a `TextSelection` gives when there is no selection, so a caller asks
+    `selection.isValid` first. Clamping was the other choice and would have put text at the
+    start of a cell for a selection that is none. And the Dart tests ask cargo where it
+    built the library they load (`--message-format=json`) instead of working the folder
+    out, which was wrong for a relative `CARGO_TARGET_DIR` and silent for other settings.
+155. **Saving belongs to what owns the document, not to a screen** (the coordinator's
+    decision after the third review; changes A145 and A146; **changed by A161**: `addFinisher`
+    is now `attach`, putting away saves first and waits no longer than two seconds, a close
+    that cannot finish leaves the document open, and listeners are told apart from the
+    keeper's own work; and by A162, which makes `endKeeping` run when the window is closed).
+    The clock that saves after a
+    change was in `Stage`, the watching of the app's lifecycle in the grid screen's widget,
+    and "ended after a fault" a state of each `Stage`: a second screen on the same document
+    would have had none of it, or a second copy of all of it. `Keeper`
+    (`app/lib/keeper.dart`) now owns the `Session` for every screen on the document:
+    - Screens read and change the document through it (`grid`, `apply`, `undo`, `redo`),
+      one call at a time (`InTurn`). A change starts the clock (A145); a fault ends the
+      work for everyone (`ended`); `saveError`, `ended` and `opens` are what a screen
+      shows, and it is told when they change. `Stage` holds no `Session` any more, only
+      passes those on, and asks (`save`, `keepMine`, `openTheirs`).
+    - **A save that failed is tried again by itself** (the review's finding: after one
+      failure nothing was tried until the next change or the user). The wait starts at the
+      delay of saving, one second, and doubles with every failure up to a minute: 1, 2, 4,
+      8, 16 and 32 seconds after the failure before, then every 60. A save that works puts
+      it back to one second. Not tried again: `ChangedOnDisk`, which only the user can
+      answer. It stops when the document is closed, let go of or ended. While a save is
+      waiting to be tried again, a new change does not bring it forward.
+    - **The app's lifecycle is watched where the app owns its document**: `Kept` in `main.dart`,
+      a widget around the screen. `inactive` calls `Keeper.save`; `hidden`, `paused` and
+      `detached` call `Keeper.putAway`, which first lets everything that works on the document
+      finish what it has begun and then saves. What "finish" means each says itself
+      (`addFinisher`): a stage waits for the steps asked of it, the grid screen enters what is
+      in its editor (A157). A screen that goes away with text in its editor enters it as one
+      more step of its stage, which the keeper waits for like the others. If something cannot
+      finish, the document is saved all the same.
+    - **A close that cannot save leaves the document open** (changes A145's "when the
+      screen goes"). `Stage.close` let go of the document when the save failed, which made
+      the bridge try the same save again on the thread that draws (A142) and told no
+      screen. `Keeper.close` now throws, keeps the document in use, puts the error in
+      `saveError` and tries again like any save that failed, so that a screen can say so.
+      Only an owner with no screen left calls `letGo` (`endKeeping` in `main.dart`, when
+      the app's last screen goes), which is the bridge's safety net and never writes over
+      another program's work.
+    - The keeper does not close itself and `Stage` does not close it: whoever made it does.
+    Four queues are now one inside the other (the screen's actions, the stage's steps, the
+    keeper's calls, the session's calls). Each asks only the one below it, and the guard
+    of A154 turns a mistake in that order into an error instead of a wait without end.
+    The price of the move: something that calls `Keeper.save` directly is not ordered after
+    a stage's steps that have not reached the keeper yet; `putAway` and `close` are, through
+    the finishers, and the save by the clock need not be.
+156. **On desktops the document is in the user's data folder; a document that cannot be
+    opened can be put aside** (the coordinator's decision after the third review; changes
+    A148; **where the folder is was replaced by A165, and what is put aside and when by
+    A163**. What follows is how it was). `wombat/` in the system's temporary folder is `/tmp/wombat` on Linux: one folder
+    for every user of the machine, which the system clears. Without a new dependency,
+    `documentFolder` in `app/lib/main.dart` works the folder out from the environment:
+    - Linux: `$XDG_DATA_HOME/wombat` if that is set and starts at the root (the
+      specification says to pass over one that does not), else `$HOME/.local/share/wombat`;
+    - macOS: `$HOME/Library/Application Support/wombat`;
+    - Windows: `%APPDATA%\wombat`;
+    - Android, iOS, anything else, and a desktop whose environment does not say:
+      `wombat` in `Directory.systemTemp`. On a phone that is the app's own cache folder,
+      **which the system may clear** when storage is short; a real documents folder there
+      needs the `path_provider` plugin or a picker (A148 says what adding it brings), and
+      is still to decide.
+
+    The function takes the system's name, the environment and the temporary folder as
+    arguments, and a test goes through every branch; the macOS and Windows branches have
+    never run on those systems. A document that an earlier build left in `/tmp/wombat` on a
+    desktop is not moved: there is none anyone keeps.
+    The app has one fixed file, so a file there that cannot be read (a save cut short by
+    a crash of the machine, another program's file) showed the same error at every start
+    and offered nothing. The start screen now says that the document could not be opened,
+    names the file, and has two buttons: "Try again", and "Put that file aside and start
+    with the example", which gives the file the name `example-put-aside-<time>.wombat` in
+    the same folder and opens a new copy of the example. Nothing is deleted. The second is
+    not offered when the file is merely open already (`AlreadyOpen`), which is not the file's
+    doing, or when there is no file to put aside (the folder could not be made). It is
+    offered after a fault while opening: a file that makes the core fail is exactly what to
+    put aside.
+157. **Text that went into the document because the app was put away is not yet said yes
+    to** (the coordinator's decision after the third review; changes A147). **Replaced by
+    A177**: the bridge has groups now, the screen undoes nothing, and the three gaps listed
+    below are closed. What follows is as it was decided then. When the app
+    goes out of sight, what is in the editor is entered so that it is in the file (A145).
+    The user has not pressed the tick, though, and after coming back the cross closed the
+    editor and left the text in the cell, and the tick made a second step of the undo
+    history out of one editing. The bridge has no groups of commands yet (A127), so with
+    what there is:
+    - The screen remembers the text that went in that way (only if it changed the cell).
+    - **The cross undoes it.** That entering is the latest command, so one undo puts the
+      cell, and the undo history, back as they were before the editor opened.
+    - **The next entering takes its place**: the tick, Return, a tap elsewhere, an action
+      of the bars, or the app put away once more first undo that command and then enter
+      the text as it is now (`Stage.enterText` with `insteadOfLast`), so one editing is one
+      step whatever happened in the middle. If the text is the one that went in, nothing
+      is sent. If it is the text the cell had before, the undo is all, and no step is left.
+      If the core refuses the new text, the undone command is redone and the editor stays.
+    - Only `hidden`, `paused` and `detached` enter the text; `inactive` does not (A155), so
+      a window that loses the focus leaves nothing to take back.
+
+    What this cannot do, and what remains:
+    - After the cross, Redo brings the cancelled text back: the entering is in the redo
+      history. And whatever could be redone before the app was put away cannot any more:
+      the entering emptied the redo history, as every command does.
+    - It rests on that entering being the latest command when the cross or the tick comes.
+      That holds while one screen works on the document, since every other action of the
+      screen closes the editor first. A second screen that changed the document in between
+      would have its command undone instead. Entering as one group of commands, which the
+      core has (`begin_group`, `end_group`) and the bridge does not carry, would remove
+      both this and the point above.
+    - Between the undo and the new entering the document holds the old text; a save by the
+      clock that falls exactly there writes that, and the next save, a second later,
+      writes the new text.
+    - An app that is ended while it is only `inactive` loses what is in the editor, as an
+      app that is ended outright does (A145).
+158. **Every action on the grid screen goes through one queue** (the coordinator's decision
+    after the third review; completes A146). `Stage` took its steps in order, but the
+    screen read "is an editor open?" when the finger came down and acted on it when the
+    step before had ended. A cell tapped and then "Open ›", the up arrow or the trail,
+    while any step was still at work (the document's own save is enough), opened the editor
+    and then moved the stage away from under it; the second of two taps on Undo with the
+    editor open was dropped, and so was an action when more had been typed while the
+    editor's text was entered. Now a tap on a cell or on "Open ›", up, the trail, Undo,
+    Redo, Return, the tick, the cross, the buttons of the line that says what is wrong, the
+    system's back and the app being put away each become one action in one queue
+    (`InTurn`), and an action looks at the editor and the stage when its turn comes. The
+    three sequences of the review, and the same with up and the trail, now end as if the
+    taps had come one after the other: the editor opens, and the tap after it, being a tap
+    outside the editor, closes it (A147).
+    - **No action is dropped without a word.** It is done, or the message line says why
+      not: what the core refused; "Not done: more was typed in the meantime. It is still in
+      the editor." when an action of the bars could not close the editor because the user
+      typed on while its text was entered (what was sent is in the document); and an error
+      nobody expected, through the queue's handler (A154). After a fault the sentence that
+      takes the place of the grid is the answer to every action still in the queue.
+    - **One thing is done without a word, on purpose:** a tap on a cell or on "Open ›"
+      whose cell is no longer on the stage when its turn comes does nothing. That is the
+      second of two taps on "Open ›", and a cell tapped while the way up was still being
+      read. The stage has visibly moved; a message would be noise after every double tap,
+      and opening whatever is at that place now would act on a cell the user never saw.
+    - The message line is cleared when the user acts, not when the action's turn comes, so
+      what one action said is not wiped by the next one in the queue before it was seen.
+    - **The system's back is "up one level"** (`UI_SPEC.md` section 10; it was not handled,
+      so Android's back left the app from any level). The screen never lets the route pop
+      by itself (`PopScope`); back is the same action as the arrow, what is typed is kept
+      first, and at the root the action asks the system to leave the app
+      (`SystemNavigator.pop`). Deciding in the action and not when the frame was built is
+      what keeps two quick backs from leaving the app from a level that was only about to
+      be left. The price: Android's animation that shows where back leads is off for this
+      screen. After a fault back is the system's again.
+    - **Return keeps the keyboard.** The editor's action is "next", and Flutter's answer to
+      that is to move the focus to the next widget unless the field says what Return does
+      (`onEditingComplete`). The focus only came back when the editor moved to the cell
+      below; when the core refused the text, the editor stayed open without it. The test
+      that was to show keys typed while Return is at work passed because
+      `tester.enterText` gives the field the focus first; the screen's tests now type into
+      whatever has the keyboard, as a user does.
+    - The screen takes another stage when it is given one (`didUpdateWidget`), and enters
+      what is in its editor when it goes (`dispose`); neither was handled.
+159. **"Open theirs" looks before it lets go** (the coordinator's decision after the third
+    review; changes A145; **A161 adds** that what is attached finishes first and that the
+    choice is refused when no other program changed the file). The choice let go of this document and then opened the file. If
+    the other program's file could not be read, the unsaved work was gone, nothing was
+    open, and since the app has one fixed file every later start failed too. The bridge
+    opens a file once (A141), so the file cannot be opened beside the document that holds
+    it; but a copy only reads what it copies from. `readable` in `app/lib/keeper.dart` asks
+    the core for a copy of the file in a folder of its own in the system's temporary
+    folder, closes it and removes the folder: if that works, the file can be read. Only
+    then is this document let go of and the file opened. If it does not work, nothing
+    changed: the document is open and unsaved, the line still offers "Keep mine" and "Open
+    theirs", and the message says that the other file cannot be opened and why.
+    The copy costs reading and writing the document once (and its pictures). A gap is
+    left: the file can be changed again between the look and the opening. If it then
+    cannot be read, no document is open; the screen says so, and that at the next start
+    the app offers to put the file aside (A156). Closing the gap needs a call that opens a
+    file in place of the document a handle holds, or one that reads a file without opening
+    it, in the bridge.
+160. **A piece of a queue is what it does and waits for; timers are apart; two queues that
+    wait for each other are refused** (from the fourth review, G3, G8 and G10; changes A154).
+    The guard of A154 marked a piece by its zone, and a zone goes with everything the piece
+    starts. So a timer made in a piece (the document's save clock, made by the step that
+    changed the document) was refused when it fired while that piece still ran, although
+    nothing waited for it. And a piece of queue A that waited for queue B, while a piece of B
+    waited for A, was not seen: both hung. Now, in `InTurn` (`app/lib/session.dart`):
+    - **Each piece knows which queues it has asked and not heard from.** `run` called from
+      inside a piece is refused, with a `StateError` that says which of the two it is, when
+      the piece that runs now in the queue asked is the caller itself, or has (through any
+      number of queues) asked the caller's queue for something that has not ended. That is
+      exact for the wait it can see and costs a walk over a handful of queues.
+    - **Dart cannot tell `await f()` from `unawaited(f())`**: both are a call that returns a
+      future. So everything a piece starts is inside it, waited for or not, and a call that
+      would wait for ever if it were waited for is refused also when it is not. That rule
+      cannot hang; what it costs is a refusal that says so, of work that would have been
+      safe. Two things are set apart, because they are known not to be waited for by the
+      piece: **the callbacks of timers** the piece makes (the zone of a piece hands a timer's
+      callback on to a zone without the mark), and what is run through **`InTurn.apart`**,
+      which is for telling listeners and the like. The price: a wait for ever that goes
+      through a timer's callback (`Future.delayed(d, () => queue.run(…))`, awaited) is not
+      seen. Nothing in the app does that.
+    - **`join`** runs work in its turn, or at once when the caller is inside the piece whose
+      turn it is: for work that belongs in a queue and may be asked for by a piece of that
+      queue (A161 uses it).
+    - **`post`** runs work for no one and gives no answer. `run` answers with a future that
+      knows whether anyone took it (A154); an `async` function that returns that answer has
+      taken it, and if nobody listens to *that* function, the error goes to the zone and not
+      to `onUnheard`. That is Dart's rule for every `async` function and no queue can see
+      past it; the comment of `InTurn` now says exactly what "heard" means. `post` is the way
+      to do something for no one (a user's action): there is no answer to pass on, so an
+      error, the refusal above included, always goes to `onUnheard`.
+161. **The keeper says how the document stands, bounds what it waits for, and its rules are in
+    the code** (from the fourth review, G2 to G4, G7, G9, G11 and what it read; changes A155
+    and A159). `Keeper` (`app/lib/keeper.dart`) is what the next screens are built on, and a
+    screen had to know its insides to be safe: not to ask it from a listener, not to close
+    from its own queue, to register a finisher. Now:
+    - **`state`**: `saved`, `unsaved` (a change the clock has not written yet), `saving`,
+      `failed` (tried again by itself), `changedOnDisk` (the user chooses) or `ended`. What
+      is wrong outranks what is under way, so a save that is tried again shows as `failed`
+      until one works. A command that changed nothing, by its report, leaves the document
+      `saved` and starts no clock (what formula cells show does not count, A151). Leaving is
+      safe when the state is `saved`.
+    - **Listeners are told once of each change** of `state` or `saveError` (`ended` and
+      `opens` change only when `state` does), and never of the same twice: two errors are
+      the same when their kind and message are, which is how the core's errors compare
+      (the core makes a new object for every failure; the keeper asked whether it was the
+      same object, the stand-in for the core threw one constant, and so the tests did not
+      see that the real app was told at every try). They are told apart from the keeper's own
+      piece (`InTurn.apart`, A160), when its work is done and when a write begins, so a
+      listener may ask the keeper at once.
+    - **`attach`** takes the place of `addFinisher` and `addListener` for a screen's logic:
+      what to tell (`onChange`), how to finish what has been begun (`finish`), and the
+      queue that orders the screen's work (`queue`), with one `Attachment` to `detach`. The
+      keeper runs `finish` in the turn of that queue, or as part of the piece when it is
+      asked from inside that queue. So a "close" action in a screen's own queue of actions
+      works, where it used to close without the editor's text and then throw.
+    - **Putting away saves first.** `putAway` saves what is in the document, then lets
+      everything attached finish, all at once and each within **two seconds**, then saves
+      again if that changed anything. It answers with what kept anything from finishing (a
+      `TimeoutException` for one that took too long) and does not throw for it. Two seconds:
+      a finisher is a few calls to the core, milliseconds each, and a phone gives an app
+      that is put away only a few seconds in all.
+    - **`close` throws exactly when the document was not closed.** If something attached
+      cannot finish, `close` saves what is in the document, leaves it open and throws
+      `Unfinished` with the causes; if the document cannot be saved, as before (A155). It
+      is never closed and then thrown about. An owner with no one to ask calls `letGo`, as
+      `endKeeping` does. This was chosen over closing regardless: text that could not be
+      entered is still on a screen, and closing under it would lose it without a word.
+    - **`openTheirs`** lets what is attached finish first, so that a step begun on this
+      document does not go on in the other program's (`Unfinished`, and nothing changed,
+      if it cannot). And it is refused (`Refused`) unless the state is `changedOnDisk`:
+      letting go of a document whose file is as it left it makes the bridge save it (A142),
+      which wrote this document over the file and then opened that. **What the bridge
+      lacks**: a call that gives a document up without saving, or better one that reads the
+      file again into the handle (which would also close the gap of A159). With it the
+      check could go. What is left: a file that goes back to exactly what this document
+      last read between the failed save and the choice would still be written; and a step
+      that a screen asks for after the choice was made lands, call by call, on whichever
+      document is open then, which `opens` tells it.
+    - **After the end every call fails the same way**, with a `BridgeError` of kind `Closed`
+      ("the document is no longer in use"): reads, changes, `save`, `keepMine`, `putAway`,
+      `openTheirs`, `close` and `letGo`, also one that was made before the end and whose
+      turn came after. Six of them used to return as if they had worked. `endKeeping`
+      (now in `keeper.dart`) is the one call that is safe on a keeper that may have ended.
+    - `readable` gives the copy's handle back also when closing the copy fails, and a
+      failure to make the folder for the copy is a `FileSystemException`, which the
+      stand-in screen no longer reports as the other program's file being unreadable.
+      `faultSentence` now says "Its file holds what was last saved, or more": after a
+      fault in a call that only reads or saves, the document is whole and letting go of it
+      saves it.
+162. **Closing the window waits for the document** (from the fourth review, G1; adds to A145
+    and A155). The app saved when it was put away and when its screen went, and on Linux
+    neither happens when the window is closed: the process ends. Typing, Return and closing
+    the window at once lost the text, four times of four. `Kept` in `app/lib/main.dart` now
+    answers the system's request to exit (`WidgetsBindingObserver.didRequestAppExit`):
+    - It puts the document away (A161: saved, what is typed entered, saved) and closes it
+      (`endKeeping`), and answers "exit" when that is done.
+    - **At most five seconds**, after which it answers "exit" all the same, so that a save
+      that hangs cannot make the app impossible to close; a line on the standard output
+      says that whether the document was saved is not known. Five seconds: a save of
+      100,000 cells takes about 0.2 s on a desktop and 0.65 s on the emulator, the
+      finishers have two seconds, and a window that does not close for longer looks hung.
+    - **If the document is then not in its file** (another program changed the file, the
+      save failed, a fault), or what was typed could not be entered, the exit is held back
+      **once**: the window stays, and the screen says what is wrong. Asked again while
+      nothing is better, the app lets go of the document (which never writes over another
+      program's work) and exits. After a save that worked the next refusal is the first
+      again.
+    - Which systems ask: Linux, seen (below); macOS, by Flutter's documentation; Windows,
+      the documentation of Flutter 3.47 names only macOS and Linux, and it was not tried.
+      Android and iOS do not ask: there the app is put away first (A145). An app that is
+      killed is not asked anywhere.
+    - Seen on the Linux debug build under Xvfb, with the reviewer's driver: a cell clicked,
+      a word typed, with and without Return, the window closed 0, 200, 300 and 500 ms
+      later: seven of seven runs exit with the word in the file. With the file changed by
+      another program in between, the first close leaves the window with "Not saved:
+      another program changed the file", the second exits, and the file is the other
+      program's.
+163. **Whatever is in the document's place is the document; what is put aside takes its
+    pictures and view states along, into a folder that is new** (from the fourth review,
+    G5, G6 and what it read; changes A156).
+    - The start looked for a *file* of the document's name. A folder there, or a link that
+      leads nowhere, was "no file", so the app tried to copy the example to that name, got
+      "already exists" and offered no way out. It now takes whatever has the name for the
+      document, opens it, and offers to put it aside when that fails.
+    - "Put that file aside" renamed the file and left its image folder
+      (`example.wombat.images`, `docs/FILE_FORMAT.md`) under the name of the new document,
+      and the name it gave came from the clock, which `rename` would have let replace an
+      earlier one. `putAside` now makes a new folder `put-aside-<date>-<random>` in the
+      document's folder with the system's call for a folder that did not exist
+      (`createTemp`), and moves into it, under their own names, the document, its image
+      folder and the folder of view states (`.wombat-view`, which is this one document's,
+      since the app keeps no other there). Each is moved as what it is: a link is moved,
+      not followed. Nothing is deleted or replaced, also for two calls in the same instant.
+      View states are named by the document's ID, which a file that cannot be read does not
+      give, which is why the whole folder goes.
+    - Putting aside is not offered when the file is merely open already (A156) or when it
+      was made by another start of the app between this one's look and its copy of the
+      example ("already exists"): that file is whole and someone's. "Try again" then opens
+      it. (Two running copies of the app on one document are still not kept apart: each
+      process has its own set of open files, A141. The second one to save is told that
+      another program changed the file.)
+    - `WombatApp` and `StartScreen` are given the screen to show on the keeper
+      (`screen`), so that what the app does at its start and end is tested without the
+      stand-in grid screen, on the least screen there can be (`test/probe_screen.dart`).
+164. **The application ID is `io.github.sblumenf.burrow`; the name people see is Wombat** (the
+    owner's decision). It replaces the template's `com.example.wombat_app` in the Android
+    namespace and application ID, the package of `MainActivity` and its folder, and
+    `APPLICATION_ID` of the Linux build, which is also what GTK knows the app by and what
+    names the folder of A165 on Linux. The Android label and the title of the Linux window
+    said `wombat_app` and say "Wombat". Not changed: the Dart package and the name of the
+    Linux executable (`wombat_app`), which nobody sees and every import and script uses;
+    signing (the release build is still signed with the debug key); `allowBackup`. iOS,
+    macOS and Windows have no project folder yet. (iOS has one since A192, with the
+    same identifier and name.)
+165. **Documents are in the app's own data folder, on every system by one rule** (the owner's
+    decision; replaces A148 and the folder of A156). The folder is `documents` in what
+    `path_provider`'s `getApplicationSupportDirectory` gives (`documentFolder` in
+    `app/lib/main.dart`, with the asking passed in so that tests give their own):
+    - Android: `/data/user/0/io.github.sblumenf.burrow/files/documents` (the app's
+      `files` folder, by the plugin's code; not run here). Before, it was
+      the system's temporary folder, which on Android is the app's `code_cache`, and
+      Android empties that at every update of the app: seen on the emulator in CI, where
+      installing the package again removed the file.
+    - Linux: `$XDG_DATA_HOME/io.github.sblumenf.burrow/documents`, without that variable
+      `~/.local/share/io.github.sblumenf.burrow/documents` (seen: the real-app runs of A162
+      wrote there). The plugin follows the same XDG rule the app's own code did; the
+      folder is now named by the application ID and not `wombat`.
+    - iOS and macOS: `Library/Application Support` of the app; Windows: the app's folder
+      under the roaming application data. By the plugin's documentation; never run.
+    - Why "application support" and not "documents": on desktops the plugin's documents
+      folder is the user's `Documents`, which is not the app's own; application support is
+      private to the app on a phone, is not cleared by the system and stays over updates.
+      The price on a phone: the user cannot see the file from another app. Choosing,
+      making and sharing documents is still to be designed.
+    - **No second place.** The app's own rule fell back to the temporary folder when the
+      environment did not say (a Linux session without `HOME` got `/tmp/wombat`), and took
+      a relative `HOME` as it was. Now a path that is not from the root is refused, and
+      when the system cannot say, the start screen says so and offers to try again.
+    - Nothing is moved from where earlier builds kept the document: no installs exist.
+    - **The cost of the plugin.** `path_provider` 2.1.6 with its five platform packages,
+      and through them `ffi`, `xdg_directories`, `objective_c`, `hooks`, `code_assets` and
+      `record_use`: twelve packages in `pubspec.lock`. Its Android part is **held below
+      2.3.0** (`path_provider_android: ">=2.2.23 <2.3.0"`): 2.3.0 was rewritten on JNI and
+      brings three more packages and a native library (`libdartjni.so`) that is then also
+      compiled into the Linux and Windows builds, which need a JDK for it and use none of
+      it (seen: the Linux bundle gained the library). 2.2.23 talks to Android over a
+      channel, as the plugin always did. This has to be looked at again when the plugin
+      stops serving the older part. On Linux the plugin is Dart alone: nothing new is
+      compiled, and no generated file in the repository changed. The Android build with
+      the plugin was not run here (no SDK); CI's two Android jobs are what shows it.
+    - The app's tests give `WombatApp` a folder of their own; none writes where a user's
+      documents are. The measuring (`integration_test/measure_test.dart`) keeps its large
+      document in the same data folder on Android and iOS, so that a second run finds what
+      the first built, and in the temporary folder on a desktop, so that a developer's
+      measuring leaves nothing among the installed app's data. The bridge check
+      (`demo_screen.dart`) stays in the temporary folder: its folder lasts one visit of
+      the screen and is removed with it.
+166. **One read gives the stage and what is nested below it, in a flat form and in
+    proportion to what is asked** (plan step 1).
+    `Editor::grid_view` gives the texts of one grid and no more; the first screen of the
+    interface (UI_SPEC §3 to §6) draws a grid with its colours and styles, and every grid
+    nested in it in one of four forms. `Editor::stage_view(stage, &StageAsk)`
+    (`crates/wombat-core/src/edit/stage.rs`) gives all of that in one answer, `StageView`:
+    - **The trail** from the root to the stage cell (what each shows, on one line, and the
+      colour it is drawn in), so that no interface keeps a trail of its own that undo can
+      make untrue.
+    - **Grids** given cell by cell: the stage cell's grid, or a window of its rows and
+      columns, and each nested grid that is at most `full_depth` levels down and has at
+      most `full_cells` cells, provided the grid around it is given too. **Cells** of those
+      grids, each a `CellLook`: text, kind, result, colours, styles, runs, links, image
+      name, whether there is a note and a grid. **Summaries**, one for every given cell that
+      has a grid: its size, what its top-left cells show (the Preview), and its top-left
+      block as four bytes a cell (the Shape: the colour drawn, and 0 for nothing, 1 to 254
+      for the code points shown, 255 for a grid).
+    - **No type holds itself** (as A135 asks of what crosses the bridge): grids, cells and
+      summaries are three lists that point into each other by index. The order is fixed:
+      the stage grid first, then nested grids in the order of the cells that own them, so
+      level by level; a grid's cells together, row by row; summaries in the order of their
+      cells.
+    - **The core decides what a form is made of, the interface which form fits.** Only the
+      interface can measure, so Full, Preview, Shape or Badge is its choice, and a grid
+      given cell by cell has its summary too, for when it does not fit after all. But what
+      a cell shows, which colours it is drawn in, and where a text may be cut are rules,
+      and they are here once:
+      - A cell whose whole text is the name of a tag is drawn in the tag's two colours and
+        in no other, as TreeSheets does (`Cell::Render`, `src/cell.h:171`, for the
+        background; `Text::Render`, `src/text.h:924` and `:1011`, where the tag's colour
+        comes before a run's): the look has the tag's colours, says `is_tag`, and its runs
+        have no colours.
+      - A text is cut only between two user-perceived characters, to the longest beginning
+        within the asked number of code points; runs and links end where the text ends;
+        what a formula cell shows is cut the same way; every cut text says that it was cut
+        (`CutText`), which is what a fade or an ellipsis is drawn from.
+      - A preview text and a trail text are one line: a line break (and any other character
+        below U+0020) is given as a space, after the cut, so the text is as long as the
+        beginning it stands for. A cell's own text keeps its line breaks.
+      - **The count of a Badge is columns times rows of the grid** (`xs`, `ys` of the
+        summary): the cells directly in it. The core keeps no count of the cells further
+        down, and counting them would be a walk at every read.
+    - **Any numbers may be asked.** They are the caller's: more than there is means all,
+      zero means none, a window outside the grid gives the grid and no cells. Nothing is
+      reserved by a number in the request, only by what the document has there.
+    - **The work is in proportion to the answer**, not to the document: a window of 40 rows
+      looks at 40 rows, and a nested grid too large to give is not entered. A test counts
+      every cell the read fetches from the document and holds the count against the answer
+      exactly (trail + 1 + grids + cells + preview texts + shape cells); it does not depend
+      on the machine. Measured (optimised build, the development machine, a middle of five):
+      the 100,000-cell document's root whole 28 ms (1,000 cells, 1,000 summaries, 100,000
+      shape cells), 40 rows of it 7.8 ms, one of its sections as the stage 7 µs; a document
+      six levels deep with grids up to 12 by 20 (68,749 cells), its root 2.3 to 2.9 ms; a 12
+      by 20 stage whose every cell holds 12 by 20, 12 to 15 ms. Nearly all of it is the
+      shapes: about 0.25 µs a shape cell, one lookup of a cell by ID each. An interface that
+      finds this too much on a phone asks for a smaller shape or a window; nothing in the
+      core has to change for that.
+    - **It only reads, without recursion**, and fails only when the stage cell does not
+      exist (`NotFound`); a stage cell without a grid gives its trail and no grids.
+      `Editor::cell_look(id)` gives one cell with nothing cut: what an editor opens on.
+    - *Departures from the design note it implements (written before the code and not kept
+      in the repository), each because the code or the specification showed it:* the request
+      has named fields (`x0`, `y0`, `cols`, `rows`, `preview_cols` …) instead of tuples;
+      `GridPart::col_widths` are those of the columns given, not of all columns (a window of
+      a grid with many columns would otherwise carry what it did not ask for);
+      `GridPart::level` says how far below the stage a grid is; `CellLook::has_grid` is its
+      own field (from `cell_look` there is no summary to tell by); every text that can be
+      cut is a `CutText` with its own flag, the result, the preview texts and the trail
+      included (the design flagged only the cell's text); the runs of a tag lose their
+      colours; the cut is found at the place of the cut, not by testing every character
+      before it (the same answer as `text::floor_boundary`, which a test holds, at a
+      fraction of the cost when every preview text is cut); `StageAsk` has a `Default` with
+      the design's values to start from.
+    - *What it does not do:* the fold state and the remembered scroll position are view
+      state and are added by the bridge (A173); the image itself, the note's text, the unknown
+      fields of runs and links are not given; nothing says which stage cells a change
+      report touches (the screen reads the stage again and compares, A176).
+167. **The stage read crosses the bridge flat, and its entries compare as values** (plan
+    step 1; the core's side is A166). `OpenDocument::stage(cell, ask)` and
+    `OpenDocument::cell(cell)` carry `Editor::stage_view` and `Editor::cell_look` across as
+    calls that only read, like `grid`.
+    - **The request is checked like every number Dart sends** (A134): `StageAsk` has twelve
+      numbers, 64 bits wide on the way, each refused with `BadRequest` unless it is from 0
+      to 4294967295. "All of it" is a large number, never a negative one. The comment
+      of `StageAsk` names the core's starting values, and a test holds the comment to them;
+      Dart's `phoneAsk` is held to the comment (A175).
+    - **The answer only goes out** and keeps the core's widths (`u32`, `i32`), as
+      `GridInfo` does. No type holds itself (A135): the entries name each other by their
+      place in the lists.
+    - **A cell's text and result are a text and a switch each** (`text`, `text_cut`,
+      `result`, `result_cut`), not the core's pair inside the cell: every cell on the
+      screen has them, a screen reads `text` far more often than whether it was cut, and it
+      is two objects fewer to decode for every cell. The texts of a preview and of the
+      trail stay pairs (`CutText`): a list of them has no other plain form.
+    - **Colours are `Rgb`**, the type commands take, so a colour read from a cell can be
+      sent back as it is. It is three 64-bit numbers on the way, which the decode cost in
+      Dart may one day argue against.
+    - **A shape is bytes**: `Vec<u8>` arrives in Dart as a `Uint8List`, and column widths
+      as a `Uint32List`, each one block of memory.
+    - **The three entry types that hold lists are generated as freezed classes**
+      (`CellLook`, `GridPart`, `GridSummary`; `#[frb(dart_metadata=("freezed"))]`). The
+      generator's plain classes compare a list by asking whether it is the very same
+      object, so two reads of an unchanged cell would never be `==`, and comparing the
+      answer after a command with the one before is how the screen finds what to redraw
+      (A176). The price: the generator leaves the comments of the fields of
+      such a class out of Dart, so the comment of each of the three types describes every
+      field, and the field comments in Rust are short. `StageInfo` itself is a plain
+      class: its `==` is of no use (it compares its lists by identity) and its comment says
+      to compare entry by entry. `GridInfo`'s `==` has the same weakness and nothing uses
+      it. Open: `==` on a `GridSummary` compares the shape byte by byte with a general
+      routine; if that shows in a measurement on a phone, compare shapes by hand.
+    - **None of these types has a JSON form.** Reads are not recorded (A136, A152 concern
+      commands and reports), so they derive no `serde`.
+    - **The bridge adds two things from the view state** (A173): `CellLook.folded` and
+      `StageInfo.level`. The read is the same whether a grid is folded or not; hiding it is
+      the interface's.
+    - **What it costs** (Rust side of the bridge only: no crossing, no decoding in Dart;
+      the middle of five calls, optimised build, `cargo test --release -p wombat_bridge
+      --test stage_read large_stages -- --nocapture`, three runs):
+
+      | Document | Stage and request | Answer | The whole call | The core's part |
+      | ---- | ---- | ---- | ---- | ---- |
+      | 101,001 cells (10×100, each 10×10) | the root, whole | 1,000 cells, 1,000 summaries, 100,000 shape cells | 49–60 ms | 48–58 ms |
+      | the same | 40 rows of the root | 400 cells, 400 summaries, 40,000 shape cells | 20–26 ms | 19–24 ms |
+      | 68,749 cells, six levels | the root, one level cell by cell | 1,820 cells, 633 summaries, 8,456 shape cells | 6–10 ms | 6–8 ms |
+      | the same | the root, two levels cell by cell | 8,456 cells, 2,845 summaries, 21,728 shape cells | 25–34 ms | 21–29 ms |
+
+      The conversion adds 1 to 2 ms where the answer is mostly shapes and 3 to 5 ms for
+      8,456 cells (about half a microsecond a cell: its ID as text, its strings moved).
+      Not optimised the whole call took 147, 65, 20 and 63 ms. **The core's part is slower
+      here than A166 measured (28–29 ms for the first row), and that is not the
+      bridge:** these documents were read from their files, those of A166 were built in
+      memory. Timed side by side in one process, the same read of the 100,000-cell root
+      took 35 to 41 ms on the document as built and 48 to 58 ms on the same document read
+      from its file (the cells are laid out in memory in another order, and nearly all the
+      time is one lookup by ID for each shape cell). An app always holds a document read
+      from a file, so the second number is the one that counts; the machine was busy with
+      other builds during all of this. Why the same cells are slower to look up after a
+      read from a file was not found out. What Dart adds to decode the answer is in A176.
+168. **The part of a text that differs** (`text::difference`; for A169). Given the text a
+    cell has and the text it is to have, the core says which one replacement makes the first
+    into the second: `len` code points at `start` replaced by a text. Neither end cuts a
+    user-perceived character of the old text (A33 would refuse the command) or of the new one
+    (the cell would hold a letter and its accent with a seam of style between them). Call a
+    replacement that keeps to that *allowed*. "Smallest" means: no allowed replacement starts
+    later, and of those that start there none replaces less. So the common start is kept as
+    long as it can be, and then the common end: from "aa" to "aaa" the third "a" is the new
+    one. It is not always the allowed replacement of the fewest code points: in a text that
+    repeats itself a shorter common start can leave room for a longer common end that fits
+    the characters better. That case was left, because the rule as it is can be said in one
+    sentence and found in one pass.
+    - The common start ends where both texts may be cut. Whether a text may be cut at a place
+      depends on what follows there (an accent, a joiner, the second half of a flag), and
+      that is exactly where the two differ, so the place is looked for backwards from the
+      first difference in both.
+    - The common end is found walking *forward* through both texts from the start, one cut
+      to the next, until both stand equally far from their ends inside what they have in
+      common. Going backwards from the end would have to find its place among regional
+      indicators anew at every step, which for a text of flags is the square of its length
+      (16 million code points are allowed in a cell, `limits::MAX_TEXT_CODE_POINTS`). Tested with 200,000.
+    - A line feed is a user-perceived character by itself, so line breaks need nothing of
+      their own (a carriage return with a line feed is one character together; cell text has
+      no carriage return, but the function is right for any two texts).
+    - Tested against a search through every replacement there is, on random texts of code
+      points that join in many ways (`tests/text_difference.rs`).
+169. **An editor's text goes into its cell as one replacement of what differs**
+    (`Editor::retype`; needed by the interface, whose editor has a text and not the keys
+    that made it). `SetText` and `EnterText` replace the whole text and drop every run and
+    link, as TreeSheets' `SetText` does; TreeSheets itself types with inserts and deletes,
+    which keep them. So fixing one letter through the stand-in screen took the bold and the
+    links of the whole cell away. `retype(cell, text, now, ids)` cleans the text as every
+    text command does, takes the difference from the cell's text (A168) and applies one
+    `ReplaceText`. The order matters: the two texts compared must both be texts that a cell
+    can hold, or the positions are those of another text.
+    - It is not a command of its own: nothing is added to `Command`, to the serialised form
+      or to the history. It is in `edit/mod.rs` beside `apply` and `apply_typing`, as a
+      third way of handing the editor a text edit.
+    - A text that the cell has already is nothing (A44); a cell that does not exist is
+      `NotFound` also then.
+    - It never changes the kind of the cell (A65): the interface sends `EnterText` with the
+      whole text after it, which finds the text there, keeps the styles and settles formula
+      or not. A formula cell that is retyped stays one and is worked out again.
+    - What it cannot do, pinned by a test: it sees two texts and not the keys. A bold word
+      deleted and something typed elsewhere in one editing is one difference that spans
+      both, and what was typed takes the style of the first replaced character
+      (`ReplaceText`'s rule). A command per key would be exact; the interface does not send
+      those (it would recalculate at every key and make every state of an input method's
+      composing text a command).
+170. **An open group can be cancelled, and what could be redone waits for the group's end**
+    (`Editor::cancel_group`; changes A34 for groups, adds to A45, A46, A48, A84).
+    - `cancel_group()` takes back every command applied since the outermost group was
+      opened, newest first, and forgets them. The document, the undo history and the redo
+      history are then exactly as when the group was opened, and so are the bound on the
+      saved size and the memory of the history; every group inside is closed too. Without an
+      open group it does nothing. It returns what the taking back changed, from the document
+      just before the call (as an undo of the group would report it: complete, not tight).
+    - For that, **a command inside a group no longer empties the redo history; `end_group`
+      does, if a command of the group changed anything.** A group in which nothing changed
+      leaves both histories as they were, as before. Outside a group nothing is different.
+      Undo and redo stay refused while a group is open.
+    - Why the redo history may stay while commands run: it is never reached with the group's
+      changes in the document. After a cancel the document is the one it continues from;
+      after an end it is forgotten. The IDs it holds (A48) stay taken for new cells through
+      the whole group. `AdoptCells` takes a cell whose ID the history holds (A84, argued
+      there for the undo history: the unit that holds it is older); with a group open it can
+      now take one that the *redo* history holds, and the same two cases cover it: the cancel
+      takes the adoption out before redo can bring the cell in, and the end forgets the redo
+      history. Tested by hand (a cell that redo holds adopted, released and adopted again
+      inside a group, cancelled and then ended, the count of holds checked at each point)
+      and at random.
+    - Not taken back: the variables and the report of a `Run` inside the group, which are not
+      part of the document and stay when a run is undone too (A64); and a history that was
+      changed from outside while the group was open (`clear_history`, `clear_redo`, a
+      smaller limit).
+    - `recalculated()` after a cancel is what the taking back recalculated: the results that
+      differ from those just before the cancel, as after an undo. What it holds at the other
+      points of a group was not written down and is now, on the method and in a test: after
+      each command inside a group, that command's alone; after a refused command, opening a
+      group or ending an inner one, what it was; after the end of the outermost group, what
+      every command of the group reported and that still exists.
+    - It cannot fail while the history matches the document. If it does, the document is as
+      just before the call and the group is closed without a unit: its commands stay done
+      and cannot be undone, and nothing can be redone (the same choice as for an undo that
+      fails: nothing wrong is kept).
+    - More is held in memory while a group is open than before: what could be redone, which
+      the first command of the group used to free. It is bounded by what was undone (A46).
+    - `Editor::audit()` counts again, from the document and the histories, what the editor
+      counts as it goes: how often each cell ID is held, the memory of the undo history, the
+      bound on the saved size. It is for tests; the random tests of commands call it after
+      every command (`check_bound` in `tests/support/mod.rs`), and both random walks through
+      the history have groups that are cancelled.
+171. **A group over the bridge: what cancelling, saving and closing mean** (plan step 1;
+    the core's side is A170, and A169 for `retype`). `begin_group`, `end_group`, `cancel_group`,
+    `in_group` and `retype` carry the core's calls across. `end_group`, `cancel_group` and
+    `retype` go through the same path as `apply` (A143: a panic in one leaves the document
+    refused; A151: the report decides whether the document is unsaved; the view state is
+    told, A173). `begin_group` changes nothing in the document.
+    - **A cancelled group leaves the document as saved as it was when the group was
+      opened, if its file was not written in between.** The core gives back exactly the
+      document of that moment, so the file holds it. The other choice, "unsaved, to be
+      safe", is what A140 chose for undo followed by redo; here it would have a cost that
+      A151 already refused to pay: a user who opens an editor, makes a word bold and
+      presses the cross has kept nothing, and would be asked "yours or theirs?" at closing
+      if another program had changed the file meanwhile, and the same bytes would be
+      written again by the clock otherwise. It takes one flag (`saved_before_group`), set
+      when the outermost group opens, cleared by every write of the file. Any write inside
+      the group clears it, also one that wrote the document as it was at the start (the
+      file had gone): the flag is kept on the safe side, not worked out. If the file was
+      written with the group's changes in it (the app was put away), the cancel leaves the
+      document unsaved, and the next save writes the text from before the editing back.
+      The random test (`tests/randseq.rs`) holds "saved" against the bytes of the file
+      after every step, with groups opened, nested, ended, cancelled and saved inside.
+      If the core's cancel should ever fail (it cannot while the history matches the
+      document), the document stays unsaved.
+    - **Saving does not wait for the end of a group.** `save`, `overwrite`, `close` and
+      the save on drop write the document as it is, with what the group did so far (A145:
+      half a sentence is not lost). `save` and `overwrite` leave the group open.
+    - **`close` neither ends nor cancels an open group.** Cancelling would lose typed
+      text. Ending it first and then failing to save would leave a document that is not
+      "exactly as it was" (A142): the editing could no longer be cancelled. Refusing would
+      keep a document from closing whose finisher could not run. The file is the same
+      whether the group is ended or not, since no file holds a group or a history; so the
+      document is saved as it is and given up with its group. After a close that failed
+      the group is still open.
+    - **After a panic** inside a group, or in a call that ends, cancels or enters into
+      one, the document is refused like any other (A143) and nothing is saved from it.
+    - **`undo` and `redo` inside a group are `Refused`**, by the core.
+    - **An end that ends nothing reports nothing.** `end_group` with no group open, or of
+      an inner group, and `cancel_group` with no group open, answer with an empty report.
+      The core leaves the recalculated cells of the command before in place in those
+      cases, which the bridge must not hand out a second time.
+    - **What the reports hold**, pinned by `tests/groups.rs`: the end of the outermost
+      group has the group as a whole, and in `recalculated` every formula cell that a
+      command of the group reported and that still exists; a cancel has what taking the
+      group back changed and recalculated, as an undo of it would.
+    - **`retype` does not settle the kind of the cell**: text that starts with `=` does
+      not become a formula by it. An editing follows it with `EnterText` of the same text
+      in the same group, which finds the text there and keeps the styles. The text is made
+      what a cell may hold before it is compared, so the bridge never compares what Dart
+      sent with what the cell holds, and Dart must read the text back rather than assume
+      it (CR LF becomes one code point).
+    - For tests the open document has `audit()` (not carried to Dart), which has the
+      bridge's own editor count again what it counted as it went.
+172. **Each level remembers where it was, per device; the level shown is the zoom** (carries
+    out A8 for the first screen of the interface, UI_SPEC sections 2 and 5). The view state
+    gains one field, `levels`: for a cell whose grid fills the screen, the column and row at the
+    top-left of what was last seen, and the cell that was selected there. The position is a
+    column and a row and not a distance, because a distance means nothing on a screen of another
+    size or after the text size changed, and a row is what a read of part of a grid asks for.
+    At most 256 levels are remembered (`MAX_LEVELS`); `ViewState::remember` puts a level at the
+    end of the list and forgets the ones remembered longest ago. The level that is shown is the
+    existing `zoom` field (absent means the root): no second field says the same. Settings
+    (thresholds, variant switches) and the prototype's log are not view state of a document:
+    they are the device's, the same for every document, and are kept by the app.
+    `ViewState::stage` says which level to show: the zoom cell if it is in the document and has
+    a grid, otherwise the nearest cell above it that has one, otherwise the root (the one level
+    that may have no grid). So a view state that is out of date is never an error; the screen
+    opens further up. `ViewState::go` changes the level shown and refuses a cell without a grid.
+    Neither `go` nor `remember` is a command; neither is in the undo history (as folding, A38).
+    Following a change (`apply_changes`, `retain_existing`): what a level remembers is dropped
+    when its cell is removed or loses its grid, the cell selected in it is forgotten when that
+    cell is removed, and its position is kept inside the grid when the grid shrinks. When the
+    zoom cell is removed, the zoom moves to the nearest cell that was above it, still exists
+    and has a grid, and not to the root as before: an undo of the step that made the level one
+    is in would otherwise throw the screen to the top of the document. For that the view state
+    keeps, in memory only, the cells above the zoom cell as they were at the last report
+    (`go`, `apply_changes` and `retain_existing` renew it); once the cell is removed the
+    document no longer says where it was. It is not written to the file: a view state read from
+    a file whose zoom cell is gone opens at the root, as before. A zoom cell that only lost its
+    grid stays the zoom (as before), and `stage` shows the level above it while that lasts.
+    Nothing comes back with an undo (A38): the level is remembered afresh, the zoom stays where
+    it went. `apply_changes` now returns whether the view state is another one afterwards, so
+    that whoever keeps its file knows when to write it without comparing two copies of up to
+    700,000 folds. Rejected: storing the path to the zoom cell in the file (it repeats what the
+    document says, and goes stale when cells move); a scroll position in pixels; a per-level
+    rectangle selection with a text cursor (the editor is closed when a level is left, and
+    half-typed text is entered when the app is put away, A145); checking that the selected
+    cell is still inside its level (a walk up for each of 256 levels on every report).
+    The view-state format becomes version 1.1: `levels` is a new field, which a reader of 1.0
+    keeps as an unknown field and writes back (tried with the reader of 1.0 itself before the
+    change). Such a reader does not prune it, and copies it unchanged into the view state of a
+    copy of the document, where it then names the original's cells; both are harmless, since
+    this reader drops what names cells that are not there. Two view states are equal when
+    they are written as the same file: a file of version 1.0, once read, is equal to the same
+    state made here (before, the minor number read from the file took part in the comparison).
+173. **The view state lives in the open document, and its file never stands in the way**
+    (plan step 1; the core's side is A172; A8, A38, A139).
+    - **Where.** In the bridge's open document, beside the editor: `apply_changes` has to
+      be called with every report, and `Session::report` is the one place every report
+      passes; and Dart would otherwise carry up to 700,000 folded IDs across.
+    - **Read at open**, through the storage layer (`storage::load_view_state` on the
+      folder of the document and its ID). A file that is missing, damaged, written by a
+      newer version, or another document's is never an error: the screen starts at the
+      root. Such a file is **left as it is until there is something to write**; opening
+      and closing a document must not destroy what a newer version of the app wrote there.
+      What the file says of cells that are gone is forgotten (`retain_existing`), which is
+      what happens after "open theirs" and after another program changed the document.
+      Forgetting those is not counted as a change that must be written.
+    - **Calls.** `view_stage()` (the level to show: where the screen starts, and where it
+      goes when its stage disappears); `view_go(cell, left)` (the core's `remember(left)`
+      then `go(cell)`; whether `cell` can be gone to is asked first, of a view state made
+      for the question, so that a refusal remembers nothing); `view_remember(level)`;
+      `set_folded(cell, folded) -> bool`; `is_view_saved()`; `save_view()`. None is a
+      command, none goes through the path of changes (they cannot leave the document half
+      changed), none makes the document unsaved. A level sent by Dart is `LevelInfo`, its
+      numbers checked like all others (A134). There is no call to read one level: a stage
+      read gives the level of its stage in `StageInfo.level`.
+    - **The root of a new document cannot be remembered** (`Refused`: it has no grid). An
+      interface that is put away there ignores that refusal.
+    - **Kept in step** by every report, also the reports of each command inside a group,
+      of the end of a group and of a cancel. What the view state forgot because a command
+      removed a cell stays forgotten when an undo or a cancelled group brings the cell
+      back (A38).
+    - **Written** by `save_view()`, which reports an error to whoever asks (`Io`, or
+      `Invalid` when `.wombat-view` beside the document is a link or a file), and in the
+      drop of the open document: so at the end of a `close` that succeeded, and when a
+      handle is let go of unclosed. **Always after the document, inside the same guard
+      against panics (A142), and never reported there.** So a view state that cannot be
+      written can neither fail nor come before the saving of a document, and `close`
+      keeps its promise that a saved document always closes. A `close` that fails writes
+      no view state: the document stays open with it, and the close that works writes it.
+      A caller who wants to know calls `save_view()` first. Only when it changed: a
+      document that was only read gets no file and no folder. After a panic in a change
+      nothing is written (A143). The drop also writes it when the document itself is left
+      alone because another program changed its file: where the screen was is this
+      device's to say.
+    - **It blocks the thread that drops for as long as the write takes**, like the save on
+      drop. The file is small unless very many grids are folded (its size is bounded by
+      the number of cells); an interface calls `save_view()` when it suits it and does not
+      count on the drop.
+    - **Not claimed.** The file is found by the document's ID, not by its path. Two files
+      with the same document ID in one folder (a file copied by hand; `open_copy` gives
+      new IDs) share one view-state file, and the one written last wins. Each write
+      replaces the file whole, so it is never half of each.
+    - **`open_copy`** gives the copy the view state of the original on its own cells (the
+      storage layer writes it; the open document then reads it like any other).
+    - Not built: reading or setting TreeSheets' own selection rectangle
+      (`ViewState.selection`; the slice uses the level's `selected`), a call for a list of
+      all levels.
+174. **A cell's text may hold line breaks** (the owner's decision; changes A32, replaces B18).
+    A line break is the one character U+000A. It is one code point and one user-perceived
+    character, so positions, ranges of runs and links, and the rule against cutting a
+    character (A33) need nothing new: a run or link may reach across a break, and a text may
+    be cut before or after one.
+    - **Every way in makes line ends one thing.** The cleaning that all text commands and
+      the import go through (`text::clean`) turns CR LF into one U+000A and a carriage return
+      alone into one too, and every other character below U+0020 into a space, as before.
+      Each text that comes in is cleaned by itself: a carriage return inserted right before a
+      line feed that is already there is a second line break. Cleaning can therefore make a
+      text shorter than what was given (by one for each CR LF); an interface must take the
+      cell's text from the report, not from what it sent.
+    - **A file is not cleaned.** The reader checks and refuses: a text with a carriage
+      return, a tab or another control character is `Invalid`, as before. Inside a JSON
+      string a line break is always written `\n`, so a file whose own lines end in CR LF
+      (changed by some other program) still reads.
+    - **The format stays version 1.0, changed in place**, for the reason A32 gives, which
+      still holds: no Wombat file exists outside this repository. An older build refuses a
+      file with a line break in a text as invalid, not as "newer version"; no such build is
+      outside the repository either. The first files outside it will be made by the test on
+      the owner's hardware, after which a change of this kind needs a new version (A18).
+    - **A tag's name has no line break** (and no other character below U+0020, as before):
+      a tag is the text of one-line cells, and TreeSheets, where tags come from, has no cell
+      that could name another. `SetTag` refuses such a name, and `TagCells` on a cell of
+      several lines is refused whole (if any of it cannot be done, nothing is). A cell of
+      several lines can therefore never have a tag; `UntagCells` on one finds no tag.
+    - **Notes are unchanged:** any text, as given, carriage returns included.
+    - **No new limit.** A line break counts as one character towards the limit on a text,
+      and as the two bytes it takes in the file towards the size bound.
+    - **What the commands do with a text of several lines:** `Collapse` still joins the
+      cells' texts with one space and keeps the breaks inside each; `SplitCell` cuts at any
+      position, a break staying with the part it is in; sorting compares the break as the
+      character it is (it sorts before a space); `Hierarchify`, `Flatten` and
+      `HierarchySwap` compare and carry whole texts; `ToggleCheck` puts the box in front of
+      the first line, and removes a box with the space after it, not with a break after it.
+    - **Formulas.** A line break is a space to a number: around the digits it is passed over
+      (`"12\n"` is 12), between them the text is no number. A formula may be written over
+      several lines. Inside the parentheses of a function, and in double quotes, a name is
+      everything up to the end, so a cell of several lines is named there with its break;
+      a name on its own is words joined by single spaces and cannot say a break. `LEN`
+      counts a break as one; `TRIM` takes breaks off the ends with the spaces; the other
+      text functions keep it. Whatever a formula shows is text a cell can hold. The text of
+      a run's result (`Value::to_text`, TreeSheets' form: a line per cell of a grid) takes
+      as many lines for a cell as the cell has; nothing reads that text back.
+    - **Search.** A line break is white space: folded, it is one space, so a word after a
+      break is a word and a phrase is found across a break as across a space (nobody
+      searching for "buy milk" knows where a line was broken, and notes were always
+      searched so). Only a search for exactly the characters written tells a break from a
+      space. A match across a break is replaced with the break; a replacement may bring
+      one. What is shown for a hit is one line, with a space for each break.
+    - **Export and import.** Delimited text keeps line breaks both ways: a field with one
+      is quoted, and the reader gives each CR LF, CR or LF inside quotes as one line break
+      (B100), so a table comes back from its own export as it was. The guard against
+      formula injection treats a first character U+000A as it treats a tab (A114).
+      Indented text writes a space for a break, because a line is a cell there and nothing
+      can be quoted: the break is lost and the outline kept. File names made from cell text
+      turn it into `-` like every character that is no letter or digit.
+    - **The `.cts` importer is unchanged:** it does what TreeSheets' loader does (A23), which
+      makes a space of every control character, and a TreeSheets file has no line break in
+      a cell's text to keep.
+    - **The command-line tool** writes a break as `\n` inside quotes and prints it so, which
+      it did already for notes; `\r` and `\0` were added to the escapes it reads, so that
+      whatever `show` prints can be written back.
+    - **The bridge's comments say what happens to line ends**, since they are the
+      documentation a Dart developer reads: a line end becomes U+000A, CR LF one of them,
+      every other control character a space; the text in a cell can be shorter than the
+      text that was sent, so positions are counted in what the document gives back. Test:
+      `crates/wombat-bridge/tests/line_breaks.rs`. The Dart layers say the same and do it
+      (A175, A177, A180).
+    - **What cannot be verified here:** how a field of several lines behaves under a
+      phone's keyboard (A180); what TreeSheets does with a file exported from Wombat that
+      has a break inside a quoted field (it was read back by Wombat only); whether a
+      spreadsheet runs what follows a line feed at the start of a field (A114 guards it
+      without having tried).
+175. **The session carries the new calls in order, and says in Dart what the generator
+    dropped** (plan step 1, the Dart side; adds to A144). `Session` has `stage`, `cell`,
+    `beginGroup`, `endGroup`, `cancelGroup`, `inGroup`, `retype`, `viewStage`, `viewGo`,
+    `viewRemember`, `setFolded`, `isViewSaved` and `saveView`, each through the same queue
+    as the older calls and refused after the end like them; a test makes all thirteen
+    without waiting, with every call held up at its start, and reads their order from the
+    handle.
+    - **The comment of `stage` describes every field of `GridPart`, `CellLook` and
+      `GridSummary`.** They are generated as freezed classes for their `==` (A167), and
+      the generator leaves the comments of such a class's fields out of Dart, so a screen
+      author would otherwise have to read Rust.
+    - **`units(text, codePoints)`** is the way back from `codePoints`: the offset in a Dart
+      string of a position the core counts, for building spans from runs and links. It
+      counts and does nothing else: a position outside the text is a `RangeError`, never
+      moved, and half a surrogate pair on its own is one code point, as `codePoints` has
+      it. It walks from the start of the text each time; a cell's text is cut at 2,000
+      code points for the screen, and no faster way was built.
+    - **`phoneAsk`** is the request to start from, the core's own starting values. The
+      numbers are written out in Dart (a constant cannot be asked of the core), and a test
+      reads them from the comment of `StageAsk` in the bridge, which a test there holds to
+      the core. **`phoneWindowAsk`** is the same with 40 rows (A176).
+    - The comment on control characters said that line breaks become spaces; it now says
+      what A174 decided.
+176. **After a change the stage is read again and compared, and the keeper does it for
+    every screen** (plan step 1; adds to A155). A report names cells; a screen shows
+    forms of grids, some of cells it never heard of (a text changed three levels down is
+    a preview that is different). So the screen does not interpret reports. It draws from
+    a `StageReader` (`Keeper.read`), and:
+    - **The keeper reads every reader's stage again after anything that changed what a
+      screen shows**: a report with a cell or tag in any of its lists, `recalculated`
+      included (what a formula cell shows is on the screen though in no file, A151), a
+      fold, an editing held, entered or dropped. It does so **in the turn of the call that
+      made the change, before that call answers**, so whoever awaited `keeper.apply(...)`
+      finds the stage as the document is then, and no other change comes between the two.
+      A change by another screen is read the same way. A report with nothing in it reads
+      nothing.
+    - **`StageRead.since` compares cell by cell, by ID** (`app/lib/stage_read.dart`), and
+      the reader tells its listeners a `StageChange`: the cells that look different or are
+      new (`looks`), those whose grid's reduced form differs (`summaries`), those whose grid
+      is laid out differently where it is given cell by cell, the stage's own among them
+      (`grids`), those that are gone, and whether the trail differs. The places an answer
+      gives (`first`, `summary`, `full`) are left out of the comparison: they move when a
+      cell before them gains a grid or the window moves, and comparing them would name
+      every cell after it. `==` on `StageInfo` itself is of no use (A167).
+    - **Listeners are told apart from the keeper's piece** (as A160 does for the keeper's
+      own), with the change as an argument and not as a field to read later: two reads
+      before a frame would otherwise leave a widget with the second difference only.
+    - **A stage that cannot be read again** leaves the change made and its caller answered;
+      the reader has the error (`readError`) and tells its listeners, and `refresh` tries
+      again. A fault while reading ends the work like any other (A143).
+    - **A stage whose cell is gone, or has lost its grid**, becomes the level the view
+      state names (A173: the nearest above it that is left), and the listeners are told
+      that everything differs. Only the root is shown without a grid. The same after the
+      keeper opened the other program's file.
+    - **What it costs** (from Dart, profile build, the Linux desktop of A166 and A167, 4
+      processors, three runs of `flutter drive --profile` on
+      `integration_test/measure_test.dart`, the middle of five calls each; the range is
+      over the runs). "Held" is the longest time the Dart thread did nothing else during
+      the call, which is the decoding of the answer (A127); "compared" is `since` against
+      an equal answer, which is its most work.
+
+      | Document | Stage and request | Whole call | Held | Compared |
+      | ---- | ---- | ---- | ---- | ---- |
+      | 101,001 cells | the root, whole: 1,000 cells, 100,000 shape cells | 54–78 ms | 3.4–4.8 ms (worst 8.3) | 6.4–8.9 ms |
+      | the same | 40 rows of the root: 400 cells, 40,000 shape cells | 22–28 ms | 1.7–1.9 ms (worst 7.4) | 2.4–3.9 ms |
+      | 68,749 cells, six levels | the root, one level cell by cell: 1,820 cells, 8,456 shape cells | 11–14 ms | 2.5–2.9 ms (worst 10.7) | 1.6–2.0 ms |
+      | the same | the root, two levels cell by cell: 8,456 cells, 21,728 shape cells | 48–57 ms | 21–27 ms | 9–12 ms |
+
+      Decoding is 1.5 to 3 µs a cell and next to nothing for shape bytes; comparing about
+      1 µs a cell and 0.06 µs a shape cell. Nothing was run on a phone.
+    - **Decided from that.** The request a reader starts with is `phoneAsk`: the whole
+      stage grid, one level cell by cell. Two levels cell by cell hold the thread that
+      draws for more than a frame on a desktop, so that is not the start. The whole grid is
+      never wrong and is fast for the grids the interface is specified for (12 by 20); for
+      a grid of a thousand cells that all hold grids it is 54 to 78 ms a read. **A window
+      is for a stage grid of more than about 400 cells**, which is where a read passes 25
+      ms here: `phoneWindowAsk` gives 40 rows, and a screen says which rows it shows
+      (`StageReader.see`), which reads only when they are not among those read. It is not
+      what a reader asks unless told, because a screen that asks for a window and does not
+      move it never shows row 41. There is no window of columns in `phoneWindowAsk`
+      (`StageReader.window` moves one); a grid of very many columns and few rows is read
+      whole.
+    - *Not built:* a read of only the cells a report touches; a reader that follows no
+      level of the view state (a second pane); anything that draws.
+177. **One editing of a cell is an `Editing` of the keeper: a group that the tick ends and
+    the cross cancels** (plan step 1; replaces A157; adds to A145, A147, A155). The core
+    can cancel a group and enter an editor's text without losing its styles (A169, A170),
+    and the bridge carries both (A171). A group is the document's and not the caller's, so
+    the thing that owns the document owns it: `Keeper.edit(cell)` gives an `Editing`.
+    - **Nothing is sent while the user types.** `edit` reads the cell whole, for the
+      editor to open on (`start`), and opens no group. The text is the editor's until one
+      of four calls hands it over, each one turn of the keeper:
+      `hold(text)` puts it into the document and leaves the editing open (the app is put
+      away; before a style); `style(text, command)` holds and then carries out a command
+      on the text in the same group; `enter(text)` is the tick; `drop()` the cross.
+    - **One editing is one step of the undo history, or none.** The first call that puts
+      something in opens the group. `enter` ends it. `drop` cancels it: document, undo
+      history and redo history exactly as when the editing was opened, and a document that
+      was saved then is saved again unless its file was written meanwhile (the keeper asks
+      the core, `isSaved`, instead of working it out). A dropped editing that held nothing
+      sends nothing at all.
+    - **Holding settles what the cell is as well as its text**: `retype` and then
+      `EnterText` of the same text, where the design note for this step had `retype` alone. Held text is
+      written to the file when the app is put away, and an app that is ended then never
+      enters it; with `retype` alone a formula typed would be in the file as plain text,
+      and a formula cell whose text was replaced by words would be a formula that fails.
+    - **A text that the core refuses** throws, and the editing is as it was. If the call
+      that was refused had opened the group, the group is cancelled, so the document is
+      exactly as before and nothing is left open. If the group was open before, it stays
+      open with what it held; should the core take the text and refuse to settle its kind,
+      the text stays held (there is no way to cancel half a group).
+    - **The text is read back, never assumed.** `hold` and `style` answer with the cell as
+      the document has it, and `style` gives that cell to the function that builds the
+      command, so positions are counted in the document's text (CR LF is one there).
+    - **While an editing holds something, every other change is refused with a
+      `StateError`**: `Keeper.apply`, `undo`, `redo` and `edit`. A stranger's command would
+      join the group and be cancelled with it, and the core refuses undo in a group anyway;
+      a `StateError` because it is a mistake in the app and not something a user did (as
+      A160 treats a piece that asks its own queue). An editing that holds nothing keeps no
+      one out, and gives way to the next `edit`. Reading and saving go on.
+    - **What happens to an editing that is open when:**
+      - *the app is put away:* the screen's `finish` holds the editor's text (A155), the
+        keeper saves, and the editing stays open: back in front, the tick ends it and the
+        cross takes everything back, and then the file is put right by the next save.
+        A145 stands: half a sentence is in the file.
+      - *the clock saves:* what is held is written; the editing is as it was.
+      - *the document is closed:* the keeper neither ends nor cancels the editing. What it
+        holds is saved (A171) and it ends with the document. Ending it first and then
+        failing to save would leave a document that is not as it was; after a close that
+        failed the editing is as open as before.
+      - *the system asks to exit:* put away, then closed (A162): both of the above.
+      - *the other program's file is opened, the document is let go of, a fault:* the
+        editing is over with the document it was of. Nothing of it is in the document that
+        is opened; the screen closes its editor without entering.
+      After its end an editing refuses every call: with a `StateError`, or, once the
+      keeper's work has ended, with the keeper's own refusal (`Closed`).
+    - **What the code does not enforce** (it is in `wombat/AGENTS.md`): a screen that goes
+      away ends its editing, and with one call. An editing that holds something and is
+      forgotten keeps every other change out until the document is closed. And a screen
+      that opens an editing in `dispose` and enters after it has made two calls, of which
+      the second comes after the close that the app asks in between; the text is lost.
+      Seen with the test screen, which now opens its editing when it has its cell.
+    - **The stand-in screen uses it, and A157's workaround is gone** (`insteadOfLast`, the
+      remembered text). The ruling for step 1 was that the stand-in keeps the workaround
+      until the real screen replaces it; the coordinator ruled otherwise when this was
+      built, because the stand-in is the only user of the kept layers until the real
+      screen exists, and two mechanisms side by side would hide the defects of one. A157's
+      three gaps are closed and tested: Redo does not bring back a cancelled text, what
+      could be redone before is kept, and there is no moment in which the document holds
+      the old text between an undo and a new entering. The fourth, a second screen's
+      command undone in its place, is now a refusal.
+    - *Left:* `retype` sees two texts and not the keys (A169): two changes far apart in
+      one editing are one difference, and the styles between them are lost. Held text has
+      its styles in the document while the editor shows it plain. The messages of the
+      `StateError`s are English.
+178. **Where the screen is, the keeper writes with every save and nowhere else** (plan
+    step 1; the Dart side of A173). A screen tells its reader where it is
+    (`StageReader.at`: the column and row at the top left, and the selected cell), which
+    calls nothing. `StageReader.go` makes another cell the stage, hands the place of the
+    level that is left to the view state with it, and reads; the new stage's `level` says
+    where the screen was when it last left that level.
+    - **Written after the document, in the same turn**, by every `save`, `keepMine` and
+      `putAway`: first the place of every reader that moved since it was last handed on,
+      then `saveView`. So it is written also when the document cannot be. `close` does
+      the same before it asks the bridge to close, since nothing can be asked of a closed
+      document, and the bridge writes it once more after the document if it changed
+      (A173); either way it can neither fail the close nor keep the document open.
+    - **Never a failed save.** What goes wrong is kept in `Keeper.viewError` and nowhere
+      else: not in `state`, not told to listeners, not tried again by a clock, no reason to
+      hold an exit back. The next save tries again. A fault ends the work as always.
+    - **No clock of its own**, where the design note had one of five seconds: a level gone to
+      and nothing else changed is written when the app is put away or closed, which is
+      before any way a phone or a window ends the app. An app that is killed without
+      either starts one level off; that was judged not worth a second timer.
+    - **What cannot be remembered is no error**: the root of a document without a grid
+      (`Refused`), a level that is gone. A selected cell that is gone is left out and the
+      place handed on without it, in `go` too.
+    - `Keeper.setFolded` folds on this device and has the stages read again; it is no
+      change to the document.
+179. **The stand-in for the core is held to the core, and says what it does not know**
+    (plan step 1). `test/fake_document.dart` knows groups with both histories, `retype`,
+    the stage read, one cell and the view state, because the keeper's tests need to hold
+    those calls up, fail them and count them. `test/fake_document_test.dart` builds the
+    stand-in's document in the real core and compares: the stage of each of its cells
+    asked in thirteen ways, entry for entry, and two series of calls (texts, groups ended,
+    cancelled, nested and saved inside, undo, redo; the view state) after each of which
+    both must answer alike and be alike in every cell, in both stages, and in what they
+    say of being saved, in a group, and where the screen is. It does not know styles,
+    links, colours, tags, formulas, or commands that make or remove cells: making it know
+    them would be writing the core a second time. Whatever depends on those is tested on
+    the real core: that entering keeps styles and links, that a held formula works, a
+    stage that an undo takes away, the view state in its file. Every behaviour of the
+    keeper that A176 to A178 describe has at least one test on the real core.
+180. **The editor of a cell is a part that can be exchanged** (plan step 1; UI_SPEC section
+    2 keeps a native editor possible on iOS). `CellEditor` (`app/lib/cell_editor.dart`) is
+    what a screen, its toolbar and the keeper's caller know: the text; the selection in
+    UTF-16 units, always a place in the text and never inside a user-perceived character
+    (widened to hold it, since the core refuses a range that cuts one, A33); whether an
+    input method has text under way, and a way to make it final; focus; `set` and
+    `insert`; an action for the keyboard's Return; and `build`, the widget to place.
+    `FlutterCellEditor` is the one kind, made of Flutter's text field; a screen is given a
+    `CellEditorFactory`.
+    - **Its text is always what a cell may hold**: what is typed or pasted is cleaned as it
+      arrives (CR LF and CR one line break, other control characters spaces) with the
+      cursor kept in place, and so is what `set` and `insert` put in. So the document
+      gives back the editor's own text and positions agree. (Half a surrogate pair on its
+      own is not cleaned; the core makes it U+FFFD, and the keeper's calls answer with the
+      cell for that reason.)
+    - **Return is no line break** (UI_SPEC section 7: Return saves and moves to the cell
+      below; the ↵ key of the toolbar breaks the line). The field shows up to five lines,
+      and tells the keyboard that it is a text field whose action key is "next", because
+      the keyboard type for several lines makes Return a line break. The toolbar's key
+      calls `insert('\n')`.
+    - The toolbar is the screen's own row of widgets, not part of the editor, so that it
+      is the same over any kind of editor.
+    - The stand-in screen uses it, which runs it in the built app's tests.
+    - **Not verified, and it needs a phone:** that an on-screen keyboard shows and sends
+      "next" for a field that shows several lines, on Android and on iOS; what a hardware
+      Return does on a desktop (the tests send the action as Flutter's test keyboard does,
+      which never passes through the system's own text input). A keyboard that sends
+      "new line" all the same gets neither a break nor the action: Flutter takes it that a
+      field of several lines has its break already. A test pins that as it is.
+181. **The first slice of the interface is the phone screen, `app/lib/phone/`, on the
+    layers made for it** (plan step 5; UI_SPEC sections 3 to 8, flows 1, 2, 3, 7, 9 and
+    10 of section 17). It replaces the stand-in grid screen, which is deleted (A190).
+    - **Nothing of the document is in Dart.** The screen draws from the keeper's
+      `StageReader` (A176), edits through `Editing` and a `CellEditor` (A177, A180), and
+      does everything else by commands that the bridge had already: `InsertRows`,
+      `InsertColumns`, `CreateGrid`, `SetStyle`, `SetRangeStyle`, `SetLink`, `TagCells`,
+      `UntagCells`. Where a cell is in its grid is read out of the stage read
+      (`placeOf` in `place.dart`: the grid given cell by cell that holds it, and its
+      column and row). No Rust was changed and nothing was missing from the bridge for
+      this slice.
+    - **The reader asks `phoneAsk`: the whole grid of the stage, one level cell by cell**,
+      not a window of rows. No need for the window was measured: the grids the interface
+      is specified for (12 by 20) are read in 11 to 14 ms (A176), and the screen builds
+      only the rows near what is seen, so the cost of a long grid is the read alone. The
+      root of the 100,000-cell test document (1,000 cells that all hold grids) is the
+      case a window would help: its read was 54 to 78 ms in a profile build on a desktop
+      and about 250 ms in a debug build here, after every change. That is left as it is
+      until it is seen on a phone.
+    - **One queue for everything the user does** (`InTurn`, A158), as the stand-in had:
+      each action finds the editor and the stage as the ones before left them. A tap on
+      a cell that the stage no longer has when its turn comes does nothing.
+    - **Every text the screen shows is in one file**, `words.dart`, to be translated
+      later. What the core says when it refuses something is English and comes through
+      `describeError`.
+    - **Every part has a key that says what it is**, for tests and for reports of
+      faults: a cell's text is `cell-<x>-<y>`, counted from 0 in the stage's grid, and
+      `cell-<x>-<y>/<i>-<j>` for a cell of the grid drawn inside that one; its grid as one
+      target is `child-…`, with `preview-…`, `shape-…` or `badge-…` inside saying the
+      form, and a grid drawn cell by cell is `full-…`. The class comments list the rest.
+182. **The depth budget as built** (UI_SPEC section 3; `app/lib/phone/budget.dart`). The
+    form of a nested grid is decided from the width its cell gives it, the system's
+    text size, and two settings.
+    - **Full**: the read gives the grid cell by cell (at most 24 cells, one level below
+      the stage: `phoneAsk`), and each of its columns gets at least four and a half
+      times the size of a cell's text, 72 pixels at the usual size and never less than a
+      target of 48. The specification's two tests alone (text of 11 pt, targets of 48)
+      would allow columns of 48 pixels, which was built first and seen in the running
+      app: every text broke after three or four letters and the rows were several times
+      as tall as the same grid's Preview. So "near-full size" was taken to mean that a
+      column holds a short word.
+    - **Preview**: its text, 70% of a cell's 16 (a setting), is no smaller than the
+      smallest readable text, 11 (a setting; both before the system's text size is
+      applied), and there is room for a few letters of each of its up to three columns
+      (two and a half times its text size each) and for a target.
+    - **Shape**: a target's width, and three pixels for each of its columns.
+    - **Badge**: otherwise, and always for a grid that is folded on this device (the
+      core's fold state, which a TreeSheets file can bring with it). Its count is
+      columns times rows (A166). With columns of 72 pixels no cell of a Full grid is
+      narrow enough for a Badge, so on a phone a Badge is seen only for folded grids.
+    - **Larger text of the system** widens what Full and Preview need, so grids step
+      down sooner (UI_SPEC section 14); it also widens the stage's columns, up to half
+      as wide again.
+    - **A cell that holds a grid is always two targets**, its text and its grid, each at
+      least 48 tall. The specification's "a cell too small for both parts is one target"
+      does not come about: a row grows to hold its tallest cell.
+    - **The stage's columns** keep the proportions the document gives them (TreeSheets'
+      widths, 80 the usual one). A grid of few columns fills the width; of many, each is
+      110 pixels, so that a phone shows three to four and the rest scrolls.
+    - *Not built:* images in cells (a cell with one shows its text alone), notes,
+      vertical alignment, the draw styles of a grid (bubbles, lines), a grid beside its
+      owner's text instead of below it.
+183. **The stage's grid: rows built as they come into view, the first row and column
+    kept in view, and each level where it was left** (UI_SPEC sections 4 and 5;
+    `stage_view.dart`).
+    - A row is a strip as tall as its tallest cell. The rows are a lazy list inside one
+      sideways scroll, so only the rows near what is seen are built; all columns of
+      those rows are.
+    - **The first row stays at the top** as a strip of its own above the list, and **the
+      first column stays at the left** by being drawn moved by as much as the grid is
+      scrolled. A first row that is taller than two fifths of the height scrolls inside
+      that much, so that the rows below always have room; a first column wider than two
+      fifths of the width is not kept in view. Keeping them in view is a third switch
+      of the prototype, on to start with, because a first row that is no heading (the
+      example's is not) takes room for nothing.
+    - **A level remembers a column and a row**, as the core has it (A173), not a
+      distance: coming back, that row is at the top from its first line. The list is
+      laid out from the remembered row in both directions, so that it can start there
+      without knowing how tall the rows above are. The selected cell is remembered too.
+    - **The place is handed to the view state while the screen is there**: when
+      scrolling comes to rest and has been drawn, before a level is left, and so with
+      every save and when the app is put away (A178). A screen that is taken away
+      first takes its reader with it; the start screen therefore puts the document away
+      before it shows another (A188).
+    - **The level is drawn growing into place after a dive and shrinking into place
+      after a way up**, in 300 ms, and the cell the screen came up out of flashes once.
+      It does not grow out of the tapped cell's own rectangle. Where the system asks for
+      no animations there is none.
+184. **Taps, the selected cell and the bars** (UI_SPEC sections 4 and 6;
+    `phone_screen.dart`).
+    - A tap on a cell's text opens the editor on it; with the other variant it selects
+      the cell first, and a tap on the selected cell edits. A cell of a Full grid is
+      edited in place. A Preview, Shape or Badge is one target: a dive.
+    - **While the editor is open, a tap outside it only closes it, and that enters the
+      text** (A147 stands): on a cell, on a grid, on the bar that folds a grid.
+    - **The system's back with the editor open closes the editor and nothing else**,
+      like a tap outside it. The stand-in entered the text and went up one level as
+      well; on a phone the first back mostly only puts the keyboard away, and a second
+      one that then left the level was one too many. Without an editor, back goes up
+      one level, and leaves the app only from the root. While the screen has no stage to
+      show (it is still reading, could not read, or the work has ended), back is the
+      system's.
+    - **A grid that is drawn Full is gone into by "Open ›"**: of the toolbar, for the
+      cell that is edited, or of the bottom bar, for the selected cell. A cell is
+      selected by being edited (or tapped, with the other variant), and stays so.
+    - **The bottom bar has "+ Add", "Edit" and "Open ›"**, which act on the selected
+      cell; "+ Add" offers a row below it or a column to the right, and without a
+      selection adds at the end. **Undo, redo and one ⋯ are in the title bar.** There is
+      no "Find" (section 12) and no second ⋯.
+    - **The title bar** has the text and the colour of the level's cell, and under it a
+      word for how the document stands with its file (Saved, Not saved yet, Saving…,
+      Not saved, File changed, Closed). What stays wrong has a line of its own with the
+      ways out, as on the stand-in (A155, A159); that the view state could not be
+      written is one quiet line that says nothing of the document (A178).
+    - **A document whose root has no grid** says so and offers "Add the first cell",
+      which makes a grid of one cell (`CreateGrid`) and opens the editor on it.
+    - *Not built:* the long press and the cell menu (section 9), so no "New grid
+      inside", no inserting above or to the left, no deleting; the dots of the trail
+      and its list of the whole way (a level is tapped by its name).
+185. **"Unfold in place" goes one level, and is this screen's alone** (UI_SPEC section 6,
+    the second variant switch). A tap on the grid of a cell of the stage draws that
+    grid cell by cell inside its cell; a bar above it folds it again.
+    - The read gives grids of at most 24 cells cell by cell, so the screen asks the
+      reader for more (`StageReader.ask` with `fullCells` as large as the largest
+      unfolded grid) and asks again when such a grid has grown.
+    - An unfolded grid keeps columns of the width a Full grid needs and scrolls
+      sideways inside its cell when it has more of them than fit.
+    - A grid inside an unfolded or Full grid is two levels below the stage, which the
+      read does not give cell by cell: a tap on it dives, also with this variant.
+    - Which grids are unfolded is not the core's fold state and is not kept: it is
+      forgotten when the level is left.
+186. **The editor and its toolbar** (UI_SPEC section 7; `editor_bar.dart`).
+    - The field has the cross and the tick beside it, where they are always in sight;
+      under it are Aa, the line break, →, +Row, +Col and Open ›, in a strip that scrolls
+      sideways on a narrow screen. Aa shows a second row with Bold, Italic, Link and
+      Tag, and hides it again: a row and not a menu, because a menu takes the keyboard
+      away from the field.
+    - **Return and → enter the text and move the editor**; at the edge a row or a
+      column is added first, as a step of the undo history after the text's. **+Row and
+      +Col insert below or to the right of the edited cell and move the editor into the
+      new cell beside it.** All of that happens in the grid the cell is in, which can
+      be a Full grid inside a cell of the stage.
+    - The editor moves only to a cell that the read gives. A Full grid of 24 cells
+      that gets a row is a Preview afterwards: the editor closes then, with the text
+      entered and the row added.
+    - **A style is put on through the editing** (A177): the text is held, and the
+      command carried out in the same group, so that the tick makes one step of it all
+      and the cross takes it all back. Bold and Italic act on what is selected, or on
+      the whole cell without a selection, and switch the style off where all of it has
+      it. Link asks for the target in a dialog, outside the queue of actions (the user
+      may take any time over it), and nothing typed removes the link. Tag is
+      TreeSheets' (`TagCells`, `UntagCells`): on a tag cell it takes the tag away.
+    - **The cell that is edited is drawn from the editor's text**, and in the styles
+      the document holds for it while the editor has the very text the document holds:
+      from the moment the editor opens until the text is changed, and again after the
+      text was held (a style put on, the app put away). It is the whole cell, not its
+      text alone, that is scrolled into view while it is edited.
+    - **More typed while the tick was at work**: what was sent is entered, the editor
+      stays with all of it, and a new editing of the same cell is opened at once, inside
+      the same action. So there is always an open editing behind an open editor, and a
+      screen that goes can enter its text with the one call the rule asks for. Under
+      undo, redo, up or the trail, the action is not done and a line says so, as on
+      the stand-in. (Under Return, →, +Row and +Col no line was said, though this entry
+      said so until the fifth review; what they do is A193.)
+    - *Not verified, and it needs a phone:* everything A180 lists about the keyboard.
+187. **The prototype's switches are this run's; its log is a file of the app** (UI_SPEC
+    sections 3, 6 and 16; `variants.dart`, `log.dart`, `settings_sheet.dart`).
+    - **Three switches and two thresholds**, in a sheet behind the menu: "Tap text"
+      (edit, or select first), "Tap child grid" (dive, or unfold in place), keeping the
+      first row and column in view (A183), the smallest readable text and the scale of
+      a Preview's text. They start as the specification has them at every start of the
+      app: nothing writes them down.
+    - **The log** is one line of JSON for each dive, way up, jump, back, edit, entering,
+      cross, undo, redo, row or column added, fold, unfold, selection, style and change
+      of a switch, with the time, the settings then, how deep the level is and at which
+      column and row. **It holds no text of any cell and no cell ID.** It is
+      `prototype-log.jsonl` in the folder of the app's documents, added to as entries
+      are made, read again at the next start, and cut to the newest 5,000 in memory. A
+      log that cannot be written costs nothing but its entries on disk.
+    - **It leaves the device only when the user sends it**: "Export the log as a file"
+      writes a copy into the folder the system shares with the user (on Android the
+      app's folder on the storage a computer sees when the phone is plugged in, elsewhere
+      the folder for downloads; the app's own where there is neither) and says where;
+      "Copy the log" puts it on the clipboard. No package was added for sharing.
+    - *Not verified:* the export folder on a real Android phone.
+188. **The start screen opens the prototype's test documents** (UI_SPEC section 17;
+    `app/lib/test_documents.dart`, `main.dart`). The menu of the phone screen lists
+    five: the example (the app's own document, A165), "Depth forms" (made by hand: one
+    row for each form of the depth budget at the width of a phone, and text of several
+    lines, from right to left, long, styled and coloured), "Six levels" (generated, 12
+    by 20 at the root, 68,749 cells) and "Large" (10 by 100 cells that each hold 10 by
+    10; 101,001 cells), which are the documents of the measurement, and "Empty".
+    - Each is a file in the folder of the app's documents, **made the first time it is
+      asked for** and after that kept as it was left. "Depth forms" is made by one
+      import and a few commands for what a table cannot say, and its folded grid by
+      the view state.
+    - **Showing another document puts the open one away first, then closes it**: what
+      is typed on its screen is entered and where its screen is goes into the view
+      state, while the screen is still there (A183).
+    - **Every start of the app begins with the example.** Which document was shown
+      last is not kept.
+    - A test document that cannot be opened is said, with the way back to the example;
+      only the app's own document is put aside (A163).
+    - The banner of a debug build is switched off: it lay over the menu.
+189. **What the phone screen does not have a way to do yet, and what happens instead.**
+    Listed so that a tester does not take it for a fault: nothing deletes a row, a
+    column or a grid (undo takes back what was added); a new grid inside a cell cannot
+    be made, except the first of an empty document; a Full grid of two levels below
+    the stage is never shown (the read gives one level); the edited cell is drawn
+    plain from the moment its text is changed until that text is held in the document; pinch, spread, swipes and drag (section
+    10) are not built; nothing is announced to a screen reader beyond the labels of
+    buttons and "contains a … by … grid" on a nested grid.
+190. **The stand-in grid screen is deleted, with its tests** (`app/lib/grid/`,
+    `stage_test.dart`, `grid_screen_test.dart`, `grid_screen_real_test.dart`). The
+    fourth review named the tests there that were the only ones of something in the
+    kept layers; each of those assertions has a home, most of them since A161 and A176
+    to A178 in `keeper_test.dart`, `keeper_stage_test.dart` and `main_test.dart`, and
+    the screen's own in `phone_screen_test.dart` and `phone_screen_real_test.dart`
+    (`docs/milestones/UI2.md` has the list). `integration_test/grid_test.dart` keeps its
+    name, because the emulator job names it, and now runs the flows of the first slice.
+191. **A test of the built app is its own keyboard** (`integration_test/grid_test.dart`).
+    Flutter's binding for tests on a device leaves the device's keyboard connected to
+    the text field, and what a test "types" goes to the field alone: the keyboard never
+    hears of it. On Android the keyboard still had the text the editor opened on and
+    gave it back a moment later, which put "Cheese" back over the "Butter" the test had
+    typed: the first run of the phone screen on the emulator failed that way (CI run
+    43347537203), and only where the test did something else between typing and the
+    tick. That it was the keyboard is read from the run and from Flutter's own warning
+    on `TestTextInput`, not seen: there is no emulator where this was written. The test
+    now registers Flutter's stand-in for the keyboard
+    (`tester.testTextInput.register()`), as a test without a device has it by itself.
+    - *The cost:* the on-screen keyboard does not come up during that test, on the
+      emulator either, so the test says nothing about the room the keyboard takes. That
+      is tested without a device, with the screen of the emulator and a keyboard's
+      inset (`phone_screen_test.dart`), and is a phone's to show.
+    - *Not a fault of the app:* a person types through the keyboard, which then has what
+      the field has.
+192. **The app has an iOS project, made without a Mac and proven only by CI** (the owner
+    wants to test on several systems). `app/ios` is what `flutter create --platforms=ios`
+    of Flutter 3.47.9 writes, with two changes by hand, both for A164: the bundle
+    identifier is `io.github.sblumenf.burrow` in place of the generator's
+    `io.github.sblumenf.wombatApp` (it makes the identifier from the organisation and the
+    Dart package's name, and the package keeps its name), for the app and its test target;
+    and the name on the home screen is "Wombat" in place of "Wombat App".
+    - **Nothing else was added, on purpose.** The document's folder (A165) is
+      `Library/Application Support/documents` in the app's container, which needs no key
+      in `Info.plist`; the app asks for no permission. The lowest iOS version stays the
+      generator's 15.0. The build glue for the bridge (`app/rust_builder/ios`, cargokit)
+      was already there from `flutter_rust_bridge` 2.13.0 and is unchanged; it compiles
+      the bridge with rustup's `stable` as on Android (A131).
+    - **No `Podfile` is committed.** Flutter writes it from its template at the first
+      `flutter pub get` on a machine with Xcode, and CocoaPods then changes the project
+      file and writes `Podfile.lock`. Writing those by hand on Linux would be a guess at
+      what the tools write; the first person with a Mac commits them (`docs/IOS.md`).
+      Until then CI's pods are not locked. There are two, both local: Flutter's own and
+      the bridge's.
+    - **CI builds for a simulator and signs nothing** (the fifth job). A simulator takes
+      an unsigned app; a real iPhone needs an Apple account, which is the owner's and is
+      not put into CI. So signing, installing and everything a real iPhone does are
+      untried, and `docs/IOS.md` says how the owner does them.
+    - **What CI has shown** (`docs/IOS.md` has the figures): the job's first run was
+      cancelled without having been given a Mac; the second (CI run 43347537203) built
+      the app, found the bridge's library in it and passed the bridge check on a
+      simulator, and so did the third (43352269035: the library for both processors of
+      a simulator, on an iPhone 16 with iOS 18.5). That is all that has run on iOS: one
+      test of one screen, the plain-text check of the bridge. The phone screen has not
+      run there.
+    - *Not done:* a macOS desktop app (`flutter create --platforms=macos`). It would be a
+      second untested system with its own sandbox settings, and was not asked for.
+193. **What is typed after Return belongs to the next cell** (the fifth review, findings
+    1 and 2; `phone_screen.dart`). It replaces, for the actions that move the editor
+    (Return, →, +Row, +Col), the rule of A147 and A186 that keys typed while the text
+    is entered keep the editor on its cell. That rule lost keys typed after the text
+    was entered and before the next cell was open (up to half a second here on the
+    large documents, longer on a phone), and before that it left "Apples", Return,
+    "Bread" as "ApplesBread" in the first cell without a word.
+    - **The rule.** The text as it is at the moment of the press is the text of the
+      cell that is left. The field is emptied at that moment (after the input method's
+      text under way is made final), and what is typed from then on is typed for the
+      cell the editor moves to. When the editor is on that cell, the field shows the
+      cell's text with what was typed added at the end, the cursor behind it; it is
+      typed text like any other, which the tick enters, the cross drops and the app
+      put away holds in that cell. Until then the cell that is left is drawn with the
+      text it was left with.
+    - **Several presses in a row** (Return, a word, Return, a word, faster than the
+      core) each take what was typed since the one before, for the cell that one
+      moves to. Each cell is still a step of its own in the undo history.
+    - **If the editor does not get there** (the core refuses the text, or the row, or
+      there is no cell to be on), everything taken is put back into the field, each
+      piece behind the one it followed, the editor stays on the cell it was on, and
+      the message line says why, or that more was typed when nothing else was said.
+      Moves asked for behind the one that failed are not done. With nothing typed
+      meanwhile, a move that finds no cell closes the editor as before.
+    - **Other actions** (the tick, undo, a tap elsewhere, the app put away) wait their
+      turn as before. One that was asked for before a press and has not begun finds
+      the text back in the field; one that was already at work sees the taken text as
+      "more was typed" and leaves the editor open, and the move then goes on.
+    - *The cost:* for the moment of the move the field is empty although the editor's
+      mark is still on the cell that is left. *Not verified, and it needs a phone:*
+      what a keyboard that suggests words does when the field is emptied under it.
+      *Left:* a screen that is taken away in the middle of a move (which the app does
+      not do: it lets the queue finish first) enters the text of the cell that is
+      left, and what was typed for the next cell has no cell to go to.
+194. **A grid is not unfolded in place where that would make every read large** (the
+    fifth review, finding 3; `place.dart` `unfoldCells`, `unfoldCost`). The request for
+    a stage has one bound, `full_cells`, for all the grids of the stage, so unfolding
+    one grid in place gives every grid of that level that is no larger cell by cell
+    too. At the root of the large test document (1,000 grids of 100 cells) one tap
+    made every read 101,000 cells: 1.1 seconds on a desktop where the plain read takes
+    about a quarter of a second, again after every change.
+    - The screen now works out, from the read it has, how many cells more the read
+      would give, and does not unfold when that is over 500: half as much again as
+      the plain read of that root. The message line says so and names "Open ›", and
+      the cell is selected, so that the bottom bar's "Open ›" goes into it.
+    - Grids that are unfolded and then grow over the bound (an undo or a redo, a row
+      added) are folded again, with the same line.
+    - *Left:* the bound is checked when the screen asks, not at every read: grids
+      that grow, behind the screen, into the range that is given cell by cell are
+      read until the next time it asks. *Better, and not done because it changes the
+      bridge:* a request that names the grids to give cell by cell.
+195. **With little height, the editor's surroundings give way to the grid and the field**
+    (the fifth review, finding 4; `phone_screen.dart` `_short`, `editor_bar.dart`
+    `rows`, `stage_view.dart`). A phone on its side with the keyboard up has about 170
+    logical pixels under the status bar. The title bar, the trail, the field and two
+    rows of buttons need more than that, so the grid got 25 pixels and the bars
+    scrolled, the field out of sight.
+    - While the editor is open on a screen of less than six and a half bars in height
+      (312 pixels at the usual text size), the title bar and the trail are not shown,
+      the buttons under the field are one row (the styles, when Aa shows them, follow
+      the others in that row, which scrolls sideways), and the grid keeps at least the
+      height of one cell. Under 3.2 bars (about 154 pixels) the buttons go too: the
+      field with the cross and the tick, and the edited cell, are what is left.
+    - The first row is not kept in view when the grid has less than three cells of
+      height, with or without an editor: its share would hide the edited cell.
+    - *The cost:* undo, redo, the menu and the way up are out of reach there until the
+      editor is closed, and on the smallest screens Return is the keyboard's only.
+      *Not verified:* any of it on a phone; the sizes are those of the review's probe
+      (915 by 412 and 640 by 360 with a keyboard of 220, 360 by 640 with one of 290).
+
 
 ## B. Deliberate departures from TreeSheets
 
@@ -1284,7 +3239,17 @@ are where milestones 4, 5 and 6, built apart, meet).
     one is the first cell of the root's grid, and the zoom is the cell on the way to the
     selection at the saved depth (B13).
 17. **An image's display scale is TreeSheets' number, unchanged**: larger means drawn smaller.
-18. **B12 no longer holds:** cell text has no control characters, as in TreeSheets (A32).
+18. **A cell's text may hold line breaks** (A174; this entry said until then that B12 no
+    longer held and cell text had no control characters, as in TreeSheets). TreeSheets has
+    no line break inside a cell's text: it turns every control character into a space when
+    text is set, loaded, pasted or replaced (`Text::FilterControls`), the Return key never
+    reaches the text, and a cell's lines come only from wrapping at the column width.
+    Wombat keeps U+000A, makes one of CR LF and of a lone carriage return, and turns every
+    other control character into a space as TreeSheets does. Everything that follows from
+    it is in A174. Seen against the real app in `referee/ops/cases/
+    set_text_control_characters` (its golden file has a space where the script gave a line
+    break; Wombat's side of the case no longer sends one) and in two of the import files
+    (B100).
 19. **Text commands refuse bad positions.** A position outside the text, or one that cuts a
     character made of several code points, makes the command fail (A33). TreeSheets clamps
     ranges to the text and cuts wherever the cursor is.
@@ -1476,6 +3441,7 @@ Numbers 66 to 69 are not used. 70 to 79 are from the review of milestones 4 and 
     it is, and so reads `abc`, an empty field and `def`. In the other 23 of the 25
     files compared the result is the same. A file with no line at all is refused;
     TreeSheets silently does nothing.
+    Since A174 there is a third: a line break inside a quoted field is kept (B100).
 83. **An import can go into a cell, and then replaces its grid.** TreeSheets' import
     always makes a new document. Its paste of text does go into the selected cell, and
     if that cell has no text merges the new grid into the grid around it; Wombat's
@@ -1508,3 +3474,14 @@ Numbers 66 to 69 are not used. 70 to 79 are from the review of milestones 4 and 
 99. **The flattened export may end its lines with parent columns** (A118; adds to
     B85). TreeSheets' Flatten has nothing like it; where every grid has one column they
     never appear unasked, and the export equals Flatten as before.
+100. **Importing delimited text keeps the line breaks inside quoted fields** (A174; adds
+    to B82). TreeSheets makes one space of a run of them, since its cells cannot hold a
+    line break. Wombat gives each CR LF, CR or LF as one line break of the cell's text,
+    so that a cell of several lines comes back from its own export, and because a CSV file
+    from a spreadsheet is the commonest source of such cells. Of the 25 imported files
+    compared with the real app, two have line breaks inside quotes (`quotes.csv`,
+    `unclosed_quote.csv`); the comparison turns each run of breaks in Wombat's text into
+    the space TreeSheets has (`as_treesheets_holds` in `tests/import_referee.rs`), and a
+    test pins that exactly those two files need it. The golden files are unchanged.
+    Indented text exported by Wombat has a space for each break (A174), which TreeSheets
+    reads as it would have written the cell.

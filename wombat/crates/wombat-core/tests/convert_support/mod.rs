@@ -27,7 +27,7 @@ pub struct Spec {
 }
 
 /// Texts that are awkward somewhere: delimiters, quotes, what a spreadsheet would run,
-/// spaces at the ends, scripts beyond ASCII, a character outside the BMP.
+/// spaces at the ends, line breaks, scripts beyond ASCII, a character outside the BMP.
 pub const AWKWARD: &[&str] = &[
     "",
     "a",
@@ -56,6 +56,13 @@ pub const AWKWARD: &[&str] = &[
     "e\u{301}",
     "row_id",
     "A_id",
+    "two\nlines",
+    "\n",
+    "\nlead",
+    "trail\n",
+    "a\n\nb",
+    "\n=1+1",
+    "say \"hi\",\nand; go",
 ];
 
 /// Any text a cell may have, the awkward ones often.

@@ -41,6 +41,8 @@ pub const CLUSTERS: &[&str] = &[
     // The to-do checkboxes that `ToggleCheck` writes.
     "\u{2610}",
     "\u{2611}",
+    // A line break inside a cell.
+    "\n",
 ];
 
 /// A random command before it is fitted to a document: a kind and raw numbers.
@@ -252,8 +254,9 @@ pub fn command(doc: &Document, op: &Op) -> Command {
     let below_root: Vec<CellId> = all.iter().copied().filter(|c| *c != root).collect();
     let new_text = || {
         let mut text = text_of(&op.clusters);
-        if n4 % 9 == 0 {
-            text.push('\n');
+        // Now and then a line end as it comes from elsewhere, which becomes a line feed.
+        if n4 % 5 == 0 {
+            text.push_str(["\r\n", "\r", "\t"][n3 as usize % 3]);
         }
         text
     };
@@ -839,7 +842,12 @@ pub fn check_document(doc: &Document, whole_clusters: bool) {
 
 /// Checks the editor's bound on the size of the saved file: it is what a fresh count of
 /// the whole document gives (the running sum has not drifted), and the file is not longer.
+/// And the other things the editor counts as it goes (the cell IDs that its histories
+/// hold, the memory of the undo history) against a fresh count of those.
 pub fn check_bound(editor: &Editor, what: &str) {
+    if let Err(wrong) = editor.audit() {
+        panic!("{wrong}: {what}");
+    }
     let doc = editor.document();
     let fresh = wombat_core::edit::size_bound(doc);
     assert_eq!(editor.size_bound(), fresh, "the size bound drifted: {what}");
@@ -965,6 +973,8 @@ pub enum Act {
     /// Several commands as one undo unit, the second and third of them in a group inside
     /// the group.
     Group(Vec<Op>),
+    /// The same, but the group is cancelled and not ended: nothing of it may be left.
+    Cancelled(Vec<Op>),
     Undo,
     Redo,
     /// Bounds the history to so many units.
@@ -976,10 +986,20 @@ pub fn act() -> impl Strategy<Value = Act> {
         10 => op().prop_map(Act::Apply),
         4 => op().prop_map(Act::Type),
         3 => proptest::collection::vec(op(), 0..5).prop_map(Act::Group),
+        3 => proptest::collection::vec(op(), 0..5).prop_map(Act::Cancelled),
         6 => Just(Act::Undo),
         4 => Just(Act::Redo),
         1 => (0..6usize).prop_map(Act::Limit),
     ]
+}
+
+/// Every formula cell with what it shows.
+fn results(editor: &Editor) -> Vec<(CellId, String)> {
+    let results = editor.calc().results();
+    results
+        .into_iter()
+        .map(|(id, text)| (id, text.to_string()))
+        .collect()
 }
 
 /// The cell whose text a command edits, if it is one of the three typing commands.
@@ -992,9 +1012,11 @@ fn typed_cell(command: &Command) -> Option<CellId> {
     }
 }
 
-/// Commands, typing, groups (also nested), undo, redo and history limits in any order,
-/// against a model that keeps a copy of the document for every unit of the history: each
-/// undo and redo must land on the copy, and a group reports what it changed as a whole.
+/// Commands, typing, groups (also nested, ended or cancelled), undo, redo and history
+/// limits in any order, against a model that keeps a copy of the document for every unit
+/// of the history: each undo and redo must land on the copy, a group reports what it
+/// changed as a whole, and a cancelled group leaves the document, both histories and
+/// everything the editor counts as they were.
 pub fn run_walk(original: Document, acts: &[Act], whole_clusters: bool) {
     let mut ids = SeededIds::from_u64(77);
     let mut editor = Editor::new(original.clone()).unwrap();
@@ -1039,7 +1061,10 @@ pub fn run_walk(original: Document, acts: &[Act], whole_clusters: bool) {
                     Err(_) => assert_eq!(*editor.document(), before, "refused typing"),
                 }
             }
-            Act::Group(ops) => {
+            Act::Group(ops) | Act::Cancelled(ops) => {
+                let cancelled = matches!(act, Act::Cancelled(_));
+                let counted = (editor.history_bytes(), editor.size_bound());
+                let shown = results(&editor);
                 editor.begin_group();
                 let mut any = false;
                 for (n, op) in ops.iter().enumerate() {
@@ -1049,20 +1074,44 @@ pub fn run_walk(original: Document, acts: &[Act], whole_clusters: bool) {
                     any |= apply_checked(&mut editor, op, &mut ids, whole_clusters)
                         .is_ok_and(|c| !c.is_empty());
                     assert!(
-                        editor.undo().is_err(),
-                        "undo inside a group must be refused"
+                        editor.undo().is_err() && editor.redo().is_err(),
+                        "undo and redo inside a group must be refused"
                     );
-                    if n == 2 || (n == 1 && ops.len() == 2) {
+                    // The histories wait for the end of the group, what could be redone
+                    // too.
+                    assert_eq!(
+                        (editor.undo_len(), editor.redo_len()),
+                        (past.len(), future.len()),
+                        "inside a group"
+                    );
+                    // (Half of the cancelled groups keep their inner group open.)
+                    let ends = n == 2 || (n == 1 && ops.len() == 2);
+                    if ends && (!cancelled || ops.len() % 2 == 1) {
                         assert!(editor.end_group().is_empty(), "an inner group reports");
                     }
                 }
-                let changes = editor.end_group();
-                check_report_loose(&before, editor.document(), &changes);
-                if any {
-                    past.push((before, None));
-                    future.clear();
+                if cancelled {
+                    // With every group inside it, open or not.
+                    let inside = editor.document().clone();
+                    let changes = editor.cancel_group().unwrap();
+                    check_report_loose(&inside, editor.document(), &changes);
+                    assert_eq!(changes.is_empty(), !any, "the report of a cancel");
+                    assert_eq!(*editor.document(), before, "cancel");
+                    assert!(!editor.in_group());
+                    assert_eq!((editor.history_bytes(), editor.size_bound()), counted);
+                    assert_eq!(results(&editor), shown, "results after a cancel");
+                    check_bound(&editor, "cancel");
+                    // Nothing joins the model: `past` and `future` are as they were.
                 } else {
-                    assert!(changes.is_empty(), "a group that did nothing reports");
+                    let changes = editor.end_group();
+                    check_report_loose(&before, editor.document(), &changes);
+                    if any {
+                        past.push((before, None));
+                        future.clear();
+                    } else {
+                        assert!(changes.is_empty(), "a group that did nothing reports");
+                    }
+                    check_bound(&editor, "end of a group");
                 }
             }
             Act::Undo => match (editor.undo().unwrap(), past.pop()) {
@@ -1088,6 +1137,7 @@ pub fn run_walk(original: Document, acts: &[Act], whole_clusters: bool) {
             Act::Limit(units) => {
                 limit = *units;
                 editor.set_history_limit(Some(limit));
+                check_bound(&editor, "a limit on the history");
             }
         }
         // The oldest units are forgotten; what they did stays.

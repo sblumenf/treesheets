@@ -303,34 +303,38 @@ fn no_time_given_means_no_stamp() {
 }
 
 #[test]
-fn control_characters_become_spaces_and_are_invalid_in_documents() {
+fn control_characters_become_spaces_or_line_feeds_and_are_invalid_in_documents() {
     let (mut f, id) = Fixture::text("ab");
     f.ok(insert(id, 1, "x\ny\tz\u{0}"));
-    assert_eq!(f.cell(id).text, "ax y z b");
+    assert_eq!(f.cell(id).text, "ax\ny z b");
     f.ok(Command::ReplaceText {
         cell: id,
         start: 0,
         len: 1,
         text: "\r\n".into(),
     });
-    assert_eq!(f.cell(id).text, "  x y z b");
+    assert_eq!(f.cell(id).text, "\nx\ny z b");
     f.ok(Command::SetText {
         cell: id,
         text: "one\ntwo".into(),
     });
-    assert_eq!(f.cell(id).text, "one two");
-    // Notes may hold line breaks.
-    f.ok(props(&[id], &[Prop::Note("one\ntwo".into())]));
-    assert_eq!(f.cell(id).note, "one\ntwo");
+    assert_eq!(f.cell(id).text, "one\ntwo");
+    // Notes hold any text as it is given.
+    f.ok(props(&[id], &[Prop::Note("one\r\ntwo\t".into())]));
+    assert_eq!(f.cell(id).note, "one\r\ntwo\t");
     // The construction layer can write anything; validation and saving refuse it.
     let mut doc = f.e.into_document();
-    doc.cell_mut(id).unwrap().text = "a\nb".into();
+    doc.cell_mut(id).unwrap().text = "a\rb".into();
     assert!(matches!(doc.validate(), Err(Error::Invalid(_))));
     assert!(crate::format::to_string(&doc).is_err());
     assert!(Editor::new(doc.clone()).is_err());
-    doc.cell_mut(id).unwrap().text = "ab".into();
-    doc.tags_mut().insert("a\tb".into(), Tag::default());
-    assert!(matches!(doc.validate(), Err(Error::Invalid(_))));
+    doc.cell_mut(id).unwrap().text = "a\nb".into();
+    doc.validate().unwrap();
+    for name in ["a\tb", "a\nb"] {
+        let mut doc = doc.clone();
+        doc.tags_mut().insert(name.into(), Tag::default());
+        assert!(matches!(doc.validate(), Err(Error::Invalid(_))));
+    }
 }
 
 use crate::model::Tag;
@@ -2224,4 +2228,6 @@ fn every_step_and_its_inverse_cancel_exactly() {
     assert_eq!(work, doc);
 }
 
+mod cancel;
 mod restructure;
+mod retype;

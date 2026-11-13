@@ -3,7 +3,9 @@
 //! An [`Editor`] owns a document. [`Editor::apply`] carries out a [`Command`], which names
 //! the cells it works on by ID; [`Editor::undo`] and [`Editor::redo`] walk the history. Each
 //! of the three returns [`Changes`]: exactly which cells, grids and tags are different
-//! afterwards; [`Editor::end_group`] returns them for a group of commands. Commands, changes and errors are plain data with no references into the
+//! afterwards; [`Editor::end_group`] returns them for a group of commands, which
+//! [`Editor::cancel_group`] takes back as if it had not been instead. Commands, changes
+//! and errors are plain data with no references into the
 //! document, so they can cross a boundary to an interface written in another language.
 //!
 //! Inside, a command is carried out as a list of small steps, each of which knows how to
@@ -25,8 +27,10 @@ mod command;
 mod import;
 mod paste;
 mod program;
+mod read;
 mod restructure;
 mod size;
+mod stage;
 mod step;
 
 use std::collections::HashMap;
@@ -41,6 +45,8 @@ use crate::model::{
 use step::{ChangeSet, Step};
 
 pub use paste::Clip;
+pub use read::{CellView, GridView};
+pub use stage::{CellLook, CutText, GridPart, GridSummary, StageAsk, StageView, TrailStep};
 
 /// The smallest width of a column, as in TreeSheets.
 pub const MIN_COL_WIDTH: u32 = 5;
@@ -100,7 +106,8 @@ pub enum Command {
         cell: CellId,
         /// Where to insert.
         at: u32,
-        /// What to insert; control characters become spaces.
+        /// What to insert; line ends become U+000A (CR LF one of them), other control
+        /// characters spaces ([`crate::text::clean`]).
         text: String,
     },
     /// Deletes a range of text. Stamps the last-edit time.
@@ -121,7 +128,8 @@ pub enum Command {
         start: u32,
         /// How many code points to replace.
         len: u32,
-        /// The new text; control characters become spaces.
+        /// The new text; line ends become U+000A (CR LF one of them), other control
+        /// characters spaces ([`crate::text::clean`]).
         text: String,
     },
     /// Replaces the whole text and, as TreeSheets does, drops all runs and links. Stamps the
@@ -129,7 +137,8 @@ pub enum Command {
     SetText {
         /// The cell.
         cell: CellId,
-        /// The new text; control characters become spaces.
+        /// The new text; line ends become U+000A (CR LF one of them), other control
+        /// characters spaces ([`crate::text::clean`]).
         text: String,
     },
     /// Switches style bits on and off for a range of text: the bits of `set` on, then the
@@ -330,7 +339,7 @@ pub enum Command {
     /// Adds a tag to the document, or changes its colours. A cell has a tag when its
     /// text is the tag's name.
     SetTag {
-        /// The name; not empty, no control characters.
+        /// The name; not empty, no control characters, so no line break either.
         name: String,
         /// The background colour of cells with the tag.
         cell_color: Color,
@@ -646,12 +655,16 @@ struct Unit {
 
 impl Unit {
     fn new(steps: Vec<Step>, typing: Option<CellId>) -> Unit {
-        let cost = steps.iter().map(size::held).fold(0, usize::saturating_add);
+        let cost = Unit::cost(&steps);
         Unit {
             steps,
             typing,
             cost,
         }
+    }
+
+    fn cost(steps: &[Step]) -> usize {
+        steps.iter().map(size::held).fold(0, usize::saturating_add)
     }
 }
 
@@ -754,7 +767,8 @@ impl Editor {
     /// time (milliseconds since 1970 UTC), or `None` to stamp nothing; `ids` gives the IDs
     /// of cells the command creates. On an error the document and the history are exactly
     /// as before. A command that changes something becomes one unit of the undo history
-    /// (or part of the open group) and empties the redo history.
+    /// and empties the redo history; inside a group it becomes part of the group, and the
+    /// redo history is emptied when the group ends ([`Editor::end_group`]).
     ///
     /// A command that would make the document too large to save is refused with
     /// [`Error::Limit`]: see [`Editor::size_bound`].
@@ -781,6 +795,45 @@ impl Editor {
         ids: &mut dyn IdSource,
     ) -> Result<Changes, Error> {
         self.run(command, now, ids, true)
+    }
+
+    /// Makes the text of `cell` this text by replacing only the part that differs
+    /// ([`crate::text::difference`]), so that the styles and links of the rest stay, where
+    /// [`Command::SetText`] and [`Command::EnterText`] drop them all. For an interface
+    /// that has the text of an editor and not the keys that made it.
+    ///
+    /// It is one [`Command::ReplaceText`] through [`Editor::apply`], and everything that
+    /// says holds: one unit of the undo history or part of the open group, the last-edit
+    /// time stamped with `now`, characters that cell text may not hold changed as in every
+    /// text command (before the two texts are compared), the new text in the style and
+    /// link of the first replaced character, the kind of the cell left alone (a formula
+    /// cell stays one and is worked out again; settling the kind is `EnterText`'s, which
+    /// after this finds the text there and keeps the styles). A text that the cell has
+    /// already is nothing: an empty report and no entry in the history. `ids` is not asked
+    /// for an ID.
+    ///
+    /// The difference is one range: after two changes far apart in one editing (a bold
+    /// word deleted, something typed elsewhere) it spans both, and what was typed takes
+    /// the style of the first character of the range.
+    pub fn retype(
+        &mut self,
+        cell: CellId,
+        text: &str,
+        now: Option<i64>,
+        ids: &mut dyn IdSource,
+    ) -> Result<Changes, Error> {
+        let old = self.doc.cell(cell).map_or("", |c| c.text.as_str());
+        // Nothing to replace is a command all the same, so that a cell that does not
+        // exist is refused and an unchanged text is the last thing that was done.
+        let (start, len, text) =
+            crate::text::difference(old, &crate::text::clean(text)).unwrap_or_default();
+        let command = Command::ReplaceText {
+            cell,
+            start,
+            len,
+            text,
+        };
+        self.apply(command, now, ids)
     }
 
     fn run(
@@ -840,11 +893,13 @@ impl Editor {
         self.fits = Some(fitted);
         let steps: Vec<Step> = inverses.into_iter().rev().collect();
         Editor::hold(&mut self.held, &steps);
-        self.forget_redo();
         if self.group_depth > 0 {
+            // What could be redone stays until the group ends: it may be cancelled, and
+            // then the document is the one that the redo history continues from.
             self.group.push(steps);
             self.group_seen.absorb(seen.clone());
         } else {
+            self.forget_redo();
             match self.undo.last_mut() {
                 Some(last) if join && typing.is_some() && last.typing == typing => {
                     let mut unit = Unit::new(steps, typing);
@@ -928,18 +983,19 @@ impl Editor {
         self.undo_cost = cost;
     }
 
-    /// Applies the steps of one history entry and returns the entry that reverses it.
-    fn play(&mut self, unit: Unit) -> Result<(Unit, Changes), Error> {
-        Editor::forget(&mut self.held, &unit.steps);
+    /// Applies steps that the history held, which it holds no longer, and returns the
+    /// steps that reverse them (not held yet) with what changed.
+    fn replay(&mut self, steps: Vec<Step>) -> Result<(Vec<Step>, Changes), Error> {
+        Editor::forget(&mut self.held, &steps);
         let mut tx = Tx {
             doc: &mut self.doc,
-            inverses: Vec::with_capacity(unit.steps.len()),
+            inverses: Vec::with_capacity(steps.len()),
             seen: ChangeSet::default(),
             held: &self.held,
             size_limit: self.size_limit,
             ext: program::Ext::default(),
         };
-        for step in unit.steps {
+        for step in steps {
             if let Err(error) = tx.step(step) {
                 // Cannot happen while the history matches the document; if it does, at
                 // least leave the document as it was.
@@ -952,9 +1008,15 @@ impl Editor {
         self.size = self.size.saturating_add_signed(seen.bytes);
         self.fits = None;
         let steps: Vec<Step> = inverses.into_iter().rev().collect();
-        Editor::hold(&mut self.held, &steps);
         let changes = seen.finish(&self.doc);
         self.recalculate(None, &changes);
+        Ok((steps, changes))
+    }
+
+    /// Applies the steps of one history entry and returns the entry that reverses it.
+    fn play(&mut self, unit: Unit) -> Result<(Unit, Changes), Error> {
+        let (steps, changes) = self.replay(unit.steps)?;
+        Editor::hold(&mut self.held, &steps);
         Ok((Unit::new(steps, unit.typing), changes))
     }
 
@@ -989,6 +1051,10 @@ impl Editor {
 
     /// Opens a group: the commands applied until the matching [`Editor::end_group`] are
     /// undone and redone as one unit. Groups may be nested; only the outermost counts.
+    /// Each command is carried out at once and reports what it changed. While a group is
+    /// open, undo and redo are refused, and what could be redone before stays as it is,
+    /// until [`Editor::end_group`] makes the group a unit or [`Editor::cancel_group`] takes
+    /// it back. A group is a state of the editor: every command from anywhere joins it.
     pub fn begin_group(&mut self) {
         self.calc.begin_group();
         self.group_depth = self.group_depth.saturating_add(1);
@@ -997,8 +1063,10 @@ impl Editor {
     /// Closes a group. Closing the outermost group returns what the group changed as a
     /// whole, between the document before its first command and the document now: a cell
     /// made and removed again inside the group is not named. (A cell that was changed and
-    /// changed back may be.) Closing an inner group, or closing without an open group,
-    /// does nothing and returns an empty report.
+    /// changed back may be.) If a command of the group changed something, the group
+    /// becomes one unit of the undo history and the redo history is emptied; a group in
+    /// which nothing changed leaves both histories as they were. Closing an inner group,
+    /// or closing without an open group, does nothing and returns an empty report.
     pub fn end_group(&mut self) -> Changes {
         if self.group_depth == 0 {
             return Changes::default();
@@ -1008,12 +1076,50 @@ impl Editor {
             return Changes::default();
         }
         if !self.group.is_empty() {
+            // Only now is the group certain to stay: what was undone before it does not
+            // follow from the document any more.
+            self.forget_redo();
             // To undo the group, undo its commands from the newest to the oldest.
             let steps = self.group.drain(..).rev().flatten().collect();
             self.push_undo(Unit::new(steps, None));
         }
         self.calc.end_group(&self.doc);
         std::mem::take(&mut self.group_seen).finish(&self.doc)
+    }
+
+    /// Abandons the open group, the outermost with every group inside it: takes back
+    /// every command applied since it was opened, newest first, and forgets them. The
+    /// document, the undo history and the redo history are then exactly as when the group
+    /// was opened, and so are [`Editor::size_bound`] and [`Editor::history_bytes`]; no
+    /// group is open. Returns what the taking back changed, between the document just
+    /// before this call and the document now (as an undo of the group would report it:
+    /// complete, and it may name a cell that is as it was). Without an open group it does
+    /// nothing and returns an empty report.
+    ///
+    /// Not part of the document and so not taken back, as undo does not take them back
+    /// (decision A64): the variables and the report that a [`Command::Run`] inside the
+    /// group left. Nor is a history that was changed from outside while the group was open
+    /// ([`Editor::clear_history`], [`Editor::clear_redo`], a smaller limit) given back.
+    /// [`Editor::recalculated`] is then what the taking back recalculated.
+    ///
+    /// It cannot fail while the history matches the document. If it does, the document is
+    /// as just before the call and the group is closed without a unit in the history: its
+    /// commands stay done and cannot be undone, and nothing can be redone.
+    pub fn cancel_group(&mut self) -> Result<Changes, Error> {
+        if self.group_depth == 0 {
+            return Ok(Changes::default());
+        }
+        self.group_depth = 0;
+        self.group_seen = ChangeSet::default();
+        self.calc.cancel_group();
+        let steps: Vec<Step> = self.group.drain(..).rev().flatten().collect();
+        match self.replay(steps) {
+            Ok((_, changes)) => Ok(changes),
+            Err(error) => {
+                self.forget_redo();
+                Err(error)
+            }
+        }
     }
 
     /// The number of units that can be undone.
@@ -1067,7 +1173,9 @@ impl Editor {
         self.forget_redo();
     }
 
-    /// Forgets the whole history; the document stays as it is.
+    /// Forgets the whole history; the document stays as it is. The commands of an open
+    /// group are kept: the group can still be ended (and is then the only unit) or
+    /// cancelled.
     pub fn clear_history(&mut self) {
         self.undo.clear();
         self.redo.clear();
@@ -1093,6 +1201,51 @@ impl Editor {
     /// again. Undo and redo are never refused.
     pub fn size_bound(&self) -> u64 {
         self.size
+    }
+
+    /// Counts again, from the document and the histories, what the editor keeps count of
+    /// as it goes: how often the histories and the open group hold each cell ID, the
+    /// memory of the undo history, and the bound on the size of the saved file. `Err` says
+    /// what is not as counted. For tests: it reads everything.
+    pub fn audit(&self) -> Result<(), String> {
+        let mut held = HashMap::new();
+        let units = self.undo.iter().chain(&self.redo).map(|unit| &unit.steps);
+        for steps in units.chain(&self.group) {
+            Editor::hold(&mut held, steps);
+        }
+        if held != self.held {
+            return Err(format!(
+                "the histories hold {held:?}, counted was {:?}",
+                self.held
+            ));
+        }
+        let fresh = |unit: &Unit| Unit::cost(&unit.steps);
+        let mut units = self.undo.iter().chain(&self.redo);
+        if let Some(unit) = units.find(|unit| unit.cost != fresh(unit)) {
+            return Err(format!(
+                "a unit of {} bytes, counted was {}",
+                fresh(unit),
+                unit.cost
+            ));
+        }
+        let cost = self.undo.iter().map(|unit| unit.cost).sum::<usize>();
+        if cost != self.undo_cost {
+            return Err(format!(
+                "the undo history takes {cost} bytes, counted was {}",
+                self.undo_cost
+            ));
+        }
+        let size = size::document(&self.doc);
+        if size != self.size {
+            return Err(format!(
+                "the bound on the saved size is {size}, counted was {}",
+                self.size
+            ));
+        }
+        if self.group_depth == 0 && !self.group.is_empty() {
+            return Err("commands of a group are kept, and no group is open".into());
+        }
+        Ok(())
     }
 
     /// Lowers the size that commands may take the saved document to; values over

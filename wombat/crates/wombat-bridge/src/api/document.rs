@@ -1,0 +1,894 @@
+//! An open document: what an interface holds while it shows and edits one.
+
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use flutter_rust_bridge::frb;
+use wombat_core::storage::{self, FileCheck, FileState};
+use wombat_core::{Document, Editor, SeededIds, ViewState};
+
+use super::wire::{
+    BridgeError, CellLook, Command, ErrorKind, GridInfo, LevelInfo, Report, StageAsk, StageInfo,
+};
+use crate::convert::{
+    cell_id, command_in, grid_out, level_in, look_out, report_out, stage_ask_in, stage_out,
+};
+use crate::open_files::Claim;
+
+/// Where the time that edits stamp on cells comes from.
+enum Clock {
+    /// The clock of the device.
+    System,
+    /// Always this, for tests.
+    Fixed(Option<i64>),
+}
+
+impl Clock {
+    /// Milliseconds since 1970 UTC, or `None` to stamp nothing.
+    fn now(&self) -> Option<i64> {
+        match self {
+            Clock::Fixed(now) => *now,
+            Clock::System => {
+                let since = SystemTime::now().duration_since(UNIX_EPOCH).ok()?;
+                i64::try_from(since.as_millis()).ok()
+            }
+        }
+    }
+}
+
+/// An ID source seeded from the operating system, so that IDs are unique across documents.
+fn os_ids() -> Result<SeededIds, BridgeError> {
+    let mut seed = [0u8; 32];
+    getrandom::fill(&mut seed).map_err(|e| BridgeError {
+        kind: ErrorKind::Io,
+        message: format!("no randomness from the operating system: {e}"),
+        path: None,
+    })?;
+    Ok(SeededIds::from_seed(seed))
+}
+
+/// What an open document is made of. It is apart from [`OpenDocument`] so that closing
+/// can drop it, the file's claim and the memory with it, while Dart still holds the handle.
+struct Session {
+    editor: Editor,
+    /// The file, by its path from the root as fixed when the document was opened.
+    path: PathBuf,
+    ids: SeededIds,
+    clock: Clock,
+    /// Whether nothing was done since the document was read from or written to its file.
+    saved: bool,
+    /// Whether the file still holds the document as it was when the open group of
+    /// commands was opened: it did then, and was not written since. Cancelling the group
+    /// then leads back to a document that is saved. Means nothing while no group is open.
+    saved_before_group: bool,
+    /// What the file looked like when it was read or last written, to tell at the next
+    /// save whether another program changed it since.
+    file: FileState,
+    /// The view state of the document on this device: which level the screen shows, what
+    /// each level remembers, which grids are folded. It is here, beside the editor,
+    /// because it has to be told of every change to the document, and every change
+    /// passes [`Session::report`].
+    view: ViewState,
+    /// Whether the view state was not changed since it was read from its file, or
+    /// written to it: there is nothing to write.
+    view_saved: bool,
+    /// Set while a call that changes the document is under way. Found set at the start
+    /// of a call, it means that such a call never finished: a panic unwound through it
+    /// and the document may be half changed.
+    unfinished: bool,
+    /// Keeps the file from being opened a second time; gives it up when dropped.
+    _claim: Claim,
+    /// Makes writing the file panic, for the test of what a drop does then.
+    #[cfg(test)]
+    panic_in_write: bool,
+    /// Makes a call that changes the document panic when the core has done its part and
+    /// the call is not finished, for the test of what later calls do then.
+    #[cfg(test)]
+    panic_in_change: bool,
+}
+
+impl Session {
+    /// What to tell of a change, which also notes that there is something to save. Only
+    /// a change to the document is: what formula cells show is worked out from the
+    /// document and is in no file, so a report that names nothing but cells that show
+    /// something else leaves the document as saved as it was.
+    fn report(&mut self, changes: &wombat_core::Changes) -> Report {
+        if !changes.is_empty() {
+            self.saved = false;
+        }
+        // The view state forgets what refers to cells that are gone.
+        if self.view.apply_changes(self.editor.document(), changes) {
+            self.view_saved = false;
+        }
+        report_out(changes, self.editor.recalculated())
+    }
+
+    fn save(&mut self) -> Result<(), BridgeError> {
+        match self.file.check(&self.path)? {
+            FileCheck::Unchanged if self.saved => Ok(()),
+            FileCheck::Unchanged | FileCheck::Gone => self.write(),
+            FileCheck::Changed => Err(BridgeError {
+                kind: ErrorKind::ChangedOnDisk,
+                message: format!(
+                    "{}: the file was changed by another program since it was read or saved",
+                    self.path.display()
+                ),
+                path: Some(self.path.display().to_string()),
+            }),
+        }
+    }
+
+    fn write(&mut self) -> Result<(), BridgeError> {
+        #[cfg(test)]
+        assert!(!self.panic_in_write, "on purpose, while writing the file");
+        // Every save puts a new file under the name, so the state is noted each time.
+        self.file = storage::save_document_with_state(self.editor.document(), &self.path)?;
+        self.saved = true;
+        // From here on the file holds the document of this moment, which need not be
+        // the one a cancelled group leads back to.
+        self.saved_before_group = false;
+        Ok(())
+    }
+
+    /// Writes the view state to its file if it changed since it was read or written.
+    /// The file is found by the folder of the document and the document's ID, as the
+    /// storage layer says.
+    fn save_view(&mut self) -> Result<(), BridgeError> {
+        if self.view_saved {
+            return Ok(());
+        }
+        #[cfg(test)]
+        assert!(!self.panic_in_write, "on purpose, while writing the file");
+        let folder = self.path.parent().unwrap_or(Path::new(""));
+        storage::save_view_state(folder, &self.view)?;
+        self.view_saved = true;
+        Ok(())
+    }
+
+    /// What a drop may save: unsaved work whose file is as it was or gone. A file that
+    /// someone else changed is left alone, because a drop has no one to ask or tell.
+    fn save_quietly(&mut self) {
+        let free = matches!(
+            self.file.check(&self.path),
+            Ok(FileCheck::Unchanged | FileCheck::Gone)
+        );
+        if free {
+            let _ = self.write();
+        }
+    }
+}
+
+/// The safety net under [`OpenDocument::close`]: a document that is let go of unsaved is
+/// saved, as far as that can be done without asking.
+///
+/// This runs where nothing can be reported and nothing may go wrong: when Dart disposes
+/// of the handle or its garbage collector finds it, on the thread that did so, inside a
+/// function that `flutter_rust_bridge` generates without a guard, so that a panic coming
+/// out of here would end the app. Hence `catch_unwind`, and the payload of a caught
+/// panic is forgotten, not dropped, because dropping it is the one step left that could
+/// panic. It also blocks that thread for as long as the save takes, and it never runs at
+/// all when the system kills the app: an interface saves by calling `save` or `close`,
+/// and does not count on this.
+///
+/// The view state is written here too, if it changed, also for a document that was
+/// closed properly: closing saves the document and then drops this. It comes after the
+/// document, so that nothing about it can keep the document from being saved, and
+/// whether it could be written is nobody's concern: it is a convenience, and the next
+/// start finds the screen where the file last said, or at the root.
+impl Drop for Session {
+    fn drop(&mut self) {
+        // Nothing is saved from a document that may be half changed, nor of where the
+        // screen was in it.
+        if self.unfinished || (self.saved && self.view_saved) {
+            return;
+        }
+        let save = AssertUnwindSafe(|| {
+            if !self.saved {
+                self.save_quietly();
+            }
+            let _ = self.save_view();
+        });
+        if let Err(panic) = catch_unwind(save) {
+            std::mem::forget(panic);
+        }
+    }
+}
+
+fn half_changed() -> BridgeError {
+    BridgeError {
+        kind: ErrorKind::Internal,
+        message: "a fault in the program: an earlier change to the document did not finish, \
+                  so the document is not used any more; its file is as it was last saved"
+            .into(),
+        path: None,
+    }
+}
+
+fn closed() -> BridgeError {
+    BridgeError {
+        kind: ErrorKind::Closed,
+        message: "the document was closed".into(),
+        path: None,
+    }
+}
+
+/// A document that is open for reading and editing, with its undo history and the file it
+/// is saved to. Dart holds it as an opaque handle; it lives until Dart lets go of it.
+///
+/// (The generator does not carry this comment into Dart; what a Dart developer must know
+/// of it is repeated on [`OpenDocument::open`].)
+///
+/// **One call at a time, sent by the caller.** Two calls on one document never run at the
+/// same moment: a lock keeps them apart (calls that only read may run together). But the
+/// lock does not keep them in order. Each call is handed to a pool of threads, and of two
+/// calls that are both waiting either may go first, whichever was made first. A caller
+/// that makes a call before the one before has answered can therefore have them carried
+/// out the other way round: characters typed in the wrong order, a command refused because
+/// the one it builds on has not happened yet. So the caller sends one call, waits for its
+/// answer, and only then sends the next. An app does that best in one place: a Dart class
+/// that wraps this one and sends the calls one after another in the order they were made.
+///
+/// **Errors.** Every call answers with a value or with a [`BridgeError`]. After a call
+/// that changes the document panicked, which is a fault in the program and not something a
+/// caller can cause, every later call is refused ([`ErrorKind::Internal`]) and nothing more
+/// is saved: the document may be half changed. Dispose of the handle and open the file
+/// again; it is as it was last saved.
+///
+/// A file is open in one document at a time: while this one is open, opening its file
+/// again is refused ([`ErrorKind::AlreadyOpen`]).
+///
+/// **Letting go.** [`OpenDocument::close`] is how to end: it saves and gives the document
+/// up, or says why it could not. A handle that is disposed of, or forgotten and found by
+/// the garbage collector, without having been closed saves what is unsaved if it can do so
+/// without going over another program's work, and gives up the file either way; that is a
+/// safety net which cannot report anything, runs on the thread that disposes, and never
+/// runs when the system kills the app.
+#[frb(opaque)]
+pub struct OpenDocument {
+    /// `None` once the document was closed.
+    session: Option<Session>,
+}
+
+impl OpenDocument {
+    fn with(
+        (doc, file): (Document, FileState),
+        ids: SeededIds,
+        claim: Claim,
+    ) -> Result<OpenDocument, BridgeError> {
+        // This cannot fail after a new document or a copy was written: the editor refuses
+        // only what `Document::validate` refuses, and saving ran that on this very
+        // document before it wrote. So no file is left without a document that is open.
+        let editor = Editor::new(doc)?;
+        let doc = editor.document();
+        // Where the screen was is a convenience: a file of it that is missing, damaged,
+        // written by a newer version or another document's is no reason not to open the
+        // document, and the screen starts at the root. Such a file is left as it is until
+        // there is something to write. Nor is it an error that the file is older than
+        // the document and names cells that are gone: those are forgotten.
+        let folder = claim.path().parent().unwrap_or(Path::new(""));
+        let mut view = storage::load_view_state(folder, doc.id())
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| ViewState::new(doc.id()));
+        view.retain_existing(doc);
+        Ok(OpenDocument {
+            session: Some(Session {
+                editor,
+                path: claim.path().to_path_buf(),
+                ids,
+                clock: Clock::System,
+                saved: true,
+                saved_before_group: false,
+                file,
+                view,
+                view_saved: true,
+                unfinished: false,
+                _claim: claim,
+                #[cfg(test)]
+                panic_in_write: false,
+                #[cfg(test)]
+                panic_in_change: false,
+            }),
+        })
+    }
+
+    /// The document, or the refusal of every call, reads and saving included, once it was
+    /// closed or a change to it did not finish.
+    fn session(&self) -> Result<&Session, BridgeError> {
+        match &self.session {
+            None => Err(closed()),
+            Some(session) if session.unfinished => Err(half_changed()),
+            Some(session) => Ok(session),
+        }
+    }
+
+    fn session_mut(&mut self) -> Result<&mut Session, BridgeError> {
+        match &mut self.session {
+            None => Err(closed()),
+            Some(session) if session.unfinished => Err(half_changed()),
+            Some(session) => Ok(session),
+        }
+    }
+
+    /// Opens the document in the file at `path`. Refused if a document has that file open
+    /// ([`ErrorKind::AlreadyOpen`]).
+    ///
+    /// What to know about the document this gives, and those of [`OpenDocument::create`]
+    /// and [`OpenDocument::open_copy`] (it is said here because the generator does not
+    /// carry the comment of the type itself into Dart):
+    ///
+    /// - **Send one call at a time.** Two calls on one document never run at the same
+    ///   moment, but they are not kept in order: of two that are both under way either
+    ///   may be carried out first. Wait for the answer of each call before making the
+    ///   next one on the same document.
+    /// - **End with [`OpenDocument::close`]**, which saves. Disposing of a handle that was
+    ///   not closed saves too if it can, but can report nothing, blocks the thread that
+    ///   disposes, and does not happen when the system kills the app.
+    /// - **Every call can fail** with a [`BridgeError`]: with [`ErrorKind::Closed`] after
+    ///   `close`, and with [`ErrorKind::Internal`] after a call that changes the document
+    ///   panicked (a fault in the program; the document may be half changed, nothing more
+    ///   is saved from it, and its file is as it was last saved: dispose of the handle and
+    ///   open the file again).
+    pub fn open(path: String) -> Result<OpenDocument, BridgeError> {
+        OpenDocument::open_with(Path::new(&path), os_ids()?)
+    }
+
+    /// Makes a new document with an empty root cell and saves it at `path`, where no file
+    /// may be yet ([`ErrorKind::AlreadyExists`]) and no document may be open
+    /// ([`ErrorKind::AlreadyOpen`]).
+    ///
+    /// Whether a file is there is looked at first, and then the document is written. A
+    /// file that another program makes at `path` between the two is replaced unseen, as
+    /// it is between the look and the write of [`OpenDocument::save`]: closing that gap
+    /// would take locking the file, which is not attempted. The same holds for the file
+    /// that [`OpenDocument::open_copy`] makes.
+    pub fn create(path: String) -> Result<OpenDocument, BridgeError> {
+        OpenDocument::create_with(Path::new(&path), os_ids()?)
+    }
+
+    /// Makes a copy of the document in the file `from` at `to`, where no file may be yet
+    /// and no document may be open, and opens the copy. The copy has new IDs for itself
+    /// and every cell: this is how a document that many people get the same file of, such
+    /// as an example that comes with the app, becomes a document of one's own. `from` may
+    /// be open; what is copied is its file, not what was done since it was saved. If the
+    /// copy fails, nothing of it stays.
+    pub fn open_copy(from: String, to: String) -> Result<OpenDocument, BridgeError> {
+        OpenDocument::copy_with(Path::new(&from), Path::new(&to), os_ids()?)
+    }
+
+    /// [`OpenDocument::open`] with the IDs for new cells given, for tests.
+    #[frb(ignore)]
+    pub fn open_with(path: &Path, ids: SeededIds) -> Result<OpenDocument, BridgeError> {
+        // The file is claimed before it is touched and the claim is dropped with whatever
+        // fails, here and in the two below: a file is never held by a document that is not.
+        // The claim also fixes the path from the root, which is the file from here on.
+        let claim = Claim::take(path)?;
+        let read = storage::load_document_with_state(claim.path())?;
+        OpenDocument::with(read, ids, claim)
+    }
+
+    /// [`OpenDocument::create`] with the IDs given, for tests.
+    #[frb(ignore)]
+    pub fn create_with(path: &Path, mut ids: SeededIds) -> Result<OpenDocument, BridgeError> {
+        let claim = Claim::take(path)?;
+        // Also true for a link that leads nowhere, which `exists` would not see.
+        if std::fs::symlink_metadata(claim.path()).is_ok() {
+            return Err(wombat_core::Error::AlreadyExists(path.to_path_buf()).into());
+        }
+        let doc = Document::new(&mut ids);
+        let file = storage::save_document_with_state(&doc, claim.path())?;
+        OpenDocument::with((doc, file), ids, claim)
+    }
+
+    /// [`OpenDocument::open_copy`] with the IDs given, for tests.
+    #[frb(ignore)]
+    pub fn copy_with(
+        from: &Path,
+        to: &Path,
+        mut ids: SeededIds,
+    ) -> Result<OpenDocument, BridgeError> {
+        let claim = Claim::take(to)?;
+        let copy = storage::copy_document_with_state(from, claim.path(), &mut ids)?;
+        OpenDocument::with(copy, ids, claim)
+    }
+
+    /// Makes edits stamp this time on cells instead of the time of the device's clock
+    /// (`None`: no time), for tests. Nothing happens on a document that was closed.
+    #[frb(ignore)]
+    pub fn set_fixed_time(&mut self, now: Option<i64>) {
+        if let Some(session) = &mut self.session {
+            session.clock = Clock::Fixed(now);
+        }
+    }
+
+    /// Makes every later write of the file panic, for the tests in `panic_tests.rs`. It
+    /// exists only in this crate's own test build.
+    #[cfg(test)]
+    #[frb(ignore)]
+    pub(crate) fn panic_in_write(&mut self) {
+        if let Some(session) = &mut self.session {
+            session.panic_in_write = true;
+        }
+    }
+
+    /// Makes every later call that changes the document panic before it is finished, for
+    /// the tests in `panic_tests.rs`. It exists only in this crate's own test build.
+    #[cfg(test)]
+    #[frb(ignore)]
+    pub(crate) fn panic_in_change(&mut self) {
+        if let Some(session) = &mut self.session {
+            session.panic_in_change = true;
+        }
+    }
+
+    /// Runs a call that changes the document, and notes that it is under way from before
+    /// the core is asked until the answer is ready. The core is written not to panic, and
+    /// when it refuses a command it leaves the document as it was. But should a panic
+    /// unwind through `work` all the same, the note stays, and every later call is refused
+    /// ([`ErrorKind::Internal`]): no lock here is poisoned by a panic, so without the note
+    /// the half-changed document would be shown, edited and saved as if nothing had
+    /// happened.
+    fn change<T>(
+        &mut self,
+        work: impl FnOnce(&mut Session) -> Result<T, BridgeError>,
+    ) -> Result<T, BridgeError> {
+        let session = self.session_mut()?;
+        session.unfinished = true;
+        let result = work(session);
+        #[cfg(test)]
+        assert!(!session.panic_in_change, "on purpose, in a change");
+        session.unfinished = false;
+        result
+    }
+
+    /// The permanent ID of the document.
+    pub fn id(&self) -> Result<String, BridgeError> {
+        Ok(self.session()?.editor.document().id().to_string())
+    }
+
+    /// The ID of the root cell.
+    pub fn root(&self) -> Result<String, BridgeError> {
+        Ok(self.session()?.editor.document().root().to_string())
+    }
+
+    /// The file the document is saved to: the path it was opened with, from the root. A
+    /// path that did not start at the root was taken from the working folder of the
+    /// program as it was when the document was opened, and is not worked out again: the
+    /// document stays with its file when the working folder changes.
+    pub fn path(&self) -> Result<String, BridgeError> {
+        Ok(self.session()?.path.display().to_string())
+    }
+
+    /// Whether nothing was done to the document since it was read from or written to its
+    /// file. This does not look at the file: that another program removed or changed it
+    /// shows when saving. Undoing or redoing after a save makes the document unsaved, also
+    /// when the two together lead back to what was saved: any change to the document
+    /// clears the flag. What is no change to the document does not: a command that asks
+    /// for nothing new, and formula cells that show something else after `Run`. One thing
+    /// sets it again without a save: cancelling a group of commands that was opened on a
+    /// saved document whose file was not written since ([`OpenDocument::cancel_group`]).
+    pub fn is_saved(&self) -> Result<bool, BridgeError> {
+        Ok(self.session()?.saved)
+    }
+
+    /// The cell `cell` and the cells of its grid, each with its text, what it shows if it
+    /// is a formula cell, and whether it has a grid. A cell without a grid gives 0 by 0
+    /// cells.
+    pub fn grid(&self, cell: String) -> Result<GridInfo, BridgeError> {
+        let session = self.session()?;
+        Ok(grid_out(session.editor.grid_view(cell_id(&cell)?)?))
+    }
+
+    /// What a screen that shows nested grids draws from, in one answer: the grid of
+    /// `cell` (the stage) or a window of its rows and columns, the trail from the root
+    /// down to `cell`, and every grid nested below as far as `ask` says, cell by cell
+    /// or in reduced form (the texts of its first cells, a miniature of colours, its
+    /// size). [`StageInfo`] says how the parts refer to each other, [`StageAsk`] what
+    /// can be asked.
+    ///
+    /// It only reads, and the same document and request always give the same answer,
+    /// so that after a change the stage can be read again and compared with the answer
+    /// before, entry by entry, to redraw what differs. The work is in proportion to the
+    /// answer (the cells, preview texts and shape cells given), not to the document: a
+    /// window of 40 rows of a grid of 100,000 rows looks at 40 rows. Nearly all of the
+    /// time of a large answer is the shapes; ask for smaller ones, or for a window, when
+    /// a read takes too long.
+    ///
+    /// A `cell` without a grid gives its trail and nothing else. A cell that does not
+    /// exist is [`ErrorKind::NotFound`] (after an undo took the stage away, say: go up
+    /// the trail that was read last); text that is no ID, or a number in `ask` below 0 or
+    /// above 4294967295, is [`ErrorKind::BadRequest`].
+    pub fn stage(&self, cell: String, ask: StageAsk) -> Result<StageInfo, BridgeError> {
+        let session = self.session()?;
+        let ask = stage_ask_in(ask)?;
+        let view = session.editor.stage_view(cell_id(&cell)?, &ask)?;
+        Ok(stage_out(view, &session.view))
+    }
+
+    /// One cell with its whole text, runs and links, nothing cut: what an editor opens
+    /// on. The colours are those the cell is drawn in, as in [`OpenDocument::stage`];
+    /// `summary` and `full` are `None`. It only reads. A cell that does not exist is
+    /// [`ErrorKind::NotFound`], text that is no ID [`ErrorKind::BadRequest`].
+    pub fn cell(&self, cell: String) -> Result<CellLook, BridgeError> {
+        let session = self.session()?;
+        let look = session.editor.cell_look(cell_id(&cell)?)?;
+        Ok(look_out(look, &session.view))
+    }
+
+    /// The level to show: the cell whose grid fills the screen, as an ID. That is the
+    /// level last gone to on this device ([`OpenDocument::view_go`]), also before the
+    /// app was last closed; if that cell is gone or has lost its grid, the nearest cell
+    /// above it that has one; otherwise the root. It is always a cell of the document,
+    /// so this is where a screen starts, and where it goes when its stage disappears.
+    ///
+    /// The calls named `view_…`, [`OpenDocument::set_folded`] and
+    /// [`OpenDocument::save_view`] are about the **view state**: which level is shown,
+    /// what each level remembers (in [`StageInfo`] `level`) and which grids are folded
+    /// (in [`CellLook`] `folded`). It belongs to this device, not to the document:
+    /// changing it is no command, is not in the undo history and never makes the
+    /// document unsaved. It is read when the document is opened (a copy made by
+    /// [`OpenDocument::open_copy`] starts with that of the original), follows every
+    /// change by itself (what refers to a removed cell is forgotten, and does not come
+    /// back when an undo or a cancelled group brings the cell back), and is written to a
+    /// file of its own beside the document by [`OpenDocument::save_view`], by
+    /// [`OpenDocument::close`] and when the handle is disposed of. A view-state file that
+    /// is missing or cannot be read is never an error: the screen starts at the root.
+    pub fn view_stage(&self) -> Result<String, BridgeError> {
+        let session = self.session()?;
+        Ok(session.view.stage(session.editor.document()).to_string())
+    }
+
+    /// Makes `cell` the level that is shown, after remembering in `left`, if given, how
+    /// the level that is left looked (dive, up, a jump along the trail). Scrolling
+    /// itself needs no call: hand the position over here when the level is left.
+    ///
+    /// Refused, with nothing remembered and nowhere gone: a `cell` that has no grid,
+    /// except the root ([`ErrorKind::Refused`]); a `left` whose cell has no grid, the
+    /// root included, which a new document's is ([`ErrorKind::Refused`]); a cell that
+    /// does not exist, `left.selected` too ([`ErrorKind::NotFound`]); text that is no
+    /// ID, or a position below 0 or above 4294967295 ([`ErrorKind::BadRequest`]).
+    pub fn view_go(&mut self, cell: String, left: Option<LevelInfo>) -> Result<(), BridgeError> {
+        let session = self.session_mut()?;
+        let doc = session.editor.document();
+        let cell = cell_id(&cell)?;
+        let left = left.map(level_in).transpose()?;
+        // Asked of a view state made for the question, so that a place that cannot be
+        // gone to is refused before anything is remembered.
+        ViewState::new(doc.id()).go(doc, cell)?;
+        if let Some(left) = left {
+            session.view.remember(doc, left)?;
+            session.view_saved = false;
+        }
+        let before = session.view.zoom;
+        session.view.go(doc, cell)?;
+        if session.view.zoom != before {
+            session.view_saved = false;
+        }
+        Ok(())
+    }
+
+    /// Remembers how a level looks without going anywhere: for the level that is shown,
+    /// before the app is put away. It replaces what was remembered of that level. The
+    /// 256 levels remembered last are kept.
+    ///
+    /// Refused as `left` of [`OpenDocument::view_go`] is. That includes the root of a
+    /// document that has no grid yet ([`ErrorKind::Refused`]): there is nothing to
+    /// remember of it, and an interface that is put away there goes on without.
+    pub fn view_remember(&mut self, level: LevelInfo) -> Result<(), BridgeError> {
+        let session = self.session_mut()?;
+        let level = level_in(level)?;
+        session.view.remember(session.editor.document(), level)?;
+        session.view_saved = false;
+        Ok(())
+    }
+
+    /// Folds (hides) or unfolds the grid of `cell` on this device, and returns whether
+    /// that changed anything. A cell without a grid is refused ([`ErrorKind::Refused`]),
+    /// one that does not exist is [`ErrorKind::NotFound`]. The fold goes when the cell
+    /// or its grid is removed, and does not come back with it.
+    pub fn set_folded(&mut self, cell: String, folded: bool) -> Result<bool, BridgeError> {
+        let session = self.session_mut()?;
+        let doc = session.editor.document();
+        let changed = session.view.set_folded(doc, cell_id(&cell)?, folded)?;
+        if changed {
+            session.view_saved = false;
+        }
+        Ok(changed)
+    }
+
+    /// Whether the view state is as its file has it: nothing of it changed since it was
+    /// read or written, by a call or by a change to the document that removed something
+    /// it referred to. True also when there is no file and nothing to put in one.
+    pub fn is_view_saved(&self) -> Result<bool, BridgeError> {
+        Ok(self.session()?.view_saved)
+    }
+
+    /// Writes the view state to its file if it changed since it was read or written
+    /// ([`OpenDocument::is_view_saved`]); otherwise it does nothing. The file is small,
+    /// is this device's alone, and is replaced whole.
+    ///
+    /// It has nothing to do with the document's file: it is written also when the
+    /// document cannot be saved, and an error here says nothing about the document
+    /// ([`ErrorKind::Io`]; [`ErrorKind::Invalid`] when the folder for these files,
+    /// `.wombat-view` beside the document, is a link or a file, where the core will not
+    /// write). Such an error is for whoever wants to know: nothing is lost
+    /// but where the screen was, [`OpenDocument::close`] tries again without reporting,
+    /// and an interface should not show it as a failed save.
+    pub fn save_view(&mut self) -> Result<(), BridgeError> {
+        self.session_mut()?.save_view()
+    }
+
+    /// Carries out a command and returns what it changed.
+    ///
+    /// What holds for every command:
+    ///
+    /// - **On an error nothing changed**: the document and its undo history are exactly
+    ///   as before, and the document is as saved or unsaved as it was.
+    /// - **A command that asks for nothing new succeeds and changes nothing** (setting a
+    ///   colour that a cell already has, inserting empty text): the report is empty,
+    ///   nothing is added to the undo history, and the document stays saved if it was.
+    /// - **Only a change to the document makes it unsaved**: a report with a cell or a
+    ///   tag in one of its first five lists. `Run` can change what formula cells show
+    ///   without changing the document; those cells are then in `recalculated` of a
+    ///   report that is otherwise empty, nothing is added to the undo history, and the
+    ///   document stays saved if it was.
+    /// - **Positions and lengths in text are counted in Unicode code points**, not in the
+    ///   UTF-16 units of a Dart string, and must not cut a user-perceived character (a
+    ///   letter with its accents, a flag, an emoji made of several). One that does, or is
+    ///   outside the text, is refused ([`ErrorKind::Refused`]); it is never moved.
+    /// - **Cell text may hold line breaks (U+000A) and no other control character.**
+    ///   In text that is sent, CR LF and a CR on its own become one U+000A, and every
+    ///   other character below U+0020, a tab too, becomes a space. The text in the cell
+    ///   can therefore be shorter than what was sent. Notes keep everything.
+    /// - Cells are named by their ID as text; text that is no ID is refused
+    ///   ([`ErrorKind::BadRequest`]) and an ID that no cell has is
+    ///   [`ErrorKind::NotFound`]. Whole numbers out of range are refused, never cut.
+    ///
+    /// A command that changed something is one step of the undo history and empties the
+    /// redo history; inside a group ([`OpenDocument::begin_group`]) it is part of the
+    /// group's step, and the redo history waits for the end of the group.
+    ///
+    /// Wait for the answer before the next call on this document: calls that overlap are
+    /// carried out in either order ([`OpenDocument::open`] says more).
+    pub fn apply(&mut self, command: Command) -> Result<Report, BridgeError> {
+        self.change(|session| {
+            let command = command_in(command)?;
+            let changes = session
+                .editor
+                .apply(command, session.clock.now(), &mut session.ids)?;
+            Ok(session.report(&changes))
+        })
+    }
+
+    /// Undoes the latest step of the undo history, a command or a group of them, and
+    /// returns what that changed, or `None` if there is nothing to undo. Refused while a
+    /// group is open ([`ErrorKind::Refused`]).
+    pub fn undo(&mut self) -> Result<Option<Report>, BridgeError> {
+        self.change(|session| {
+            let changes = session.editor.undo()?;
+            Ok(changes.map(|changes| session.report(&changes)))
+        })
+    }
+
+    /// Redoes the step that was undone last and returns what that changed, or `None`
+    /// if there is nothing to redo. Refused while a group is open
+    /// ([`ErrorKind::Refused`]).
+    pub fn redo(&mut self) -> Result<Option<Report>, BridgeError> {
+        self.change(|session| {
+            let changes = session.editor.redo()?;
+            Ok(changes.map(|changes| session.report(&changes)))
+        })
+    }
+
+    /// Opens a group: the commands carried out until the matching
+    /// [`OpenDocument::end_group`] are one step of the undo history, or none at all if
+    /// the group is cancelled ([`OpenDocument::cancel_group`]). This is what one editing
+    /// of a cell is made of: opened when the first thing of it has to be in the document,
+    /// ended by the tick, cancelled by the cross.
+    ///
+    /// - Each command inside is carried out at once and reports what it changed, as
+    ///   outside a group.
+    /// - Groups may be nested; only the outermost counts.
+    /// - While a group is open, [`OpenDocument::undo`] and [`OpenDocument::redo`] are
+    ///   refused ([`ErrorKind::Refused`]), and what could be redone before stays.
+    /// - A group is a state of the document, not of the caller: every command from
+    ///   anywhere joins it until it is ended or cancelled.
+    /// - Saving does not wait for the end: [`OpenDocument::save`],
+    ///   [`OpenDocument::overwrite`], [`OpenDocument::close`] and disposing of the handle
+    ///   write the document as it is, with what the group did so far, and leave the group
+    ///   as it is (a close that succeeds gives it up with the document; a file never
+    ///   holds a group or a history).
+    ///
+    /// Opening a group changes nothing in the document.
+    pub fn begin_group(&mut self) -> Result<(), BridgeError> {
+        let session = self.session_mut()?;
+        // An inner group is no new start: a cancel takes back the outermost.
+        if !session.editor.in_group() {
+            session.saved_before_group = session.saved;
+        }
+        session.editor.begin_group();
+        Ok(())
+    }
+
+    /// Closes a group. Closing the outermost group returns what the group changed as a
+    /// whole, between the document before its first command and the document now: a
+    /// cell made and removed again inside the group is not named (one that was changed
+    /// and changed back may be), and `recalculated` has every formula cell that a
+    /// command of the group reported and that still exists. If a command of the group
+    /// changed something, the group is one step of the undo history and the redo history
+    /// is emptied; a group in which nothing changed leaves both as they were.
+    ///
+    /// Closing an inner group, or closing when no group is open, does nothing and
+    /// returns an empty report.
+    pub fn end_group(&mut self) -> Result<Report, BridgeError> {
+        self.change(|session| {
+            let open = session.editor.in_group();
+            let changes = session.editor.end_group();
+            // Only the end of the outermost group reports. After any other the core
+            // still has the recalculated cells of the command before, which are not
+            // this call's to hand out again.
+            if !open || session.editor.in_group() {
+                return Ok(Report::default());
+            }
+            Ok(session.report(&changes))
+        })
+    }
+
+    /// Abandons the open group, the outermost with every group inside it: every command
+    /// carried out since it was opened is taken back and forgotten. The document, the
+    /// undo history and the redo history are then exactly as when the group was opened,
+    /// and no group is open. Returns what the taking back changed, between the document
+    /// just before this call and the document now (as an undo of the group would report
+    /// it; it may name a cell that is as it was), with the formula cells that show
+    /// something else than just before this call in `recalculated`. Without an open
+    /// group it does nothing and returns an empty report.
+    ///
+    /// The document is then as saved as it was when the group was opened, if its file
+    /// was not written in between: a cancelled editing leaves nothing to save. If the
+    /// file was written while the group was open, it holds what was taken back, and the
+    /// document is unsaved.
+    ///
+    /// Not taken back, as an undo does not take them back: the variables that a `Run`
+    /// inside the group left. And what the view state forgot because a command of the
+    /// group removed a cell stays forgotten.
+    pub fn cancel_group(&mut self) -> Result<Report, BridgeError> {
+        self.change(|session| {
+            // Without a group the core does nothing, and still has the recalculated
+            // cells of the command before.
+            if !session.editor.in_group() {
+                return Ok(Report::default());
+            }
+            // If this fails, which it cannot while the history matches the document,
+            // the commands of the group stay done and the document unsaved.
+            let changes = session.editor.cancel_group()?;
+            let report = session.report(&changes);
+            if session.saved_before_group {
+                session.saved = true;
+            }
+            Ok(report)
+        })
+    }
+
+    /// Whether a group is open ([`OpenDocument::begin_group`]).
+    pub fn in_group(&self) -> Result<bool, BridgeError> {
+        Ok(self.session()?.editor.in_group())
+    }
+
+    /// Makes the text of `cell` this text by replacing only the part that differs, so
+    /// that the styles and links of the rest stay, where `SetText` and `EnterText` drop
+    /// them all. For an interface that has the text of an editor and not the keys that
+    /// made it: `text` is the whole new text.
+    ///
+    /// It is one `ReplaceText` command and everything [`OpenDocument::apply`] says
+    /// holds: one step of the undo history or part of the open group; the new part
+    /// takes the style and link of the first replaced character. Before the two texts
+    /// are compared, `text` is made what a cell may hold (CR LF and CR become one
+    /// U+000A, other control characters spaces), so the text in the cell afterwards can
+    /// be shorter than `text`: read it back rather than assume it. A text that the cell
+    /// has already, after that, changes nothing: the report is empty and nothing is
+    /// added to the undo history.
+    ///
+    /// The kind of the cell is left alone: a formula cell stays one and is worked out
+    /// again, and text that starts with `=` does not become a formula. To settle that
+    /// as typing does, follow with `EnterText` of the same text, in the same group:
+    /// it finds the text there and keeps the styles.
+    ///
+    /// The difference is one range: after two changes far apart in one editing (a bold
+    /// word deleted, something typed elsewhere) it spans both, and what was typed takes
+    /// the style of the first character of the range.
+    pub fn retype(&mut self, cell: String, text: String) -> Result<Report, BridgeError> {
+        self.change(|session| {
+            let cell = cell_id(&cell)?;
+            let changes =
+                session
+                    .editor
+                    .retype(cell, &text, session.clock.now(), &mut session.ids)?;
+            Ok(session.report(&changes))
+        })
+    }
+
+    /// Counts again what the editor keeps count of as it goes (the IDs its histories
+    /// hold, their memory, the bound on the size of the file); `Err` says what is not as
+    /// counted. For tests: it reads everything.
+    #[frb(ignore)]
+    pub fn audit(&self) -> Result<(), String> {
+        match &self.session {
+            Some(session) => session.editor.audit(),
+            None => Ok(()),
+        }
+    }
+
+    /// Makes the file hold the document, without ever going over what another program
+    /// put there. It looks at the file first:
+    ///
+    /// - the file is as this document read or last wrote it: it is written if anything was
+    ///   done since ([`OpenDocument::is_saved`] is false), and left alone otherwise;
+    /// - the file is gone: it is written, whether anything was done or not;
+    /// - the file was changed or replaced by someone else: nothing is written and the
+    ///   error is [`ErrorKind::ChangedOnDisk`] with the path, whether anything was done or
+    ///   not. [`OpenDocument::overwrite`] is the way to write all the same;
+    /// - the file cannot be looked at, or the path is a link that leads nowhere:
+    ///   [`ErrorKind::Io`].
+    ///
+    /// On an error nothing was written, and the document is as unsaved as it was.
+    pub fn save(&mut self) -> Result<(), BridgeError> {
+        self.session_mut()?.save()
+    }
+
+    /// Writes the document to its file whatever is there, replacing what another program
+    /// saved since: for when [`OpenDocument::save`] answered [`ErrorKind::ChangedOnDisk`]
+    /// and the user chose to keep this document. It is a call of its own, not a switch on
+    /// `save`, so that no ordinary save can overwrite by a wrong argument.
+    pub fn overwrite(&mut self) -> Result<(), BridgeError> {
+        self.session_mut()?.write()
+    }
+
+    /// Ends the work on the document: saves what is unsaved and gives the document up.
+    ///
+    /// - If anything was done since the last save, it is saved as by
+    ///   [`OpenDocument::save`], with the same refusals. If that fails, the error is
+    ///   returned and the document **stays open** exactly as it was, so that nothing is
+    ///   lost: the caller can try again, [`OpenDocument::overwrite`] and close, or keep
+    ///   working.
+    /// - A group of commands that is open is neither ended nor cancelled: the document
+    ///   is saved as it is, with what the group did so far, and the group is given up
+    ///   with the document. End or cancel it first to have it otherwise. After a close
+    ///   that failed the group is still open.
+    /// - If nothing was done since the last save, nothing is written and the file is not
+    ///   looked at: closing a document that was only read never fails, never brings back a
+    ///   file that was removed, and never complains about a file that someone else changed.
+    ///
+    /// The view state ([`OpenDocument::view_stage`]) is written too if it changed, after
+    /// the document and only when the close succeeds. That it could not be written is
+    /// not reported and does not fail the close: call [`OpenDocument::save_view`] first
+    /// to know.
+    ///
+    /// After a close that succeeded the file may be opened again, the memory is freed, and
+    /// every later call on this handle, `close` included, is refused with
+    /// [`ErrorKind::Closed`]. The handle itself is still Dart's to dispose of.
+    pub fn close(&mut self) -> Result<(), BridgeError> {
+        let session = self.session_mut()?;
+        if !session.saved {
+            session.save()?;
+        }
+        self.session = None;
+        Ok(())
+    }
+}
+
+/// Runs once when the app starts the library. It makes a panic remember where it happened
+/// if the environment asks for that (`RUST_BACKTRACE`), so that the exception Dart gets can
+/// say so.
+///
+/// It is not `flutter_rust_bridge`'s `setup_default_user_utils`, which does two things
+/// more. It sets `RUST_BACKTRACE` in the environment of the process, while the other
+/// threads of the app are running and may be reading it: C gives no protection there.
+/// And on Android, iOS and macOS it sends everything that any library logs, down to the
+/// finest level, to the system's log, in release builds too; nothing in Wombat logs, so
+/// that could only ever be noise or somebody's text. The price: an app that was not
+/// started with `RUST_BACKTRACE=1` reports a panic by its message and place alone.
+#[frb(init)]
+pub fn init_app() {
+    flutter_rust_bridge::PanicBacktrace::setup();
+}

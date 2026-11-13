@@ -514,6 +514,49 @@ fn a_run_that_only_assigns_variables_still_recalculates() {
     );
 }
 
+/// A run inside a group that is cancelled: what it wrote into the views is taken back
+/// with the group; the variables it assigned stay, as they stay when a run is undone
+/// (decision A64: they are not part of the document).
+#[test]
+fn a_run_in_a_cancelled_group_is_taken_back_but_its_variables_stay() {
+    let spec = json!([
+        "",
+        0,
+        4,
+        2,
+        [
+            ["2", 0],
+            ["+", 1],
+            ["3", 0],
+            ["", 3],
+            ["5", 0],
+            ["x", 2],
+            ["=x+1", 6],
+            ["", 0]
+        ]
+    ]);
+    let mut ids = SeededIds::from_u64(1);
+    let mut e = Editor::new(build(&spec, &mut ids)).unwrap();
+    let root = e.document().root();
+    let view = e.document().child(root, 3, 0).unwrap();
+    let formula = e.document().child(root, 2, 1).unwrap();
+    let before = format::to_string(e.document()).unwrap();
+    assert_eq!((e.shown(view), e.shown(formula)), (Some(""), Some("#N/A")));
+    e.begin_group();
+    assert!(!e.apply(Command::Run, None, &mut ids).unwrap().is_empty());
+    assert_eq!((e.shown(view), e.shown(formula)), (Some("5"), Some("6")));
+    assert_eq!(e.cancel_group().unwrap().changed, [view]);
+    assert_eq!(format::to_string(e.document()).unwrap(), before);
+    assert_eq!((e.undo_len(), e.redo_len()), (0, 0));
+    assert_eq!((e.shown(view), e.shown(formula)), (Some(""), Some("6")));
+    assert_eq!(e.calc().variables().get("x").unwrap().text(), "5");
+    assert!(e.calc().last_run().is_some());
+    // Taking the group back changed no result: the formula showed 6 before it too.
+    assert_eq!(e.recalculated(), []);
+    let anew = Calc::with_variables(e.document(), e.calc().variables().clone());
+    assert_eq!(e.calc().results(), anew.results());
+}
+
 #[test]
 fn a_run_that_would_go_too_deep_or_take_too_long_is_refused() {
     // Each level is run three times by the level above it (twice for its two directions,
@@ -683,4 +726,155 @@ fn links_show_and_find_formula_cells_by_their_results() {
         &commands[..],
         [Command::SetLink { target: Some(wombat_core::LinkTarget::Cell { doc: None, cell }), .. }] if *cell == inner
     ));
+}
+
+// ---- line breaks in cell text ----------------------------------------------------------------
+
+#[test]
+fn a_number_with_line_breaks_around_it_is_a_number_and_one_inside_it_makes_it_text() {
+    let (e, _) = editor(&[
+        json!(["Costs", "12\n", "\n3", " \n 4 \n ", "1\n2", "\n", "a\nb"]),
+        json!("=SUM(Costs)"),
+        json!("=COUNT(Costs)"),
+        json!("=MAX(Costs)"),
+    ]);
+    // A line break is a space to a number, as a tab was to TreeSheets' reader: around
+    // the digits it is passed over, between them the text is no number.
+    assert_eq!(shown(&e)[1..], ["19", "3", "12"]);
+    use wombat_core::eval::{stream_num, strict_num};
+    assert_eq!(strict_num("12\n"), Some(12.0));
+    assert_eq!(strict_num("\n-1.5\n\n"), Some(-1.5));
+    assert_eq!(strict_num("1\n2"), None);
+    assert_eq!(strict_num("\n"), None);
+    // The lenient reader takes the number a text starts with, after any line breaks.
+    assert_eq!(stream_num("\n7\nrest"), 7.0);
+    assert!(stream_num("\n").is_nan() && stream_num("").is_nan());
+}
+
+#[test]
+fn a_formula_may_be_written_over_several_lines() {
+    let (mut e, mut ids) = editor(&[
+        json!(["Costs", "10", "20"]),
+        json!("=SUM(\nCosts\n)\n+\n1"),
+        json!("=1 +\n 2"),
+        json!("=\n1"),
+        json!(""),
+    ]);
+    assert_eq!(shown(&e)[1..4], ["31", "3", "1"]);
+    // Typed in, the same: `=` and a line break is a formula; a line break first is not.
+    let cell = row(&e, 4);
+    enter(&mut e, &mut ids, cell, "=\r\nSUM(Costs)");
+    assert_eq!(e.document().cell(cell).unwrap().text, "=\nSUM(Costs)");
+    assert_eq!(e.document().cell(cell).unwrap().kind, CellKind::Formula);
+    assert_eq!(e.shown(cell), Some("30"));
+    enter(&mut e, &mut ids, cell, "\n=SUM(Costs)");
+    assert_eq!(e.document().cell(cell).unwrap().kind, CellKind::Data);
+    assert_eq!(e.shown(cell), Some("\n=SUM(Costs)"));
+}
+
+#[test]
+fn a_cell_of_several_lines_is_named_inside_a_function_and_in_quotes_only() {
+    // Inside the parentheses of a function a name is all there is up to the closing one,
+    // line break included, and so it is in quotes. A name on its own is words with single
+    // spaces between them, which cannot say a line break. A space is never a line break.
+    let (e, _) = editor(&[
+        json!(["two\nlines", "5"]),
+        json!(["two lines", "7"]),
+        json!("=SUM(two\nlines)"),
+        json!("=SUM(two lines)"),
+        json!("=two\nlines"),
+        json!("=\"two\nlines\" + 1"),
+        json!("=SUM(two\n\nlines)"),
+    ]);
+    assert_eq!(shown(&e)[2..], ["5", "7", "#NAME?", "6", "#NAME?"]);
+}
+
+#[test]
+fn text_functions_count_and_keep_a_line_break_as_the_character_it_is() {
+    let (e, _) = editor(&[
+        json!(["T", " a\nb \n"]),
+        json!("=LEN(T)"),
+        json!("=TRIM(T)"),
+        json!("=UPPER(T)"),
+        json!("=LOWER(T)"),
+        json!("=LEFT(T, 3)"),
+        json!("=RIGHT(T, 3)"),
+        json!("=MID(T, 3, 2)"),
+        json!("=SUBSTITUTE(T, '\n', '/')"),
+        json!("=SUBSTITUTE(T, 'a', '\n')"),
+        json!("='x\ny' & T"),
+        json!("=LEN('\n')"),
+        json!("=T+1"),
+    ]);
+    assert_eq!(
+        shown(&e)[1..],
+        [
+            "6",
+            // The line breaks at the ends go with the spaces there; the one inside stays.
+            "a\nb",
+            " A\nB \n",
+            " a\nb \n",
+            " a\n",
+            "b \n",
+            "\nb",
+            " a/b /",
+            " \n\nb \n",
+            "x\ny a\nb \n",
+            "1",
+            "#VALUE!",
+        ]
+    );
+    // Every result is text a cell can hold.
+    for result in e.calc().results().values() {
+        assert!(wombat_core::text::is_clean(result), "{result:?}");
+    }
+}
+
+#[test]
+fn a_run_carries_texts_of_several_lines_into_views_and_variables() {
+    // A value into a view, a variable read by a formula, and a table into a view.
+    let spec = json!([
+        "",
+        0,
+        3,
+        3,
+        [
+            ["two\nlines", 0],
+            ["", 3],
+            ["", 0],
+            ["x\ny", 0],
+            ["v", 2],
+            ["=v & '!'", 6],
+            ["", 0, 1, 2, [["a\nb", 0], ["\n", 0]]],
+            ["", 3],
+            ["", 0, 1, 2, [["a\nb", 0], ["\n", 0]]]
+        ]
+    ]);
+    let mut ids = SeededIds::from_u64(1);
+    let mut e = Editor::new(build(&spec, &mut ids)).unwrap();
+    let at = |e: &Editor, x, y| e.document().child(e.document().root(), x, y).unwrap();
+    let before = format::to_string(e.document()).unwrap();
+    e.apply(Command::Run, None, &mut ids).unwrap();
+    e.document().validate().unwrap();
+    assert_eq!(e.document().cell(at(&e, 1, 0)).unwrap().text, "two\nlines");
+    assert_eq!(e.shown(at(&e, 2, 1)), Some("x\ny!"));
+    let filled = e.document().cell(at(&e, 1, 2)).unwrap().grid().unwrap();
+    let texts: Vec<&str> = filled
+        .cells()
+        .iter()
+        .map(|c| e.shown(*c).unwrap())
+        .collect();
+    assert_eq!(texts, ["a\nb", "\n"]);
+    // The result of the run as text is a line per cell of a grid (TreeSheets' own form,
+    // which has no cells of several lines): such a cell takes as many lines as it has.
+    let result = e.calc().last_run().unwrap().result.as_ref().unwrap();
+    assert_eq!(result.to_text(e.document()), "  a\nb\n  \n\n");
+    // Saved, loaded, undone.
+    let saved = format::to_string(e.document()).unwrap();
+    assert_eq!(
+        format::to_string(&format::from_slice(saved.as_bytes()).unwrap()).unwrap(),
+        saved
+    );
+    e.undo().unwrap();
+    assert_eq!(format::to_string(e.document()).unwrap(), before);
 }

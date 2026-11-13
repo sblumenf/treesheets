@@ -9,7 +9,7 @@
 //! - [`construct`]: unrecorded access for building a document, before it is edited.
 //! - [`convert`]: import and export as CSV, TSV, indented text and tables to join; no files.
 //! - [`export_files`]: writing an export to a file or a folder (the file layer, with `storage`).
-//! - [`format`]: the `.wombat` JSON text of a document.
+//! - [`mod@format`]: the `.wombat` JSON text of a document.
 //! - [`view`]: view state (folds, selection, zoom), which is kept out of the document.
 //! - [`storage`]: the only module that touches files (atomic save, images, view-state files).
 //! - [`workspace`]: a folder of documents.
@@ -36,7 +36,8 @@ pub mod text;
 pub mod view;
 pub mod workspace;
 
-pub use edit::{Changes, Clip, Command, Editor, Prop};
+pub use edit::{CellLook, CutText, GridPart, GridSummary, StageAsk, StageView, TrailStep};
+pub use edit::{CellView, Changes, Clip, Command, Editor, GridView, Prop};
 pub use error::Error;
 pub use id::{CellId, DocId, Id, IdSource, SeededIds};
 pub use links::LinkIndex;
@@ -44,7 +45,7 @@ pub use model::{
     Cell, CellKind, Color, Document, DrawStyle, FreshIds, Grid, ImageRef, Link, LinkTarget, Run,
     Style, Tag, TextAlign, VertAlign,
 };
-pub use view::{Selection, ViewState};
+pub use view::{Level, Selection, ViewState};
 pub use workspace::{IdCollision, Workspace};
 
 /// The version of the core library.

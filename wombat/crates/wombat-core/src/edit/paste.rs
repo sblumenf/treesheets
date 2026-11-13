@@ -10,12 +10,12 @@
 //! Links in the cells that arrive are rewritten so that they still point at the same
 //! cells: see [`relink`].
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::error::{invalid, refused, Error};
 use crate::id::{CellId, DocId};
 use crate::limits::MAX_DEPTH;
-use crate::model::{validate_cell, Cell, Document, LinkTarget};
+use crate::model::{validate_cell, Cell, Document, Extra, LinkTarget};
 
 use super::command::{
     cell, check_room, depth, descendants, grid, has_content, new_cell, set_runs_links, sync_cell,
@@ -74,9 +74,65 @@ impl Clip {
         })
     }
 
+    /// The same cells as a document of their own: the top cell is its root, and its ID is
+    /// that of the document the cells came from, so that the links inside read as they did
+    /// there. With [`Clip::from_document`] this is how a clip leaves the program and comes
+    /// back (as the text that [`crate::format::to_string`] writes, say): no other way in
+    /// exists, so that a clip always holds what [`Clip::of`] would have made.
+    pub fn as_document(&self) -> Result<Document, Error> {
+        let Some(top) = self.top() else {
+            return invalid("a clip without cells");
+        };
+        let mut cells: HashMap<CellId, Cell> =
+            self.cells.iter().map(|c| (c.id, c.clone())).collect();
+        if let Some(root) = cells.get_mut(&top) {
+            root.parent = None;
+        }
+        let doc = Document {
+            id: self.doc,
+            minor: 0,
+            root: top,
+            cells,
+            tags: BTreeMap::new(),
+            extra: Extra::new(),
+        };
+        // `Clip::of` checks cell by cell. A document under construction is not checked at
+        // all (`crate::construct`), and a clip of one can break the rules that only a
+        // whole document has: a cell with the ID of the document, a link that names its
+        // own document.
+        doc.validate()?;
+        Ok(doc)
+    }
+
+    /// The clip that [`Clip::as_document`] made `doc` of: the root of `doc` and everything
+    /// inside it, as cells that came from the document whose ID `doc` has, where the top
+    /// cell was in the grid of `parent` (`None`: it was the root). The source is said in
+    /// one place only, the ID of `doc`, so that it cannot be said twice and differently.
+    /// Checked as [`Clip::of`] checks, and refused if a cell or `parent` has the ID of the
+    /// document, which no cell of a document can have, or if `parent` is among the cells.
+    pub fn from_document(doc: &Document, parent: Option<CellId>) -> Result<Clip, Error> {
+        let mut clip = Clip::of(doc, doc.root())?;
+        let source = clip.doc;
+        if clip.cell_ids().any(|id| id.0 == source.0) || parent.is_some_and(|p| p.0 == source.0) {
+            return invalid(format!("a cell has the ID of the document {source}"));
+        }
+        if parent.is_some_and(|p| doc.cell(p).is_some()) {
+            return invalid("the cell that the top cell was in is among the cells");
+        }
+        if let Some(top) = clip.cells.first_mut() {
+            top.parent = parent;
+        }
+        Ok(clip)
+    }
+
     /// The document the cells were copied from.
     pub fn source(&self) -> DocId {
         self.doc
+    }
+
+    /// The cell whose grid the top cell was in, or `None` if it was the root.
+    pub fn parent(&self) -> Option<CellId> {
+        self.cells.first().and_then(Cell::parent)
     }
 
     /// The ID that the top cell had in the document it came from.

@@ -41,10 +41,10 @@ impl Rng {
     }
 }
 
-const NAMES: &[&str] = &["A", "B", "C", "a b", "Total", "x"];
+const NAMES: &[&str] = &["A", "B", "C", "a b", "Total", "x", "a\nb"];
 const DATA: &[&str] = &[
     "1", "2", "10", "2.5", "-3", "0", "", "abc", "007", "1e3", "0x10", " 4 ", "A", "B", "#NAME?",
-    "é", "  ", "1e400",
+    "é", "  ", "1e400", "5\n", "\n6", "7\n8", "\n", "a\nb",
 ];
 const TOKENS: &[&str] = &[
     "SUM(",
@@ -106,6 +106,9 @@ const TOKENS: &[&str] = &[
     "😀",
     "e",
     "E",
+    "\n",
+    "'\n'",
+    "a\nb",
 ];
 
 /// A formula: often well formed, sometimes a soup of tokens, sometimes any characters.
@@ -352,7 +355,7 @@ proptest! {
     /// Any text read as a number, and any number written as text.
     #[test]
     fn numbers_are_read_and_written_without_panic(
-        text in "[ +\\-0-9a-fxXpPeE.infaN]{0,24}",
+        text in "[ \n+\\-0-9a-fxXpPeE.infaN]{0,24}",
         bits in any::<u64>(),
     ) {
         use wombat_core::eval::{num_text, stream_num, strict_num};
@@ -391,7 +394,7 @@ proptest! {
 
     /// Any formula text at all.
     #[test]
-    fn any_text_is_a_formula_with_some_result(text in ".{0,60}", soup in proptest::collection::vec(0..TOKENS.len(), 0..40)) {
+    fn any_text_is_a_formula_with_some_result(text in "(.|\n){0,60}", soup in proptest::collection::vec(0..TOKENS.len(), 0..40)) {
         let soup: String = soup.iter().map(|n| TOKENS[*n]).collect();
         let mut ids = SeededIds::from_u64(1);
         let table = json!(["A", 0, 2, 2, [["1", 0], ["x", 0], [format!("={soup}"), 6], ["B", 0, 1, 1, [["2", 0]]]]]);
@@ -400,11 +403,14 @@ proptest! {
         let calc = Calc::new(&doc);
         prop_assert_eq!(calc.results().len(), 4);
         prop_assert!(calc.results().values().all(|r| r.chars().count() < 10_000));
+        // What a formula shows can be put into a cell (`Collapse` does).
+        prop_assert!(calc.results().values().all(|r| wombat_core::text::is_clean(r)));
     }
 
-    /// Random commands, undo and redo: the results are always those of working everything
-    /// out, the report of what recalculated is exact, and undoing everything gives the
-    /// original bytes and results.
+    /// Random commands, groups that are ended or cancelled, undo and redo: the results are
+    /// always those of working everything out, the report of what recalculated is exact
+    /// (after a cancel: what taking the group back recalculated), and undoing everything
+    /// gives the original bytes and results.
     #[test]
     fn keeping_up_to_date_equals_working_everything_out(
         seed in any::<u64>(),
@@ -417,6 +423,12 @@ proptest! {
         let first = results(editor.calc());
         let mut grouped = false;
         let mut group_before = first.clone();
+        // Whether a run in the open group gave the variables other values: those stay
+        // when the group is cancelled, as they stay when a run is undone.
+        let mut group_ran = false;
+        let mut group_bytes = original.clone();
+        // What each command of the open group reported as recalculated.
+        let mut group_said: Vec<CellId> = Vec::new();
         for (n, (step_seed, kind, op)) in steps.iter().enumerate() {
             let before = results(editor.calc());
             let mut r = Rng(*step_seed | 1);
@@ -434,12 +446,37 @@ proptest! {
                     editor.begin_group();
                     grouped = true;
                     group_before = before;
+                    group_ran = false;
+                    group_said.clear();
+                    group_bytes = format::to_string(editor.document()).unwrap();
+                    continue;
+                }
+                4 if grouped => {
+                    editor.cancel_group().unwrap();
+                    prop_assert_eq!(
+                        format::to_string(editor.document()).unwrap(),
+                        group_bytes.clone()
+                    );
+                    grouped = false;
+                    what = format!("step {n}: cancel of group");
+                    // Exact, where the end of a group may name too much: only the
+                    // results that differ from those just before the cancel.
+                    check(&editor, &before, false, &what);
+                    if !group_ran {
+                        prop_assert_eq!(results(editor.calc()), group_before.clone(), "{}", what);
+                    }
                     continue;
                 }
                 3 if grouped => {
                     editor.end_group();
                     grouped = false;
                     check(&editor, &group_before, true, &format!("step {n}: end of group"));
+                    // Everything that a command of this group reported and that still
+                    // exists, by ID, and nothing from before the group.
+                    group_said.retain(|id| editor.document().cell(*id).is_some());
+                    group_said.sort();
+                    group_said.dedup();
+                    prop_assert_eq!(editor.recalculated(), group_said.clone(), "end of group");
                     continue;
                 }
                 _ => {
@@ -451,8 +488,9 @@ proptest! {
                         command(&mut r, editor.document())
                     };
                     what = format!("step {n}: {command:?}");
+                    let variables = editor.calc().variables().clone();
                     match editor.apply(command, None, &mut ids) {
-                        Ok(_) => {}
+                        Ok(_) => group_ran |= *editor.calc().variables() != variables,
                         Err(Error::Refused(_) | Error::NotFound(_) | Error::Limit(_)) => {
                             prop_assert_eq!(results(editor.calc()), before, "refused: {}", what);
                             continue;
@@ -463,6 +501,7 @@ proptest! {
             }
             editor.document().validate().unwrap();
             check(&editor, &before, false, &what);
+            group_said.extend(editor.recalculated());
         }
         if grouped {
             editor.end_group();

@@ -1,4 +1,5 @@
-//! View state: which grids are folded, the selection and the zoom (decision A8).
+//! View state: which grids are folded, the selection, the level that is shown (the zoom) and
+//! what each level remembers (decision A8).
 //!
 //! View state is not content. It is kept in its own small JSON file, apart from the document
 //! (see [`crate::storage`] for where), and refers to cells by ID. It may be out of date with
@@ -13,7 +14,7 @@ use crate::id::{CellId, DocId};
 use crate::json::{
     into_extra, into_object, parse, take_array, take_header, take_id, take_u32, Fields, Kind,
 };
-use crate::limits::MAX_CELLS;
+use crate::limits::{MAX_CELLS, MAX_DEPTH};
 use crate::model::{check_extra, Document, Extra, FreshIds};
 
 /// The value of the `format` field of a view-state file.
@@ -21,7 +22,10 @@ pub const VIEW_FORMAT_NAME: &str = "wombat-view";
 /// The major version of the view-state format this core writes and reads.
 pub const VIEW_FORMAT_VERSION: u32 = 1;
 /// The minor version of the view-state format this core writes.
-pub const VIEW_FORMAT_MINOR: u32 = 0;
+pub const VIEW_FORMAT_MINOR: u32 = 1;
+/// The most levels a view state remembers. A screen shows one level at a time, so this is
+/// how many places of one document a device can come back to as they were left.
+pub const MAX_LEVELS: usize = 256;
 
 /// A selection: a rectangle of cells in one grid, or a text cursor in one cell.
 #[derive(Clone, PartialEq, Debug)]
@@ -40,20 +44,92 @@ pub struct Selection {
     pub extra: Extra,
 }
 
-/// The view state of one document on one device.
+/// What one level remembers on this device: where it was scrolled to and what was selected
+/// there. A level is a cell whose grid fills the screen.
 #[derive(Clone, PartialEq, Debug)]
+pub struct Level {
+    /// The cell whose grid is the level.
+    pub cell: CellId,
+    /// The column of the grid at the left edge of what was last seen. A column and a row
+    /// rather than a distance, which would mean nothing on a screen of another size or
+    /// after the text size changed.
+    pub x: u32,
+    /// The row of the grid at the top edge of what was last seen.
+    pub y: u32,
+    /// The cell that was selected there, if one was.
+    pub selected: Option<CellId>,
+    /// Unrecognised fields.
+    pub extra: Extra,
+}
+
+impl Level {
+    /// The level of `cell` as it is before anyone has been there: at the top-left, nothing
+    /// selected.
+    pub fn new(cell: CellId) -> Level {
+        Level {
+            cell,
+            x: 0,
+            y: 0,
+            selected: None,
+            extra: Extra::new(),
+        }
+    }
+}
+
+/// The view state of one document on one device. Two are equal when they are written as
+/// the same file.
+#[derive(Clone, Debug)]
 pub struct ViewState {
     /// The document this belongs to.
     pub doc: DocId,
     /// The cells whose grid is folded (hidden).
     pub folded: BTreeSet<CellId>,
-    /// The selection.
+    /// The selection as TreeSheets has it, one for the document: a rectangle of cells, or
+    /// the text cursor while a cell is edited. What a screen that shows one level at a time
+    /// has selected in each level is in `levels`.
     pub selection: Option<Selection>,
-    /// The cell that is zoomed into and shown as if it were the root.
+    /// The level that is shown: the cell that is zoomed into and shown as if it were the
+    /// root. `None` is the root itself. It may name a cell that is gone or has no grid;
+    /// [`ViewState::stage`] says what to show then.
     pub zoom: Option<CellId>,
+    /// What each level remembers, the one remembered last at the end; at most
+    /// [`MAX_LEVELS`], no cell twice. The level that is shown may be among them: it is
+    /// remembered like any other when it is left or when the app is put away.
+    pub levels: Vec<Level>,
     /// Unrecognised fields.
     pub extra: Extra,
     minor: u32,
+    /// The cell `zoom` and the cells above it, nearest first, as they were when the
+    /// document was last looked at. Once the zoom cell is removed the document no longer
+    /// says where it was, and this does. Not saved: a file read later is followed from the
+    /// document as it is then.
+    line: Vec<CellId>,
+}
+
+impl PartialEq for ViewState {
+    fn eq(&self, other: &ViewState) -> bool {
+        // Written out so that a new field cannot be forgotten here.
+        let ViewState {
+            doc,
+            folded,
+            selection,
+            zoom,
+            levels,
+            extra,
+            minor,
+            line: _,
+        } = self;
+        (doc, folded, selection, zoom, levels, extra, minor)
+            == (
+                &other.doc,
+                &other.folded,
+                &other.selection,
+                &other.zoom,
+                &other.levels,
+                &other.extra,
+                &other.minor,
+            )
+    }
 }
 
 const KIND: Kind = Kind {
@@ -69,21 +145,143 @@ const VIEW_KEYS: &[&str] = &[
     "doc",
     "selection",
     "zoom",
+    "levels",
     "folded",
 ];
 const SELECTION_KEYS: &[&str] = &["cell", "xs", "ys", "cursor"];
+const LEVEL_KEYS: &[&str] = &["cell", "x", "y", "selected"];
+
+/// `cell` and the cells above it in `doc`, nearest first.
+fn line_of(doc: &Document, cell: CellId) -> Vec<CellId> {
+    let mut line = Vec::new();
+    let mut at = doc.cell(cell);
+    // No cell is deeper than MAX_DEPTH, so this is the whole way up.
+    for _ in 0..=MAX_DEPTH {
+        let Some(cell) = at else { break };
+        line.push(cell.id());
+        at = cell.parent().and_then(|parent| doc.cell(parent));
+    }
+    line
+}
 
 impl ViewState {
-    /// An empty view state: nothing folded, no selection, not zoomed.
+    /// An empty view state: nothing folded, no selection, not zoomed, nothing remembered.
     pub fn new(doc: DocId) -> ViewState {
         ViewState {
             doc,
             folded: BTreeSet::new(),
             selection: None,
             zoom: None,
+            levels: Vec::new(),
             extra: Extra::new(),
-            minor: 0,
+            minor: VIEW_FORMAT_MINOR,
+            line: Vec::new(),
         }
+    }
+
+    /// The level to show: the cell whose grid fills the screen. That is the zoom cell if
+    /// it is in `doc` and has a grid; otherwise the nearest cell above it that has one
+    /// (above where it last was, if it is gone and this view state followed the document
+    /// until then); otherwise the root, which is the one level that may have no grid.
+    /// Always a cell of `doc`, so a view state that is out of date is never an error: the
+    /// screen opens further up. It changes nothing: `zoom` is as it was.
+    pub fn stage(&self, doc: &Document) -> CellId {
+        let known = |id: &CellId| doc.cell(*id).is_some();
+        let at = self
+            .zoom
+            .filter(known)
+            .or_else(|| match self.line.split_first() {
+                Some((first, above)) if Some(*first) == self.zoom => {
+                    above.iter().copied().find(known)
+                }
+                _ => None,
+            });
+        match at.and_then(|id| doc.cell(id)) {
+            Some(cell) if cell.grid().is_some() => cell.id(),
+            // One step is the whole way: a cell is in the grid of the cell above it.
+            Some(cell) => cell.parent().filter(known).unwrap_or_else(|| doc.root()),
+            None => doc.root(),
+        }
+    }
+
+    /// Makes `cell` the level that is shown. Like folding it is view state: not a command
+    /// and not in the undo history. Refused for a cell without a grid, except the root,
+    /// which is where a new document starts. The level that is left is not remembered by
+    /// this: call [`ViewState::remember`] with it first.
+    pub fn go(&mut self, doc: &Document, cell: CellId) -> Result<(), Error> {
+        match doc.cell(cell) {
+            None => Err(Error::NotFound(format!("cell {cell}"))),
+            Some(c) if c.grid().is_none() && cell != doc.root() => {
+                Err(Error::Refused(format!("cell {cell} has no grid to show")))
+            }
+            Some(_) => {
+                self.zoom = (cell != doc.root()).then_some(cell);
+                self.line = self.zoom.map_or_else(Vec::new, |zoom| line_of(doc, zoom));
+                Ok(())
+            }
+        }
+    }
+
+    /// Remembers `level` in place of what was remembered of its cell before, as the one
+    /// remembered last. When there are more than [`MAX_LEVELS`], those remembered longest
+    /// ago are forgotten. Refused for a cell without a grid; a position beyond the grid
+    /// becomes its last column or row.
+    pub fn remember(&mut self, doc: &Document, mut level: Level) -> Result<(), Error> {
+        let Some(cell) = doc.cell(level.cell) else {
+            return Err(Error::NotFound(format!("cell {}", level.cell)));
+        };
+        let Some(grid) = cell.grid() else {
+            return Err(Error::Refused(format!(
+                "cell {} has no grid to remember",
+                level.cell
+            )));
+        };
+        if let Some(selected) = level.selected.filter(|id| doc.cell(*id).is_none()) {
+            return Err(Error::NotFound(format!("cell {selected}")));
+        }
+        level.x = level.x.min(grid.xs().saturating_sub(1));
+        level.y = level.y.min(grid.ys().saturating_sub(1));
+        self.levels.retain(|l| l.cell != level.cell);
+        self.levels.push(level);
+        let over = self.levels.len().saturating_sub(MAX_LEVELS);
+        self.levels.drain(..over);
+        Ok(())
+    }
+
+    /// What is remembered of the level `cell`, if anything.
+    pub fn level(&self, cell: CellId) -> Option<&Level> {
+        self.levels.iter().find(|l| l.cell == cell)
+    }
+
+    /// Brings the levels and the zoom in line with `doc` as it is now. What a level
+    /// remembers goes when its cell is gone or has no grid (as a fold does); its selected
+    /// cell is forgotten when that is gone; its position is kept inside the grid. A zoom
+    /// cell that is gone gives way to the level that [`ViewState::stage`] shows instead.
+    /// The cost is bounded by [`MAX_LEVELS`], whatever the size of the document. Returns
+    /// whether anything that is written to the file changed.
+    fn settle(&mut self, doc: &Document) -> bool {
+        let mut changed = false;
+        self.levels.retain_mut(|level| {
+            let Some(grid) = doc.cell(level.cell).and_then(|cell| cell.grid()) else {
+                changed = true;
+                return false;
+            };
+            let kept = (
+                level.x.min(grid.xs().saturating_sub(1)),
+                level.y.min(grid.ys().saturating_sub(1)),
+                level.selected.filter(|id| doc.cell(*id).is_some()),
+            );
+            changed |= kept != (level.x, level.y, level.selected);
+            (level.x, level.y, level.selected) = kept;
+            true
+        });
+        if self.zoom.is_some_and(|zoom| doc.cell(zoom).is_none()) {
+            let stage = self.stage(doc);
+            self.zoom = (stage != doc.root()).then_some(stage);
+            changed = true;
+        }
+        self.line = self.zoom.map_or_else(Vec::new, |zoom| line_of(doc, zoom));
+        changed
     }
 
     /// After cells moved from the document of `source` into this one's, keeping their IDs
@@ -105,7 +303,10 @@ impl ViewState {
         count
     }
 
-    /// Forgets everything that refers to a cell that is not in `doc`.
+    /// Forgets everything that refers to a cell that is not in `doc`, and what is
+    /// remembered of a level that has no grid any more. A zoom cell that is not in `doc`
+    /// gives way as [`ViewState::stage`] says: to the root, unless this view state
+    /// followed the document until the cell went.
     pub fn retain_existing(&mut self, doc: &Document) {
         self.folded.retain(|id| doc.cell(*id).is_some());
         if self
@@ -115,9 +316,7 @@ impl ViewState {
         {
             self.selection = None;
         }
-        if self.zoom.is_some_and(|id| doc.cell(id).is_none()) {
-            self.zoom = None;
-        }
+        self.settle(doc);
     }
 
     /// Folds or unfolds the grid of `cell`. Folding is view state, not content (decision
@@ -146,29 +345,37 @@ impl ViewState {
 
     /// Keeps the view state in step with the document after a command, an undo or a redo:
     /// call it with the document as it is now and the [`Changes`] that were returned.
-    /// Whatever refers to a removed cell is dropped (fold, selection, zoom), and so is the
-    /// fold of a cell that lost its grid. Nothing is restored when an undo brings such a
-    /// cell or grid back: it returns unfolded (decision A38). The cost depends on the size
-    /// of the change, not of the document.
-    pub fn apply_changes(&mut self, doc: &Document, changes: &Changes) {
+    /// Whatever refers to a removed cell is dropped (fold, selection, what a level
+    /// remembers, the cell selected in a level), and so are the fold and what is remembered
+    /// of a cell that lost its grid. When the zoom cell is removed, the zoom moves to the
+    /// nearest cell that was above it, still exists and has a grid, so that the screen
+    /// goes up as few levels as it must; a zoom cell that only lost its grid stays, and
+    /// [`ViewState::stage`] shows the level above it for as long as that lasts. Nothing is
+    /// restored when an undo brings a cell or grid back: it returns unfolded, with nothing
+    /// remembered, and the zoom stays where it went (decision A38). The cost depends on
+    /// the size of the change and on [`MAX_LEVELS`], not on the size of the document.
+    /// Returns whether the view state is another one now, so that whoever keeps its file
+    /// knows when to write it.
+    pub fn apply_changes(&mut self, doc: &Document, changes: &Changes) -> bool {
+        let mut changed = false;
         for id in &changes.removed {
-            self.folded.remove(id);
+            changed |= self.folded.remove(id);
             if self.selection.as_ref().is_some_and(|s| s.cell == *id) {
                 self.selection = None;
-            }
-            if self.zoom == Some(*id) {
-                self.zoom = None;
+                changed = true;
             }
         }
         for id in &changes.grids {
             if doc.cell(*id).is_none_or(|c| c.grid().is_none()) {
-                self.folded.remove(id);
+                changed |= self.folded.remove(id);
             }
         }
+        // In this order: the levels are settled whatever happened to the folds.
+        self.settle(doc) || changed
     }
 
     /// The view state of the copy of the document that [`Document::with_fresh_ids`] made:
-    /// the same folds, selection and zoom, on the copy's cells.
+    /// the same folds, selection, zoom and levels, on the copy's cells.
     pub fn with_fresh_ids(&self, fresh: &FreshIds) -> ViewState {
         ViewState {
             doc: fresh.to,
@@ -180,8 +387,20 @@ impl ViewState {
                 })
             }),
             zoom: self.zoom.and_then(|cell| fresh.cell(cell)),
+            levels: self
+                .levels
+                .iter()
+                .filter_map(|level| {
+                    Some(Level {
+                        cell: fresh.cell(level.cell)?,
+                        selected: level.selected.and_then(|cell| fresh.cell(cell)),
+                        ..level.clone()
+                    })
+                })
+                .collect(),
             extra: self.extra.clone(),
             minor: self.minor,
+            line: self.line.iter().filter_map(|c| fresh.cell(*c)).collect(),
         }
     }
 
@@ -196,6 +415,16 @@ impl ViewState {
         }
         if self.folded.len() > MAX_CELLS {
             return Err(Error::Limit(format!("more than {MAX_CELLS} folded cells")));
+        }
+        if self.levels.len() > MAX_LEVELS {
+            return Err(Error::Limit(format!("more than {MAX_LEVELS} levels")));
+        }
+        let mut cells = BTreeSet::new();
+        for level in &self.levels {
+            check_extra(&level.extra, LEVEL_KEYS, "a level")?;
+            if !cells.insert(level.cell) {
+                return invalid(format!("the level {} is there twice", level.cell));
+            }
         }
         Ok(())
     }
@@ -228,6 +457,26 @@ impl ViewState {
         if let Some(zoom) = self.zoom {
             out.push_str(&format!(",\n\"zoom\": \"{zoom}\""));
         }
+        if !self.levels.is_empty() {
+            out.push_str(",\n\"levels\": [");
+            for (i, level) in self.levels.iter().enumerate() {
+                out.push_str(if i == 0 { "\n {" } else { ",\n {" });
+                let mut f = Fields::new(&mut out);
+                f.quoted("cell", level.cell);
+                if level.x != 0 {
+                    f.display("x", level.x);
+                }
+                if level.y != 0 {
+                    f.display("y", level.y);
+                }
+                if let Some(selected) = level.selected {
+                    f.quoted("selected", selected);
+                }
+                f.extra(&level.extra)?;
+                out.push('}');
+            }
+            out.push_str("\n]");
+        }
         for (key, value) in &self.extra {
             out.push_str(",\n");
             crate::json::write_string(&mut out, key);
@@ -256,7 +505,9 @@ impl ViewState {
             return invalid("the view state has no \"doc\"");
         };
         let mut view = ViewState::new(doc);
-        view.minor = minor;
+        // The number that will be written, so that a file of an older version, once read,
+        // is the same view state as one made here.
+        view.minor = crate::json::minor_to_write(minor, VIEW_FORMAT_MINOR);
         if let Some(value) = map.remove("selection") {
             let place = "the selection";
             let mut sel = into_object(value, place)?;
@@ -287,6 +538,23 @@ impl ViewState {
             });
         }
         view.zoom = take_id(&mut map, "zoom", place)?.map(CellId);
+        if let Some(levels) = take_array(&mut map, "levels", place)? {
+            // How many there may be, and none twice, is checked with the rest at the end.
+            let place = "a level";
+            for value in levels {
+                let mut level = into_object(value, place)?;
+                let Some(cell) = take_id(&mut level, "cell", place)?.map(CellId) else {
+                    return invalid("a level needs \"cell\"");
+                };
+                view.levels.push(Level {
+                    cell,
+                    x: take_u32(&mut level, "x", place)?.unwrap_or(0),
+                    y: take_u32(&mut level, "y", place)?.unwrap_or(0),
+                    selected: take_id(&mut level, "selected", place)?.map(CellId),
+                    extra: into_extra(level),
+                });
+            }
+        }
         if let Some(folded) = take_array(&mut map, "folded", place)? {
             if folded.len() > MAX_CELLS {
                 return Err(Error::Limit(format!("more than {MAX_CELLS} folded cells")));
@@ -396,7 +664,7 @@ mod tests {
         let back = ViewState::from_json(text.as_bytes()).unwrap();
         assert_eq!(back, view);
         assert_eq!(back.to_json().unwrap(), text);
-        assert!(text.starts_with("{\n\"format\": \"wombat-view\", \"version\": 1, \"minor\": 0, "));
+        assert!(text.starts_with("{\n\"format\": \"wombat-view\", \"version\": 1, \"minor\": 1, "));
     }
 
     #[test]
@@ -405,7 +673,7 @@ mod tests {
         let text = view.to_json().unwrap();
         assert_eq!(
             text,
-            "{\n\"format\": \"wombat-view\", \"version\": 1, \"minor\": 0, \
+            "{\n\"format\": \"wombat-view\", \"version\": 1, \"minor\": 1, \
              \"doc\": \"00000000-0000-0000-0000-000000000001\"\n}\n"
         );
         assert_eq!(ViewState::from_json(text.as_bytes()).unwrap(), view);

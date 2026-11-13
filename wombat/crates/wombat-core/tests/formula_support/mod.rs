@@ -23,7 +23,8 @@ pub fn kind(number: &Value) -> CellKind {
 
 fn fill(doc: &mut Document, id: CellId, spec: &Value, ids: &mut SeededIds) {
     let cell = doc.cell_mut(id).unwrap();
-    // Control characters become spaces, as in TreeSheets.
+    // What a cell can hold (a line break stays; no case that is compared with the real
+    // TreeSheets, which would make a space of it, has one).
     cell.text = wombat_core::text::clean(spec[0].as_str().unwrap());
     cell.kind = kind(&spec[1]);
     if let Some(cells) = spec.get(4) {
@@ -101,4 +102,23 @@ pub fn shown(editor: &Editor) -> Vec<String> {
         .iter()
         .map(|id| editor.shown(*id).unwrap().to_string())
         .collect()
+}
+
+/// The most memory this process has held at once, in megabytes (Linux only). It is the
+/// peak of the whole process: of every test of the file that has run or is running, not
+/// of the test that asks.
+pub fn peak_mb() -> Option<u64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let line = status.lines().find(|l| l.starts_with("VmHWM:"))?;
+    let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kb / 1024)
+}
+
+/// How many times slower a build for debugging may be.
+pub fn slow() -> u32 {
+    if cfg!(debug_assertions) {
+        10
+    } else {
+        1
+    }
 }
