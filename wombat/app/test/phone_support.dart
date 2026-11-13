@@ -143,12 +143,15 @@ Widget phoneApp(
   ValueNotifier<Variants>? variants,
   ProtoLog? log,
   double textScale = 1,
+  bool disableAnimations = false,
   Future<Directory> Function()? exportFolder,
   List<PopupMenuEntry<VoidCallback>> menu = const [],
 }) => MaterialApp(
   builder: (context, child) => MediaQuery(
-    data: MediaQuery.of(context)
-        .copyWith(textScaler: TextScaler.linear(textScale)),
+    data: MediaQuery.of(context).copyWith(
+      textScaler: TextScaler.linear(textScale),
+      disableAnimations: disableAnimations,
+    ),
     child: child!,
   ),
   home: Kept(

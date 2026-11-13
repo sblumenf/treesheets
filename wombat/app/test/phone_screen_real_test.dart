@@ -447,6 +447,23 @@ void main() {
       await tap(tester, 'undo', () => shown(tester, '0-2') == 'Total');
     });
 
+    realTest(
+      'the screen goes while Return in the last row enters the text: the '
+      'text is kept, and no row is added behind it',
+      (tester, keeper, doc, watch) async {
+        await edit(tester, '0-2', 'Total');
+        type(tester, 'Sum');
+        final gate = holdFirst(watch, 'retype');
+        await pressReturn(tester);
+        await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+        gate.complete();
+        await real(tester, keeper.save);
+        final all = await texts(tester, keeper, keeper.root);
+        expect((all.length, all[4]), (6, 'Sum'));
+        expect(keeper.editing, isNull);
+      },
+    );
+
     realTest('→ in the last column adds a column', (
       tester,
       keeper,
@@ -508,6 +525,26 @@ void main() {
         '=SUM(Costs)',
       ]);
     });
+
+    realTest(
+      'a first column that takes most of the width is not kept in view',
+      (tester, keeper, doc, watch) async {
+        // Five times as wide as usual: as wide as the screen has room.
+        await real(
+          tester,
+          () => keeper.apply(
+            Command.setColumnWidth(cell: keeper.root, column: 0, width: 400),
+          ),
+        );
+        await until(tester, () => tester.getSize(key('cell-0-0')).width > 300);
+        expect(tester.getSize(key('cell-0-0')).width, phone.width - 48);
+        await tester.drag(key('stage-across'), const Offset(-200, 0));
+        await tester.pumpAndSettle();
+        // It went sideways with the rest.
+        expect(tester.getTopLeft(key('cell-0-0')).dx, lessThan(-100));
+        expect(tester.getTopLeft(key('cell-0-1')).dx, lessThan(-100));
+      },
+    );
 
     realTest('the bars after the last row and the last column', (
       tester,
@@ -602,6 +639,28 @@ void main() {
     );
 
     realTest(
+      'a grid that is unfolded and then grows by a redo stays cell by cell',
+      (tester, keeper, doc, watch) async {
+        // 24 cells, with a ninth row made and undone behind the screen.
+        final owner = await idAt(tester, keeper, keeper.root, 0);
+        await real(tester, () async {
+          await keeper.apply(Command.insertRows(cell: owner, at: 4, count: 4));
+          await keeper.apply(Command.insertRows(cell: owner, at: 8, count: 1));
+          await keeper.undo();
+        });
+        await tester.pump();
+        await press(tester, 'child-0-0');
+        await until(tester, () => there('full-0-0'));
+        expect(key('cell-0-0/0-8'), findsNothing);
+        // The redo makes it larger than the read was asked to give.
+        await tap(tester, 'redo', () => there('cell-0-0/0-8'));
+        expect(key('full-0-0'), findsOneWidget);
+      },
+      open: nestedWide,
+      variants: const Variants(tapChildUnfolds: true),
+    );
+
+    realTest(
       'a row added to a Full grid that then has too many cells for that: the '
       'editor closes, nothing is lost',
       (tester, keeper, doc, watch) async {
@@ -625,35 +684,41 @@ void main() {
       open: nested,
     );
 
-    realTest(
-      'a document that starts empty: the first cell, and on from there',
-      (tester, keeper, doc, watch) async {
-        expect(key('empty-root'), findsOneWidget);
-        expect(line(tester, 'title'), 'Wombat');
-        await tap(tester, 'first-cell', () => there('editor'));
-        expect(key('empty-root'), findsNothing);
-        expect(editor(tester), '');
-        type(tester, 'the first');
-        await pressReturn(tester);
-        await until(tester, () => there('cell-0-1') && editor(tester) == '');
-        type(tester, 'the second');
-        await closed(tester, 'save');
-        expect(await texts(tester, keeper, keeper.root), [
-          'the first',
-          'the second',
-        ]);
-        // A root of one cell again, and then of none: the grid goes with its
-        // last undo, and the screen says the document is empty.
-        await tap(tester, 'undo', () => shown(tester, '0-1') == '');
-        await tap(tester, 'undo', () => !there('cell-0-1'));
-        expect(shown(tester, '0-0'), 'the first');
-        expect(key('add-row'), findsOneWidget);
-        await tap(tester, 'undo', () => shown(tester, '0-0') == '');
-        await tap(tester, 'undo', () => there('empty-root'));
-        await tap(tester, 'redo', () => there('cell-0-0'));
-      },
-      open: empty,
-    );
+    realTest('a document that starts empty: the first cell, and on from there', (
+      tester,
+      keeper,
+      doc,
+      watch,
+    ) async {
+      expect(key('empty-root'), findsOneWidget);
+      expect(line(tester, 'title'), 'Wombat');
+      // Two taps in a row make one cell, and nothing is said about the second.
+      await tester.tap(key('first-cell'));
+      await tap(tester, 'first-cell', () => there('editor'));
+      expect(line(tester, 'message'), isNull);
+      expect(key('cell-1-0'), findsNothing);
+      expect(key('cell-0-1'), findsNothing);
+      expect(key('empty-root'), findsNothing);
+      expect(editor(tester), '');
+      type(tester, 'the first');
+      await pressReturn(tester);
+      await until(tester, () => there('cell-0-1') && editor(tester) == '');
+      type(tester, 'the second');
+      await closed(tester, 'save');
+      expect(await texts(tester, keeper, keeper.root), [
+        'the first',
+        'the second',
+      ]);
+      // A root of one cell again, and then of none: the grid goes with its
+      // last undo, and the screen says the document is empty.
+      await tap(tester, 'undo', () => shown(tester, '0-1') == '');
+      await tap(tester, 'undo', () => !there('cell-0-1'));
+      expect(shown(tester, '0-0'), 'the first');
+      expect(key('add-row'), findsOneWidget);
+      await tap(tester, 'undo', () => shown(tester, '0-0') == '');
+      await tap(tester, 'undo', () => there('empty-root'));
+      await tap(tester, 'redo', () => there('cell-0-0'));
+    }, open: empty);
   });
 
   group('styles', () {
@@ -849,8 +914,13 @@ void main() {
       await edit(tester, '1-0', 'what to buy');
       await press(tester, 'tool-styles');
       await link('https://example.org/other', ok: false);
-      expect(keeper.editing!.held, isFalse);
+      // The tick after it: the link that was there is there, and no other.
+      await closed(tester, 'save');
+      look = await cell(tester, keeper, 1);
+      expect([for (final link in look.links) (link.start, link.len)], [(8, 3)]);
       // Without a selection, the whole text; with nothing typed, removed.
+      await edit(tester, '1-0', 'what to buy');
+      await press(tester, 'tool-styles');
       await link('');
       await until(tester, () => keeper.editing?.held ?? false);
       await closed(tester, 'save');

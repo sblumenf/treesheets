@@ -225,12 +225,11 @@ class _PhoneScreenState extends State<PhoneScreen> {
   void _changed(StageChange change) {
     if (!mounted) return;
     setState(() {
-      final stage = _reader!.stage;
+      // (A selected cell that went with a change stays named here and is
+      // found nowhere: nothing is drawn selected, and the bars have no cell.)
       if (change.everything) {
         _cameUp = false;
-        _arrived(stage);
-      } else if (_selected != null && stage.look(_selected!) == null) {
-        _selected = null;
+        _arrived(_reader!.stage);
       }
     });
   }
@@ -358,7 +357,8 @@ class _PhoneScreenState extends State<PhoneScreen> {
       _editor.set(editing.start.text);
     });
     _editor.focus();
-    _note();
+    // (The grid tells where it is, and with that which cell is selected, when
+    // it has scrolled the edited cell into view.)
     _log('edit', _where(id));
     return true;
   }
@@ -722,8 +722,8 @@ class _PhoneScreenState extends State<PhoneScreen> {
       context: context,
       builder: (context) => const _LinkDialog(),
     );
+    // (The field has the keyboard again when the dialog has gone.)
     if (!mounted || target == null) return;
-    _editor.focus();
     _style('link', selected: selection, (held, start, end) {
       final whole = start == end;
       final from = whole ? 0 : start;

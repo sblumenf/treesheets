@@ -14,6 +14,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge.dart'
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wombat_app/keeper.dart';
 import 'package:wombat_app/phone/log.dart';
+import 'package:wombat_app/phone/phone_screen.dart';
 
 import 'package:wombat_app/phone/variants.dart';
 import 'package:wombat_app/session.dart';
@@ -200,6 +201,15 @@ void main() {
       },
     );
 
+    screenTest('a title that is longer than is read says so', (
+      tester,
+      keeper,
+      fake,
+    ) async {
+      expect(line(tester, 'title'), '${'long ' * 8}…');
+      expect(find.text('${'long ' * 8}…'), findsNWidgets(2));
+    }, before: (fake) => fake.cells['root']!.text = 'long ' * 20);
+
     screenTest('the trail: the level one is at cannot be pressed', (
       tester,
       keeper,
@@ -261,6 +271,7 @@ void main() {
       },
     );
 
+    final refused = ProtoLog();
     screenTest(
       'a root of one cell',
       (tester, keeper, fake) async {
@@ -280,10 +291,21 @@ void main() {
           line(tester, 'message'),
           'Error (refused): the stand-in does not know this command',
         );
+        // The same for the bar after the last row; and what was not added is
+        // not in the log as added.
+        await press(tester, 'add-row');
+        expect(
+          line(tester, 'message'),
+          'Error (refused): the stand-in does not know this command',
+        );
+        expect(key('editor'), findsNothing);
+        expect(refused.text, isNot(contains('add-')));
+        expect(refused.lines.length, 2);
       },
       before: (fake) => fake.cells['root']!
         ..xs = 1
         ..cells = ['a'],
+      log: refused,
     );
 
     screenTest(
@@ -385,6 +407,24 @@ void main() {
         ..cells = ['e', 'f'],
       textScale: 2,
     );
+
+    for (final (scale, height) in [(1.0, 48.0), (1.3, 62.4), (2.0, 76.8)]) {
+      screenTest(
+        'the bars of buttons are taller for larger text, up to a point: $scale',
+        (tester, keeper, fake) async {
+          double bar(String button) => tester
+              .getSize(
+                find
+                    .ancestor(of: key(button), matching: find.byType(SizedBox))
+                    .first,
+              )
+              .height;
+          expect(bar('up'), closeTo(height, 0.01));
+          expect(bar('bar-edit'), closeTo(height, 0.01));
+        },
+        textScale: scale,
+      );
+    }
 
     screenTest(
       'the same grid at the usual size of text is Full',
@@ -1096,7 +1136,74 @@ void main() {
       await tester.pump();
       expect(line(tester, 'title'), 'Root');
       expect(calls(fake, 'viewGo'), went + 1);
+      // The same for the name of the level in the trail.
+      await arrive(tester);
+      await dive(tester);
+      await tester.tap(key('trail-0'));
+      await tester.tap(key('trail-0'), warnIfMissed: false);
+      await tester.pump();
+      await tester.pump();
+      expect(line(tester, 'title'), 'Root');
+      expect(calls(fake, 'viewGo'), went + 3);
     }, before: bigChild);
+  });
+
+  group('how a level arrives', () {
+    double opacity(WidgetTester tester) => tester
+        .widget<Opacity>(
+          find
+              .ancestor(of: key('stage-across'), matching: find.byType(Opacity))
+              .first,
+        )
+        .opacity;
+
+    double scale(WidgetTester tester) => tester
+        .widget<Transform>(
+          find
+              .ancestor(
+                of: key('stage-across'),
+                matching: find.byType(Transform),
+              )
+              .first,
+        )
+        .transform
+        .storage[0];
+
+    screenTest(
+      'growing into place after a dive, shrinking into place after a way up',
+      (tester, keeper, fake) async {
+        await press(tester, 'child-0-1');
+        expect(opacity(tester), closeTo(0.3, 0.01));
+        expect(scale(tester), closeTo(0.88, 0.001));
+        await tester.pump(const Duration(milliseconds: 150));
+        expect(scale(tester), inExclusiveRange(0.88, 1));
+        await tester.pump(const Duration(milliseconds: 150));
+        expect((opacity(tester), scale(tester)), (1, 1));
+        await press(tester, 'up');
+        await tester.pump();
+        expect(scale(tester), closeTo(1.12, 0.001));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect((opacity(tester), scale(tester)), (1, 1));
+      },
+      before: bigChild,
+    );
+
+    testWidgets('at once where the system asks for no animations', (
+      tester,
+    ) async {
+      screenSize(tester, phone);
+      final fake = FakeDocument();
+      bigChild(fake);
+      final keeper = Keeper(await Session.over(fake));
+      await tester.pumpWidget(phoneApp(keeper, disableAnimations: true));
+      await tester.pump();
+      await tester.pump();
+      await press(tester, 'child-0-1');
+      await tester.pump();
+      expect(line(tester, 'title'), 'three');
+      expect((opacity(tester), scale(tester)), (1, 1));
+      await endKeeping(keeper);
+    });
   });
 
   group('each level remembers where it was', () {
@@ -2455,6 +2562,52 @@ void main() {
       expect(fake.log.contains('beginGroup'), isFalse);
     });
 
+    screenTest(
+      'the cross on an editing that something else ended just closes',
+      (tester, keeper, fake) async {
+        await press(tester, 'cell-0-0');
+        type(tester, 'not this');
+        await enterBehind(keeper, 'd', 'theirs');
+        await tester.pump();
+        await press(tester, 'cancel');
+        expect(key('editor'), findsNothing);
+        expect(line(tester, 'message'), isNull);
+        expect(
+          (fake.cells['a']!.text, fake.cells['d']!.text),
+          ('one', 'theirs'),
+        );
+      },
+    );
+
+    screenTest(
+      'a style asked for behind the tick finds no editor, and says nothing',
+      (tester, keeper, fake) async {
+        await press(tester, 'cell-0-0');
+        await press(tester, 'tool-styles');
+        type(tester, 'typed');
+        // (Each tap takes away what the one before it had to say, so each of the
+        // two is looked at.)
+        await tester.tap(key('save'));
+        await tester.tap(key('tool-break'));
+        await tester.tap(key('style-bold'));
+        await tester.pump();
+        await tester.pump();
+        expect(key('editor'), findsNothing);
+        expect(line(tester, 'message'), isNull);
+        await press(tester, 'cell-0-0');
+        await press(tester, 'tool-styles');
+        await tester.tap(key('save'));
+        await tester.tap(key('style-tag'));
+        await tester.pump();
+        await tester.pump();
+        expect(key('editor'), findsNothing);
+        expect(line(tester, 'message'), isNull);
+        expect(fake.cells['a']!.text, 'typed');
+        // One group for each of the two ticks, none for a style.
+        expect(calls(fake, 'beginGroup'), 2);
+      },
+    );
+
     screenTest('an editing that something else ended gives way to a new one', (
       tester,
       keeper,
@@ -2506,21 +2659,27 @@ void main() {
       (tester, keeper, fake) async {
         await press(tester, 'cell-0-0');
         type(tester, 'typed');
-        // The tick is at work when the app is put away: the screen's answer to
-        // that comes after it, and finds no editor left.
-        final gate = holdFirst(fake, 'retype');
-        await tester.tap(key('save'));
-        await tester.pump();
+        // Return has entered the text and is opening the editor on the cell
+        // below when the app is put away: the screen's answer to that comes
+        // after the action, and is about the cell the editor is on then.
+        final gate = holdFirst(fake, 'cell');
+        fake.log.clear();
+        await pressReturn(tester);
+        expect(fake.log.last, 'cell');
         final away = keeper.putAway();
         await tester.pump();
         gate.complete();
         expect(await away, isEmpty);
         await tester.pump();
-        expect(key('editor'), findsNothing);
+        expect(editor(tester), 'three');
         expect(line(tester, 'message'), isNull);
         expect(fake.cells['a']!.text, 'typed');
-        expect(calls(fake, 'beginGroup'), 1);
-        expect((fake.saves, fake.saved), (1, true));
+        // One group for the entering, one for holding the text of the cell the
+        // editor moved to; none for the cell it left.
+        expect(calls(fake, 'beginGroup'), 2);
+        expect(keeper.editing!.cell, 'c');
+        await press(tester, 'cancel');
+        expect(fake.cells['c']!.text, 'three');
       },
     );
 
@@ -2799,6 +2958,39 @@ void main() {
         expect(fake.log.length, before);
       },
     );
+
+    testWidgets('after a fault, back from a screen that is not the first one', (
+      tester,
+    ) async {
+      final fake = FakeDocument();
+      final keeper = Keeper(await Session.over(fake));
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(navigatorKey: navigator, home: const Text('below')),
+      );
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => PhoneScreen(
+            keeper: keeper,
+            variants: ValueNotifier(const Variants()),
+            log: ProtoLog(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await (await keeper.edit('a')).enter('typed');
+      await tester.pump();
+      failFirst(fake, 'undo', PanicException('at /home/builder/core.rs'));
+      await press(tester, 'undo');
+      expect(key('ended'), findsOneWidget);
+      // The system takes the screen away, and that is all: the screen does not
+      // go on to leave the app as from its root.
+      final left = await back(tester);
+      await tester.pumpAndSettle();
+      expect(find.byType(PhoneScreen), findsNothing);
+      expect(find.text('below'), findsOneWidget);
+      expect(left, isEmpty);
+    });
 
     testWidgets(
       'a root that cannot be read is said, and nothing is left behind',

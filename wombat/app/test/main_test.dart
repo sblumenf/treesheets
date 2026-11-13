@@ -847,14 +847,14 @@ void main() {
       await tester.tap(key('menu'));
       await tester.pumpAndSettle();
       await tester.tap(key('document-$name'));
-      await until(
-        tester,
-        () =>
-            key('opening').evaluate().isEmpty &&
+      await until(tester, () {
+        // The screen of the document that is closed is not shown closing.
+        expect(key('ended'), findsNothing);
+        return key('opening').evaluate().isEmpty &&
             key('reading').evaluate().isEmpty &&
             line(tester, 'title') == title &&
-            line(tester, 'state') == 'Saved',
-      );
+            line(tester, 'state') == 'Saved';
+      });
       await tester.pumpAndSettle();
     }
 
@@ -957,9 +957,18 @@ void main() {
         names(folder),
         containsAll(['depth-forms.wombat', 'empty.wombat', 'example.wombat']),
       );
-      // Made once: the next time it is the file as it was left.
+      // Nothing half made is left beside them.
+      expect(names(folder).where((name) => name.endsWith('.part')), isEmpty);
+      // Made once: the next time it is the file as it was left, and the screen
+      // is where it was when the other document was shown.
       final made = File('${folder.path}/depth-forms.wombat').lastModifiedSync();
       await show(tester, 'forms', 'Depth forms');
+      expect(key('cell-0-1'), findsNothing);
+      expect(key('shape-1-2/0-0'), findsOneWidget);
+      // Its formula was made as one.
+      final forms = keeperOf(tester);
+      final cells = (await real(tester, () => forms.grid(forms.root))).cells;
+      expect((cells[17].text, cells[17].result), ('=1+2', '3'));
       expect(
         File('${folder.path}/depth-forms.wombat').lastModifiedSync(),
         made,
@@ -1075,6 +1084,29 @@ void main() {
       // document is shown.
       await show(tester, 'forms', 'Depth forms');
       expect(key('stage-first-row'), findsNothing);
+      await end(tester);
+    });
+
+    testWidgets('the log of earlier runs is there at the next start', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(400, 800);
+      addTearDown(tester.view.reset);
+      final folder = Directory('${root.path}/phone-${count++}')..createSync();
+      File('${folder.path}/$logName').writeAsStringSync('{"what":"before"}\n');
+      await tester.pumpWidget(WombatApp(folder: folder));
+      await until(tester, () => key('stage-across').evaluate().isNotEmpty);
+      await tester.tap(key('menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('menu-settings'));
+      await tester.pumpAndSettle();
+      await until(
+        tester,
+        () => line(tester, 'log-count') == 'Prototype log: 1 entries',
+      );
+      await tester.tap(key('settings-close'));
+      await tester.pumpAndSettle();
       await end(tester);
     });
 

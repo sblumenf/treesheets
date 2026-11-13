@@ -434,12 +434,12 @@ void main() {
       final formula = look(
         '=1+2+3',
         runs: [const RunInfo(start: 0, len: 2, style: bold)],
-      ).copyWith(result: '6');
+      ).copyWith(result: '123456');
       await tester.pumpWidget(MaterialApp(home: CellText(look: formula)));
       final text = tester.widget<Text>(find.byType(Text));
       final spans = (text.textSpan! as TextSpan).children!;
       expect(spans.length, 1);
-      expect((spans.single as TextSpan).text, '6');
+      expect((spans.single as TextSpan).text, '123456');
       expect((spans.single as TextSpan).style, isNull);
     });
 
