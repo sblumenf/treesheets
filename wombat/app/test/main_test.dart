@@ -1004,6 +1004,43 @@ void main() {
       await end(tester);
     });
 
+    // The fifth review, finding 5: the second choice waited for the same document
+    // to be put away as the first, both then opened the one chosen last, and one
+    // of them was refused ("open already") while the other was shown to nobody.
+    testWidgets('two test documents chosen one right after the other: the '
+        'second is shown, after the first', (tester) async {
+      final folder = await startedPhone(tester);
+      // The menu's animations run on the clock of the test; the core does not
+      // answer until real time passes, so the example is still being put away.
+      await tester.tap(key('menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('document-forms'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('document-empty'));
+      await tester.pumpAndSettle();
+      await until(
+        tester,
+        () =>
+            key('opening').evaluate().isEmpty &&
+            (key('empty-root').evaluate().isNotEmpty ||
+                key('start-error').evaluate().isNotEmpty),
+      );
+      expect(line(tester, 'start-error'), isNull);
+      expect(key('empty-root'), findsOneWidget);
+      expect(keeperOf(tester).path, '${folder.path}/empty.wombat');
+      // Nothing is left open: each of the three can be opened again.
+      await end(tester);
+      for (final name in ['example', 'depth-forms', 'empty']) {
+        final doc = await real(
+          tester,
+          () => Session.open('${folder.path}/$name.wombat'),
+        );
+        await real(tester, doc.close);
+      }
+    });
+
     testWidgets(
       'a test document that cannot be opened: said, with the way back '
       'to the example',

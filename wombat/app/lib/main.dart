@@ -228,9 +228,17 @@ class _StartScreenState extends State<StartScreen> {
     _opening = opening;
   });
 
+  /// The last document asked for with [_show], shown or on its way.
+  Future<void> _shown = Future.value();
+
   /// Shows another test document: the one that is open is closed first, with
-  /// what is being typed on its screen entered, and saved.
-  Future<void> _show(TestDocument which, AssetBundle assets) async {
+  /// what is being typed on its screen entered, and saved. One after the other:
+  /// a second one asked for meanwhile waits until the first is open, and then
+  /// closes that, so that no document is opened twice or left open unseen.
+  void _show(TestDocument which, AssetBundle assets) =>
+      _shown = _shown.then((_) => _showNext(which, assets));
+
+  Future<void> _showNext(TestDocument which, AssetBundle assets) async {
     Keeper? open;
     try {
       // While its screen is still there: what is typed on it goes into the
