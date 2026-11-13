@@ -10,6 +10,7 @@
 mod support;
 
 use proptest::prelude::*;
+use std::collections::HashMap;
 use support::{act, op, run_sequence, run_walk, text_of, Op, CLUSTERS};
 use wombat_core::construct::Construct;
 use wombat_core::{CellId, Command, Document, Editor, SeededIds, Tag};
@@ -490,6 +491,163 @@ fn folded(text: &str) -> Vec<char> {
         .collect()
 }
 
+/// What sorting must do to the grid that `n[0]` picks in the document, by the column and
+/// the rows that the other numbers pick: the rule of the property below, apart from it so
+/// that a document found by it can be kept as a plain test.
+fn sorting_holds(doc: &Document, n: [u32; 4], descending: bool) -> Result<(), TestCaseError> {
+    let Some(cell) = grid_cell(doc, n[0]) else {
+        return Ok(());
+    };
+    let grid = doc.cell(cell).unwrap().grid().unwrap().clone();
+    let (xs, ys) = (grid.xs(), grid.ys());
+    let (column, row) = (n[1] % xs, n[2] % ys);
+    let count = 1 + n[3] % (ys - row);
+    let command = Command::SortRows {
+        cell,
+        column,
+        row,
+        count,
+        descending,
+    };
+    let mut ids = SeededIds::from_u64(1);
+    let mut editor = Editor::new(doc.clone()).unwrap();
+    // Rows are compared by what their cells show, which of a formula cell is its result
+    // and not its formula (decision A66), as it was before the rows moved.
+    let shown: HashMap<CellId, Vec<char>> = grid
+        .cells()
+        .iter()
+        .map(|c| (*c, folded(editor.shown(*c).unwrap())))
+        .collect();
+    editor.apply(command.clone(), None, &mut ids).unwrap();
+    let sorted = editor
+        .document()
+        .cell(cell)
+        .unwrap()
+        .grid()
+        .unwrap()
+        .clone();
+    let rows = |g: &wombat_core::Grid| -> Vec<Vec<CellId>> {
+        g.cells()
+            .chunks(xs as usize)
+            .map(<[CellId]>::to_vec)
+            .collect()
+    };
+    let (old, new) = (rows(&grid), rows(&sorted));
+    let (from, to) = (row as usize, (row + count) as usize);
+    // Outside the rows asked for nothing moved; inside, the same rows, each whole.
+    prop_assert_eq!((&old[..from], &old[to..]), (&new[..from], &new[to..]));
+    let mut was = old[from..to].to_vec();
+    let mut is = new[from..to].to_vec();
+    was.sort();
+    is.sort();
+    prop_assert_eq!(was, is);
+    // In order, and equal rows in the order they had.
+    let key = |r: &Vec<CellId>| -> Vec<&Vec<char>> {
+        (0..xs as usize)
+            .map(|k| &shown[&r[(k + column as usize) % xs as usize]])
+            .collect()
+    };
+    let place = |r: &Vec<CellId>| old.iter().position(|o| o == r).unwrap();
+    for pair in new[from..to].windows(2) {
+        let (a, b) = (key(&pair[0]), key(&pair[1]));
+        if a == b {
+            prop_assert!(
+                place(&pair[0]) < place(&pair[1]),
+                "equal rows changed order"
+            );
+        } else {
+            prop_assert_eq!(a < b, !descending, "rows out of order");
+        }
+    }
+    // Every other cell of the document is untouched, and a second sort has nothing to do.
+    let changes = editor.apply(command, None, &mut ids).unwrap();
+    prop_assert!(changes.is_empty());
+    let mut back = editor.into_document();
+    back.cell_mut(cell)
+        .unwrap()
+        .grid_mut()
+        .unwrap()
+        .clone_from(&grid);
+    prop_assert_eq!(&back, doc);
+    Ok(())
+}
+
+/// The document that the property of sorting failed on while it compared rows by the
+/// texts of their cells: one of the rows is a formula cell, which shows an error and not
+/// its formula, and stands where the error belongs.
+#[test]
+fn rows_with_a_formula_cell_are_sorted_by_what_it_shows() {
+    let cells = [
+        (vec![], 0, 0),
+        (vec![], 1, 1),
+        (vec![5], 1, 1),
+        (vec![], 0, 0),
+        (vec![13], 0, 0),
+        (vec![], 1, 2),
+        (vec![], 0, 0),
+    ];
+    let spec = Spec {
+        seed: 2757489961640721967,
+        cells: cells.to_vec(),
+        decorate: vec![Op {
+            kind: 7,
+            n: [548438684, 3677325475, 1843022565, 2305, 0],
+            clusters: vec![],
+            raw: false,
+            color: (0, 0, 0),
+        }],
+    };
+    let doc = document(&spec);
+    let n = [3838238772, 0, 157830374, 1706948911];
+    let cell = grid_cell(&doc, n[0]).unwrap();
+    let mut editor = Editor::new(doc.clone()).unwrap();
+    let texts = |editor: &Editor| -> Vec<(String, String)> {
+        let grid = editor.document().cell(cell).unwrap().grid().unwrap();
+        let both = |c: &CellId| {
+            let text = editor.document().cell(*c).unwrap().text.clone();
+            (text, editor.shown(*c).unwrap().to_string())
+        };
+        grid.cells().iter().map(both).collect()
+    };
+    let row = |text: &str, shown: &str| (text.to_string(), shown.to_string());
+    let syllable = "\u{1100}\u{1161}\u{11A8}";
+    assert_eq!(
+        texts(&editor),
+        [
+            row("", ""),
+            row("日", "#NAME?"),
+            row("", ""),
+            row(syllable, syllable)
+        ]
+    );
+    sorting_holds(&doc, n, false).unwrap();
+    sorting_holds(&doc, n, true).unwrap();
+    // Two rows that begin alike. By its formula the first would come last; by the error
+    // it shows it is first already, and last when descending.
+    let mut ids = SeededIds::from_u64(1);
+    let mut sort = |editor: &mut Editor, descending| {
+        let command = Command::SortRows {
+            cell,
+            column: 0,
+            row: 0,
+            count: 2,
+            descending,
+        };
+        editor.apply(command, None, &mut ids).unwrap()
+    };
+    assert!(sort(&mut editor, false).is_empty());
+    assert!(!sort(&mut editor, true).is_empty());
+    assert_eq!(
+        texts(&editor),
+        [
+            row("", ""),
+            row(syllable, syllable),
+            row("", ""),
+            row("日", "#NAME?")
+        ]
+    );
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(300))]
 
@@ -523,50 +681,7 @@ proptest! {
         n in any::<[u32; 4]>(),
         descending in any::<bool>(),
     ) {
-        let doc = document(&spec);
-        let Some(cell) = grid_cell(&doc, n[0]) else { return Ok(()); };
-        let grid = doc.cell(cell).unwrap().grid().unwrap().clone();
-        let (xs, ys) = (grid.xs(), grid.ys());
-        let (column, row) = (n[1] % xs, n[2] % ys);
-        let count = 1 + n[3] % (ys - row);
-        let command = Command::SortRows { cell, column, row, count, descending };
-        let mut ids = SeededIds::from_u64(1);
-        let mut editor = Editor::new(doc.clone()).unwrap();
-        editor.apply(command.clone(), None, &mut ids).unwrap();
-        let sorted = editor.document().cell(cell).unwrap().grid().unwrap().clone();
-        let rows = |g: &wombat_core::Grid| -> Vec<Vec<CellId>> {
-            g.cells().chunks(xs as usize).map(<[CellId]>::to_vec).collect()
-        };
-        let (old, new) = (rows(&grid), rows(&sorted));
-        let (from, to) = (row as usize, (row + count) as usize);
-        // Outside the rows asked for nothing moved; inside, the same rows, each whole.
-        prop_assert_eq!((&old[..from], &old[to..]), (&new[..from], &new[to..]));
-        let mut was = old[from..to].to_vec();
-        let mut is = new[from..to].to_vec();
-        was.sort();
-        is.sort();
-        prop_assert_eq!(was, is);
-        // In order, and equal rows in the order they had.
-        let key = |r: &Vec<CellId>| -> Vec<Vec<char>> {
-            (0..xs as usize)
-                .map(|k| folded(&doc.cell(r[(k + column as usize) % xs as usize]).unwrap().text))
-                .collect()
-        };
-        let place = |r: &Vec<CellId>| old.iter().position(|o| o == r).unwrap();
-        for pair in new[from..to].windows(2) {
-            let (a, b) = (key(&pair[0]), key(&pair[1]));
-            if a == b {
-                prop_assert!(place(&pair[0]) < place(&pair[1]), "equal rows changed order");
-            } else {
-                prop_assert_eq!(a < b, !descending, "rows out of order");
-            }
-        }
-        // Every other cell of the document is untouched, and a second sort has nothing to do.
-        let changes = editor.apply(command, None, &mut ids).unwrap();
-        prop_assert!(changes.is_empty());
-        let mut back = editor.into_document();
-        back.cell_mut(cell).unwrap().grid_mut().unwrap().clone_from(&grid);
-        prop_assert_eq!(back, doc);
+        sorting_holds(&document(&spec), n, descending)?;
     }
 
     /// Flatten keeps every cell that was inside (with its ID and text), makes a full
