@@ -1418,4 +1418,18 @@ void main() {
       await real(tester, () => endKeeping(keeper));
     });
   });
+
+  group('the test documents', () {
+    test('"Depth forms" is made also after a making that was stopped half-way: '
+        'what that left is in nobody\'s way', () async {
+      final made = Directory('${folder.path}/stopped')..createSync();
+      final part = File('${made.path}/${TestDocument.forms.file}.part')
+        ..writeAsStringSync('half made');
+      final doc = await openTestDocument(TestDocument.forms, made);
+      expect(doc.path, '${made.path}/${TestDocument.forms.file}');
+      expect((await doc.grid(doc.root)).cells.first.text, isNotEmpty);
+      await doc.close();
+      expect(part.existsSync(), isFalse);
+    });
+  });
 }

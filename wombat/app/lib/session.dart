@@ -442,7 +442,7 @@ class Session {
   /// `summary`, `full`) move when a cell before them gains or loses a grid. The lists
   /// inside a [CellLook], [GridPart] or [GridSummary] are wrapped anew at every read
   /// of the field: take `look.runs` once, not inside a loop. `StageRead` and
-  /// `StageReader` (`stage_reader.dart`) do the comparing for a screen.
+  /// `StageReader` (`stage_read.dart`, `keeper.dart`) do the comparing for a screen.
   Future<StageInfo> stage(String cell, StageAsk ask) =>
       _call(() => _doc.stage(cell: cell, ask: ask));
 
