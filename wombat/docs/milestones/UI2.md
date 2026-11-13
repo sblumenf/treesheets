@@ -240,6 +240,15 @@ where scrolling had ended, and handed to the wrong view when a level changed; an
 taps on switches in the settings without a frame between them each started from the
 settings as last drawn.
 
+A fourth was found when the screen first ran on the emulator of CI, by reading the
+screen's code for what differs at that size, and not by the run itself: **a cell edited
+in the first row was not scrolled into view** while that row is kept in view, where it
+scrolls in two fifths of the height. In the example that is "Bread" and "Cheese" of the
+shopping list as soon as the keyboard is up. The row is now scrolled to the edited cell
+like the list below it; the test has the emulator's screen (1080 by 2400 at 420 dpi) and
+a keyboard's inset, and failed first with the cell 53 logical pixels below what was
+seen.
+
 ## What was run, and where
 
 All of it on the cloud machine these documents were written on (Linux x86-64, 4
@@ -312,7 +321,9 @@ push); anything on a phone.
   the document again, and the editor's own field never shows styles (A177, "Left").
 - **Text in a cell is cut at eight lines** unless the cell is edited.
 - **The first row kept in view** takes up to two fifths of the height when it is tall,
-  also with the keyboard up. It can be switched off.
+  also with the keyboard up: on a phone that is then about 150 logical pixels, three
+  lines of a nested grid, and the rest of the row is reached by scrolling it (a cell
+  edited there is scrolled to). It can be switched off.
 - **A list anchored at its last rows** (after the edited cell was scrolled into view by
   starting the list there) shows empty space below them until it is scrolled.
 - The messages of the core and of `StateError`s are English and not in `words.dart`.

@@ -56,6 +56,9 @@ class _StageViewState extends State<StageView> {
   ScrollController? _across;
   ScrollController _down = ScrollController();
 
+  /// Scrolls the first row in what it is given, while it is kept in view.
+  final _top = ScrollController();
+
   /// The row that is at the top when the list is scrolled to its zero: the rows
   /// before it are laid out upwards from there, so that the list can start at any
   /// row without knowing how tall the rows before it are.
@@ -65,6 +68,7 @@ class _StageViewState extends State<StageView> {
   int _starts = 0;
   final _center = UniqueKey();
   final _list = GlobalKey();
+  final _first = GlobalKey();
   final _content = GlobalKey();
   final _rows = <int, GlobalKey>{};
 
@@ -97,6 +101,7 @@ class _StageViewState extends State<StageView> {
     if (widget.place.read == _place) widget.place.read = () => null;
     _across?.dispose();
     _down.dispose();
+    _top.dispose();
     super.dispose();
   }
 
@@ -190,12 +195,16 @@ class _StageViewState extends State<StageView> {
       });
       return;
     }
-    final list = _list.currentContext?.findRenderObject();
-    if (!(_pinRow && at.y == 0) && _down.hasClients && list is RenderBox) {
+    // The first row, while it is kept in view, scrolls by itself in its share of
+    // the height, which is small above a keyboard.
+    final pinned = _pinRow && at.y == 0;
+    final down = pinned ? _top : _down;
+    final list = (pinned ? _first : _list).currentContext?.findRenderObject();
+    if (down.hasClients && list is RenderBox) {
       // By hand, and not by the scroll position's own means: those look for the
       // nearest thing that scrolls, which for a cell of an unfolded grid is not
       // this list.
-      final position = _down.position;
+      final position = down.position;
       final top = box.localToGlobal(Offset.zero, ancestor: list).dy;
       final over = top + box.size.height - list.size.height;
       // The bottom first; then the top, which wins when the cell is too tall.
@@ -306,9 +315,13 @@ class _StageViewState extends State<StageView> {
                             decoration: BoxDecoration(
                               border: Border(bottom: line),
                             ),
-                            child: SingleChildScrollView(
-                              key: const Key('stage-first-row'),
-                              child: _row(grid, widths, 0),
+                            child: KeyedSubtree(
+                              key: _first,
+                              child: SingleChildScrollView(
+                                key: const Key('stage-first-row'),
+                                controller: _top,
+                                child: _row(grid, widths, 0),
+                              ),
                             ),
                           ),
                         ),

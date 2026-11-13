@@ -569,6 +569,75 @@ void main() {
     }
 
     screenTest(
+      'a cell edited in the first row, which is kept in view and scrolls in '
+      'what it is given, is scrolled into view there: on a phone, also above '
+      'the keyboard',
+      (tester, keeper, fake) async {
+        // The screen of the emulator of CI: 1080 by 2400 at 420 dpi.
+        tester.view.devicePixelRatio = 2.625;
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.padding = const FakeViewPadding(top: 63);
+        await tester.pumpAndSettle();
+        void seen(int row) {
+          final cell = tester.getRect(key('cell-0-0/0-$row'));
+          final first = tester.getRect(key('stage-first-row'));
+          expect(cell.top, greaterThanOrEqualTo(first.top - 0.5));
+          expect(cell.bottom, lessThanOrEqualTo(first.bottom + 0.5));
+          expect(first.bottom, lessThan(tester.getRect(key('editor')).top));
+        }
+
+        // Without a keyboard the first row is too tall already for its share.
+        await press(tester, 'cell-0-0/0-1');
+        await tester.pumpAndSettle();
+        seen(1);
+        // The keyboard comes, and takes a third of the screen.
+        tester.view.viewInsets = const FakeViewPadding(bottom: 800);
+        await tester.pumpAndSettle();
+        seen(1);
+        // Return goes down the grid, each cell seen while it is typed in.
+        for (var row = 2; row < 5; row++) {
+          type(tester, 'typed in row ${row - 1}');
+          await pressReturn(tester);
+          await tester.pumpAndSettle();
+          expect(editor(tester), 'item s$row');
+          seen(row);
+        }
+        // And back up by a tap on what is seen of the cell's own text.
+        await press(tester, 'save');
+        await tester.pumpAndSettle();
+        await reveal(tester, 'cell-0-0');
+        await press(tester, 'cell-0-0');
+        await tester.pumpAndSettle();
+        expect(editor(tester), 'one');
+        final cell = tester.getRect(key('cell-0-0'));
+        final first = tester.getRect(key('stage-first-row'));
+        expect(cell.top, greaterThanOrEqualTo(first.top - 0.5));
+        expect(cell.bottom, lessThanOrEqualTo(first.bottom + 0.5));
+        // The keyboard goes: the cell is still seen.
+        await press(tester, 'cancel');
+        await reveal(tester, 'cell-0-0/0-4');
+        await press(tester, 'cell-0-0/0-4');
+        await tester.pumpAndSettle();
+        expect(editor(tester), 'item s4');
+        tester.view.viewInsets = FakeViewPadding.zero;
+        await tester.pumpAndSettle();
+        seen(4);
+        expect(fake.cells['s1']!.text, 'typed in row 1');
+        expect(fake.cells['s3']!.text, 'typed in row 3');
+        await press(tester, 'cancel');
+      },
+      before: (fake) {
+        final ids = [for (var i = 0; i < 5; i++) 's$i'];
+        for (final id in ids) {
+          fake.cells[id] = FakeCell('item $id');
+        }
+        fake.cells['a']!
+          ..xs = 1
+          ..cells = ids;
+      },
+    );
+
+    screenTest(
       'turned while a cell is edited: the text stays, the cell is seen',
       (tester, keeper, fake) async {
         await tester.drag(key('stage-down-0'), const Offset(0, -2000));
