@@ -212,6 +212,13 @@ jobs:
       run: flutter pub get --enforce-lockfile
     - name: Build
       run: flutter build apk --debug --target-platform android-arm64
+    # Kept so that the app can be put on a phone without building it (docs/PHONE_TEST.md).
+    - name: Keep the package
+      uses: actions/upload-artifact@v7
+      with:
+        name: wombat-android-arm64-debug
+        path: wombat/app/build/app/outputs/flutter-apk/app-debug.apk
+        if-no-files-found: error
 
   # The app on an Android emulator: each file of `integration_test/`, one call per file as
   # on Linux. A job of its own, so that a device that does not start is told apart from an

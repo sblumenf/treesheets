@@ -7,13 +7,12 @@ nothing you type, and what gets in your way.
 ## Get the app onto the phone
 
 1. On GitHub, open the repository, then **Actions**, then the workflow **Wombat**, and the
-   newest run of the branch with a green tick.
-2. At the bottom of that run's page, under **Artifacts**, download the Android package (a
-   zip with an `.apk` in it). You have to be signed in to GitHub to download it.
-   *When this page was written the workflow built the Android package and did not yet keep
-   it as an artifact; if there is nothing under Artifacts, ask for the job "App for
-   Android" to upload `build/app/outputs/flutter-apk/app-debug.apk`, or build it as
-   `ANDROID.md` says under "To install without building".*
+   newest run of the branch in which the job **App for Android** has a green tick (the run
+   as a whole may be red because of another job, such as the one for iOS).
+2. At the bottom of that run's page, under **Artifacts**, download
+   `wombat-android-arm64-debug` (a zip with `app-debug.apk` in it). You have to be signed in
+   to GitHub to download it. It is for phones with a 64-bit ARM processor, which is nearly
+   every Android phone of the last years.
 3. Get the `.apk` onto the phone (unzip it first; send it to yourself, or copy it over
    USB) and tap it. Android asks whether to allow installing from this source: allow it for
    this once. The app is called **Wombat**. It is a debug build: slower than a real one,
