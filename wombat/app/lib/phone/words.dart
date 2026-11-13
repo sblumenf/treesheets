@@ -56,6 +56,10 @@ abstract final class Words {
   /// An unfolded grid is folded again by this.
   static const fold = 'Fold';
 
+  /// A grid is not unfolded in place because the read would become too large.
+  static const unfoldTooMany =
+      'Unfolding this here would read too many cells. Use "Open ›".';
+
   static const typedOn =
       'Not done: more was typed in the meantime. It is still in the editor.';
 

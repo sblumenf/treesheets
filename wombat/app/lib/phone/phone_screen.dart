@@ -461,6 +461,13 @@ class _PhoneScreenState extends State<PhoneScreen> {
     // Only a grid of a cell of the stage itself unfolds: the read gives one level
     // cell by cell.
     if (_variants.tapChildUnfolds && placeOf(stage, id)?.part.level == 0) {
+      // Not where that would make every read of this level large: the cell is
+      // selected instead, for "Open ›".
+      if (unfoldCost(stage, _fullCells({..._unfolded, id})) > unfoldCells) {
+        setState(() => _selected = id);
+        _note();
+        return _say(Words.unfoldTooMany);
+      }
       setState(() => _unfolded.add(id));
       _log('unfold', _where(id));
       return _askFor();
@@ -475,18 +482,32 @@ class _PhoneScreenState extends State<PhoneScreen> {
     await _askFor();
   });
 
-  /// Asks the reader for what the unfolded grids need: each of them cell by cell,
-  /// however many cells it has.
-  Future<void> _askFor() async {
-    final reader = _reader!;
-    final stage = reader.stage;
+  /// The most cells a grid must be allowed to have for each of the grids in
+  /// `unfolded` to be given cell by cell.
+  int _fullCells(Set<String> unfolded) {
+    final stage = _reader!.stage;
     var cells = phoneAsk.fullCells;
-    for (final id in _unfolded) {
+    for (final id in unfolded) {
       final look = stage.look(id);
       final summary = look == null ? null : stage.summary(look);
       if (summary != null && summary.xs * summary.ys > cells) {
         cells = summary.xs * summary.ys;
       }
+    }
+    return cells;
+  }
+
+  /// Asks the reader for what the unfolded grids need: each of them cell by cell.
+  /// If they have grown so that this would make every read large ([unfoldCells]),
+  /// they are folded again, and a line says so.
+  Future<void> _askFor() async {
+    final reader = _reader!;
+    final stage = reader.stage;
+    var cells = _fullCells(_unfolded);
+    if (unfoldCost(stage, cells) > unfoldCells) {
+      if (mounted) setState(_unfolded.clear);
+      _say(Words.unfoldTooMany);
+      cells = phoneAsk.fullCells;
     }
     if (cells == stage.ask.fullCells) return;
     try {

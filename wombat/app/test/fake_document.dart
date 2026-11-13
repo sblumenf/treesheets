@@ -123,9 +123,16 @@ class Watched with Hooks implements OpenDocument {
   Future<GridInfo> grid({required String cell}) =>
       hooked('grid', () => _real.grid(cell: cell));
 
+  /// How many cells the stage reads gave, one after the other.
+  final List<int> stageCells = [];
+
   @override
   Future<StageInfo> stage({required String cell, required StageAsk ask}) =>
-      hooked('stage', () => _real.stage(cell: cell, ask: ask));
+      hooked('stage', () async {
+        final info = await _real.stage(cell: cell, ask: ask);
+        stageCells.add(info.cells.length);
+        return info;
+      });
 
   @override
   Future<CellLook> cell({required String cell}) =>

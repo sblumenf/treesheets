@@ -3163,6 +3163,23 @@ are where milestones 4, 5 and 6, built apart, meet).
       *Left:* a screen that is taken away in the middle of a move (which the app does
       not do: it lets the queue finish first) enters the text of the cell that is
       left, and what was typed for the next cell has no cell to go to.
+194. **A grid is not unfolded in place where that would make every read large** (the
+    fifth review, finding 3; `place.dart` `unfoldCells`, `unfoldCost`). The request for
+    a stage has one bound, `full_cells`, for all the grids of the stage, so unfolding
+    one grid in place gives every grid of that level that is no larger cell by cell
+    too. At the root of the large test document (1,000 grids of 100 cells) one tap
+    made every read 101,000 cells: 1.1 seconds on a desktop where the plain read takes
+    about a quarter of a second, again after every change.
+    - The screen now works out, from the read it has, how many cells more the read
+      would give, and does not unfold when that is over 500: half as much again as
+      the plain read of that root. The message line says so and names "Open ›", and
+      the cell is selected, so that the bottom bar's "Open ›" goes into it.
+    - Grids that are unfolded and then grow over the bound (an undo or a redo, a row
+      added) are folded again, with the same line.
+    - *Left:* the bound is checked when the screen asks, not at every read: grids
+      that grow, behind the screen, into the range that is given cell by cell are
+      read until the next time it asks. *Better, and not done because it changes the
+      bridge:* a request that names the grids to give cell by cell.
 
 
 ## B. Deliberate departures from TreeSheets

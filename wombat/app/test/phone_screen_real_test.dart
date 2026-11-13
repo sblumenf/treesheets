@@ -749,6 +749,65 @@ void main() {
       variants: const Variants(tapChildUnfolds: true),
     );
 
+    // The fifth review, finding 3: the request has one bound for the whole stage,
+    // so one grid of 100 cells unfolded at the root of the large test document
+    // made every read give all thousand grids cell by cell, 101,000 cells.
+    realTest(
+      'a grid whose unfolding would make every read large is not unfolded',
+      (tester, keeper, doc, watch) async {
+        await press(tester, 'child-0-0');
+        await until(tester, () => line(tester, 'message') != null);
+        expect(
+          line(tester, 'message'),
+          'Unfolding this here would read too many cells. Use "Open ›".',
+        );
+        expect(there('full-0-0'), isFalse);
+        // The cell is the selected one, for "Open ›" of the bottom bar.
+        expect(tester.widget<TextButton>(key('bar-open')).onPressed, isNotNull);
+        // What is read after a change is the stage's own thousand cells.
+        await edit(tester, '0-1', 'Section 10');
+        type(tester, 'typed');
+        await closed(tester, 'save');
+        expect(watch.stageCells.every((cells) => cells == 1000), isTrue);
+        expect(watch.stageCells.length, greaterThan(1));
+      },
+      open: (folder, _) async {
+        final made = await openTestDocument(TestDocument.large, folder);
+        final path = made.path;
+        await made.close();
+        return watch(path);
+      },
+      variants: const Variants(tapChildUnfolds: true),
+    );
+
+    realTest(
+      'a grid that is unfolded and then grows too large for that is folded',
+      (tester, keeper, doc, watch) async {
+        // 3 by 4, with 200 rows more made and undone behind the screen.
+        final owner = await idAt(tester, keeper, keeper.root, 0);
+        await real(tester, () async {
+          await keeper.apply(
+            Command.insertRows(cell: owner, at: 4, count: 200),
+          );
+          await keeper.undo();
+        });
+        await tester.pump();
+        await press(tester, 'child-0-0');
+        await until(tester, () => there('full-0-0'));
+        // The redo makes it 612 cells.
+        await tap(tester, 'redo', () => line(tester, 'message') != null);
+        expect(
+          line(tester, 'message'),
+          'Unfolding this here would read too many cells. Use "Open ›".',
+        );
+        expect(there('full-0-0'), isFalse);
+        expect(there('cell-0-0/0-8'), isFalse);
+        expect(watch.stageCells.last, lessThan(100));
+      },
+      open: nestedWide,
+      variants: const Variants(tapChildUnfolds: true),
+    );
+
     realTest(
       'a row added to a Full grid that then has too many cells for that: the '
       'editor closes, nothing is lost',

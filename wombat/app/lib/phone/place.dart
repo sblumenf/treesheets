@@ -77,6 +77,31 @@ StageAsk askFull(int cells) => StageAsk(
   previewCut: phoneAsk.previewCut,
 );
 
+/// The most cells that unfolding grids in place may add to a read of the stage.
+/// The request has one bound for all grids of the stage ([askFull]), so unfolding
+/// one grid gives every grid of the stage that is no larger cell by cell as well:
+/// at the root of the large test document that made a read 101,000 cells and 1.1
+/// seconds, where the plain read of its 1,000 cells takes about a quarter of that.
+/// With this, a read is at most half as large again as that plain one.
+const unfoldCells = 500;
+
+/// How many cells of nested grids a read of `stage`'s level gives more than
+/// [phoneAsk] does when it is asked with [askFull] of `cells`: the cells of every
+/// grid of a cell of the stage that [phoneAsk] does not give cell by cell and that
+/// has at most `cells` cells.
+int unfoldCost(StageRead stage, int cells) {
+  final grid = stage.grid;
+  if (grid == null) return 0;
+  var more = 0;
+  for (var i = 0; i < grid.cols * grid.rows; i++) {
+    final summary = stage.summary(stage.cells[grid.first + i]);
+    if (summary == null) continue;
+    final size = summary.xs * summary.ys;
+    if (size > phoneAsk.fullCells && size <= cells) more += size;
+  }
+  return more;
+}
+
 /// Whether every code point of `look`'s text from `start` up to `end` has the bit
 /// that `bit` reads: what decides whether Bold switches it off or on. A range
 /// without text is styled when the cell's base style is.
